@@ -2,31 +2,60 @@
 
 All-in-one software for marine chief engineers: voyage management, tank & bunker management, oil record book, and shared vessel setup.
 
-## Product intent
+## What works now (v0.1)
 
-Cheng-Pro unifies:
+Unified shell + server in this repo:
 
-- **Voyage Chief** (`voyage-manager`) — noon reports, ROB, consumption, e-ORB, fleet sync
-- **Tank Chief** (`tank-management`) — tank sounding, calibration, fuel reports, bunkering
+- **One active vessel** drives Voyage and Tanks together
+- **Vessel Setup** is the only shared identity surface (name, IMO, flag, company, …)
+- **Separate data planes** under each vessel:
+  - `data/vessels/<id>/vessel.json` + `assets.json` — shared
+  - `data/vessels/<id>/tanks/` — tank plane
+  - `data/vessels/<id>/voyage/` — voyage plane (+ `legs/` sync packs)
+- Responsive UI for desktop, phone (bottom nav), tablet landscape
+- Proxmox/Debian install script: `deploy/proxmox-install.sh`
 
-into one client and one Proxmox (Debian LXC) server, with:
+Full architecture: [docs/UNIFICATION_PLAN.md](docs/UNIFICATION_PLAN.md) · contract: [docs/VESSEL_CONTRACT.md](docs/VESSEL_CONTRACT.md)
 
-- **Shared** vessel identity, active vessel selection, Vessel Setup, and auth
-- **Separate** voyage data plane and tank data plane (only ship details are shared)
-- Install targets: **Windows browser**, **Windows installer**, **USB portable EXE**, **Android** (phone & tablet, portrait & landscape)
+## Quick start
 
-## Status
+```bash
+npm install
+npm run seed
+npm start
+# http://0.0.0.0:8080
+```
 
-Planning / architecture phase. Implementation will land in this repository.
+```bash
+npm test   # smoke test (temp data dir)
+```
 
-| Doc | Contents |
-|-----|----------|
-| [docs/UNIFICATION_PLAN.md](docs/UNIFICATION_PLAN.md) | Full merge architecture, phases, packaging, success criteria |
-| [docs/VESSEL_CONTRACT.md](docs/VESSEL_CONTRACT.md) | Shared vessel schema, API routes, client bridge |
+Default seed vessel: **MV DEMO HARBOUR** (active).
 
-## Design rules (summary)
+## API (phase 1)
 
-1. One active vessel serves both modules side by side.
-2. Vessel Setup and server fetch are single surfaces for both programs.
-3. Tanks and voyage datasets are stored and synced independently under the same vessel id.
-4. Server stays Debian on Proxmox LXC; clients remain offline-capable after first enrollment.
+| Area | Paths |
+|------|--------|
+| Health | `GET /api/health`, `GET /api/status` |
+| Shared vessels | `GET/POST /api/vessels`, `POST /api/vessels/active`, `GET/PUT/DELETE /api/vessels/:id` |
+| Tanks | `GET /api/tanks/:vesselId`, tank CRUD, `POST …/calculate`, `PUT …/:part` |
+| Voyage | `GET /api/voyage/:vesselId`, `PUT …/:part`, `GET/PUT …/:voyage/:B\|L` |
+| Auth | `POST /api/auth/login` (optional; open mode by default) |
+
+## Deploy (Proxmox LXC / Debian)
+
+Inside the container as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tsogs66/Cheng-Pro/main/deploy/proxmox-install.sh | bash
+```
+
+Or copy `deploy/proxmox-install.sh` into the CT and run it. Listens on **:8080** (nginx → Node :8787).
+
+## Roadmap
+
+1. ~~Scaffold shell + shared vessel + dual planes~~ (this release)
+2. Port full Tank Chief UI/calc/import into the Tanks module
+3. Port full Voyage Chief SPA/e-ORB into the Voyage module
+4. Voyage-grade auth (assignments, device enrollment) on all routes
+5. Windows installer + portable EXE + Android APK

@@ -1,0 +1,11 @@
+{
+  "name": "Cheng-Pro",
+  "short_name": "Cheng-Pro",
+  "description": "All-in-one chief engineer suite — voyage and tank management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07141a",
+  "theme_color": "#0b1c24",
+  "orientation": "any",
+  "icons": []
+}

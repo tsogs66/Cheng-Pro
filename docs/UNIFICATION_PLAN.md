@@ -358,9 +358,13 @@ cheng-pro/
 
 ## Immediate next implementation steps
 
-1. Scaffold `apps/web` shell with vessel switcher stub and module placeholders.
-2. Add `server` with `/api/vessels` + auth ported from Voyage; empty mounts for `/api/voyage` and `/api/tanks`.
-3. Vendor Tank `store-core` under `vessels/<id>/tanks/` path convention.
-4. Vendor Voyage sync payload writers under `vessels/<id>/voyage/`.
-5. Proxmox script draft `deploy/proxmox-install.sh` for single CT.
-6. Responsive shell checklist against phone portrait + tablet landscape before deep feature ports.
+1. ~~Scaffold `apps/web` shell with vessel switcher stub and module placeholders.~~
+2. ~~Add `server` with `/api/vessels` + auth mounts for `/api/voyage` and `/api/tanks`.~~
+3. ~~Tank plane under `vessels/<id>/tanks/` (+ calc endpoint).~~
+4. ~~Voyage plane under `vessels/<id>/voyage/` (+ leg merge sync).~~
+5. ~~Proxmox script `deploy/proxmox-install.sh`.~~
+6. ~~Responsive shell (desktop / phone bottom-nav / tablet landscape).~~
+7. Port full Tank Chief UI (fuel report, bunkering, PDF/Excel import) into Tanks module.
+8. Port full Voyage Chief SPA (noon math, e-ORB, Fleet Office) into Voyage module.
+9. Voyage-grade auth (assignments, device enrollment) enforced on writes.
+10. Windows installer + portable EXE + Android Capacitor packaging.

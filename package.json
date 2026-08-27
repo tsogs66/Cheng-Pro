@@ -1,0 +1,21 @@
+{
+  "name": "cheng-pro",
+  "version": "0.1.0",
+  "description": "Cheng-Pro — all-in-one marine chief engineer suite (voyage + tanks)",
+  "author": "ts0gs (Marvin C. Endozo)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "seed": "node scripts/seed-demo.js",
+    "test": "node scripts/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "license": "MIT"
+}
