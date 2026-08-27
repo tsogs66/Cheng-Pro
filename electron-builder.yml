@@ -1,0 +1,56 @@
+appId: marine.chengpro.app
+productName: Cheng-Pro
+copyright: ts0gs (Marvin C. Endozo)
+
+directories:
+  output: dist
+  buildResources: desktop/build
+
+files:
+  - package.json
+  - desktop/**/*
+  - server/**/*
+  - apps/**/*
+  - modules/**/*
+  - scripts/**/*
+  - seed/**/*
+  - "!**/*.map"
+  - "!**/__pycache__/**"
+  - "!modules/tanks/node_modules/**"
+  - "!**/dist/**"
+
+asarUnpack:
+  - modules/tanks/scripts/**/*
+  - modules/voyage/sync-server/**/*
+  - scripts/**/*
+
+extraResources:
+  - from: desktop/runtime
+    to: runtime
+    filter: ["**/*"]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  artifactName: ChengPro-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Cheng-Pro
+  uninstallDisplayName: Cheng-Pro
+
+portable:
+  artifactName: ChengPro-Portable-${version}-${arch}.${ext}
+
+linux:
+  target:
+    - AppImage
+  category: Utility
+  artifactName: ChengPro-${version}.${ext}
