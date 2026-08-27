@@ -358,13 +358,10 @@ cheng-pro/
 
 ## Immediate next implementation steps
 
-1. ~~Scaffold `apps/web` shell with vessel switcher stub and module placeholders.~~
-2. ~~Add `server` with `/api/vessels` + auth mounts for `/api/voyage` and `/api/tanks`.~~
-3. ~~Tank plane under `vessels/<id>/tanks/` (+ calc endpoint).~~
-4. ~~Voyage plane under `vessels/<id>/voyage/` (+ leg merge sync).~~
-5. ~~Proxmox script `deploy/proxmox-install.sh`.~~
-6. ~~Responsive shell (desktop / phone bottom-nav / tablet landscape).~~
-7. Port full Tank Chief UI (fuel report, bunkering, PDF/Excel import) into Tanks module.
-8. Port full Voyage Chief SPA (noon math, e-ORB, Fleet Office) into Voyage module.
-9. Voyage-grade auth (assignments, device enrollment) enforced on writes.
-10. Windows installer + portable EXE + Android Capacitor packaging.
+1. ~~Scaffold shell + shared vessel + dual planes~~
+2. ~~Port full Tank Chief under `/tanks/`~~
+3. ~~Port full Voyage Chief under `/voyage/` + Python auth/sync~~
+4. ~~Unified gateway, Proxmox install, Electron + CI packaging~~
+5. Optional: deeper shell↔module vessel lock (force Voyage assignment from shell active vessel)
+6. Optional: Windows code-signing + signed Android Play bundle
+7. Optional: single-process Node port of voyage auth (drop Python sidecar)

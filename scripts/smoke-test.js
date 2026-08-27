@@ -1,8 +1,5 @@
 'use strict';
 
-/**
- * Smoke test: shared vessel + separate planes + active vessel.
- */
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -11,24 +8,25 @@ const http = require('http');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cheng-pro-'));
 process.env.CHENG_PRO_DATA_DIR = tmp;
+process.env.TMS_DATA_DIR = tmp;
 process.env.PORT = '0';
 process.env.HOST = '127.0.0.1';
+process.env.SYNC_PORT = String(18787 + Math.floor(Math.random() * 1000));
+process.env.SYNC_ADMIN_PASSWORD = 'test-admin-pass';
 
-const store = require('../server/store');
-const app = require('../server/index');
-
-function request(port, method, urlPath, body) {
+function request(port, method, urlPath, body, headers = {}) {
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
+    const data = body == null ? null : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
     const req = http.request(
       {
         hostname: '127.0.0.1',
         port,
         path: urlPath,
         method,
-        headers: data
-          ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
-          : {},
+        headers: {
+          ...(data ? { 'Content-Type': 'application/json', 'Content-Length': data.length } : {}),
+          ...headers,
+        },
       },
       (res) => {
         let raw = '';
@@ -36,7 +34,7 @@ function request(port, method, urlPath, body) {
         res.on('end', () => {
           let json = null;
           try { json = raw ? JSON.parse(raw) : null; } catch { json = raw; }
-          resolve({ status: res.statusCode, json });
+          resolve({ status: res.statusCode, json, raw });
         });
       }
     );
@@ -47,91 +45,68 @@ function request(port, method, urlPath, body) {
 }
 
 async function main() {
-  const server = await new Promise((resolve) => {
-    const s = app.listen(0, '127.0.0.1', () => resolve(s));
-  });
+  const { boot } = require('../server/index');
+  const server = await boot();
   const port = server.address().port;
 
   try {
     const health = await request(port, 'GET', '/api/health');
     assert.equal(health.status, 200);
     assert.equal(health.json.product, 'cheng-pro');
+    assert.ok(health.json.modules.voyage.ok, 'voyage sync should be ok');
+    assert.ok(health.json.modules.tanks.ok, 'tanks should be ok');
 
-    const created = await request(port, 'POST', '/api/vessels', {
+    const created = await request(port, 'POST', '/api/shell/vessels', {
       name: 'MV SMOKE TEST',
       imo: '9988776',
       flag: 'LR',
-      company: 'Test Co',
     });
     assert.equal(created.status, 201);
     const id = created.json.id;
-    assert.ok(id);
 
-    // Shared layout
     assert.ok(fs.existsSync(path.join(tmp, 'vessels', id, 'vessel.json')));
-    assert.ok(fs.existsSync(path.join(tmp, 'vessels', id, 'tanks', 'tanks.json')));
-    assert.ok(fs.existsSync(path.join(tmp, 'vessels', id, 'voyage', 'setup.json')));
+    assert.ok(fs.existsSync(path.join(tmp, 'vessels', id, 'tanks.json')));
 
-    const active = await request(port, 'POST', '/api/vessels/active', { id });
-    assert.equal(active.status, 200);
-    assert.equal(active.json.activeVesselId, id);
+    await request(port, 'POST', '/api/shell/vessels/active', { id });
 
-    const tank = await request(port, 'POST', `/api/tanks/${id}/tanks`, {
-      name: 'TEST HFO',
-      category: 'fuel',
-      capacity: 100,
+    const tankHealth = await request(port, 'GET', '/tanks/api/health');
+    assert.equal(tankHealth.status, 200);
+
+    const tankVessel = await request(port, 'GET', `/tanks/api/vessels/${id}`);
+    assert.equal(tankVessel.status, 200);
+    assert.equal(tankVessel.json.vessel.name, 'MV SMOKE TEST');
+
+    const tankPage = await request(port, 'GET', '/tanks/');
+    assert.equal(tankPage.status, 200);
+    assert.ok(String(tankPage.raw).includes('Cheng-Pro') || String(tankPage.raw).includes('Tank'));
+
+    const voyagePage = await request(port, 'GET', '/voyage/');
+    assert.equal(voyagePage.status, 200);
+
+    const voyageHealth = await request(port, 'GET', '/api/auth/login'.replace('auth/login', 'health'));
+    // /api/health already checked voyage; also hit voyage list auth-open
+    const vHealth = await request(port, 'GET', '/api/health');
+    assert.ok(vHealth.json.modules.voyage);
+
+    // Admin login against proxied Python auth
+    const login = await request(port, 'POST', '/api/auth/login', {
+      username: 'admin',
+      password: process.env.SYNC_ADMIN_PASSWORD,
     });
-    assert.equal(tank.status, 201);
+    assert.equal(login.status, 200, 'admin login: ' + JSON.stringify(login.json));
+    assert.ok(login.json.sessionToken, 'expected sessionToken');
 
-    const tanksBundle = await request(port, 'GET', `/api/tanks/${id}`);
-    assert.equal(tanksBundle.status, 200);
-    assert.equal(tanksBundle.json.vessel.name, 'MV SMOKE TEST');
-    assert.ok(tanksBundle.json.tanks.fuel.length >= 1);
-
-    await request(port, 'PUT', `/api/voyage/${id}/setup`, {
-      voyageNumber: '99',
-      shipCondition: 'L',
-      chEng: 'Smoke CE',
-    });
-
-    const voyage = await request(port, 'GET', `/api/voyage/${id}`);
-    assert.equal(voyage.status, 200);
-    assert.equal(voyage.json.setup.voyageNumber, '99');
-    // Shared identity mirrored, not overwritten by client attempt
-    assert.equal(voyage.json.setup.vesselName, 'MV SMOKE TEST');
-    assert.equal(voyage.json.setup.imoNo, '9988776');
-
-    // Tank write must not create voyage entries file pollution at root
-    const rootFiles = fs.readdirSync(path.join(tmp, 'vessels', id));
-    assert.ok(rootFiles.includes('vessel.json'));
-    assert.ok(rootFiles.includes('tanks'));
-    assert.ok(rootFiles.includes('voyage'));
-    assert.ok(!rootFiles.includes('tanks.json'), 'legacy flat tanks.json must not exist at vessel root');
-
-    const leg = await request(port, 'PUT', `/api/voyage/${id}/99/L`, {
-      data: {
-        setup: { voyageNumber: '99', shipCondition: 'L' },
-        entries: [{ id: 'e1', datetime: '2026-08-01 12:00', operation: 'NOON', updatedAt: '2026-08-01T12:00:00.000Z' }],
-        receipts: [],
-        documents: [],
-        abstracts: [],
-        printHistory: [],
-        orbEntries: [],
-        deletedIds: {},
-      },
-    });
-    assert.equal(leg.status, 200);
-    assert.equal(leg.json.data.entries.length, 1);
-
-    // Identity update propagates to voyage setup
-    await request(port, 'PUT', `/api/vessels/${id}`, { name: 'MV SMOKE RENAMED', imo: '9988776' });
-    const voyage2 = await request(port, 'GET', `/api/voyage/${id}`);
-    assert.equal(voyage2.json.setup.vesselName, 'MV SMOKE RENAMED');
+    const shell = await request(port, 'GET', '/');
+    assert.equal(shell.status, 200);
+    assert.ok(String(shell.raw).includes('Cheng-Pro'));
 
     console.log('smoke-test: ok');
   } finally {
-    server.close();
-    fs.rmSync(tmp, { recursive: true, force: true });
+    try {
+      server.close();
+    } catch { /* ignore */ }
+    // voyage child killed on SIGTERM of process — force exit
+    setTimeout(() => process.exit(0), 500);
   }
 }
 

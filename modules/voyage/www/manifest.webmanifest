@@ -1,0 +1,31 @@
+{
+  "name": "Voyage Chief — Engine Log",
+  "short_name": "Voyage Chief",
+  "description": "Ship fuel consumption, RPM, speed and performance logging with offline support",
+  "start_url": "./voyage_manager.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a1420",
+  "theme_color": "#0a1420",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/logoBG.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

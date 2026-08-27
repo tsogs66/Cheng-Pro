@@ -1,0 +1,1634 @@
+:root {
+  --bg: #0f172a;
+  --bg-panel: #16213a;
+  --bg-panel-2: #1c2942;
+  --bg-card: #1a2540;
+  --border: #2c3b5c;
+  --border-soft: #24314c;
+  --text: #e7ecf5;
+  --text-dim: #9fb0cc;
+  --text-faint: #6b7fa3;
+  --accent: #3aa0ff;
+  --accent-2: #5ecbe6;
+  --good: #2fbf71;
+  --warn: #e6b34d;
+  --bad: #e6584d;
+  --fuel: #e6b34d;
+  --lube: #b98af5;
+  --misc: #8aa0c4;
+  --water: #5ecbe6;
+  --radius: 10px;
+  --shadow: 0 2px 10px rgba(0,0,0,0.35);
+  --sidebar-w: 240px;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100%;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+
+.app-shell { display: flex; min-height: 100vh; min-height: 100dvh; }
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  padding: 14px 10px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(10px + env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  z-index: 20;
+}
+body.nav-open {
+  overflow: hidden;
+  touch-action: none;
+}
+.brand { padding: 4px 10px 14px; border-bottom: 1px solid var(--border-soft); margin-bottom: 8px; }
+.brand .ship { font-weight: 700; font-size: 14px; }
+.brand .sub { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+.status-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 6px; background: var(--warn);
+}
+.status-dot.online { background: var(--good); }
+.status-dot.offline { background: var(--bad); }
+
+.nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 8px;
+  background: transparent; border: none;
+  color: var(--text-dim); text-align: left; cursor: pointer;
+  font-size: 13.5px; font-weight: 500;
+}
+.nav-btn:hover { background: var(--bg-card); color: var(--text); }
+.nav-btn.active { background: var(--accent); color: #051323; font-weight: 700; }
+.nav-btn .ic { width: 18px; text-align: center; opacity: .85; }
+.nav-group-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-faint); padding: 12px 10px 2px;
+}
+.vessel-select {
+  width: 100%; margin: 6px 0 8px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+}
+
+.main {
+  flex: 1; min-width: 0;
+  padding: 20px 24px calc(70px + env(safe-area-inset-bottom, 0px));
+  padding-right: calc(24px + env(safe-area-inset-right, 0px));
+}
+.menu-toggle {
+  display: none; position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  z-index: 40;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; cursor: pointer;
+  min-height: 44px; min-width: 44px;
+}
+body.nav-open .menu-toggle { opacity: 0; pointer-events: none; }
+.sidebar-backdrop {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 15;
+}
+
+.page-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+}
+.page-head h1 { font-size: 20px; margin: 0 0 4px; }
+.page-head .desc { color: var(--text-dim); font-size: 13px; }
+
+.btn {
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px;
+}
+label.btn { margin: 0; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #051323; }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+.btn.small { padding: 6px 10px; font-size: 12px; min-height: 36px; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.about-copy { max-width: 760px; line-height: 1.7; color: var(--text-dim); font-size: 13.5px; }
+.about-copy p { margin: 0 0 12px; }
+.about-copy h2 {
+  margin: 18px 0 6px; font-size: 12px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-faint); font-weight: 700;
+}
+.about-copy b { color: var(--text); font-weight: 700; }
+.about-install {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  margin: 4px 0 8px; padding: 14px 16px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.about-install .btn { min-height: 44px; font-size: 14px; }
+.about-install-hint {
+  flex: 1 1 220px; margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.55;
+}
+.btn-row > * { min-width: 0; }
+.inline-flex-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.inline-flex-row > * { min-width: 0; flex: 1 1 140px; }
+.pdf-upload-card {
+  background: var(--bg-card); border: 1px solid var(--accent);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
+}
+.pdf-upload-card .section-title { margin-top: 0; }
+.pdf-progress {
+  display: none;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+.pdf-progress.active { display: block; }
+.pdf-progress-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; margin-bottom: 8px;
+}
+.pdf-progress-title { font-weight: 650; font-size: 13px; }
+.pdf-progress-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2); font-weight: 700; font-size: 13px;
+}
+.pdf-progress-msg { font-size: 13px; margin-top: 8px; }
+.pdf-progress-meta { margin-top: 4px; }
+.pdf-progress-bar {
+  height: 10px; border-radius: 999px; background: var(--bg);
+  border: 1px solid var(--border); overflow: hidden; position: relative;
+}
+.pdf-progress-bar > div {
+  height: 100%; width: 30%; background: var(--accent);
+  transition: width .35s ease;
+}
+.pdf-progress-bar.indeterminate > div {
+  width: 40%;
+  animation: pdf-progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes pdf-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(280%); }
+}
+
+.cards-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin-bottom: 18px;
+}
+.card {
+  background: var(--bg-card); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.card .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-faint); margin-bottom: 6px;
+}
+.card .value { font-size: 22px; font-weight: 700; }
+.card .value .unit { font-size: 12px; color: var(--text-dim); font-weight: 500; margin-left: 4px; }
+.card .sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+.cat-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
+.cat-fuel { background: var(--fuel); }
+.cat-lube { background: var(--lube); }
+.cat-misc { background: var(--misc); }
+.cat-water { background: var(--water); }
+
+.form-panel, .result-panel {
+  background: var(--bg-card); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 16px;
+}
+.form-row { margin-bottom: 12px; }
+.form-row label {
+  display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; font-weight: 600;
+}
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 7px; padding: 9px 10px; min-width: 0;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+.form-row .hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-grid { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+
+table.data-table, table.tank-table, table.leg-table, table.calib-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+table.data-table th, table.tank-table th, table.leg-table th, table.calib-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-faint); padding: 8px 8px; border-bottom: 1px solid var(--border);
+}
+table.data-table td, table.tank-table td, table.leg-table td, table.calib-table td {
+  padding: 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle;
+}
+table.tank-table tr.clickable { cursor: pointer; }
+table.tank-table tr:hover td { background: var(--bg-panel-2); }
+table.leg-table input, table.calib-table input {
+  width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 5px; padding: 5px 6px;
+}
+.tname { font-weight: 600; }
+.tag {
+  display: inline-block; padding: 2px 7px; border-radius: 6px;
+  background: rgba(159,176,204,.12); color: var(--text-dim); font-size: 11px;
+}
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+}
+.pill.good { background: rgba(47,191,113,.15); color: var(--good); }
+.pill.warn { background: rgba(230,179,77,.15); color: var(--warn); }
+.pill.bad { background: rgba(230,88,77,.15); color: var(--bad); }
+.pill.neutral { background: rgba(159,176,204,.12); color: var(--text-dim); }
+
+.fillbar-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.fillbar-track {
+  flex: 1; height: 8px; border-radius: 5px; background: var(--bg-panel);
+  overflow: hidden; border: 1px solid var(--border-soft);
+}
+.fillbar-fill { height: 100%; }
+.fillbar-pct { font-size: 12px; color: var(--text-dim); width: 38px; text-align: right; }
+
+.section-title {
+  font-size: 15px; font-weight: 700; margin: 22px 0 10px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+table.calib-table { font-variant-numeric: tabular-nums; }
+table.calib-table th {
+  position: sticky; top: 0; background: var(--bg-panel); z-index: 1;
+  white-space: nowrap;
+}
+table.calib-table th:first-child,
+table.calib-table td:first-child {
+  position: sticky; left: 0; background: var(--bg-card); z-index: 2;
+}
+table.calib-table thead th:first-child { z-index: 3; }
+table.calib-table input[type="number"] {
+  min-width: 72px; text-align: right;
+}
+
+/* Excel Tank1–Tank4 style calibration grid */
+.excel-calib { position: relative; }
+.excel-scroll {
+  max-height: min(70vh, 70dvh);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+table.excel-table { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+table.excel-table th, table.excel-table td {
+  border-right: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  padding: 2px;
+  background: var(--bg-card);
+}
+table.excel-table thead .excel-head-1 th {
+  position: sticky; top: 0; z-index: 4;
+  background: #1e3358; color: var(--text-dim); font-size: 10px;
+  text-transform: uppercase; letter-spacing: .04em; padding: 6px 4px;
+}
+table.excel-table thead .excel-head-2 th {
+  position: sticky; top: 28px; z-index: 4;
+  background: var(--bg-panel); padding: 2px;
+}
+table.excel-table .excel-corner, table.excel-table .excel-corner-sub,
+table.excel-table td.excel-rowh {
+  position: sticky; left: 0; z-index: 5;
+  background: #182744; min-width: 88px;
+}
+table.excel-table thead .excel-corner { z-index: 6; }
+table.excel-table .excel-sec-trim { background: #243b63 !important; }
+table.excel-table .excel-sec-vol { background: #2a4a3a !important; color: #b7e0c4; }
+table.excel-table .excel-sec-list { background: #3a2f4f !important; }
+table.excel-table td.excel-trim { background: rgba(58,160,255,.04); }
+table.excel-table td.excel-vol { background: rgba(47,191,113,.07); }
+table.excel-table td.excel-list { background: rgba(185,138,245,.07); }
+table.excel-table td.excel-gap { background: var(--bg); min-width: 10px; }
+table.excel-table input[type="number"] {
+  width: 68px; min-width: 68px; border: 1px solid transparent;
+  background: transparent; padding: 4px 3px; text-align: right;
+}
+table.excel-table input[type="number"]:focus {
+  border-color: var(--accent); background: var(--bg-panel); outline: none;
+}
+.calib-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding: 10px 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  background: rgba(22, 33, 58, 0.96);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+}
+.calib-sticky-actions .hint {
+  margin-right: auto;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+.kv-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft);
+}
+.kv-row .k { color: var(--text-dim); font-size: 13px; }
+.kv-row .v { font-weight: 700; }
+.kv-row input { width: 120px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.kv-row.total { border-bottom: none; margin-top: 6px; }
+
+.steps { display: flex; flex-direction: column; }
+.step {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 4px; border-bottom: 1px dashed var(--border-soft);
+}
+.step .step-label { font-size: 13px; color: var(--text-dim); }
+.step .step-label .formula {
+  display: block; font-size: 11px; color: var(--text-faint); margin-top: 2px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.step .step-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.step.highlight {
+  background: rgba(58,160,255,.08); border-radius: 8px; padding: 12px 10px;
+}
+.step.highlight .step-value { color: var(--accent-2); font-size: 18px; }
+
+.gauge-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.gauge-ring { position: relative; width: 84px; height: 84px; flex-shrink: 0; }
+.gauge-ring svg { transform: rotate(-90deg); }
+.gauge-ring .gauge-pct {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px;
+}
+
+.fuel-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.back-link {
+  color: var(--accent); cursor: pointer; font-size: 13px; margin-bottom: 10px; display: inline-block;
+}
+.empty-state { color: var(--text-faint); padding: 28px 10px; text-align: center; }
+.toast {
+  position: fixed;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: #223353; border: 1px solid var(--border); color: var(--text);
+  padding: 10px 16px; border-radius: 8px; opacity: 0; transition: .2s; z-index: 100;
+  max-width: min(90vw, 520px); pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.textarea-json {
+  width: 100%; min-height: 160px; background: var(--bg-panel);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+}
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+}
+.help-box {
+  background: rgba(58,160,255,.08); border: 1px solid rgba(58,160,255,.25);
+  border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--text-dim);
+  margin-bottom: 14px; line-height: 1.55;
+}
+.pdf-import-panel { margin-top: 12px; }
+.pdf-table-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 10px; background: var(--bg);
+}
+.pdf-table-card.skipped { opacity: 0.72; border-style: dashed; }
+.pdf-tank-group { margin-bottom: 8px; }
+.pdf-tank-pick {
+  display: flex; gap: 10px; align-items: flex-start;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px; background: var(--bg);
+  cursor: pointer;
+}
+.pdf-tank-pick input { margin-top: 3px; }
+.pdf-table-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;
+  align-items: flex-start; margin-bottom: 8px;
+}
+.pdf-table-head select { min-width: 160px; }
+.data-table.compact td, .data-table.compact th {
+  padding: 3px 6px; font-size: 11px; white-space: nowrap;
+}
+.distrib-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;
+  margin: 10px 0 14px;
+}
+.distrib-opt {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  background: var(--bg-panel); cursor: pointer;
+}
+.distrib-opt.active { border-color: var(--accent); background: rgba(58,160,255,.12); }
+.distrib-opt input { margin-right: 6px; }
+.offline-banner {
+  background: rgba(230,88,77,.12); border: 1px solid rgba(230,88,77,.35);
+  color: var(--warn); padding: 8px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 13px;
+}
+.bunker-live { max-width: 1100px; }
+.bunker-live-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px;
+  align-items: flex-start; margin-bottom: 14px;
+}
+.bunker-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.bunker-stat {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--bg);
+}
+.bunker-stat.accent {
+  border-color: rgba(58,160,255,.45);
+  background: rgba(58,160,255,.1);
+}
+.bunker-stat-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-dim); margin-bottom: 4px;
+}
+.bunker-stat-value {
+  font-size: 1.35rem; font-weight: 650; color: var(--text); line-height: 1.2;
+}
+.bunker-stat-value .unit {
+  font-size: .75rem; font-weight: 500; color: var(--text-dim);
+}
+.bunker-progress-bar {
+  height: 10px; border-radius: 999px; background: var(--bg);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.bunker-progress-bar > div {
+  height: 100%; background: var(--accent); width: 0; transition: width .4s ease;
+}
+.bunker-mix-result {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+#mix-table input {
+  width: 100%; min-width: 80px;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; color: var(--text);
+}
+.ref-table.sticky-head thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--bg-panel-2);
+}
+.ref-table tr.row-hl td {
+  background: rgba(58,160,255,.12);
+}
+.ref-table th.col-hl,
+.ref-table td.col-hl {
+  background: rgba(58,160,255,.08);
+}
+.ref-table td.cell-hl {
+  background: rgba(58,160,255,.28) !important;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+.iso-table td, .iso-table th {
+  white-space: nowrap;
+}
+.iso-table td.tname {
+  white-space: normal;
+  min-width: 180px;
+  max-width: 280px;
+}
+
+/* Tablet / phone — stack dense grids before drawer so landscape tablets stay usable */
+@media (max-width: 1100px) {
+  .detail-grid, .two-col, .fuel-panels { grid-template-columns: 1fr; }
+  .form-row-3 { grid-template-columns: 1fr 1fr; }
+}
+
+/* Drawer for phones + tablet portrait / narrow landscape (Tab S10 Lite class) */
+@media (max-width: 1024px) {
+  .menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .sidebar {
+    position: fixed; left: 0; top: 0;
+    transform: translateX(-105%);
+    transition: transform .2s ease;
+    width: min(300px, 88vw);
+    height: 100vh;
+    height: 100dvh;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    box-shadow: 8px 0 24px rgba(0,0,0,.35);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-backdrop.show { display: block; }
+  .main {
+    padding: calc(56px + env(safe-area-inset-top, 0px)) 14px calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+  .page-head { align-items: flex-start; }
+  .page-head .btn-row { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
+  .excel-scroll { max-height: min(58vh, 58dvh); }
+  table.excel-table input[type="number"] {
+    width: 58px; min-width: 58px; font-size: 16px; padding: 6px 2px;
+  }
+  table.excel-table .excel-corner,
+  table.excel-table .excel-corner-sub,
+  table.excel-table td.excel-rowh { min-width: 72px; }
+  .bunker-stat-value { font-size: 1.15rem; }
+}
+
+@media (pointer: coarse) {
+  .form-row input, .form-row select, .form-row textarea,
+  table.leg-table input, table.calib-table input,
+  table.excel-table input[type="number"] {
+    font-size: 16px;
+  }
+  .nav-btn { min-height: 44px; padding: 11px 10px; }
+  .btn { min-height: 44px; }
+  .btn.small { min-height: 40px; }
+}
+
+/* ---------- Fuel oil report (tank condition sheet) ---------- */
+.fuel-report-page .fr-section { margin-top: 16px; }
+
+.fr-header-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 10px 12px;
+}
+.fr-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fr-field > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-faint); font-weight: 700;
+}
+.fr-field input, .fr-field select {
+  width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 8px; min-width: 0;
+}
+.fr-field .fr-out {
+  padding: 7px 8px; border: 1px dashed var(--border); border-radius: 6px;
+  background: var(--bg-panel-2); color: var(--accent-2); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fr-field .fr-unit { color: var(--text-faint); font-size: 11px; font-style: normal; }
+.fr-field-wide { grid-column: span 2; }
+.fr-header .hint { margin-top: 10px; }
+
+table.fr-sheet {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+table.fr-sheet th, table.fr-sheet td {
+  border: 1px solid var(--border-soft); padding: 3px 4px; text-align: right;
+}
+.fr-move { display: inline-block; margin-left: 6px; vertical-align: middle; }
+.fr-move-btn {
+  min-height: 20px; padding: 1px 6px; font-size: 10px; font-weight: 700;
+  border-color: var(--warn); color: var(--warn); background: rgba(230,179,77,.12);
+}
+.fr-move-btn:hover { border-color: var(--accent); color: var(--accent-2); }
+.fr-move-undo {
+  border-color: var(--border); color: var(--text-faint); background: transparent;
+}
+
+table.fr-sheet th.fr-tank-name { padding-right: 8px; }
+table.fr-sheet thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--bg-panel-2); color: var(--text-dim);
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em;
+  text-align: center; white-space: normal; min-width: 54px; padding: 5px 3px;
+}
+table.fr-sheet thead th.fr-calc-head { color: var(--accent-2); }
+.fr-move { display: inline-block; margin-left: 6px; vertical-align: middle; }
+.fr-move-btn {
+  min-height: 20px; padding: 1px 6px; font-size: 10px; font-weight: 700;
+  border-color: var(--warn); color: var(--warn); background: rgba(230,179,77,.12);
+}
+.fr-move-btn:hover { border-color: var(--accent); color: var(--accent-2); }
+.fr-move-undo {
+  border-color: var(--border); color: var(--text-faint); background: transparent;
+}
+
+table.fr-sheet th.fr-tank-name {
+  text-align: left; font-weight: 600; color: var(--text);
+  position: sticky; left: 0; background: var(--bg-card); z-index: 1;
+}
+table.fr-sheet tbody input, table.fr-sheet tbody select {
+  width: 100%; min-width: 58px; background: var(--bg-panel);
+  border: 1px solid var(--border); border-radius: 5px; padding: 4px 4px;
+  font-size: 12px; text-align: right;
+}
+table.fr-sheet tbody select { padding-right: 2px; text-align: left; }
+table.fr-sheet tbody input.fr-narrow { min-width: 46px; }
+table.fr-sheet tbody input.fr-wide { min-width: 68px; }
+table.fr-sheet td.fr-check { text-align: center; }
+table.fr-sheet td.fr-check input { width: 16px; min-width: 16px; }
+table.fr-sheet td.fr-calc {
+  background: var(--bg-panel); color: var(--text); font-weight: 600;
+}
+table.fr-sheet tr.fr-warn td.fr-calc { color: var(--warn); }
+table.fr-sheet tfoot th, table.fr-sheet tfoot td {
+  background: var(--bg-panel-2); font-weight: 700; border-top: 2px solid var(--border);
+}
+table.fr-sheet tfoot th { text-align: left; }
+
+.fr-grades {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+}
+.fr-grade {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  background: var(--bg-panel); display: flex; flex-direction: column; gap: 8px;
+}
+.fr-grade-label { font-weight: 700; letter-spacing: .04em; }
+.fr-grade-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12px; color: var(--text-dim);
+}
+.fr-grade-row b { color: var(--text); font-variant-numeric: tabular-nums; }
+.fr-grade-empty { opacity: .55; }
+.fr-grade-off .fr-grade-row:last-child b { color: var(--warn); }
+
+.fr-quant {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 12px;
+}
+
+/* Calculation sheet preview — same markup the printout uses. */
+.fr-calc-sheet { margin-top: 12px; }
+.fr-preview-label {
+  margin: 18px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.fr-preview .calib-print-page { padding-bottom: 12px; }
+.fr-preview .calib-print-masthead { border-bottom: 1.5px solid #111; margin-bottom: 10px; }
+.fr-preview .calib-print-masthead h1 { margin: 0; font-size: 16px; }
+.fr-preview .calib-print-badge { border: 1px solid #111; padding: 3px 6px; font-size: 10px; }
+.fr-preview .calib-print-footer {
+  display: flex; justify-content: space-between; border-top: 1px solid #666;
+  margin-top: 8px; padding-top: 4px; font-size: 10px; color: #444;
+}
+.fr-preview table.fr-print-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.fr-preview table.fr-print-table th, .fr-preview table.fr-print-table td {
+  border: 1px solid #333; padding: 2px 4px; text-align: right; color: #111;
+}
+.fr-preview table.fr-print-table th { background: #eee; text-align: center; }
+.fr-preview .fr-print-name { text-align: left; }
+.fr-preview .even-keel { background: #e8eef6; }
+.fr-preview .calib-print-note { font-size: 10px; color: #444; }
+.fr-preview .calib-print-meta {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 12px;
+  margin: 8px 0 12px; font-size: 11px; color: #111;
+}
+.fr-preview .calib-print-meta .k {
+  display: block; font-size: 9px; text-transform: uppercase;
+  letter-spacing: .06em; color: #555;
+}
+.fr-preview .calib-print-meta .v { font-weight: 600; }
+.fr-preview .fr-print-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.fr-preview .fr-print-h3 { font-size: 12px; margin: 10px 0 4px; }
+.fr-preview .fr-print-used { background: #e8eef6; }
+.fr-preview .fr-print-sign { margin-top: 12px; font-size: 11px; width: 60mm; }
+.fr-preview .fr-print-sign-line {
+  border-bottom: 1px solid #111; min-height: 20px; font-weight: 700; padding-top: 14px;
+}
+.fr-preview .fr-tc-masthead { margin-top: 0; margin-bottom: 6px; color: #111; }
+.fr-preview .fr-tc-brand-row { display: flex; justify-content: flex-end; }
+.fr-preview .fr-tc-app { text-align: right; font-weight: 700; text-transform: uppercase; font-size: 11px; }
+.fr-preview .fr-tc-title-row {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 12px; padding: 3px 0 4px;
+}
+.fr-preview .fr-tc-title-row h1 { margin: 0; font-size: 18px; text-align: center; letter-spacing: .08em; }
+.fr-preview .fr-tc-ident-name { font-size: 16px; font-weight: 800; }
+.fr-preview .fr-tc-ident-imo { font-size: 11px; color: #555; }
+.fr-preview .fr-tc-ident-right { text-align: right; }
+.fr-preview .fr-tc-ident-right span {
+  display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #555;
+}
+.fr-preview .fr-tc-ident-right b { font-size: 14px; font-weight: 800; }
+.fr-preview .fr-tc-facts {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 16px;
+  margin: 4px 0; padding: 4px 0; border-top: 1px solid #111; border-bottom: 2px solid #111; color: #111;
+}
+.fr-preview .fr-tc-fact span {
+  display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #555;
+}
+.fr-preview .fr-tc-fact b { display: block; font-size: 13px; font-weight: 800; }
+.fr-preview .fr-tc-block-head { background: #1b2a44; color: #fff; padding: 4px 8px; }
+.fr-preview table.fr-tc-table, .fr-preview table.fr-tc-mini { width: 100%; border-collapse: collapse; font-size: 10px; }
+.fr-preview table.fr-tc-table tfoot td,
+.fr-preview table.fr-tc-table tfoot th,
+.fr-preview table.fr-tc-mini tfoot td,
+.fr-preview table.fr-tc-mini tfoot th {
+  background: #d9e2ee; color: #111; font-weight: 800;
+}
+.fr-preview .fr-tc-total-mt { font-weight: 800; font-size: 12px; color: #111; }
+.fr-preview .fr-tc-capline { display: flex; justify-content: flex-end; gap: 16px; font-size: 12px; font-weight: 700; }
+.fr-preview .fr-tc-capline b { font-size: 14px; }
+.fr-preview table.fr-tc-table tfoot td,
+.fr-preview table.fr-tc-table tfoot th,
+.fr-preview table.fr-tc-mini tfoot td,
+.fr-preview table.fr-tc-mini tfoot th {
+  background: #d9e2ee; color: #111; font-weight: 800;
+}
+.fr-preview .fr-tc-total-mt { font-weight: 800; font-size: 12px; color: #111; }
+.fr-preview .fr-tc-capline { display: flex; justify-content: flex-end; gap: 16px; font-size: 12px; font-weight: 700; }
+.fr-preview .fr-tc-capline b { font-size: 14px; }
+.fr-preview table.fr-tc-table th, .fr-preview table.fr-tc-table td,
+.fr-preview table.fr-tc-mini th, .fr-preview table.fr-tc-mini td {
+  border: 1px solid #333; padding: 2px 4px; text-align: right; color: #111;
+}
+.fr-preview .fr-tc-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.fr-preview .fr-tc-annex { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+
+@media (max-width: 900px) {
+  .fr-header-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fr-field-wide { grid-column: span 2; }
+}
+
+/* ---------- Bunkering plan / summary screens ---------- */
+.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 10px; align-items: start; }
+table.bp-sheet thead th { min-width: 40px; }
+table.bp-sheet tbody th.fr-tank-name { min-width: 168px; }
+table.bp-sheet tbody th.fr-tank-name select { min-width: 130px; margin-left: 4px; }
+table.bp-sheet tbody input { min-width: 48px; }
+
+.bp-distribute {
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.bp-distribute .fr-field { min-width: 200px; }
+.bp-distribute .hint { flex: 1 1 260px; margin: 0; }
+
+td.bp-valve { min-width: 102px; text-align: center; padding: 3px 3px; }
+.bp-state {
+  display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .05em;
+  border-radius: 999px; padding: 2px 6px; border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.bp-state-filling { background: rgba(47,191,113,.18); border-color: var(--good); color: var(--good); }
+.bp-state-paused { background: rgba(230,179,77,.18); border-color: var(--warn); color: var(--warn); }
+.bp-state-done { background: rgba(58,160,255,.15); border-color: var(--accent); color: var(--accent-2); }
+.bp-state-time { display: block; font-size: 10px; color: var(--text-faint); margin: 2px 0 3px; }
+.bp-state-btns { display: flex; gap: 4px; justify-content: center; }
+.bp-state-btns .btn { min-height: 24px; padding: 2px 6px; font-size: 10.5px; }
+tr.bp-row-filling th.fr-tank-name { box-shadow: inset 3px 0 0 var(--good); }
+tr.bp-row-done td.fr-calc, tr.bp-row-done th.fr-tank-name { opacity: .72; }
+
+.bp-monitor { display: flex; flex-direction: column; gap: 10px; }
+.bp-clock {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  background: var(--bg-panel); display: flex; flex-direction: column; gap: 6px;
+}
+.bp-clock-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-dim); }
+.bp-clock-row b { color: var(--text); font-variant-numeric: tabular-nums; }
+.bp-monitor-box {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  background: var(--bg-panel); display: flex; flex-direction: column; gap: 4px;
+}
+.bp-monitor-box > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); font-weight: 700;
+}
+.bp-monitor-box > b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.bp-monitor-received { border-color: var(--accent); }
+.bp-monitor-received > b { color: var(--accent-2); }
+.bp-monitor-bad { border-color: var(--bad); }
+.bp-monitor-bad > b { color: var(--bad); }
+.bp-progress {
+  height: 10px; border-radius: 999px; background: var(--bg);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.bp-progress > div { height: 100%; width: 0; background: var(--accent); transition: width .35s ease; }
+
+.bs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+.bs-events { display: flex; flex-direction: column; gap: 6px; }
+.bs-event { display: grid; grid-template-columns: 110px 1fr 1fr; gap: 8px; align-items: center; }
+.bs-event > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-faint); font-weight: 700;
+}
+.bs-event input {
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; min-width: 0;
+}
+.bs-checks { display: flex; flex-direction: column; gap: 8px; }
+.bs-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.bs-check-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.bs-check-group > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-faint); font-weight: 700;
+}
+.bs-quantities { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.fr-grade-good .fr-grade-row b { color: var(--good); }
+.fr-field textarea {
+  width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 8px; resize: vertical;
+}
+
+@media (max-width: 1100px) {
+  .bp-layout { grid-template-columns: minmax(0, 1fr); }
+  .bp-monitor { flex-direction: row; flex-wrap: wrap; }
+  .bp-monitor-box { flex: 1 1 150px; }
+  .bp-progress { flex: 1 1 100%; }
+}
+
+/* ---------- Vessel logo / signature upload ---------- */
+.stamp-row { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; margin-top: 6px; }
+.stamp-controls { flex: 1 1 260px; min-width: 0; }
+.stamp-controls .form-row { margin-bottom: 8px; }
+/* White, like the paper these end up on: once the background is removed a
+   signature is dark ink on nothing, which would be invisible against the dark
+   panel. On white it also previews exactly as it prints. */
+.stamp-preview {
+  flex: 0 0 auto; width: 200px; min-height: 96px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; padding: 8px; text-align: center;
+}
+.stamp-preview img { max-width: 100%; max-height: 120px; object-fit: contain; display: block; }
+.stamp-empty { font-size: 11.5px; color: #5a6578; }
+.stamp-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-dim); cursor: pointer; margin-bottom: 8px;
+}
+.stamp-check input { width: 15px; height: 15px; cursor: pointer; }
+
+/* ---------- Screen-hidden print documents ---------- */
+.calib-print-doc { display: none; }
+.fuel-report-print-doc { display: none; }
+
+@media print {
+  :root {
+    --fr-sign-line: 62mm; --fr-logo-height: 41.8mm; --fr-sign-space: 15mm;
+    /* Printed below the signature line: the signer's name, their role, and the
+       page footer. The stamp's lower half has to fit inside this, or it runs
+       off the foot of the sheet. */
+    --fr-sign-foot: 15mm;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm;
+  }
+  @page landscape-sheet {
+    size: A4 landscape;
+    margin: 10mm 12mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
+  }
+
+  .sidebar, .menu-toggle, .sidebar-backdrop, .no-print, .toast,
+  .calib-sticky-actions, .pdf-import-panel, .pdf-progress {
+    display: none !important;
+  }
+
+  body.printing-calib .app-shell { display: none !important; }
+  body.printing-calib .calib-print-doc,
+  .calib-print-doc.print-now {
+    display: block !important;
+  }
+
+  .main { padding: 0 !important; }
+
+  .report-print-doc,
+  .form-panel {
+    background: #fff !important;
+    border: none !important;
+    color: #111 !important;
+    box-shadow: none !important;
+  }
+
+  .calib-print-doc {
+    color: #111;
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+
+  .calib-print-page {
+    page-break-after: always;
+    break-after: page;
+    padding: 0;
+    /* The stamp is centred on the signature line, so half of it hangs below.
+       The name, role and footer absorb most of that; this reserves whatever is
+       left over, so a sheet that reaches the bottom of the page cannot cut the
+       stamp in half. Nothing is reserved when the stamp is small enough to
+       clear on its own. */
+    padding-bottom: max(0mm, calc(var(--fr-logo-height) / 2 - var(--fr-sign-foot)));
+  }
+  /* No leading gap at the very top of a sheet — the page margin is the margin. */
+  .calib-print-page > *:first-child,
+  .fuel-report-print-doc > *:first-child { margin-top: 0; }
+  body.printing-calib .calib-print-page {
+    page: landscape-sheet;
+  }
+  .calib-print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* The header and the facts strip below it are trimmed hard at the top: the
+     space they used to take was enough to push the signature and logo onto a
+     page of their own on a sheet with a few more tanks than usual. */
+  .calib-print-masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    border-bottom: 1.5pt solid #111;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+  }
+  .calib-print-masthead h1 {
+    margin: 0;
+    font-size: 14pt;
+    letter-spacing: .02em;
+  }
+  .calib-print-masthead .sub {
+    margin-top: 2px;
+    font-size: 9pt;
+    color: #333;
+  }
+  .calib-print-badge {
+    flex: 0 0 auto;
+    border: 0.8pt solid #111;
+    padding: 4px 8px;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+  .calib-print-tank-id {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0 0 8px;
+    padding: 4px 0;
+    border-bottom: 0.4pt solid #999;
+    font-size: 8.5pt;
+  }
+  .calib-print-tank-id strong { font-size: 10pt; }
+  .calib-print-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px 12px;
+    margin: 2px 0 4px;
+    font-size: 9pt;
+  }
+  .calib-print-meta .k {
+    display: block;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #555;
+  }
+  .calib-print-meta .v { font-weight: 600; }
+
+  .calib-print-title {
+    margin: 0 0 8px;
+    font-size: 12pt;
+  }
+  .calib-print-note {
+    font-size: 8pt;
+    color: #444;
+    margin: 0 0 8px;
+  }
+
+  table.calib-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 7.5pt;
+    font-variant-numeric: tabular-nums;
+  }
+  table.calib-print-table th,
+  table.calib-print-table td {
+    border: 0.4pt solid #222;
+    padding: 2px 3px;
+    text-align: right;
+    vertical-align: middle;
+  }
+  table.calib-print-table th {
+    background: #f0f0f0 !important;
+    color: #111 !important;
+    font-weight: 700;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    vertical-align: middle;
+  }
+  table.calib-print-table th:first-child,
+  table.calib-print-table td:first-child {
+    text-align: center;
+    vertical-align: middle;
+    font-weight: 600;
+    width: 14mm;
+  }
+  table.calib-print-table th.even-keel,
+  table.calib-print-table td.even-keel {
+    background: #e8eef6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table.calib-print-table thead { display: table-header-group; }
+  table.calib-print-table tr { page-break-inside: avoid; break-inside: avoid; }
+
+  .calib-print-index table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+  .calib-print-index th,
+  .calib-print-index td {
+    border: 0.4pt solid #333;
+    padding: 4px 6px;
+    text-align: left;
+  }
+  .calib-print-index th {
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .calib-print-footer {
+    margin-top: 8px;
+    padding-top: 4px;
+    border-top: 0.6pt solid #666;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 7.5pt;
+    color: #444;
+  }
+
+  .report-print-doc h2 { margin-top: 0; }
+  .report-print-doc .data-table th,
+  .report-print-doc .data-table td {
+    color: #111 !important;
+    border-color: #333 !important;
+  }
+
+  /* ---------- Fuel oil report printout ---------- */
+  body.printing-fuel-report .app-shell { display: none !important; }
+  body.printing-fuel-report .fuel-report-print-doc { display: block !important; }
+  .fuel-report-print-doc.fr-preview { display: block !important; }
+
+  .fuel-report-print-doc { color: #111; font-size: 9.5pt; line-height: 1.3; }
+  .fuel-report-print-doc .fr-print-h3 {
+    margin: 10px 0 4px; font-size: 10.5pt; letter-spacing: .03em;
+  }
+  table.fr-print-table {
+    width: 100%; border-collapse: collapse; font-size: 7pt;
+    font-variant-numeric: tabular-nums; margin-bottom: 4px;
+  }
+  table.fr-print-table th, table.fr-print-table td {
+    border: 0.4pt solid #222; padding: 2px 3px;
+    text-align: right; vertical-align: middle;
+  }
+  table.fr-print-table th {
+    background: #f0f0f0 !important; font-weight: 700; text-align: center;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    vertical-align: middle;
+  }
+  table.fr-print-table td.fr-print-name, table.fr-print-table th.fr-print-name {
+    text-align: center; vertical-align: middle; font-weight: 600;
+  }
+  table.fr-print-table td.fr-print-label, table.fr-print-table th.fr-print-label {
+    text-align: center; vertical-align: middle;
+  }
+  table.fr-print-table .fr-print-weight { font-weight: 700; }
+  table.fr-print-table tfoot th, table.fr-print-table tfoot td {
+    background: #e8eef6 !important; font-weight: 700;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  table.fr-print-table thead { display: table-header-group; }
+  table.fr-print-table tr { page-break-inside: avoid; break-inside: avoid; }
+  table.fr-print-formulas td { text-align: left; }
+  table.fr-print-table td.fr-print-used {
+    background: #e8eef6 !important; font-weight: 700;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  table.fr-print-calc { font-size: 6.5pt; }
+
+  .fr-print-cols {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px;
+  }
+  /* The signature sits in the space above the line so it reads as signed over
+     it, and the vessel logo sits just after the block. */
+  .fr-print-signrow {
+    display: flex; align-items: center; justify-content: flex-end;
+    /* No gap: the stamp is pulled back over the line by a negative margin. */
+    gap: 0; margin-top: 10px;
+  }
+
+  /* Modern TANK CONDITION face (page 1) + annex (page 2) */
+  .fr-tc-page { color: #111; }
+  .fr-tc-masthead { margin-top: 0; margin-bottom: 5px; }
+  .fr-tc-brand-row {
+    display: flex; justify-content: flex-end;
+    padding-top: 0; padding-bottom: 0; border-bottom: 0.4pt solid #111;
+  }
+  .fr-tc-app {
+    font-size: 8pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: #1b2a44; text-align: right;
+  }
+  .fr-tc-title-row {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    gap: 10px; padding: 0 0 1px;
+  }
+  .fr-tc-title-row h1 {
+    margin: 0; font-size: 15pt; letter-spacing: .12em; font-weight: 800;
+    color: #1b2a44; text-align: center; white-space: nowrap;
+  }
+  .fr-tc-ident-left { text-align: left; min-width: 0; }
+  .fr-tc-ident-name {
+    font-size: 12pt; font-weight: 800; color: #111; line-height: 1.15;
+  }
+  .fr-tc-ident-imo {
+    font-size: 8pt; font-weight: 600; color: #555; margin-top: 1px;
+  }
+  .fr-tc-ident-right { text-align: right; }
+  .fr-tc-ident-right span {
+    display: block; font-size: 6.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: #7a8494;
+  }
+  .fr-tc-ident-right b {
+    display: block; font-size: 11pt; font-weight: 800; color: #111;
+  }
+  .fr-tc-facts {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 12px;
+    padding: 1px 0 2px; border-top: 0.5pt solid #111;
+    border-bottom: 1.4pt solid #111; margin-bottom: 3px;
+  }
+  .fr-tc-fact span {
+    display: block; font-size: 6.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: #7a8494;
+  }
+  .fr-tc-fact b {
+    display: block; font-size: 10pt; font-weight: 800; color: #111; line-height: 1.1;
+  }
+  .fr-tc-block { margin-bottom: 3px; }
+  .fr-tc-block-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    background: #1b2a44 !important; color: #fff !important; padding: 3px 8px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .fr-tc-block-head h3 { margin: 0; font-size: 9pt; letter-spacing: .06em; }
+  .fr-tc-block-head span { font-size: 7.5pt; opacity: .85; }
+  table.fr-tc-table {
+    width: 100%; border-collapse: collapse; table-layout: fixed;
+    font-size: 6.6pt; font-variant-numeric: tabular-nums;
+  }
+  table.fr-tc-table th, table.fr-tc-table td {
+    border: 0.35pt solid #333; padding: 1px 3px;
+    /* Figures are read down a column, so they keep their right edge; the cells
+       that carry words are centred both ways just below. Everything sits on the
+       middle of its row, which is what shows once a row is taller than one
+       line — a wrapped tank name, or a header split over two lines. */
+    text-align: right; vertical-align: middle;
+  }
+  table.fr-tc-table th {
+    background: #eef2f7 !important; font-weight: 700; text-align: center;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    vertical-align: middle;
+  }
+  table.fr-tc-table td.fr-print-name, table.fr-tc-table th.fr-print-name {
+    text-align: center; vertical-align: middle; font-weight: 600; width: 32mm;
+  }
+  /* Fuel and Method carry words, not figures. */
+  table.fr-tc-table td.fr-print-label, table.fr-tc-table th.fr-print-label {
+    text-align: center; vertical-align: middle;
+  }
+  table.fr-tc-table tbody tr:nth-child(even) td {
+    background: #f7f8fb !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  table.fr-tc-table tfoot td, table.fr-tc-table tfoot th {
+    background: #d9e2ee !important; color: #000 !important; font-weight: 800;
+    /* Sized against the widest total a large vessel prints: five figures and
+       three decimals, e.g. 12999.747. With the tank-name column at 32mm that
+       clears its column by 1.6px. Side padding stays at 1px — the row rule
+       above only sets the vertical padding, so this is not overridden. */
+    font-size: 7pt; padding-left: 1px; padding-right: 1px;
+    border-top: 1.2pt solid #111; border-bottom: 1.2pt solid #111;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  /* No font-size here: the tfoot rule above outranks it, so the 9.5pt this
+     carried never applied. The cell is marked out by its fill and weight. */
+  .fr-tc-total-mt {
+    background: #c5d4e8 !important; color: #000 !important; font-weight: 800;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .fr-tc-capline {
+    display: flex; justify-content: flex-end; gap: 18px; font-size: 9pt;
+    font-weight: 700; color: #111; padding: 0 2px 3px;
+  }
+  .fr-tc-capline b { font-size: 11pt; font-weight: 800; }
+  .fr-tc-cards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px;
+  }
+  .fr-tc-card {
+    border: 0.5pt solid #333; padding: 2px 6px;
+  }
+  .fr-tc-card h4 {
+    margin: 0 0 3px; font-size: 7.5pt; letter-spacing: .05em; text-transform: uppercase;
+    border-bottom: 0.4pt solid #999; padding-bottom: 2px;
+  }
+  table.fr-tc-mini {
+    width: 100%; border-collapse: collapse; font-size: 6.5pt; font-variant-numeric: tabular-nums;
+  }
+  table.fr-tc-mini th, table.fr-tc-mini td {
+    border: 0.3pt solid #555; padding-top: 1px; padding-bottom: 1px;
+    padding-left: 3px; padding-right: 3px;
+    text-align: right; vertical-align: middle;
+  }
+  table.fr-tc-mini th {
+    background: #f0f0f0 !important; text-align: center;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    vertical-align: middle;
+  }
+  table.fr-tc-mini td.fr-print-name, table.fr-tc-mini th.fr-print-name {
+    text-align: center; vertical-align: middle;
+  }
+  table.fr-tc-mini tfoot th, table.fr-tc-mini tfoot td {
+    background: #d9e2ee !important; color: #000 !important; font-weight: 800;
+    font-size: 8pt; border-top: 1pt solid #111;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .fr-tc-diff { color: #8a1f1f; font-weight: 800; }
+  .fr-tc-signoff {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-top: 6px; font-size: 8pt;
+  }
+  .fr-tc-signoff .fr-print-sign-line { width: 70mm; min-height: 6mm; padding-top: 4mm; }
+  .fr-tc-signoff { --fr-sign-line: 62mm; }
+  .fr-tc-page-no { font-size: 7.5pt; color: #555; letter-spacing: .04em; }
+  .fr-tc-annex {
+    display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 4px;
+  }
+  .fr-tc-page-2 table.fr-print-table { font-size: 6.2pt; }
+
+  .fr-print-sign { flex: 0 0 var(--fr-sign-line); font-size: 8pt; text-align: center; }
+  .fr-print-sign-space { position: relative; height: var(--fr-sign-space); width: var(--fr-sign-line); }
+  .fr-print-sign-space img {
+    position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+    max-height: var(--fr-sign-space); max-width: var(--fr-sign-line); object-fit: contain;
+  }
+  .fr-print-sign-line {
+    border-bottom: 0.6pt solid #111; width: var(--fr-sign-line); margin-bottom: 1.5mm;
+  }
+  .fr-print-sign-name { font-weight: 700; font-size: 9pt; }
+  .fr-print-sign-role {
+    font-size: 7.5pt; text-transform: uppercase; letter-spacing: .06em; color: #555;
+  }
+  /* The logo prints like a rubber stamp: it is allowed to overlap whatever is
+     already on the paper, and it must not push the sheet taller. The box is
+     zero-height so it adds nothing to the sign-off row, and the image is
+     lifted out of it to stand on the row's baseline and overlap upwards.
+     No white fill either — a stamp that carried its own card would blank out
+     the print it is supposed to sit over. */
+  /* The logo prints like a rubber stamp struck over the right-hand end of the
+     signature line: centred on the line, covering its last third, and running
+     off to the right of it. It is allowed to overlap whatever is already on
+     the paper, and it adds no height to the sheet — the box is zero-height and
+     the image is positioned out of it, so resizing the stamp moves nothing
+     else. No white fill: a stamp carrying its own card would blank out the
+     print it is meant to sit over. */
+  .fr-print-logo {
+    flex: 0 0 auto; display: block; align-self: flex-start;
+    height: 0; overflow: visible;
+    /* Slide back over the last third of the line. */
+    margin-left: calc(var(--fr-sign-line) / -3);
+  }
+  .fr-print-logo img {
+    height: var(--fr-logo-height); width: auto; max-width: 110mm;
+    object-fit: contain; display: block;
+    /* The line sits directly below the signing space, so dropping by that much
+       and lifting by half the stamp centres the stamp on the line. */
+    position: relative;
+    top: calc(var(--fr-sign-space) - var(--fr-logo-height) / 2);
+  }
+  /* Inside the TANK CONDITION sign-off row the block hugs the left, leaving the
+     page number on the right; the line is drawn by .fr-print-sign-line itself,
+     so the taller legacy line rule is neutralised here. */
+  .fr-tc-signoff .fr-print-signrow { justify-content: flex-start; margin-top: 0; }
+  .fr-tc-signoff .fr-print-signrow .fr-print-sign-line {
+    width: var(--fr-sign-line); min-height: 0; padding-top: 0;
+  }
+}
+
+/* ---------- Signature pad (sign on screen with finger or stylus) ---------- */
+
+.sigpad-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(4, 8, 18, .72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.sigpad {
+  width: min(880px, 100%);
+  background: var(--panel, #16203a);
+  border: 1px solid var(--border, #2a3550);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: 100%;
+}
+.sigpad-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sigpad-title { font-weight: 700; font-size: 15px; }
+.sigpad-sub { font-size: 12px; color: #8b95a8; margin-top: 2px; }
+
+/* White, because that is the paper the signature ends up on — and because the
+   ink is drawn with no background of its own, anything darker would hide it. */
+.sigpad-sheet {
+  position: relative;
+  background: #fff;
+  border-radius: 8px;
+  height: min(46vh, 300px);
+  min-height: 180px;
+  overflow: hidden;
+  /* Without this the browser claims the gesture and pans the page instead of
+     letting the signature through. */
+  touch-action: none;
+}
+.sigpad-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.sigpad-baseline {
+  position: absolute; left: 8%; right: 8%; bottom: 46px;
+  border-bottom: 1px solid #98a2b3; pointer-events: none;
+}
+.sigpad-hint {
+  position: absolute; left: 0; right: 0; bottom: 18px;
+  text-align: center; font-size: 11.5px; color: #98a2b3; pointer-events: none;
+}
+.sigpad-actions { display: flex; align-items: center; gap: 8px; }
+.sigpad-spacer { flex: 1 1 auto; }
+
+@media (max-width: 640px) {
+  .sigpad-sheet { height: min(52vh, 260px); }
+  .sigpad-baseline { left: 5%; right: 5%; }
+}
+
+/* ---------- Graphical tank view ---------- */
+
+/* Four across, as asked. Below that the tanks would be postage stamps, so the
+   count steps down rather than the drawings shrinking away. */
+.tg-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+  /* Reserve the width the floating tab occupies, so it sits beside the fourth
+     column rather than on top of it. Collapsing the tab gives the width back. */
+  padding-right: 214px;
+}
+.tg-grid.tab-collapsed { padding-right: 46px; }
+@media (max-width: 1400px) { .tg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .tg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .tg-grid { grid-template-columns: 1fr; } }
+
+.tg-card {
+  background: var(--panel, #16203a);
+  border: 1px solid var(--border, #2a3550);
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 0;
+}
+.tg-card.clickable { cursor: pointer; }
+.tg-card.clickable:hover { border-color: #3d6ea8; }
+.tg-name {
+  font-size: 11.5px; font-weight: 700; line-height: 1.25;
+  min-height: 2.4em; overflow: hidden;
+}
+.tg-art { position: relative; }
+.tg-svg { display: block; width: 100%; height: auto; --tg-ink: #93a1b8; }
+.tg-pct {
+  position: absolute; right: 4px; top: 4px;
+  font-size: 13px; font-weight: 800; color: var(--text, #e8eef8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+
+/* The tank body itself: an empty tank reads as empty, not as a void. */
+.tg-void { fill: rgba(255, 255, 255, .04); }
+.tg-shell { fill: none; stroke: #8b9ab4; stroke-width: 2.4; stroke-linejoin: round; }
+/* The 85% filling limit, shown where it matters rather than written down. */
+.tg-safe { stroke: #d98c2b; stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .85; }
+
+.tg-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px;
+  font-size: 11px; color: #9fb0c8; font-variant-numeric: tabular-nums;
+}
+.tg-chip {
+  font-weight: 700; color: #dfe8f6; font-size: 10px;
+  letter-spacing: .04em; display: inline-flex; align-items: center; gap: 5px;
+}
+.tg-chip::before {
+  content: ''; width: 9px; height: 9px; border-radius: 2px;
+  background: var(--tg-chip); border: 1px solid rgba(255, 255, 255, .35);
+}
+
+/* ---------- floating group tab ---------- */
+
+.tg-tab {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+  z-index: 40; display: flex; align-items: stretch;
+  max-height: 86vh;
+}
+.tg-tab-handle {
+  flex: 0 0 auto; width: 26px;
+  background: var(--panel, #16203a);
+  border: 1px solid var(--border, #2a3550); border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: #cfe0f5; cursor: pointer; padding: 0;
+}
+.tg-tab-handle-text {
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+}
+.tg-tab-body {
+  flex: 0 0 auto; width: 178px; overflow-y: auto;
+  background: var(--panel, #16203a);
+  border: 1px solid var(--border, #2a3550); border-right: none;
+  border-radius: 8px 0 0 8px;
+  padding: 8px; display: flex; flex-direction: column; gap: 3px;
+}
+.tg-tab.collapsed .tg-tab-body { display: none; }
+.tg-tab-title {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .09em;
+  color: #7c8aa3; font-weight: 700; margin: 4px 0 1px;
+}
+.tg-group {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: #cfe0f5; font-size: 12px; padding: 5px 7px; cursor: pointer; text-align: left;
+}
+.tg-group:hover:not(:disabled) { background: rgba(255, 255, 255, .06); }
+.tg-group.on { background: #1f4b7d; border-color: #3d6ea8; color: #fff; }
+.tg-group:disabled { opacity: .35; cursor: default; }
+.tg-group b { font-size: 11px; color: #9fb0c8; font-variant-numeric: tabular-nums; }
+.tg-group.on b { color: #cfe0f5; }
+.tg-key { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #9fb0c8; padding: 1px 7px; }
+.tg-key i { width: 11px; height: 11px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, .3); }
+
+@media print { .tg-tab { display: none; } }
+
+/* Marks a field that overrides a derived value rather than supplying a
+   required one — the box being empty is the normal state. */
+.hint-inline {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #7c8aa3; margin-left: 6px;
+}
+
+/* Operation estimates.
+   Its own panel, away from the sounding column, and visibly a projection:
+   dashed border, italic notes, nothing that reads like a measurement. */
+.bp-estimates { border-style: dashed; }
+.bp-est-basis { margin: 0 0 10px; font-style: italic; }
+.bp-est-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px; margin-bottom: 12px;
+}
+.bp-est-box {
+  border: 1px dashed var(--border); border-radius: 8px; padding: 10px;
+  background: var(--bg-panel); display: flex; flex-direction: column; gap: 3px;
+}
+.bp-est-box > span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-faint); font-weight: 700;
+}
+.bp-est-box > b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.bp-est-box > i {
+  font-size: 10px; color: var(--text-faint); font-style: italic;
+  font-variant-numeric: tabular-nums;
+}
+.bp-est-countdown { border-color: var(--accent); }
+.bp-est-countdown > b { color: var(--accent-2); }
+.bp-est-sheet td, .bp-est-sheet th { vertical-align: middle; }
+.bp-est-sheet td { text-align: right; font-variant-numeric: tabular-nums; }
+.bp-est-figure > i {
+  display: block; font-size: 9.5px; font-style: normal; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-faint);
+}
+.bp-est-from { text-align: center; font-size: 11px; font-style: italic; color: var(--text-dim); }
+.bp-est-empty { text-align: center; font-style: italic; color: var(--text-faint); padding: 14px; }
+.bp-clock-input {
+  background: var(--input, #101a30); color: var(--text, #e8eef8);
+  border: 1px solid var(--border, #2a3550); border-radius: 6px;
+  padding: 2px 6px; font-size: 11.5px; font-family: inherit;
+}
+
+/* A tank the projection says will cross the 85% filling limit. Loud, because
+   the whole reason to run the level forward is to see this before it happens. */
+.bp-est-alarm {
+  border: 1px solid var(--bad); border-radius: 8px; padding: 8px 10px;
+  margin: 0 0 12px; font-size: 12px; color: var(--bad); background: rgba(220, 70, 70, .08);
+}
+.bp-est-limit { white-space: nowrap; }
+tr.bp-est-over td, tr.bp-est-over th { color: var(--bad); }
+tr.bp-est-over th.fr-tank-name { box-shadow: inset 3px 0 0 var(--bad); }
+
+/* Which sense the CURRENT SOUND box wants. Every other reading on the sheet is
+   an ullage, so a dipped tank has to say so or the ullage gets typed in. */
+.bp-method {
+  display: block; margin-top: 2px;
+  font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-faint); font-weight: 700;
+}
+.bp-method-bad { color: var(--bad); }
+
+/* Finishing against the delivery note. */
+.bp-fin-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px; margin-bottom: 12px; align-items: end;
+}
+.bp-fin-input { margin: 0; }
+.bp-fin-input input { font-size: 17px; font-variant-numeric: tabular-nums; }
+.bp-fin-good { border-color: var(--good); border-style: solid; }
+.bp-fin-good > b { color: var(--good); }
+.bp-fin-bad { border-color: var(--bad); border-style: solid; }
+.bp-fin-bad > b { color: var(--bad); }
+
+/* ---------- Name and authorship ---------- */
+
+/* At the foot of the navigation, so it is on every page. Quiet: it is a
+   credit, not a control. */
+.nav-credit {
+  margin-top: 18px; padding: 12px 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 10.5px; line-height: 1.5;
+}
+.nav-credit span {
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-faint); font-weight: 700; font-size: 9.5px;
+}
+.nav-credit b { color: var(--text-dim); font-weight: 600; }
+
+/* The printed credit. Never on screen; on paper it sits under the sheet. */
+.app-credit-print { display: none; }
+
+@media print {
+  /* Sits in the sheet's bottom margin rather than in the flow of it.
+     Appended to the end of a document it took up real height, and the fuel
+     report — which is tuned to fill one A4 sheet exactly — went to two pages
+     for the sake of a credit line. Out of the flow it costs nothing. */
+  .app-credit-print {
+    display: flex; gap: 10px; align-items: baseline;
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding-top: 1mm;
+    border-top: .4pt solid #999;
+    color: #444; font-size: 7pt; line-height: 1.4;
+  }
+  .app-credit-name { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .app-credit-authors { flex: 1; }
+  .app-credit-when { color: #777; white-space: nowrap; }
+
+  /* A built print document carries its own credit, so the page-level one must
+     stand down or the sheet is signed twice. */
+  body.printing-fuel-report #app-credit-page { display: none !important; }
+}
+.about-authors {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
+  margin: 0 0 14px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.about-authors span {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-faint); font-weight: 700;
+}
+.about-authors b { color: var(--text); font-size: 14px; }

@@ -1,0 +1,19 @@
+{
+  "sourceFiles": [
+    "giorgis fuel.csv",
+    "giorgis lubes.xlsx",
+    "giorgis misc tanks.csv",
+    "giorgis fresg water.csv"
+  ],
+  "importedAt": "2026-08-16T14:54:33.804Z",
+  "fuelTankCount": 17,
+  "lubeTankCount": 8,
+  "miscTankCount": 11,
+  "waterTankCount": 4,
+  "formats": [
+    "giorgis-fuel-csv",
+    "giorgis-lube-xlsx",
+    "giorgis-misc-csv",
+    "giorgis-water-csv"
+  ]
+}

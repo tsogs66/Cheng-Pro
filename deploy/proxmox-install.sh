@@ -10,7 +10,7 @@ BRANCH="${BRANCH:-main}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y curl ca-certificates git nginx
+apt-get install -y curl ca-certificates git nginx python3
 
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -35,6 +35,27 @@ cd "$APP_DIR"
 sudo -u "$APP_USER" npm install --omit=dev
 sudo -u "$APP_USER" npm run seed || true
 
+# Generate admin password once if missing
+ENV_FILE="/root/cheng-pro.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+  ADMIN_PASS="$(python3 - <<'PY'
+import secrets
+print('-'.join(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(4)) for _ in range(4)))
+PY
+)"
+  cat >"$ENV_FILE" <<EOF
+SYNC_ADMIN_USER=admin
+SYNC_ADMIN_PASSWORD=$ADMIN_PASS
+SYNC_API_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+EOF
+  chmod 600 "$ENV_FILE"
+  echo "Wrote $ENV_FILE (admin password shown once):"
+  grep SYNC_ADMIN_PASSWORD "$ENV_FILE"
+fi
+
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
 cat >/etc/systemd/system/cheng-pro.service <<EOF
 [Unit]
 Description=Cheng-Pro marine chief engineer suite
@@ -46,8 +67,13 @@ User=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
-Environment=PORT=8787
+Environment=PORT=8788
+Environment=SYNC_PORT=8787
 Environment=CHENG_PRO_DATA_DIR=$APP_DIR/data
+Environment=TMS_DATA_DIR=$APP_DIR/data
+Environment=SYNC_ADMIN_USER=$SYNC_ADMIN_USER
+Environment=SYNC_ADMIN_PASSWORD=$SYNC_ADMIN_PASSWORD
+Environment=SYNC_API_TOKEN=$SYNC_API_TOKEN
 ExecStart=/usr/bin/node $APP_DIR/server/index.js
 Restart=on-failure
 RestartSec=3
@@ -62,18 +88,12 @@ server {
   server_name _;
   client_max_body_size 64m;
 
-  location /api/ {
-    proxy_pass http://127.0.0.1:8787/api/;
-    proxy_http_version 1.1;
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-  }
-
   location / {
-    proxy_pass http://127.0.0.1:8787/;
+    proxy_pass http://127.0.0.1:8788;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
+    proxy_read_timeout 600s;
   }
 }
 EOF
@@ -88,4 +108,7 @@ nginx -t
 systemctl reload nginx
 
 echo "Cheng-Pro installed. Open http://<ct-ip>:${PORT}/"
+echo "  /tanks/  Tank Chief"
+echo "  /voyage/ Voyage Chief"
 echo "Data: $APP_DIR/data"
+echo "Admin creds: $ENV_FILE"

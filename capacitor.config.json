@@ -1,0 +1,12 @@
+{
+  "appId": "marine.chengpro.app",
+  "appName": "Cheng-Pro",
+  "webDir": "www-android",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#07141a"
+  }
+}
