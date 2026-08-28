@@ -45,6 +45,18 @@ if (!gradle.includes('signingConfigs')) {
 
 fs.writeFileSync(gradlePath, gradle);
 
+const manifestPath = path.join(root, 'android/app/src/main/AndroidManifest.xml');
+if (fs.existsSync(manifestPath)) {
+  let manifest = fs.readFileSync(manifestPath, 'utf8');
+  if (!manifest.includes('usesCleartextTraffic')) {
+    manifest = manifest.replace(
+      '<application',
+      '<application\n        android:usesCleartextTraffic="true"'
+    );
+    fs.writeFileSync(manifestPath, manifest);
+  }
+}
+
 const keystorePath = path.join(root, 'android/app/sideload.keystore');
 if (!fs.existsSync(keystorePath)) {
   const pass = process.env.CHENGPRO_KEYSTORE_PASS || 'chengpro';
