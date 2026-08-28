@@ -127,6 +127,13 @@ button, input, select, textarea {
   border-radius: 10px;
   padding: 8px 10px;
   outline: none;
+  color-scheme: dark;
+}
+
+.vessel-switcher select option,
+.field select option {
+  background-color: var(--bg2);
+  color: var(--text);
 }
 
 .vessel-switcher select:focus,
