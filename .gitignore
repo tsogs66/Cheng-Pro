@@ -8,6 +8,7 @@ www-android/
 android/
 android/app/sideload.keystore
 dist/
+downloads/
 desktop/runtime/**
 !desktop/runtime/.gitkeep
 *.log
