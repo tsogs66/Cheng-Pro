@@ -39,7 +39,7 @@ Admin login (Voyage / Fleet Office): username `admin`, password from `SYNC_ADMIN
 |--------|---------------------|
 | Windows installer + portable EXE | `npm run dist:win` (electron-builder) → `ChengPro-*.exe` |
 | Linux AppImage | `npm run dist:linux` |
-| Android APK | `npm run android:apk` (after Android SDK) |
+| Android APK | `npm run android:apk` (after Android SDK). Release APK is **signed for sideload** — enable “Install unknown apps” for your file manager. If install fails, use Chrome → `http://<server>:8080` → **Add to Home screen** (PWA). |
 | CI | `.github/workflows/release.yml` on `v*` tags |
 
 Electron loads the unified gateway locally; portable mode stores data beside the EXE (`cheng-pro-data/`).

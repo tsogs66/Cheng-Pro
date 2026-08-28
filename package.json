@@ -14,7 +14,7 @@
     "dist:linux": "electron-builder --linux --publish never",
     "android:prepare": "node scripts/prepare-android-www.js",
     "android:sync": "npm run android:prepare && npx cap sync android",
-    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
+    "android:apk": "npm run android:sync && node scripts/android-release-prep.js && cd android && ./gradlew assembleRelease"
   },
   "engines": {
     "node": ">=18"

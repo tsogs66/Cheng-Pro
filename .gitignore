@@ -6,6 +6,7 @@ data/auth/
 data/voyage-sync/
 www-android/
 android/
+android/app/sideload.keystore
 dist/
 desktop/runtime/**
 !desktop/runtime/.gitkeep
