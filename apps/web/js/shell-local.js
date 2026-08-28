@@ -1,0 +1,89 @@
+/**
+ * On-device shell: talk to the embedded Tank Chief LocalApi when no server URL
+ * is configured, or to the Cheng-Pro gateway when one is saved.
+ */
+(function () {
+  if (!window.ChengProBundled || !ChengProBundled.isBundledClient()) return;
+  if (typeof LocalApi === 'undefined') return;
+
+  const SERVER_BASE_KEY = 'apiServerBase';
+
+  function getServerBase() {
+    try {
+      const saved = localStorage.getItem(SERVER_BASE_KEY);
+      if (saved && saved.trim()) return saved.trim().replace(/\/$/, '');
+    } catch { /* ignore */ }
+    return '';
+  }
+
+  async function localFetch(method, path, body) {
+    await LocalApi.start();
+    if (method === 'GET' && path === '/api/shell/vessels') {
+      const res = await LocalApi.handle('GET', '/api/status');
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return { vessels: res.body.vessels || [], activeVesselId: res.body.activeVesselId || null };
+    }
+    const vesselGet = path.match(/^\/api\/shell\/vessels\/([^/]+)$/);
+    if (method === 'GET' && vesselGet) {
+      const res = await LocalApi.handle('GET', '/api/vessels/' + vesselGet[1]);
+      if (res.status >= 404) throw new Error((res.body && res.body.error) || 'Vessel not found');
+      return {
+        vessel: res.body.vessel,
+        assets: res.body.assets,
+        meta: res.body.meta,
+      };
+    }
+    if (method === 'POST' && path === '/api/shell/vessels/active') {
+      const res = await LocalApi.handle('POST', '/api/vessels/active', body);
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return res.body;
+    }
+    if (method === 'POST' && path === '/api/shell/vessels') {
+      const res = await LocalApi.handle('POST', '/api/vessels', body);
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return res.body;
+    }
+    const vesselMut = path.match(/^\/api\/shell\/vessels\/([^/]+)$/);
+    if (method === 'PUT' && vesselMut) {
+      const res = await LocalApi.handle('PUT', '/api/vessels/' + vesselMut[1], body);
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return res.body;
+    }
+    if (method === 'DELETE' && vesselMut) {
+      const res = await LocalApi.handle('DELETE', '/api/vessels/' + vesselMut[1]);
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return res.body;
+    }
+    if (method === 'GET' && path === '/api/health') {
+      const res = await LocalApi.handle('GET', '/api/health');
+      return {
+        ok: true,
+        product: 'cheng-pro',
+        version: 'bundled',
+        modules: {
+          tanks: { ok: res.status < 400, ...(res.body || {}) },
+          voyage: { ok: false, note: 'Configure sync URL in Voyage Chief when online' },
+        },
+      };
+    }
+    throw new Error('Unsupported offline shell request: ' + method + ' ' + path);
+  }
+
+  const origApi = ChengProApi.api.bind(ChengProApi);
+
+  ChengProApi.api = async function shellApi(path, options = {}) {
+    const base = getServerBase();
+    if (base) {
+      const url = path.startsWith('/api/shell')
+        ? `${base}${path}`
+        : `${base}${path.startsWith('/') ? path : '/' + path}`;
+      return origApi(url, options);
+    }
+    const method = (options.method || 'GET').toUpperCase();
+    let body = options.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { /* leave as string */ }
+    }
+    return localFetch(method, path, body);
+  };
+})();

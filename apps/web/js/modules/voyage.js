@@ -9,7 +9,7 @@ window.ChengProModules.voyage = {
         <h1>Voyage Chief</h1>
         <p>Full noon-report, ROB, e-ORB and fleet sync module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Sign in with fleet credentials; sync URL defaults to this Cheng-Pro server.</p>
         <div class="form-actions" style="margin-top:16px">
-          <a class="btn primary" href="/voyage/">Launch Voyage Chief</a>
+          <button type="button" class="btn primary" id="launchVoyage">Launch Voyage Chief</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
         </div>
       </section>
@@ -24,6 +24,7 @@ window.ChengProModules.voyage = {
         </ul>
       </section>
     `;
+    root.querySelector('#launchVoyage').onclick = () => ChengPro.openVoyage();
     root.querySelector('[data-go]').onclick = () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
   },
@@ -38,7 +39,7 @@ window.ChengProModules.tanks = {
         <h1>Tank Chief</h1>
         <p>Full sounding, calibration, fuel report and bunkering module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Active vessel is shared with Cheng-Pro and Voyage.</p>
         <div class="form-actions" style="margin-top:16px">
-          <a class="btn primary" href="/tanks/">Launch Tank Chief</a>
+          <button type="button" class="btn primary" id="launchTanks">Launch Tank Chief</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
         </div>
       </section>
@@ -53,6 +54,7 @@ window.ChengProModules.tanks = {
         </ul>
       </section>
     `;
+    root.querySelector('#launchTanks').onclick = () => ChengPro.openTanks();
     root.querySelector('[data-go]').onclick = () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
   },

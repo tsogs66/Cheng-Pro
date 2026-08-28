@@ -35,8 +35,8 @@ window.ChengProModules.vessel = {
           <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
           ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
           <button type="button" class="btn" id="newVessel">New vessel</button>
-          <a class="btn" href="/tanks/">Open in Tank Chief</a>
-          <a class="btn" href="/voyage/">Open in Voyage Chief</a>
+          <button type="button" class="btn" id="openTanks">Open in Tank Chief</button>
+          <button type="button" class="btn" id="openVoyage">Open in Voyage Chief</button>
         </div>
       </section>
       <section class="panel">
@@ -56,6 +56,9 @@ window.ChengProModules.vessel = {
     `;
 
     await renderFleet(root.querySelector('#fleetTable tbody'));
+
+    root.querySelector('#openTanks').addEventListener('click', () => ChengPro.openTanks());
+    root.querySelector('#openVoyage').addEventListener('click', () => ChengPro.openVoyage());
 
     root.querySelector('#saveVessel').addEventListener('click', async () => {
       const form = root.querySelector('#vesselForm');

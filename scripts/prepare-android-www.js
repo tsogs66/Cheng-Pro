@@ -2,8 +2,7 @@
 
 /**
  * Build a static www tree for Capacitor / Android.
- * Offline-capable shell + Tank Chief (LocalApi) + Voyage SPA assets.
- * Server sync URL is configured in-app when online.
+ * Full Cheng-Pro shell + Tank Chief (LocalApi) + Voyage SPA assets.
  */
 const fs = require('fs');
 const path = require('path');
@@ -32,49 +31,45 @@ fs.mkdirSync(OUT, { recursive: true });
 // Embedded tank server routes for on-device LocalApi (must match server/ after edits)
 execSync('node scripts/copy-embedded.js', { cwd: path.join(ROOT, 'modules', 'tanks'), stdio: 'inherit' });
 
-// Shell as home
+// Full Cheng-Pro shell (same UI as browser)
 cpDir(path.join(ROOT, 'apps', 'web'), OUT);
 
-// Tank Chief under /tanks/ — for file/capacitor use relative + local transport
+// Tank Chief under /tanks/
 cpDir(path.join(ROOT, 'modules', 'tanks', 'public'), path.join(OUT, 'tanks'));
 
 // Voyage SPA under /voyage/
 cpDir(path.join(ROOT, 'modules', 'voyage', 'www'), path.join(OUT, 'voyage'));
 
-// Android hub index pointing at modules (overwrite shell index with launcher that works offline)
-const hub = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b1c24">
-  <title>Cheng-Pro</title>
-  <link rel="stylesheet" href="css/shell.css">
-</head>
-<body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark"></span>
-        <div class="brand-text"><strong>Cheng-Pro</strong><span>Chief Engineer suite</span></div>
-      </div>
-    </header>
-    <main class="main">
-      <section class="panel hero">
-        <h1>Cheng-Pro</h1>
-        <p>Voyage Chief and Tank Chief on one device. Use Vessel Setup in Tank Chief for ship identity; set sync URL in Voyage Chief to your Cheng-Pro server when online.</p>
-        <div class="form-actions" style="margin-top:18px">
-          <a class="btn primary" href="voyage/index.html">Voyage Chief</a>
-          <a class="btn primary" href="tanks/index.html">Tank Chief</a>
-        </div>
-      </section>
-    </main>
-  </div>
-</body>
-</html>`;
-fs.writeFileSync(path.join(OUT, 'index.html'), hub);
+// --- Shell: relative asset paths + offline LocalApi for vessel/active-vessel UI ---
+const shellIndex = path.join(OUT, 'index.html');
+let shellHtml = fs.readFileSync(shellIndex, 'utf8');
+shellHtml = shellHtml.replace(/href="\/css\//g, 'href="css/');
+shellHtml = shellHtml.replace(/src="\/js\//g, 'src="js/');
+shellHtml = shellHtml.replace(/href="\/manifest\.webmanifest"/, 'href="manifest.webmanifest"');
+shellHtml = shellHtml.replace(
+  '<script src="js/api.js"></script>',
+  [
+    '<script>window.CHENG_PRO_BUNDLED = true;</script>',
+    '<script src="tanks/js/node-shim.js"></script>',
+    '<script src="tanks/js/node-require.js"></script>',
+    '<script src="tanks/js/store-core.js"></script>',
+    '<script src="tanks/js/local-api.js"></script>',
+    '<script src="js/api.js"></script>',
+    '<script src="js/bundled.js"></script>',
+    '<script src="js/shell-local.js"></script>',
+  ].join('\n  ')
+);
+fs.writeFileSync(shellIndex, shellHtml);
 
-// Force tank local transport default on Android file URLs; clear API prefix for bundled relative paths
+// Manifest start URL for Capacitor file/https://localhost
+const manifestPath = path.join(OUT, 'manifest.webmanifest');
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.start_url = './';
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+}
+
+// Tank Chief: relative base + bundled API prefix
 const tankIndex = path.join(OUT, 'tanks', 'index.html');
 let html = fs.readFileSync(tankIndex, 'utf8');
 html = html.replace('<base href="/tanks/">', '<base href="./">');
@@ -84,5 +79,16 @@ html = html.replace(
 );
 html = html.replace('href="/"', 'href="../index.html"');
 fs.writeFileSync(tankIndex, html);
+
+// Voyage: link back to shell home
+for (const voyageIndex of ['index.html', 'voyage_manager.html']) {
+  const vp = path.join(OUT, 'voyage', voyageIndex);
+  if (!fs.existsSync(vp)) continue;
+  let vhtml = fs.readFileSync(vp, 'utf8');
+  if (!vhtml.includes('../index.html')) {
+    vhtml = vhtml.replace(/href="\/"/g, 'href="../index.html"');
+    fs.writeFileSync(vp, vhtml);
+  }
+}
 
 console.log('Prepared', OUT);

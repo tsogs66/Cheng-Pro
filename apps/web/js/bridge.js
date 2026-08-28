@@ -61,7 +61,15 @@
     api: {
       fetch: (path, init) => ChengProApi.api(path, init),
     },
-    openTanks: () => { window.location.href = '/tanks/'; },
-    openVoyage: () => { window.location.href = '/voyage/'; },
+    openTanks: () => {
+      window.location.href = (window.ChengProBundled && ChengProBundled.isBundledClient())
+        ? ChengProBundled.moduleUrl('tanks')
+        : '/tanks/';
+    },
+    openVoyage: () => {
+      window.location.href = (window.ChengProBundled && ChengProBundled.isBundledClient())
+        ? ChengProBundled.moduleUrl('voyage')
+        : '/voyage/';
+    },
   };
 })(window);
