@@ -40,7 +40,20 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.remove('show'), 2400);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 2800);
+  try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* ignore */ }
+}
+
+function setSyncSaveStatus(msg, kind = 'ok') {
+  const el = document.getElementById('sync-save-status');
+  if (!el) return;
+  if (!msg) {
+    el.textContent = '';
+    el.className = 'sync-save-status';
+    return;
+  }
+  el.textContent = msg;
+  el.className = 'sync-save-status show ' + kind;
 }
 
 /** Chrome/Edge/Android fire this once; keep it so About can offer Install. */
@@ -2866,6 +2879,7 @@ function renderSettings(main) {
         <button class="btn primary" id="btn-push">Push to peer</button>
         <button class="btn" id="btn-flush">Flush offline queue</button>
       </div>
+      <div class="sync-save-status" id="sync-save-status" role="status" aria-live="polite"></div>
       <div class="hint" style="margin-top:8px;color:var(--text-faint);font-size:12px">
         Local and LXC instances can sync when either becomes reachable. Offline edits stay in IndexedDB until flushed.
       </div>
@@ -2990,9 +3004,19 @@ function renderSettings(main) {
 
   document.getElementById('btn-save-sync').onclick = async () => {
     const syncUrl = document.getElementById('sync-url').value.trim();
-    Api.setServerBase(syncUrl);
-    STATE.settings = await Api.saveSettings({ syncUrl, syncEnabled: true });
-    showToast('Sync settings saved');
+    setSyncSaveStatus('Saving sync settings…', 'pending');
+    setSettingsBusy(true);
+    try {
+      Api.setServerBase(syncUrl);
+      STATE.settings = await Api.saveSettings({ syncUrl, syncEnabled: true });
+      setSyncSaveStatus('Sync settings saved', 'ok');
+      showToast('Sync settings saved');
+    } catch (e) {
+      setSyncSaveStatus(e.message || 'Could not save sync settings', 'err');
+      showToast(e.message || 'Could not save sync settings');
+    } finally {
+      setSettingsBusy(false);
+    }
   };
 
   document.getElementById('btn-pull').onclick = async () => {

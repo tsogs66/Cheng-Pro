@@ -401,10 +401,38 @@ table.excel-table input[type="number"]:focus {
   bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   left: 50%; transform: translateX(-50%) translateY(20px);
   background: #223353; border: 1px solid var(--border); color: var(--text);
-  padding: 10px 16px; border-radius: 8px; opacity: 0; transition: .2s; z-index: 100;
+  padding: 10px 16px; border-radius: 8px; opacity: 0; transition: .2s; z-index: 100000;
   max-width: min(90vw, 520px); pointer-events: none;
+  box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sync-save-status {
+  display: none;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.sync-save-status.show { display: block !important; }
+.sync-save-status.ok {
+  border-color: rgba(47, 191, 113, 0.55);
+  color: var(--good);
+  background: rgba(47, 191, 113, 0.12);
+}
+.sync-save-status.err {
+  border-color: rgba(230, 88, 77, 0.55);
+  color: var(--bad);
+  background: rgba(230, 88, 77, 0.12);
+}
+.sync-save-status.pending {
+  border-color: rgba(230, 179, 77, 0.55);
+  color: var(--warn);
+  background: rgba(230, 179, 77, 0.10);
+}
 .textarea-json {
   width: 100%; min-height: 160px; background: var(--bg-panel);
   border: 1px solid var(--border); border-radius: 8px; padding: 10px;
