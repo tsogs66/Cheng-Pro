@@ -2851,7 +2851,7 @@ function renderSettings(main) {
       <div class="form-row"><label>Database</label>
         <select id="api-transport">
           <option value="local">On this device — works with no network</option>
-          <option value="server">On the server that served this page</option>
+          <option value="server" id="api-transport-server">On the server that served this page</option>
         </select></div>
       <div class="hint" data-transport-note style="margin-top:8px;color:var(--text-faint);font-size:12px"></div>
     </div>
@@ -2947,15 +2947,36 @@ function renderSettings(main) {
      under the new one's name. */
   const transportBox = document.getElementById('api-transport');
   const transportNote = document.querySelector('[data-transport-note]');
+  const serverOption = document.getElementById('api-transport-server');
+  if (serverOption && Api.isBundledClient && Api.isBundledClient()) {
+    serverOption.textContent = 'On the Cheng-Pro server (needs sync URL below)';
+  }
   if (transportBox) {
     transportBox.value = Api.getTransport();
     transportBox.disabled = !Api.canUseLocal();
-    transportNote.textContent = Api.getTransport() === 'local'
-      ? 'Records are on this device. Nothing is sent anywhere — use Push below to copy them to a server.'
-      : 'Records are on the server. This device shows a cached copy when the server is out of reach.';
+    const onServer = Api.getTransport() === 'server';
+    if (onServer && Api.isBundledClient && Api.isBundledClient()) {
+      const base = Api.getServerBase() || s.syncUrl || '';
+      transportNote.textContent = base
+        ? `Records are read and saved on ${base}. This device keeps a cached copy when the server is out of reach.`
+        : 'Enter the Cheng-Pro server URL below, save settings, then switch to server mode.';
+    } else {
+      transportNote.textContent = onServer
+        ? 'Records are on the server. This device shows a cached copy when the server is out of reach.'
+        : 'Records are on this device. Nothing is sent anywhere — use Push below to copy them to a server.';
+    }
     transportBox.onchange = () => {
       const mode = transportBox.value;
       if (mode === Api.getTransport()) return;
+      if (mode === 'server' && Api.isBundledClient && Api.isBundledClient()) {
+        const url = document.getElementById('sync-url')?.value.trim() || Api.getServerBase() || '';
+        if (!url) {
+          showToast('Enter the Cheng-Pro server URL below and save settings first');
+          transportBox.value = Api.getTransport();
+          return;
+        }
+        Api.setServerBase(url);
+      }
       const ask = mode === 'local'
         ? 'Use this device\u2019s own records? The server\u2019s records are not copied across — '
           + 'use Pull first if you want them here.'
@@ -2968,7 +2989,9 @@ function renderSettings(main) {
   }
 
   document.getElementById('btn-save-sync').onclick = async () => {
-    STATE.settings = await Api.saveSettings({ syncUrl: document.getElementById('sync-url').value.trim(), syncEnabled: true });
+    const syncUrl = document.getElementById('sync-url').value.trim();
+    Api.setServerBase(syncUrl);
+    STATE.settings = await Api.saveSettings({ syncUrl, syncEnabled: true });
     showToast('Sync settings saved');
   };
 

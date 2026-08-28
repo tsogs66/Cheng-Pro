@@ -80,7 +80,7 @@ let html = fs.readFileSync(tankIndex, 'utf8');
 html = html.replace('<base href="/tanks/">', '<base href="./">');
 html = html.replace(
   "window.CHENG_PRO_TANKS_PREFIX = '/tanks';",
-  "window.CHENG_PRO_TANKS_PREFIX = ''; try { localStorage.setItem('apiTransport','local'); } catch(e) {}"
+  "window.CHENG_PRO_TANKS_PREFIX = '';"
 );
 html = html.replace('href="/"', 'href="../index.html"');
 fs.writeFileSync(tankIndex, html);

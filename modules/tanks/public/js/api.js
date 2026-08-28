@@ -13,6 +13,49 @@ const Api = (() => {
     return path;
   }
 
+  /** APK / Capacitor loads from localhost — not the ship's Cheng-Pro server. */
+  function isBundledClient() {
+    if (!/^https?:$/.test(location.protocol)) return true;
+    const host = location.hostname;
+    return host === 'localhost' || host === '127.0.0.1';
+  }
+
+  const SERVER_BASE_KEY = 'apiServerBase';
+
+  function getServerBase() {
+    try {
+      const saved = localStorage.getItem(SERVER_BASE_KEY);
+      if (saved && saved.trim()) return saved.trim().replace(/\/$/, '');
+    } catch { /* private mode */ }
+    return '';
+  }
+
+  function setServerBase(url) {
+    const base = String(url || '').trim().replace(/\/$/, '');
+    try {
+      if (base) localStorage.setItem(SERVER_BASE_KEY, base);
+      else localStorage.removeItem(SERVER_BASE_KEY);
+    } catch { /* not fatal */ }
+    return base;
+  }
+
+  /** Full or relative URL for a server-mode HTTP request. */
+  function resolveUrl(path) {
+    const prefixed = withPrefix(path);
+    if (transport !== 'server' || !isBundledClient()) return prefixed;
+    const base = getServerBase();
+    if (!base) {
+      const err = new Error('Set the Cheng-Pro server URL under Backup / Sync before using server mode');
+      err.status = 400;
+      err.rejected = true;
+      throw err;
+    }
+    const tankPath = prefixed.startsWith('/tanks/')
+      ? prefixed
+      : `/tanks${prefixed.startsWith('/') ? prefixed : `/${prefixed}`}`;
+    return `${base}${tankPath}`;
+  }
+
   function setOnline(v) {
     online = v;
     listeners.forEach((fn) => fn(online));
@@ -41,13 +84,12 @@ const Api = (() => {
    * phone application, loaded from its own bundle rather than over http.
    */
   const TRANSPORT_KEY = 'apiTransport';
-  const servedOverHttp = /^https?:$/.test(location.protocol);
   let transport = (() => {
     try {
       const saved = localStorage.getItem(TRANSPORT_KEY);
       if (saved === 'local' || saved === 'server') return saved;
     } catch { /* private mode: fall through to the default */ }
-    return servedOverHttp ? 'server' : 'local';
+    return isBundledClient() ? 'local' : 'server';
   })();
 
   function getTransport() { return transport; }
@@ -92,7 +134,7 @@ const Api = (() => {
         : opts.body != null ? JSON.stringify(opts.body) : undefined,
     };
     try {
-      const res = await fetch(withPrefix(path), init);
+      const res = await fetch(resolveUrl(path), init);
       const text = await res.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -147,7 +189,7 @@ const Api = (() => {
   function upload(path, formData, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', withPrefix(path));
+      xhr.open('POST', resolveUrl(path));
       xhr.upload.onprogress = (e) => {
         if (!onProgress) return;
         if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100), 'uploading');
@@ -185,7 +227,7 @@ const Api = (() => {
     }
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('GET', withPrefix(path));
+      xhr.open('GET', resolveUrl(path));
       xhr.responseType = 'text';
       xhr.onprogress = (e) => {
         if (!onProgress) return;
@@ -296,7 +338,7 @@ const Api = (() => {
   async function reachable() {
     if (transport === 'local' && canUseLocal()) { setOnline(true); return true; }
     try {
-      const res = await fetch(withPrefix('/api/health'), { cache: 'no-store' });
+      const res = await fetch(resolveUrl('/api/health'), { cache: 'no-store' });
       const ok = res.ok;
       setOnline(ok);
       return ok;
@@ -312,7 +354,8 @@ const Api = (() => {
 
   return {
     request, upload, download, getStatus, getVessel, mutate, flushQueue, onStatus, isOnline,
-    reachable, afterFlush, getTransport, setTransport, canUseLocal,
+    reachable, afterFlush, getTransport, setTransport, canUseLocal, isBundledClient,
+    getServerBase, setServerBase,
     listVessels: () => request('/api/vessels'),
     createVessel: (body) => request('/api/vessels', { method: 'POST', body }),
     setActive: (id) => request('/api/vessels/active', { method: 'POST', body: { id } }),
