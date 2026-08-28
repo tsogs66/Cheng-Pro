@@ -3444,10 +3444,10 @@ async function boot() {
   }
 
   if ('serviceWorker' in navigator) {
-    // No ?v here on purpose: the browser re-fetches this URL and compares the
-    // bytes, so a pinned version only ever goes stale. The cache name inside
-    // the worker is what versions the cached files.
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    const swUrl = (window.CHENG_PRO_BUNDLED || window.CHENG_PRO_EMBEDDED_BASE)
+      ? 'sw.js'
+      : '/sw.js';
+    navigator.serviceWorker.register(swUrl).catch(() => {});
   }
 
   render();

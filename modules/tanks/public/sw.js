@@ -15,6 +15,8 @@ const ASSETS = [
   '/embedded/calc.js',
   '/embedded/bunker-live.js',
   '/embedded/index.js',
+  '/embedded/seed/conversion.json',
+  '/embedded/seed/iso8217.json',
   '/js/db.js',
   '/js/calc.js',
   '/js/progress.js',

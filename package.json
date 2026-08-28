@@ -1,6 +1,6 @@
 {
   "name": "cheng-pro",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Cheng-Pro — all-in-one marine chief engineer suite (Voyage Chief + Tank Chief)",
   "author": "ts0gs (Marvin C. Endozo)",
   "main": "desktop/main.js",

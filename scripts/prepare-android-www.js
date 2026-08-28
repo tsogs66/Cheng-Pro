@@ -49,7 +49,7 @@ shellHtml = shellHtml.replace(/href="\/manifest\.webmanifest"/, 'href="manifest.
 shellHtml = shellHtml.replace(
   '<script src="js/api.js"></script>',
   [
-    '<script>window.CHENG_PRO_BUNDLED = true;</script>',
+    '<script>window.CHENG_PRO_BUNDLED = true; window.CHENG_PRO_EMBEDDED_BASE = "tanks/embedded/";</script>',
     '<script src="tanks/js/node-shim.js"></script>',
     '<script src="tanks/js/node-require.js"></script>',
     '<script src="tanks/js/store-core.js"></script>',
@@ -75,10 +75,18 @@ let html = fs.readFileSync(tankIndex, 'utf8');
 html = html.replace('<base href="/tanks/">', '<base href="./">');
 html = html.replace(
   "window.CHENG_PRO_TANKS_PREFIX = '/tanks';",
-  "window.CHENG_PRO_TANKS_PREFIX = '';"
+  "window.CHENG_PRO_TANKS_PREFIX = ''; window.CHENG_PRO_EMBEDDED_BASE = 'embedded/';"
 );
 html = html.replace('href="/"', 'href="../index.html"');
 fs.writeFileSync(tankIndex, html);
+
+// Service worker asset paths: relative to tanks/ (Capacitor serves from https://localhost/tanks/)
+const swPath = path.join(OUT, 'tanks', 'sw.js');
+if (fs.existsSync(swPath)) {
+  let sw = fs.readFileSync(swPath, 'utf8');
+  sw = sw.replace(/'\//g, "'");
+  fs.writeFileSync(swPath, sw);
+}
 
 // Voyage: link back to shell home
 for (const voyageIndex of ['index.html', 'voyage_manager.html']) {

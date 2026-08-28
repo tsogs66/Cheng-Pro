@@ -20,6 +20,21 @@ const LocalApi = (() => {
      the same place the server keeps them, so the routes find them unchanged. */
   const SEED = ['conversion.json', 'iso8217.json'];
 
+  /** Embedded files live under /embedded on standalone Tank Chief, under ./embedded in the APK. */
+  function embeddedAssetUrl(relativePath) {
+    const rel = String(relativePath || '').replace(/^\//, '');
+    if (typeof window !== 'undefined' && window.CHENG_PRO_EMBEDDED_BASE) {
+      const base = String(window.CHENG_PRO_EMBEDDED_BASE).replace(/\/?$/, '/');
+      return base + rel;
+    }
+    if (typeof location !== 'undefined' && location.href) {
+      try {
+        return new URL('embedded/' + rel, location.href).href;
+      } catch { /* fall through */ }
+    }
+    return '/embedded/' + rel;
+  }
+
   async function fetchText(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`${res.status} fetching ${url}`);
@@ -34,11 +49,11 @@ const LocalApi = (() => {
     NodeShim.fs.mkdirSync('/app/data/vessels', { recursive: true });
 
     for (const file of SEED) {
-      NodeShim.fs.writeFileSync(`/app/seed/${file}`, await fetchText(`/embedded/seed/${file}`));
+      NodeShim.fs.writeFileSync(`/app/seed/${file}`, await fetchText(embeddedAssetUrl('seed/' + file)));
     }
 
     for (const file of EMBEDDED) {
-      const text = await fetchText(`/embedded/${file}`);
+      const text = await fetchText(embeddedAssetUrl(file));
       const id = `./${file.replace(/\.js$/, '')}`;
       NodeRequire.provide(id, text);
       NodeRequire.provide(file === 'index.js' ? './index' : id, text);
