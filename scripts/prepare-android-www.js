@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'www-android');
@@ -27,6 +28,9 @@ function rmrf(p) {
 
 rmrf(OUT);
 fs.mkdirSync(OUT, { recursive: true });
+
+// Embedded tank server routes for on-device LocalApi (must match server/ after edits)
+execSync('node scripts/copy-embedded.js', { cwd: path.join(ROOT, 'modules', 'tanks'), stdio: 'inherit' });
 
 // Shell as home
 cpDir(path.join(ROOT, 'apps', 'web'), OUT);

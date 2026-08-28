@@ -2858,7 +2858,8 @@ function renderSettings(main) {
     <div class="form-panel">
       <div class="section-title" style="margin-top:0">Remote sync (Proxmox / office)</div>
       <div class="form-row"><label>Peer sync URL</label>
-        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.1.50:3080"></div>
+        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.0.132:8080"></div>
+      <p class="hint" style="margin:6px 0 0">Cheng-Pro server: use the root URL (port 8080). Standalone Tank Chief: use port 3080. Either works — <code>/tanks</code> is added automatically when needed.</p>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
         <button class="btn" id="btn-pull">Pull from peer</button>

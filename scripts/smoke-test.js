@@ -100,6 +100,14 @@ async function main() {
     assert.equal(shell.status, 200);
     assert.ok(String(shell.raw).includes('Cheng-Pro'));
 
+    const syncRoot = await request(port, 'GET', '/api/sync/export');
+    assert.equal(syncRoot.status, 200, 'tank sync export at gateway root');
+    assert.equal(syncRoot.json.format, 'vessel-fuel-tms-sync');
+
+    const syncTanks = await request(port, 'GET', '/tanks/api/sync/export');
+    assert.equal(syncTanks.status, 200, 'tank sync export under /tanks');
+    assert.equal(syncTanks.json.format, 'vessel-fuel-tms-sync');
+
     console.log('smoke-test: ok');
   } finally {
     try {

@@ -815,6 +815,26 @@ app.post('/api/backup/import', upload.single('file'), (req, res) => {
 });
 
 /* ---------- Sync (local <-> Proxmox / remote peer) ---------- */
+
+/** Cheng-Pro serves Tank Chief at /tanks; standalone Tank Chief uses the root. */
+function peerSyncBases(url) {
+  const base = String(url || '').replace(/\/$/, '');
+  if (!base) return [];
+  const bases = [base];
+  if (!/\/tanks$/i.test(base)) bases.push(`${base}/tanks`);
+  return [...new Set(bases)];
+}
+
+async function fetchPeerSync(url, apiPath, init) {
+  let last = null;
+  for (const base of peerSyncBases(url)) {
+    const resp = await fetch(`${base}${apiPath}`, init);
+    if (resp.ok || resp.status !== 404) return resp;
+    last = resp;
+  }
+  return last;
+}
+
 app.get('/api/sync/export', (req, res) => {
   res.json(store.syncPushBundle());
 });
@@ -832,7 +852,7 @@ app.post('/api/sync/pull', asyncHandler(async (req, res) => {
   const settings = store.getSettings();
   const url = (req.body?.syncUrl || settings.syncUrl || '').replace(/\/$/, '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
-  const resp = await fetch(`${url}/api/sync/export`);
+  const resp = await fetchPeerSync(url, '/api/sync/export');
   if (!resp.ok) throw new Error('Remote sync failed: HTTP ' + resp.status);
   const payload = await resp.json();
   const results = store.applySyncPayload(payload);
@@ -849,7 +869,7 @@ app.post('/api/sync/push', asyncHandler(async (req, res) => {
   const url = (req.body?.syncUrl || settings.syncUrl || '').replace(/\/$/, '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
   const payload = store.syncPushBundle();
-  const resp = await fetch(`${url}/api/sync/import`, {
+  const resp = await fetchPeerSync(url, '/api/sync/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

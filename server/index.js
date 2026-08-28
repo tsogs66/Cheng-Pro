@@ -148,6 +148,14 @@ app.delete('/api/shell/vessels/:id', (req, res) => {
   }
 });
 
+/* Tank peer sync at gateway root — Android/clients often use http://host:8080 without /tanks */
+function forwardTankApi(req, res, next) {
+  tank.app(req, res, next);
+}
+
+app.get('/api/sync/export', forwardTankApi);
+app.post('/api/sync/import', express.json({ limit: '50mb' }), forwardTankApi);
+
 /* Voyage Chief auth + sync + admin (full Python stack) */
 app.use('/api/auth', requireVoyage);
 app.use('/api/admin', requireVoyage);
