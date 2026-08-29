@@ -6173,6 +6173,7 @@ async function loadVesselFromDb(vesselId){
   exitEditMode();
   await applyMirroredSyncCredentials();
   await renderVoyageLibrary();
+  if (typeof mirrorActiveVesselToChengPro === 'function') mirrorActiveVesselToChengPro();
   } finally {
     if (own) endActivity('load-vessel');
   }
