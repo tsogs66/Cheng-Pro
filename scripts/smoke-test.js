@@ -101,6 +101,7 @@ async function main() {
     assert.ok(String(shell.raw).includes('Cheng-Pro'));
     assert.ok(String(shell.raw).includes('Performance'), 'Performance menu item');
     assert.ok(String(shell.raw).includes('perf-calc.js'), 'perf-calc script');
+    assert.ok(String(shell.raw).includes('voyage-bridge.js'), 'voyage bridge script');
 
     const engineVessel = await request(port, 'PUT', `/api/shell/vessels/${id}`, {
       name: 'MV SMOKE TEST',

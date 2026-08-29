@@ -1,0 +1,346 @@
+/**
+ * Bridge Voyage Chief (IndexedDB noonReportDB) ↔ Cheng-Pro shared vessel.json.
+ * Same Capacitor origin on Android, so the shell can read Voyage’s on-device data.
+ */
+(function (root) {
+  'use strict';
+
+  const DB_NAME = 'noonReportDB';
+  const DB_VERSION = 6;
+  const HINT_KEY = 'chengProVoyageActiveHint';
+  const AUTO_FLAG = 'chengProVoyageImportDone';
+
+  const ENGINE_KEYS = [
+    'mcrRpm', 'mcrKw', 'csrRpm', 'csrKw', 'pitch',
+    'sfoc100', 'sfoc85', 'lcvRef', 'lcvActual', 'slocRef',
+    'mechEff', 'fuelDensity', 'lubeDensity', 'propLawExp',
+  ];
+
+  function slugify(name) {
+    return String(name || 'vessel')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 64) || 'vessel';
+  }
+
+  function normalizeImo(imo) {
+    return String(imo || '').replace(/^IMO\s*/i, '').trim();
+  }
+
+  function openVoyageDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onerror = () => reject(req.error || new Error('Could not open Voyage Chief database'));
+      req.onsuccess = () => resolve(req.result);
+      // Do not create stores here — Voyage owns schema upgrades.
+      req.onupgradeneeded = () => {};
+    });
+  }
+
+  function idbGetAll(db, storeName) {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!db.objectStoreNames.contains(storeName)) {
+          resolve([]);
+          return;
+        }
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function idbPut(db, storeName, value) {
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put(value);
+        tx.oncomplete = () => resolve(value);
+        tx.onerror = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function mapSetupToPatch(setup, registry) {
+    const s = setup || {};
+    const name = (s.vesselName || registry?.name || '').trim() || 'Vessel';
+    const patch = {
+      name,
+      imo: normalizeImo(s.imoNo),
+      callSign: s.callSign || '',
+      flag: s.flag || '',
+      company: s.company || '',
+      type: s.shipType || s.type || '',
+      dwt: s.dwt != null && s.dwt !== '' ? String(s.dwt) : '',
+      notes: s.notes || '',
+      voyageRegistryId: registry?.id || null,
+      voyageSlug: registry?.slug || s.sync?.vesselId || slugify(name),
+    };
+    for (const key of ENGINE_KEYS) {
+      if (s[key] != null && s[key] !== '') patch[key] = s[key];
+    }
+    return patch;
+  }
+
+  async function readVoyageFleet() {
+    const db = await openVoyageDb();
+    try {
+      const meta = await idbGetAll(db, 'meta');
+      const byKey = new Map(meta.map((row) => [row.key, row.value]));
+      const vessels = Array.isArray(byKey.get('vessels')) ? byKey.get('vessels') : [];
+      const activeId = byKey.get('activeVesselId') || null;
+      const rows = [];
+      for (const reg of vessels) {
+        if (!reg || !reg.id) continue;
+        const setup = byKey.get(`setup:${reg.id}`) || (reg.id === activeId ? byKey.get('setup') : null) || {};
+        rows.push({ registry: reg, setup, patch: mapSetupToPatch(setup, reg) });
+      }
+      // Legacy single-setup with no registry
+      if (!rows.length && byKey.get('setup')) {
+        const setup = byKey.get('setup');
+        const name = setup.vesselName || 'Vessel';
+        const reg = { id: 'legacy', name, slug: slugify(name) };
+        rows.push({ registry: reg, setup, patch: mapSetupToPatch(setup, reg) });
+      }
+      return { vessels: rows, activeId, credentials: readVoyageCredentials() };
+    } finally {
+      try { db.close(); } catch { /* ignore */ }
+    }
+  }
+
+  function readVoyageCredentials() {
+    try {
+      const raw = localStorage.getItem('noonReportSyncCredentials');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function readActiveHint() {
+    try {
+      const raw = localStorage.getItem(HINT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeActiveHint(hint) {
+    try {
+      localStorage.setItem(HINT_KEY, JSON.stringify(hint));
+    } catch { /* ignore */ }
+  }
+
+  function findMatch(list, patch) {
+    const imo = normalizeImo(patch.imo);
+    const slug = patch.voyageSlug || slugify(patch.name);
+    if (imo) {
+      const byImo = list.find((v) => normalizeImo(v.imo) === imo);
+      if (byImo) return byImo;
+    }
+    const bySlug = list.find((v) => v.id === slug || v.voyageSlug === slug);
+    if (bySlug) return bySlug;
+    const byVoyageId = list.find((v) => v.voyageRegistryId && v.voyageRegistryId === patch.voyageRegistryId);
+    if (byVoyageId) return byVoyageId;
+    const name = String(patch.name || '').trim().toLowerCase();
+    if (name) return list.find((v) => String(v.name || '').trim().toLowerCase() === name) || null;
+    return null;
+  }
+
+  async function importIntoChengPro(options = {}) {
+    const api = root.ChengPro && root.ChengPro.api;
+    if (!api || !api.fetch) throw new Error('Cheng-Pro API not ready');
+
+    const fleet = await readVoyageFleet();
+    if (!fleet.vessels.length) {
+      const hint = readActiveHint();
+      if (hint && (hint.name || hint.imo)) {
+        fleet.vessels.push({
+          registry: { id: hint.voyageId || 'hint', name: hint.name, slug: hint.slug },
+          setup: hint,
+          patch: mapSetupToPatch(hint, { id: hint.voyageId, name: hint.name, slug: hint.slug }),
+        });
+      }
+    }
+    if (!fleet.vessels.length) {
+      return { ok: false, imported: 0, updated: 0, message: 'No Voyage Chief vessels found on this device. Open Voyage Chief once, then import again.' };
+    }
+
+    let listRes;
+    try {
+      listRes = await api.fetch('/api/shell/vessels');
+    } catch (err) {
+      throw new Error(err.message || 'Could not list Cheng-Pro vessels');
+    }
+    const existing = listRes.vessels || [];
+    let imported = 0;
+    let updated = 0;
+    let activeId = null;
+    const details = [];
+
+    for (const row of fleet.vessels) {
+      const patch = { ...row.patch };
+      const preferredId = patch.voyageSlug || slugify(patch.name);
+      const match = findMatch(existing, patch);
+      try {
+        if (match) {
+          const saved = await api.fetch('/api/shell/vessels/' + encodeURIComponent(match.id), {
+            method: 'PUT',
+            body: JSON.stringify(patch),
+          });
+          updated += 1;
+          details.push({ id: saved.id || match.id, name: patch.name, action: 'updated' });
+          if (fleet.activeId && (row.registry.id === fleet.activeId || row.registry.slug === fleet.activeId)) {
+            activeId = saved.id || match.id;
+          }
+          // refresh local match list
+          const idx = existing.findIndex((v) => v.id === match.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...patch, id: match.id };
+        } else {
+          const created = await api.fetch('/api/shell/vessels', {
+            method: 'POST',
+            body: JSON.stringify({ ...patch, id: preferredId }),
+          });
+          imported += 1;
+          details.push({ id: created.id, name: patch.name, action: 'created' });
+          existing.push(created);
+          if (fleet.activeId && (row.registry.id === fleet.activeId || row.registry.slug === fleet.activeId)) {
+            activeId = created.id;
+          }
+          if (!activeId) activeId = created.id;
+        }
+      } catch (err) {
+        details.push({ name: patch.name, action: 'error', error: err.message });
+      }
+    }
+
+    if (options.setActive !== false) {
+      const hint = readActiveHint();
+      if (!activeId && hint) {
+        const m = findMatch(existing, mapSetupToPatch(hint, hint));
+        if (m) activeId = m.id;
+      }
+      if (!activeId && existing.length) activeId = existing[0].id;
+      if (activeId && root.ChengPro?.vessel?.setActive) {
+        try { await root.ChengPro.vessel.setActive(activeId); } catch { /* ignore */ }
+      } else if (activeId) {
+        try {
+          await api.fetch('/api/shell/vessels/active', {
+            method: 'POST',
+            body: JSON.stringify({ id: activeId }),
+          });
+        } catch { /* ignore */ }
+      }
+    }
+
+    try { localStorage.setItem(AUTO_FLAG, new Date().toISOString()); } catch { /* ignore */ }
+
+    return {
+      ok: true,
+      imported,
+      updated,
+      activeId,
+      details,
+      message: `Imported ${imported} new, updated ${updated} from Voyage Chief.`,
+    };
+  }
+
+  /** Push Cheng-Pro vessel identity/engine into Voyage setup for the matching ship. */
+  async function exportVesselToVoyage(vessel) {
+    if (!vessel || !vessel.name) return { ok: false, message: 'No vessel to export' };
+    const db = await openVoyageDb();
+    try {
+      const meta = await idbGetAll(db, 'meta');
+      const byKey = new Map(meta.map((row) => [row.key, row.value]));
+      const vessels = Array.isArray(byKey.get('vessels')) ? byKey.get('vessels') : [];
+      const imo = normalizeImo(vessel.imo);
+      let reg = vessels.find((v) => v.id === vessel.voyageRegistryId || v.slug === vessel.voyageSlug || v.slug === vessel.id);
+      if (!reg && imo) {
+        for (const v of vessels) {
+          const setup = byKey.get(`setup:${v.id}`) || {};
+          if (normalizeImo(setup.imoNo) === imo) { reg = v; break; }
+        }
+      }
+      if (!reg) {
+        reg = vessels.find((v) => String(v.name || '').toLowerCase() === String(vessel.name).toLowerCase());
+      }
+      if (!reg) {
+        reg = {
+          id: 'v-' + slugify(vessel.name).slice(0, 20),
+          name: vessel.name,
+          slug: vessel.voyageSlug || vessel.id || slugify(vessel.name),
+          createdAt: new Date().toISOString(),
+        };
+        vessels.push(reg);
+        await idbPut(db, 'meta', { key: 'vessels', value: vessels });
+      }
+
+      const setupKey = `setup:${reg.id}`;
+      const setup = { ...(byKey.get(setupKey) || byKey.get('setup') || {}) };
+      setup.vesselName = vessel.name;
+      setup.imoNo = vessel.imo || setup.imoNo || '';
+      setup.flag = vessel.flag || '';
+      setup.company = vessel.company || vessel.owner || '';
+      setup.dwt = vessel.dwt !== '' && vessel.dwt != null ? vessel.dwt : setup.dwt;
+      for (const key of ENGINE_KEYS) {
+        if (vessel[key] != null && vessel[key] !== '') setup[key] = vessel[key];
+      }
+      if (!setup.sync) setup.sync = {};
+      setup.sync.vesselId = setup.sync.vesselId || reg.slug || vessel.id;
+      await idbPut(db, 'meta', { key: setupKey, value: setup });
+      writeActiveHint({
+        voyageId: reg.id,
+        slug: reg.slug,
+        name: vessel.name,
+        imo: vessel.imo,
+        company: vessel.company,
+        flag: vessel.flag,
+        dwt: vessel.dwt,
+        ...Object.fromEntries(ENGINE_KEYS.map((k) => [k, vessel[k]])),
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, voyageId: reg.id, message: 'Pushed identity & engine data into Voyage Chief on this device.' };
+    } finally {
+      try { db.close(); } catch { /* ignore */ }
+    }
+  }
+
+  async function autoImportIfNeeded() {
+    try {
+      const list = root.ChengPro?.vessel?.getListSync?.() || [];
+      const already = localStorage.getItem(AUTO_FLAG);
+      // Always refresh when Cheng-Pro has no vessels but Voyage might.
+      if (list.length && already) {
+        // Still refresh active vessel engine fields lightly from hint
+        return null;
+      }
+      const fleet = await readVoyageFleet();
+      if (!fleet.vessels.length && !readActiveHint()) return null;
+      if (!list.length || !already) {
+        return importIntoChengPro({ setActive: true });
+      }
+    } catch (err) {
+      console.warn('Voyage→Cheng-Pro auto-import skipped:', err.message);
+    }
+    return null;
+  }
+
+  root.ChengProVoyageBridge = {
+    readVoyageFleet,
+    importIntoChengPro,
+    exportVesselToVoyage,
+    autoImportIfNeeded,
+    readActiveHint,
+    writeActiveHint,
+    mapSetupToPatch,
+    HINT_KEY,
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : window);

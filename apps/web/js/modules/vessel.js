@@ -62,10 +62,12 @@ window.ChengProModules.vessel = {
           <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
           ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
           <button type="button" class="btn" id="newVessel">New vessel</button>
+          <button type="button" class="btn" id="importVoyage">Import from Voyage Chief</button>
           <button type="button" class="btn" id="openPerf">Performance Calc</button>
           <button type="button" class="btn" id="openTanks">Open in Tank Chief</button>
           <button type="button" class="btn" id="openVoyage">Open in Voyage Chief</button>
         </div>
+        <p class="hint" id="voyageImportStatus" style="margin-top:10px"></p>
       </section>
       <section class="panel">
         <div class="section-head">
@@ -90,6 +92,25 @@ window.ChengProModules.vessel = {
     root.querySelector('#openPerf').addEventListener('click', () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'performance' })));
 
+    root.querySelector('#importVoyage')?.addEventListener('click', async () => {
+      const status = root.querySelector('#voyageImportStatus');
+      if (!window.ChengProVoyageBridge) {
+        toast('Voyage bridge not loaded');
+        return;
+      }
+      status.textContent = 'Reading Voyage Chief data on this device…';
+      try {
+        const result = await ChengProVoyageBridge.importIntoChengPro({ setActive: true });
+        status.textContent = result.message;
+        toast(result.message);
+        await ChengPro.vessel.refresh();
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
+      } catch (e) {
+        status.textContent = e.message || 'Import failed';
+        toast(e.message || 'Import failed');
+      }
+    });
+
     root.querySelector('#saveVessel').addEventListener('click', async () => {
       const form = root.querySelector('#vesselForm');
       const raw = Object.fromEntries(new FormData(form).entries());
@@ -106,19 +127,30 @@ window.ChengProModules.vessel = {
       for (const key of ENGINE_FIELDS) {
         data[key] = parseOptionalNumber(raw[key]);
       }
+      if (active?.voyageRegistryId) data.voyageRegistryId = active.voyageRegistryId;
+      if (active?.voyageSlug) data.voyageSlug = active.voyageSlug;
       try {
+        let saved = null;
         if (active && !root._forceNew) {
-          await ChengPro.api.fetch('/api/shell/vessels/' + encodeURIComponent(active.id), {
+          saved = await ChengPro.api.fetch('/api/shell/vessels/' + encodeURIComponent(active.id), {
             method: 'PUT', body: JSON.stringify(data),
           });
           toast('Vessel saved');
         } else {
-          const created = await ChengPro.api.fetch('/api/shell/vessels', {
+          saved = await ChengPro.api.fetch('/api/shell/vessels', {
             method: 'POST', body: JSON.stringify(data),
           });
-          await ChengPro.vessel.setActive(created.id);
+          await ChengPro.vessel.setActive(saved.id);
           toast('Vessel created');
           root._forceNew = false;
+        }
+        if (window.ChengProVoyageBridge && saved) {
+          try {
+            const pushed = await ChengProVoyageBridge.exportVesselToVoyage({ ...data, id: saved.id || active?.id });
+            if (pushed?.ok) toast(pushed.message);
+          } catch (err) {
+            console.warn('Voyage push skipped:', err.message);
+          }
         }
         await ChengPro.vessel.refresh();
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));

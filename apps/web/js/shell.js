@@ -109,6 +109,17 @@
     } catch (e) {
       showToast(e.message);
     }
+    if (window.ChengProVoyageBridge) {
+      try {
+        const result = await ChengProVoyageBridge.autoImportIfNeeded();
+        if (result && result.ok && (result.imported || result.updated)) {
+          await ChengPro.vessel.refresh();
+          showToast(result.message);
+        }
+      } catch (e) {
+        console.warn('Voyage vessel auto-import:', e.message);
+      }
+    }
     await fillVesselSelect();
     await navigate('home');
   }

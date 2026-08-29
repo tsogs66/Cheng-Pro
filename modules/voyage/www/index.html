@@ -1512,6 +1512,31 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     }
   } catch (e) {}
 })();
+
+/** Mirror active Voyage vessel identity + engine basis for Cheng-Pro Vessel Setup / Perf. */
+function mirrorActiveVesselToChengPro(){
+  try{
+    const v = (typeof activeVessel === 'function') ? activeVessel() : null;
+    const setup = (typeof state !== 'undefined' && state.setup) ? state.setup : {};
+    const hint = {
+      voyageId: (v && v.id) || (state && state.activeVesselId) || null,
+      slug: (v && v.slug) || (setup.sync && setup.sync.vesselId) || '',
+      name: setup.vesselName || (v && v.name) || '',
+      imo: setup.imoNo || '',
+      company: setup.company || '',
+      flag: setup.flag || '',
+      dwt: setup.dwt != null ? setup.dwt : '',
+      callSign: setup.callSign || '',
+      mcrRpm: setup.mcrRpm, mcrKw: setup.mcrKw,
+      csrRpm: setup.csrRpm, csrKw: setup.csrKw,
+      pitch: setup.pitch,
+      sfoc100: setup.sfoc100, sfoc85: setup.sfoc85,
+      lcvRef: setup.lcvRef, lcvActual: setup.lcvActual,
+      updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem('chengProVoyageActiveHint', JSON.stringify(hint));
+  }catch(_){}
+}
 </script>
 <a href="/" style="position:fixed;top:8px;right:10px;z-index:99999;background:#123040;color:#e7f3f0;padding:8px 12px;border-radius:10px;text-decoration:none;font:600 12px sans-serif;border:1px solid rgba(168,214,208,.3)">Cheng-Pro</a>
 
@@ -9998,6 +10023,7 @@ async function saveSetup(){
     { key:'activeVesselId', value: state.activeVesselId }
   ];
   await dbPutMany('meta', rows);
+  if (typeof mirrorActiveVesselToChengPro === 'function') mirrorActiveVesselToChengPro();
 }
 
 /* ---------------- tabs ---------------- */
