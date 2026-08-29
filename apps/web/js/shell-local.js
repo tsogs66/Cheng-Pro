@@ -1,12 +1,14 @@
 /**
- * On-device shell: talk to the embedded Tank Chief LocalApi when no server URL
- * is configured, or to the Cheng-Pro gateway when one is saved.
+ * On-device shell: talk to the embedded Tank Chief LocalApi when this device
+ * is in local/offline mode. Peer sync URL must NOT force vessel APIs online —
+ * that made Vessel Setup show "Request failed" with no vessels on airplane mode.
  */
 (function () {
   if (!window.ChengProBundled || !ChengProBundled.isBundledClient()) return;
   if (typeof LocalApi === 'undefined') return;
 
   const SERVER_BASE_KEY = 'apiServerBase';
+  const TRANSPORT_KEY = 'apiTransport';
 
   function getServerBase() {
     try {
@@ -14,6 +16,20 @@
       if (saved && saved.trim()) return saved.trim().replace(/\/$/, '');
     } catch { /* ignore */ }
     return '';
+  }
+
+  function getTransport() {
+    try {
+      const saved = localStorage.getItem(TRANSPORT_KEY);
+      if (saved === 'local' || saved === 'server') return saved;
+    } catch { /* ignore */ }
+    return 'local';
+  }
+
+  /** Prefer on-device DB unless the user explicitly chose server transport. */
+  function useLocalShell() {
+    if (getTransport() !== 'server') return true;
+    return !getServerBase();
   }
 
   async function localFetch(method, path, body) {
@@ -72,12 +88,26 @@
   const origApi = ChengProApi.api.bind(ChengProApi);
 
   ChengProApi.api = async function shellApi(path, options = {}) {
-    const base = getServerBase();
-    if (base) {
+    if (!useLocalShell()) {
+      const base = getServerBase();
       const url = path.startsWith('/api/shell')
         ? `${base}${path}`
         : `${base}${path.startsWith('/') ? path : '/' + path}`;
-      return origApi(url, options);
+      try {
+        return await origApi(url, options);
+      } catch (err) {
+        /* Offline with server transport — fall back to on-device so Vessel holds. */
+        if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(err.message || '')) {
+          console.warn('Cheng-Pro shell: server unreachable, using on-device vessel store');
+          const method = (options.method || 'GET').toUpperCase();
+          let body = options.body;
+          if (typeof body === 'string') {
+            try { body = JSON.parse(body); } catch { /* leave */ }
+          }
+          return localFetch(method, path, body);
+        }
+        throw err;
+      }
     }
     const method = (options.method || 'GET').toUpperCase();
     let body = options.body;

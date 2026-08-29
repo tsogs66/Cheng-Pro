@@ -176,10 +176,16 @@ window.ChengProModules.vessel = {
 };
 
 async function renderFleet(tbody) {
-  const vessels = await ChengPro.vessel.list();
+  let vessels = [];
+  try {
+    vessels = await ChengPro.vessel.list();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">${esc(e.message || 'Could not load fleet')}</td></tr>`;
+    return;
+  }
   const activeId = ChengPro.vessel.getActive()?.id;
   if (!vessels.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No vessels yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No vessels yet — create one above. Data is stored on this device.</td></tr>';
     return;
   }
   tbody.innerHTML = vessels.map((v) => `

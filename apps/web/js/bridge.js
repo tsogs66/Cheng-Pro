@@ -11,23 +11,29 @@
   }
 
   async function refreshList() {
-    const data = await ChengProApi.api('/api/shell/vessels');
-    list = data.vessels || [];
-    const id = data.activeVesselId || ChengProApi.getActiveId();
-    if (id) {
-      ChengProApi.setActiveId(id);
-      try {
-        const shared = await ChengProApi.api('/api/shell/vessels/' + encodeURIComponent(id));
-        active = shared.vessel;
-      } catch {
-        active = list.find((v) => v.id === id) || null;
+    try {
+      const data = await ChengProApi.api('/api/shell/vessels');
+      list = data.vessels || [];
+      const id = data.activeVesselId || ChengProApi.getActiveId();
+      if (id) {
+        ChengProApi.setActiveId(id);
+        try {
+          const shared = await ChengProApi.api('/api/shell/vessels/' + encodeURIComponent(id));
+          active = shared.vessel;
+        } catch {
+          active = list.find((v) => v.id === id) || null;
+        }
+      } else {
+        active = null;
+        ChengProApi.setActiveId('');
       }
-    } else {
-      active = null;
-      ChengProApi.setActiveId('');
+      emit();
+      return { list, active };
+    } catch (err) {
+      /* Keep any known list so Vessel Setup still opens for create/edit. */
+      emit();
+      throw err;
     }
-    emit();
-    return { list, active };
   }
 
   async function setActive(id) {
@@ -43,7 +49,13 @@
     vessel: {
       getActive: () => active,
       list: async () => {
-        if (!list.length) await refreshList();
+        if (!list.length) {
+          try {
+            await refreshList();
+          } catch (err) {
+            console.warn('Cheng-Pro vessel list:', err.message);
+          }
+        }
         return list.slice();
       },
       getListSync: () => list.slice(),

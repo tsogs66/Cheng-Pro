@@ -3020,7 +3020,12 @@ function renderSettings(main) {
     setSyncSaveStatus('Saving sync settings…', 'pending');
     setSettingsBusy(true);
     try {
-      Api.setServerBase(syncUrl);
+      /* Peer sync URL is for Pull/Push only. Do not set apiServerBase here —
+         that forced the Cheng-Pro Vessel tab onto the network and dropped
+         on-device vessels when offline / airplane mode. */
+      if (Api.getTransport() === 'server') {
+        Api.setServerBase(syncUrl);
+      }
       STATE.settings = await Api.saveSettings({ syncUrl, syncApiToken, syncEnabled: true });
       setSyncSaveStatus('Sync settings saved — stay on “On this device” for offline use', 'ok');
       showToast('Sync settings saved');
