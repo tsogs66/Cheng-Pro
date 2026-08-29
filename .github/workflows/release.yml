@@ -47,6 +47,8 @@ jobs:
       - run: npm run android:prepare
       - run: npx cap add android
       - run: npx cap sync android
+      - name: Install Pillow for launcher icon rasterization
+        run: python3 -m pip install --user pillow
       - name: Version + sideload signing keystore
         run: node scripts/android-release-prep.js
       - name: Build signed APK
