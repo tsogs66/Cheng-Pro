@@ -6,7 +6,6 @@
   'use strict';
 
   const DB_NAME = 'noonReportDB';
-  const DB_VERSION = 6;
   const HINT_KEY = 'chengProVoyageActiveHint';
   const AUTO_FLAG = 'chengProVoyageImportDone';
 
@@ -28,13 +27,35 @@
     return String(imo || '').replace(/^IMO\s*/i, '').trim();
   }
 
+  /**
+   * Open Voyage's DB read-only without creating/upgrading schema.
+   * Never pass a version here: opening at v6 with an empty onupgradeneeded
+   * created an empty noonReportDB and broke Voyage login (missing object stores).
+   */
   function openVoyageDb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      let req;
+      try {
+        req = indexedDB.open(DB_NAME);
+      } catch (err) {
+        reject(err);
+        return;
+      }
       req.onerror = () => reject(req.error || new Error('Could not open Voyage Chief database'));
-      req.onsuccess = () => resolve(req.result);
-      // Do not create stores here — Voyage owns schema upgrades.
-      req.onupgradeneeded = () => {};
+      req.onupgradeneeded = (e) => {
+        // Abort creating a blank DB — Voyage Chief owns schema creation.
+        try { e.target.transaction.abort(); } catch { /* ignore */ }
+        reject(new Error('Voyage Chief database not initialized yet'));
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('meta')) {
+          try { db.close(); } catch { /* ignore */ }
+          reject(new Error('Voyage Chief database not initialized yet'));
+          return;
+        }
+        resolve(db);
+      };
     });
   }
 
@@ -90,7 +111,12 @@
   }
 
   async function readVoyageFleet() {
-    const db = await openVoyageDb();
+    let db;
+    try {
+      db = await openVoyageDb();
+    } catch {
+      return { vessels: [], activeId: null, credentials: readVoyageCredentials() };
+    }
     try {
       const meta = await idbGetAll(db, 'meta');
       const byKey = new Map(meta.map((row) => [row.key, row.value]));
@@ -102,7 +128,6 @@
         const setup = byKey.get(`setup:${reg.id}`) || (reg.id === activeId ? byKey.get('setup') : null) || {};
         rows.push({ registry: reg, setup, patch: mapSetupToPatch(setup, reg) });
       }
-      // Legacy single-setup with no registry
       if (!rows.length && byKey.get('setup')) {
         const setup = byKey.get('setup');
         const name = setup.vesselName || 'Vessel';
@@ -256,7 +281,12 @@
   /** Push Cheng-Pro vessel identity/engine into Voyage setup for the matching ship. */
   async function exportVesselToVoyage(vessel) {
     if (!vessel || !vessel.name) return { ok: false, message: 'No vessel to export' };
-    const db = await openVoyageDb();
+    let db;
+    try {
+      db = await openVoyageDb();
+    } catch {
+      return { ok: false, message: 'Open Voyage Chief once before pushing vessel data back.' };
+    }
     try {
       const meta = await idbGetAll(db, 'meta');
       const byKey = new Map(meta.map((row) => [row.key, row.value]));

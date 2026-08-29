@@ -4169,24 +4169,62 @@ function nextGaugeUid(){ return 'g' + (++_gaugeUid); }
 /* ---------------- local database (IndexedDB) ---------------- */
 let db;
 let dbOpenPromise = null;
+const VOYAGE_IDB_NAME = 'noonReportDB';
+const VOYAGE_IDB_STORES = [
+  ['meta', { keyPath: 'key' }],
+  ['entries', { keyPath: 'id' }],
+  ['receipts', { keyPath: 'id' }],
+  ['documents', { keyPath: 'id' }],
+  ['abstracts', { keyPath: 'id' }],
+  ['printHistory', { keyPath: 'id' }],
+  ['voyageLegs', { keyPath: 'id' }],
+  ['orbEntries', { keyPath: 'id' }],
+];
+/* v7 repairs phones where Cheng-Pro opened noonReportDB at v6 with no stores. */
+const VOYAGE_IDB_VERSION = 7;
+
+function ensureVoyageObjectStores(d){
+  for (const [name, opts] of VOYAGE_IDB_STORES){
+    if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, opts);
+  }
+}
+
+function missingVoyageStores(d){
+  return VOYAGE_IDB_STORES.map(([name]) => name).filter((name) => !d.objectStoreNames.contains(name));
+}
+
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 6);
+    const req = indexedDB.open(VOYAGE_IDB_NAME, VOYAGE_IDB_VERSION);
     req.onupgradeneeded = (e)=>{
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
-      if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', {keyPath:'id'});
-      if (!d.objectStoreNames.contains('receipts')) d.createObjectStore('receipts', {keyPath:'id'});
-      if (!d.objectStoreNames.contains('documents')) d.createObjectStore('documents', {keyPath:'id'});
-      if (!d.objectStoreNames.contains('abstracts')) d.createObjectStore('abstracts', {keyPath:'id'});
-      if (!d.objectStoreNames.contains('printHistory')) d.createObjectStore('printHistory', {keyPath:'id'});
-      /* One archived leg per vessel + voyage number + B|L — keeps active lists short. */
-      if (!d.objectStoreNames.contains('voyageLegs')) d.createObjectStore('voyageLegs', {keyPath:'id'});
-      /* Vessel-lifetime Oil Record Book entries (not voyage-leg scoped). */
-      if (!d.objectStoreNames.contains('orbEntries')) d.createObjectStore('orbEntries', {keyPath:'id'});
+      ensureVoyageObjectStores(e.target.result);
     };
-    req.onsuccess = (e)=>{ db = e.target.result; db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; }; resolve(db); };
+    req.onsuccess = async (e)=>{
+      const opened = e.target.result;
+      const missing = missingVoyageStores(opened);
+      if (missing.length){
+        const nextVer = opened.version + 1;
+        try{ opened.close(); }catch(_){}
+        db = null;
+        dbOpenPromise = null;
+        const repair = indexedDB.open(VOYAGE_IDB_NAME, nextVer);
+        repair.onupgradeneeded = (ev)=> ensureVoyageObjectStores(ev.target.result);
+        repair.onsuccess = (ev)=>{
+          db = ev.target.result;
+          db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; };
+          resolve(db);
+        };
+        repair.onerror = ()=>{
+          dbOpenPromise = null;
+          reject(repair.error || new Error('IndexedDB schema repair failed (missing: ' + missing.join(', ') + ')'));
+        };
+        return;
+      }
+      db = opened;
+      db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; };
+      resolve(db);
+    };
     req.onerror = (e)=>{ dbOpenPromise = null; reject(req.error || new Error('IndexedDB failed to open')); };
     req.onblocked = ()=>{ console.warn('IndexedDB open blocked — another tab of this app is probably open with an older version. Close it and reload.'); };
   });
