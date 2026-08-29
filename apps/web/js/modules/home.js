@@ -10,12 +10,35 @@ window.ChengProModules.home = {
     const voyageOk = !!(health.modules && health.modules.voyage && health.modules.voyage.ok);
     const tanksOk = !!(health.modules && health.modules.tanks && health.modules.tanks.ok);
     const bundled = window.ChengProBundled && ChengProBundled.isBundledClient();
+    const firstRun = !vessels.length;
 
     root.innerHTML = `
       <section class="panel hero">
         <h1>Cheng-Pro</h1>
-        <p>All-in-one suite for marine chief engineers. One active vessel feeds full Voyage Chief and Tank Chief side by side. Ship details are shared; voyage and tank records stay in their own stores.${bundled ? ' On this device, tank data is stored locally until you sync or switch to server mode in Tank Chief.' : ''}</p>
+        <p>${firstRun
+          ? 'Works fully offline on this device. Create a vessel to unlock Voyage Chief, Tank Chief, and Performance — no network required.'
+          : 'All-in-one suite for marine chief engineers. One active vessel feeds full Voyage Chief and Tank Chief side by side. Ship details are shared; voyage and tank records stay in their own stores.'
+        }${bundled && !firstRun ? ' On this device, tank data is stored locally until you sync or switch to server mode in Tank Chief.' : ''}</p>
+        ${firstRun ? `
+        <div class="form-actions" style="margin-top:16px">
+          <button type="button" class="btn primary" data-go="vessel">Create vessel (offline)</button>
+        </div>` : ''}
       </section>
+      ${firstRun ? `
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <h2>First-run checklist</h2>
+            <p>Everything below works without Wi‑Fi or Cloudflare.</p>
+          </div>
+        </div>
+        <ol style="margin:0;padding-left:1.2rem;color:var(--muted);line-height:1.7">
+          <li>Open <strong>Vessel Setup</strong> and enter ship name / IMO</li>
+          <li>Optionally fill main-engine fields for Performance Calc</li>
+          <li>Open <strong>Tank Chief</strong> or <strong>Voyage Chief</strong> for day-to-day work</li>
+          <li>When online later, set peer sync under Tank → Backup / Sync</li>
+        </ol>
+      </section>` : `
       <section class="panel">
         <div class="section-head">
           <div>
@@ -57,11 +80,11 @@ window.ChengProModules.home = {
           <button type="button" class="btn" data-go="performance">Performance Calc</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
         </div>
-      </section>
+      </section>`}
     `;
 
-    root.querySelector('#goVoyage').onclick = () => ChengPro.openVoyage();
-    root.querySelector('#goTanks').onclick = () => ChengPro.openTanks();
+    root.querySelector('#goVoyage')?.addEventListener('click', () => ChengPro.openVoyage());
+    root.querySelector('#goTanks')?.addEventListener('click', () => ChengPro.openTanks());
     root.querySelectorAll('[data-go]').forEach((btn) => {
       btn.onclick = () =>
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));

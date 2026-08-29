@@ -10,11 +10,20 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <!-- No Google Fonts — offline first launch must not block on network CSS. -->
   <link rel="stylesheet" href="/css/shell.css">
   <link rel="manifest" href="/manifest.webmanifest">
+  <style>
+    /* Critical first paint before shell.css (airplane / slow storage). */
+    html, body { margin: 0; background: #07141a; color: #e7f3f0; font-family: Georgia, "Times New Roman", serif; }
+    #main:empty::before {
+      content: "Starting Cheng-Pro…";
+      display: block;
+      padding: 2rem 1.25rem;
+      color: #8fb3ad;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+  </style>
 </head>
 <body>
   <div class="app" id="app">

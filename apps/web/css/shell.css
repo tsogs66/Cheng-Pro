@@ -12,8 +12,8 @@
   --ok: #5dcb8a;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
   --radius: 14px;
-  --font: "DM Sans", "Segoe UI", sans-serif;
-  --display: "Instrument Serif", Georgia, serif;
+  --font: "Segoe UI", "Helvetica Neue", "Noto Sans", sans-serif;
+  --display: Georgia, "Times New Roman", "Palatino Linotype", serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --topbar-h: 64px;

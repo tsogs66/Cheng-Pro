@@ -28,6 +28,7 @@ window.ChengProModules.vessel = {
           </div>
         </div>
         <form id="vesselForm">
+          ${!active ? '<p class="hint" style="margin-top:0">First vessel is stored on this device — works offline. You can sync later from Tank Chief.</p>' : ''}
           <div class="grid-2">
             <div class="field"><label>Name</label><input name="name" required value="${esc(v.name)}"></div>
             <div class="field"><label>IMO</label><input name="imo" value="${esc(v.imo)}"></div>

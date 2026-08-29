@@ -47,6 +47,11 @@ shellHtml = shellHtml.replace(/href="\/css\//g, 'href="css/');
 shellHtml = shellHtml.replace(/src="\/js\//g, 'src="js/');
 shellHtml = shellHtml.replace(/href="\/icons\//g, 'href="icons/');
 shellHtml = shellHtml.replace(/href="\/manifest\.webmanifest"/, 'href="manifest.webmanifest"');
+/* Strip any leftover remote font links so first launch cannot hang offline. */
+shellHtml = shellHtml.replace(/<link[^>]+fonts\.googleapis\.com[^>]*>\s*/gi, '');
+shellHtml = shellHtml.replace(/<link[^>]+fonts\.gstatic\.com[^>]*>\s*/gi, '');
+shellHtml = shellHtml.replace(/<link[^>]+preconnect[^>]*googleapis[^>]*>\s*/gi, '');
+shellHtml = shellHtml.replace(/<link[^>]+preconnect[^>]*gstatic[^>]*>\s*/gi, '');
 shellHtml = shellHtml.replace(
   '<script src="js/api.js"></script>',
   [
