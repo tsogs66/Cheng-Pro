@@ -1515,6 +1515,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 </script>
 <a href="/" style="position:fixed;top:8px;right:10px;z-index:99999;background:#123040;color:#e7f3f0;padding:8px 12px;border-radius:10px;text-decoration:none;font:600 12px sans-serif;border:1px solid rgba(168,214,208,.3)">Cheng-Pro</a>
 
+
 <!--
   Login gate. Sits above the app until the user signs in to the central vessel
   database, or chooses to work offline. A vessel account brings exactly one
@@ -2102,7 +2103,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <div class="field"><label>Tank for consumption</label><select id="in_fwConsTank"></select>
               <div class="hint">Consumed water is taken from this tank.</div></div>
           </div>
-          <div class="field"><label>Production Flowmeter (cumulative, L)</label><input type="number" id="in_fwProd"></div>
+          <div class="field"><label>Production Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="in_fwProd"></div>
           <div class="field" id="inFwSingleRobWrap"><label>FW ROB (m³)</label><input type="number" step="0.01" id="in_fwRob"></div>
         </div>
         <div class="unit-box">
@@ -2323,7 +2324,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
               <div class="field"><label>Tank for production</label><select id="vs_fwProdTank"></select></div>
               <div class="field"><label>Tank for consumption</label><select id="vs_fwConsTank"></select></div>
             </div>
-            <div class="field"><label>Flowmeter (cumulative)</label><input type="number" id="vs_fwProdMeter"></div>
+            <div class="field"><label>Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="vs_fwProdMeter"></div>
             <div class="field" id="vsFwSingleRobWrap"><label>R.O.B. (tank sounding, present, m³)</label><input type="number" step="0.01" id="vs_fwRob"></div>
             <div id="vsFwMultiRobWrap" style="display:none;">
               <div class="hint" style="margin-bottom:8px;">Enter present ROB for each tank in m³. Total water is the sum of all tanks.</div>
@@ -6106,12 +6107,29 @@ async function loadVesselFromDb(vesselId){
     state.orbEntries = (allOrb || []).filter(match);
   }catch(_){ state.orbEntries = []; }
 
+  /* Keep the working set on one voyage number + B|L leg — voyage cumulatives
+     must not sum the entire vessel database. Prefer a library leg when the
+     filtered working set is empty. */
+  const vn = (state.setup.voyageNumber || '').trim();
+  if (vn){
+    const cond = normalizeCondition(state.setup.shipCondition);
+    const scoped = state.entries.filter(entryMatchesActiveLeg);
+    if (scoped.length !== state.entries.length){
+      state.entries = scoped;
+      state.receipts = state.receipts.filter(r => {
+        const rVn = (r.voyageNumber || '').trim();
+        if (rVn) return rVn === vn;
+        return true;
+      });
+    }
+  }
+
   /* If working set is empty but a library leg exists, load the preferred leg. */
   if (!state.entries.length){
     const index = await getVoyageLibraryIndex(vesselId);
-    const vn = (state.setup.voyageNumber || '').trim() || index[0]?.voyageNumber;
-    if (vn){
-      const row = index.find(r => r.voyageNumber === vn) || index[0];
+    const preferVn = vn || index[0]?.voyageNumber;
+    if (preferVn){
+      const row = index.find(r => r.voyageNumber === preferVn) || index[0];
       const cond = row?.B ? 'B' : (row?.L ? 'L' : normalizeCondition(state.setup.shipCondition));
       try {
         await activateVoyageLeg(vesselId, row.voyageNumber, cond);
@@ -6119,7 +6137,6 @@ async function loadVesselFromDb(vesselId){
     }
   } else {
     /* One-time archive of legacy unsplit vessel data into the active leg. */
-    const vn = (state.setup.voyageNumber || '').trim();
     if (vn){
       const id = voyageLegId(vesselId, vn, state.setup.shipCondition);
       const legs = await dbGetAll('voyageLegs');
@@ -7013,7 +7030,7 @@ function robDec(cat){
   if (cat==='fw') return 2;
   return 0;
 }
-/* Fresh water is stored in litres (existing logs and receipts) and shown in m³. */
+/* Fresh-water ROB / receipts stay in litres; the production flowmeter reads m³. */
 const L_PER_M3 = 1000;
 function litresToM3(n){
   if (n===null||n===undefined||n==='') return n;
@@ -7029,6 +7046,11 @@ function fmtFw(n){
   if (n===null||n===undefined||isNaN(n)) return '—';
   return litresToM3(n).toFixed(2);
 }
+/** Format a production-flowmeter quantity that is already in m³. */
+function fmtFwM3(n){
+  if (n===null||n===undefined||isNaN(n)) return '—';
+  return Number(n).toFixed(2);
+}
 function fwInputValue(n){
   if (n===null||n===undefined||n===''||isNaN(Number(n))) return '';
   return litresToM3(n).toFixed(2);
@@ -7037,6 +7059,16 @@ function parseFwM3Field(val){
   if (val===null||val===undefined||val==='') return null;
   const x = parseFloat(val);
   return isNaN(x) ? null : m3ToLitres(x);
+}
+/** Production meter reading (and period delta) are cubic metres. */
+function parseFwProdMeterField(val){
+  if (val===null||val===undefined||val==='') return null;
+  const x = parseFloat(val);
+  return isNaN(x) ? null : x;
+}
+function fwProdDeltaLitres(deltaM3){
+  if (deltaM3===null||deltaM3===undefined||isNaN(Number(deltaM3))) return 0;
+  return Number(deltaM3) * L_PER_M3;
 }
 function showFwTotal(){ return fwTankList().length > 1; }
 function fmtRob(n, cat){
@@ -7068,7 +7100,35 @@ function meterCellText(unit){
   }
   return fmt(unit.meter,2);
 }
-function sortedEntries(){ return [...state.entries].sort((a,b)=> new Date(a.datetime)-new Date(b.datetime)); }
+/** Active voyage leg identity from Setup (voyage number + B|L only). */
+function activeLegVoyageNumber(){
+  return (state.setup?.voyageNumber || '').trim();
+}
+function activeLegCondition(){
+  return normalizeCondition(state.setup?.shipCondition);
+}
+
+/**
+ * Voyage cumulatives (hours, meters, distance, consumption) belong to one leg:
+ * the current voyage number and ballast/laden condition — never the whole vessel DB.
+ */
+function entryMatchesActiveLeg(e){
+  if (!e) return false;
+  const vn = activeLegVoyageNumber();
+  const cond = activeLegCondition();
+  if (!vn) return true;
+  const eVn = (e.voyageNumber || '').trim();
+  const eCond = normalizeCondition(e.condition != null && e.condition !== '' ? e.condition : cond);
+  if (eVn) return eVn === vn && eCond === cond;
+  /* Untagged legacy rows stay with the active condition until they are saved under a voyage. */
+  return eCond === cond;
+}
+
+function sortedEntries(){
+  return state.entries
+    .filter(entryMatchesActiveLeg)
+    .sort((a,b)=> new Date(a.datetime)-new Date(b.datetime));
+}
 
 /* rollover-safe delta */
 function meterDelta(curr, prev, rollover){
@@ -7568,9 +7628,10 @@ function computeDerived(){
         consByLube[t] += lubeByType[t];
       });
 
-      // Fresh water: produced = flowmeter delta; consumed = previous total + produced − present total.
-      // Production is added to the production tank; consumption is taken from the consumption tank.
-      fwProdD = meterDelta(e.fwProd, prev.fwProd, rolls.generic) || 0;
+      // Fresh water: production flowmeter is m³; ROB balance stays in litres.
+      // Produced (display) = meter delta in m³; balance uses litres (×1000).
+      const fwProdD_m3 = meterDelta(e.fwProd, prev.fwProd, rolls.generic) || 0;
+      fwProdD = fwProdDeltaLitres(fwProdD_m3);
       const fwIds = fwTankList().map(t=>t.id);
       const fwBal = fwPeriodBalance({
         tankIds: fwIds.length ? fwIds : ['freshwater'],
@@ -8307,31 +8368,38 @@ function updateFwPreview(prefix){
   const prev = (entryId ? previousEntryFor(entryId) : null) || getPrevReferenceFor(document.getElementById('in_datetime')?.value, editingId) || effectiveCarryover();
   const fw = readFwForm(prefix);
   const rolls = meterRollovers();
-  const prodDelta = (prev && fw.fwProd != null) ? (meterDelta(fw.fwProd, prev.fwProd, rolls.generic) || 0) : null;
+  /* Production flowmeter reads m³; ROB tanks stay in litres. */
+  const prodDeltaM3 = (prev && fw.fwProd != null) ? (meterDelta(fw.fwProd, prev.fwProd, rolls.generic) || 0) : null;
+  const prodDeltaL = fwProdDeltaLitres(prodDeltaM3);
   const tanks = fwTankList();
   const bal = fwPeriodBalance({
     tankIds: tanks.map(t=>t.id),
     prevByTank: fwPrevByTank(prev),
     prevTotal: fwPrevTotal(prev),
-    prodDelta: prodDelta || 0,
+    prodDelta: prodDeltaL,
     presentByTank: fw.fwRobByTank || {},
     presentTotal: fw.fwRob,
     prodTankId: fw.fwProdTankId,
     consTankId: fw.fwConsTankId
   });
-  const set = (id, val) => {
+  const setFwLitres = (id, val) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.value = val==null ? '—' : (typeof fmtRob === 'function' ? fmtRob(val, 'fw') : String(val));
   };
+  const setFwM3 = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = val==null ? '—' : fmtFwM3(val);
+  };
   if (prefix === 'vs'){
-    set('vs_fwProduced', prodDelta);
-    set('vs_fwConsumed', (fw.fwRob==null && !fw.fwRobByTank) ? null : bal.cons);
+    setFwM3('vs_fwProduced', prodDeltaM3);
+    setFwLitres('vs_fwConsumed', (fw.fwRob==null && !fw.fwRobByTank) ? null : bal.cons);
     const tot = document.getElementById('vs_fwTotalRob');
     if (tot && tanks.length > 1) tot.value = bal.total==null ? '' : fmtFw(bal.total);
   } else {
-    set('in_fwProdD', prodDelta);
-    set('in_fwConsD', (fw.fwRob==null && !fw.fwRobByTank) ? null : bal.cons);
+    setFwM3('in_fwProdD', prodDeltaM3);
+    setFwLitres('in_fwConsD', (fw.fwRob==null && !fw.fwRobByTank) ? null : bal.cons);
     const tot = document.getElementById('in_fwTotalRob');
     if (tot) tot.value = bal.total==null ? '' : fmtFw(bal.total);
   }
@@ -8415,7 +8483,7 @@ function readFwForm(prefix){
     const v = parseFloat(el.value);
     return isNaN(v) ? null : v;
   };
-  const fwProd = num(prefix === 'vs' ? 'vs_fwProdMeter' : 'in_fwProd');
+  const fwProd = parseFwProdMeterField(document.getElementById(prefix === 'vs' ? 'vs_fwProdMeter' : 'in_fwProd')?.value);
   const prodTankId = document.getElementById(prefix + '_fwProdTank')?.value || tanks[0]?.id || null;
   const consTankId = document.getElementById(prefix + '_fwConsTank')?.value || tanks[0]?.id || null;
   const presentByTank = {};
@@ -8467,7 +8535,8 @@ function stampFwOnEntry(entry, fw, prev){
   const tanks = fwTankList();
   const ids = tanks.map(t=>t.id);
   const prodMeter = fw.fwProd != null ? fw.fwProd : entry.fwProd;
-  const prodDelta = prev ? (meterDelta(prodMeter, prev.fwProd, meterRollovers().generic) || 0) : 0;
+  const prodDeltaM3 = prev ? (meterDelta(prodMeter, prev.fwProd, meterRollovers().generic) || 0) : 0;
+  const prodDelta = fwProdDeltaLitres(prodDeltaM3);
   const hasPresent = fw.fwRob != null || (fw.fwRobByTank && Object.keys(fw.fwRobByTank).length);
   const bal = fwPeriodBalance({
     tankIds: ids.length ? ids : ['freshwater'],
@@ -8480,6 +8549,7 @@ function stampFwOnEntry(entry, fw, prev){
     consTankId: fw.fwConsTankId || entry.fwConsTankId
   });
   entry.fwProd = prodMeter;
+  entry.fwProdUnit = 'm3';
   entry.fwProdTankId = bal.prodTankId;
   entry.fwConsTankId = bal.consTankId;
   if (hasPresent){
@@ -8991,7 +9061,7 @@ function abstractRowToCsv(r, robMap){
     fmtNum(r.slip,2), fmtNum(r.mcrPct,2), fmtNum(r.kwEst,2), r.condition, fmtNum(r.hrs,2), fmtNum(r.distanceShip,2), fmtNum(r.rpm,2), fmtNum(r.revCounter,2), fmtNum(r.dailyRevs,2),
     meterCellText(r.me), meterCellText(r.ge), fmtNum(r.blr.meter,2), fmtNum(r.meCons,3), fmtNum(r.geCons,3), fmtNum(r.blrCons,3),
     ...FUEL_CONS_GROUPS.map(g => fmtNum(row[fuelGroupColKey(g)], FUEL_DECIMALS)),
-    fmtNum(r.cylCons,0), r.tbn, fmtNum(r.meLoCons,0), fmtNum(r.geLoCons,0), fmtNum(r.fwProd,0), fmtNum(litresToM3(r.fwProdD),2), fmtNum(litresToM3(r.fwRob),2), fmtNum(litresToM3(r.fwConsD),2)]
+    fmtNum(r.cylCons,0), r.tbn, fmtNum(r.meLoCons,0), fmtNum(r.geLoCons,0), fmtNum(r.fwProd,2), fmtNum(litresToM3(r.fwProdD),2), fmtNum(litresToM3(r.fwRob),2), fmtNum(litresToM3(r.fwConsD),2)]
     .concat(robCells);
 }
 function csvEscape(v){
@@ -12465,7 +12535,16 @@ function normalizeEntry(e){
   if (e.rpm===undefined) e.rpm = null;
   if (!e.id) e.id = uid();
   if (!e.vesselId) e.vesselId = state.activeVesselId || LEGACY_VESSEL_ID;
+  if (!e.voyageNumber) e.voyageNumber = (state.setup?.voyageNumber || '').trim() || e.voyageNumber || '';
   e.condition = normalizeCondition(e.condition || state.setup?.shipCondition);
+  /* Production flowmeter is m³ (ship meter). Older builds stored litres — convert once. */
+  if (e.fwProd != null && e.fwProdUnit !== 'm3'){
+    const n = Number(e.fwProd);
+    if (Number.isFinite(n) && n >= 1000) e.fwProd = n / L_PER_M3;
+    e.fwProdUnit = 'm3';
+  } else if (e.fwProd != null) {
+    e.fwProdUnit = 'm3';
+  }
   e.clockChangeMin = sanitizeClockChangeMin(e.clockChangeMin);
   return e;
 }
@@ -13790,7 +13869,7 @@ function computeVsLiveConsByType(entry){
     const fw = readFwForm('vs');
     const fwProd = fw.fwProd ?? entry.fwProd;
     const fwRob = fw.fwRob ?? entry.fwRob;
-    const fwProdD = meterDelta(fwProd, prev.fwProd, rolls.generic) || 0;
+    const fwProdD = fwProdDeltaLitres(meterDelta(fwProd, prev.fwProd, rolls.generic) || 0);
     const fwBal = fwPeriodBalance({
       tankIds: fwTankList().map(t=>t.id),
       prevByTank: fwPrevByTank(prev),
@@ -15707,7 +15786,7 @@ function computeLiveConsByType(){
   if (geLoD) rawLube["GE SYS OIL"] += geLoD;
   ['CYL HIGH','CYL LOW','ME SYS OIL','GE SYS OIL'].forEach(t=> lubeByType[t] = rawLube[t]);
 
-  const fwProdD = meterDelta(curEntry.fwProd, prevRef.fwProd, rolls.generic) || 0;
+  const fwProdD = fwProdDeltaLitres(meterDelta(curEntry.fwProd, prevRef.fwProd, rolls.generic) || 0);
   const fwBal = fwPeriodBalance({
     tankIds: fwTankList().map(t=>t.id),
     prevByTank: fwPrevByTank(prevRef),
@@ -15826,6 +15905,7 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   const entry = {
     id: editingId || uid(),
     vesselId: state.activeVesselId,
+    voyageNumber: (state.setup.voyageNumber || '').trim(),
     datetime: dtVal,
     tzOffsetMin: formTzOffsetMin(),
     clockChangeMin: formClockChangeMin(),
@@ -18475,7 +18555,7 @@ document.getElementById('btnExportCSVLog').addEventListener('click', ()=>{
     "CylCons","CylGrade","MELo","GELo","FWMeter","FWProduced","FWRob","FWCons"];
   const lines = rows.map(r=>[r.datetime,r.operation,r.condition,fmtNum(r.hrs,2),fmtNum(r.distanceShip,2),fmtNum(r.rpm,2),fmtNum(r.revCounter,2),fmtNum(r.dailyRevs,2),fmtNum(r.meCons,3),fmtNum(r.geCons,3),fmtNum(r.blrCons,3),
     ...FUEL_CONS_GROUPS.map(g=>fmtNum(sumFuelGroup(r.consByType, g), FUEL_DECIMALS)),
-    fmtNum(r.cylCons,0),r.tbn,fmtNum(r.meLoCons,0),fmtNum(r.geLoCons,0),fmtNum(r.fwProd,0),fmtNum(litresToM3(r.fwProdD),2),fmtNum(litresToM3(r.fwRob),2),fmtNum(litresToM3(r.fwConsD),2)]);
+    fmtNum(r.cylCons,0),r.tbn,fmtNum(r.meLoCons,0),fmtNum(r.geLoCons,0),fmtNum(r.fwProd,2),fmtNum(litresToM3(r.fwProdD),2),fmtNum(litresToM3(r.fwRob),2),fmtNum(litresToM3(r.fwConsD),2)]);
   downloadCSV('voyage-log.csv', header, lines);
 });
 document.getElementById('btnExportCSVCons').addEventListener('click', ()=>{
