@@ -2871,17 +2871,19 @@ function renderSettings(main) {
     <div class="form-panel">
       <div class="section-title" style="margin-top:0">Remote sync (Proxmox / office)</div>
       <div class="form-row"><label>Peer sync URL</label>
-        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.0.132:8080"></div>
-      <p class="hint" style="margin:6px 0 0">Cheng-Pro server: use the root URL (port 8080). Standalone Tank Chief: use port 3080. Either works — <code>/tanks</code> is added automatically when needed.</p>
+        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
+      <p class="hint" style="margin:6px 0 0">Cheng-Pro on the ship: use the LXC root URL on Wi‑Fi, e.g. <code>http://192.168.0.132:8080</code> (port 8080). Standalone Tank Chief: port 3080. <code>/tanks</code> is added automatically when needed. The hostname must resolve on this phone — a bad DNS name shows as “Failed to fetch”.</p>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
+        <button class="btn" id="btn-probe-sync">Test connection</button>
         <button class="btn" id="btn-pull">Pull from peer</button>
         <button class="btn primary" id="btn-push">Push to peer</button>
         <button class="btn" id="btn-flush">Flush offline queue</button>
       </div>
       <div class="sync-save-status" id="sync-save-status" role="status" aria-live="polite"></div>
+      <div class="sync-probe-status" id="sync-probe-status" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.4"></div>
       <div class="hint" style="margin-top:8px;color:var(--text-faint);font-size:12px">
-        Local and LXC instances can sync when either becomes reachable. Offline edits stay in IndexedDB until flushed.
+        Local and LXC instances can sync when either becomes reachable. Offline edits stay in IndexedDB until flushed. Voyage Chief uses the same Cheng-Pro root URL under Setup → Sync (not this Tank peer field alone).
       </div>
     </div>
     <div class="form-panel">
@@ -3003,7 +3005,9 @@ function renderSettings(main) {
   }
 
   document.getElementById('btn-save-sync').onclick = async () => {
-    const syncUrl = document.getElementById('sync-url').value.trim();
+    const raw = document.getElementById('sync-url').value.trim();
+    const syncUrl = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
+    if (syncUrl !== raw) document.getElementById('sync-url').value = syncUrl;
     setSyncSaveStatus('Saving sync settings…', 'pending');
     setSettingsBusy(true);
     try {
@@ -3019,9 +3023,49 @@ function renderSettings(main) {
     }
   };
 
-  document.getElementById('btn-pull').onclick = async () => {
-    const url = document.getElementById('sync-url').value.trim();
+  function setProbeStatus(msg, kind) {
+    const el = document.getElementById('sync-probe-status');
+    if (!el) return;
+    el.style.display = msg ? 'block' : 'none';
+    el.textContent = msg || '';
+    el.style.background = kind === 'ok' ? 'rgba(61,184,160,0.12)'
+      : kind === 'err' ? 'rgba(220,80,80,0.12)' : 'rgba(255,255,255,0.04)';
+    el.style.border = kind === 'ok' ? '1px solid rgba(61,184,160,0.35)'
+      : kind === 'err' ? '1px solid rgba(220,80,80,0.4)' : '1px solid var(--line, #333)';
+    el.style.color = kind === 'err' ? '#f0a0a0' : 'inherit';
+  }
+
+  document.getElementById('btn-probe-sync').onclick = async () => {
+    const raw = document.getElementById('sync-url').value.trim();
+    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
     if (!url) { showToast('Enter a peer sync URL'); return; }
+    if (url !== raw) document.getElementById('sync-url').value = url;
+    setSettingsBusy(true);
+    setProbeStatus('Testing ' + url + '…', 'pending');
+    Progress.start(progressHost(), 'Testing peer…', url);
+    try {
+      const res = await Api.syncProbe(url);
+      const detail = res.base
+        ? `OK — reached ${res.base}${res.path || ''} (${res.product || 'ok'})`
+        : 'OK — peer answered';
+      setProbeStatus(detail, 'ok');
+      Progress.done('Peer reachable');
+      showToast('Peer reachable');
+    } catch (e) {
+      const msg = e.message || 'Connection failed';
+      setProbeStatus(msg, 'err');
+      Progress.done();
+      showToast(msg);
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
+
+  document.getElementById('btn-pull').onclick = async () => {
+    const raw = document.getElementById('sync-url').value.trim();
+    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
+    if (!url) { showToast('Enter a peer sync URL'); return; }
+    if (url !== raw) document.getElementById('sync-url').value = url;
     setSettingsBusy(true);
     Progress.start(progressHost(), 'Pulling from peer…', `Connecting to ${url}…`);
     try {
@@ -3040,8 +3084,10 @@ function renderSettings(main) {
       }
       Progress.done(count ? `Pulled ${count} vessel${count === 1 ? '' : 's'}` : 'Pull complete');
       showToast('Pulled ' + count + ' vessel(s)');
+      setProbeStatus('', null);
     } catch (e) {
       Progress.done();
+      setProbeStatus(e.message, 'err');
       showToast(e.message);
     } finally {
       setSettingsBusy(false);
@@ -3049,8 +3095,10 @@ function renderSettings(main) {
   };
 
   document.getElementById('btn-push').onclick = async () => {
-    const url = document.getElementById('sync-url').value.trim();
+    const raw = document.getElementById('sync-url').value.trim();
+    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
     if (!url) { showToast('Enter a peer sync URL'); return; }
+    if (url !== raw) document.getElementById('sync-url').value = url;
     setSettingsBusy(true);
     Progress.start(progressHost(), 'Pushing to peer…', 'Preparing local vessels…');
     try {
@@ -3063,8 +3111,10 @@ function renderSettings(main) {
         ? `Pushed ${remoteCount} vessel${remoteCount === 1 ? '' : 's'}`
         : 'Pushed to peer');
       showToast('Pushed to peer');
+      setProbeStatus('', null);
     } catch (e) {
       Progress.done();
+      setProbeStatus(e.message, 'err');
       showToast(e.message);
     } finally {
       setSettingsBusy(false);

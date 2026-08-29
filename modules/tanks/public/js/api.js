@@ -31,12 +31,31 @@ const Api = (() => {
   }
 
   function setServerBase(url) {
-    const base = String(url || '').trim().replace(/\/$/, '');
+    const base = normalizeSyncUrl(url);
     try {
       if (base) localStorage.setItem(SERVER_BASE_KEY, base);
       else localStorage.removeItem(SERVER_BASE_KEY);
     } catch { /* not fatal */ }
     return base;
+  }
+
+  /** Trim, add http:// if scheme missing, strip trailing slash. */
+  function normalizeSyncUrl(url) {
+    let s = String(url || '').trim();
+    if (!s) return '';
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s)) s = 'http://' + s;
+    return s.replace(/\/$/, '');
+  }
+
+  function describeFetchError(err, url) {
+    const msg = (err && err.message) ? String(err.message) : String(err || 'Request failed');
+    if (!/Failed to fetch|fetch failed|NetworkError|Load failed/i.test(msg)) return msg;
+    const target = url || getServerBase() || 'the server';
+    return (
+      'Could not reach ' + target + '. ' +
+      'On ship Wi‑Fi use http://<LXC-IP>:8080 (example http://192.168.0.132:8080). ' +
+      'The hostname must resolve on this phone, and HTTPS needs a valid certificate.'
+    );
   }
 
   /** Full or relative URL for a server-mode HTTP request. */
@@ -150,7 +169,14 @@ const Api = (() => {
       return data;
     } catch (err) {
       if (!navigator.onLine) setOnline(false);
-      throw err;
+      if (err && err.rejected) throw err;
+      if (err && err.status >= 400) throw err;
+      let target = getServerBase() || '';
+      try { target = resolveUrl(path); } catch { /* keep base */ }
+      const wrapped = new Error(describeFetchError(err, target));
+      wrapped.status = err && err.status;
+      wrapped.rejected = err && err.rejected;
+      throw wrapped;
     }
   }
 
@@ -428,8 +454,10 @@ const Api = (() => {
     getSettings: () => request('/api/settings'),
     saveSettings: (body) => request('/api/settings', { method: 'PUT', body }),
     backup: (onProgress) => download('/api/backup', onProgress),
-    syncPull: (syncUrl) => request('/api/sync/pull', { method: 'POST', body: { syncUrl } }),
-    syncPush: (syncUrl) => request('/api/sync/push', { method: 'POST', body: { syncUrl } }),
+    syncPull: (syncUrl) => request('/api/sync/pull', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
+    syncPush: (syncUrl) => request('/api/sync/push', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
+    syncProbe: (syncUrl) => request('/api/sync/probe', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
+    normalizeSyncUrl,
     importCsv: async (vesselId, file) => {
       const fd = new FormData();
       fd.append('file', file);

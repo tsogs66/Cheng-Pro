@@ -155,6 +155,9 @@ function forwardTankApi(req, res, next) {
 
 app.get('/api/sync/export', forwardTankApi);
 app.post('/api/sync/import', express.json({ limit: '50mb' }), forwardTankApi);
+app.post('/api/sync/probe', express.json({ limit: '1mb' }), forwardTankApi);
+app.post('/api/sync/pull', express.json({ limit: '1mb' }), forwardTankApi);
+app.post('/api/sync/push', express.json({ limit: '50mb' }), forwardTankApi);
 
 /* Voyage Chief auth + sync + admin (full Python stack) */
 app.use('/api/auth', requireVoyage);

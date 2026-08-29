@@ -818,21 +818,53 @@ app.post('/api/backup/import', upload.single('file'), (req, res) => {
 
 /** Cheng-Pro serves Tank Chief at /tanks; standalone Tank Chief uses the root. */
 function peerSyncBases(url) {
-  const base = String(url || '').replace(/\/$/, '');
+  const base = normalizePeerUrl(url);
   if (!base) return [];
   const bases = [base];
   if (!/\/tanks$/i.test(base)) bases.push(`${base}/tanks`);
   return [...new Set(bases)];
 }
 
-async function fetchPeerSync(url, apiPath, init) {
-  let last = null;
-  for (const base of peerSyncBases(url)) {
-    const resp = await fetch(`${base}${apiPath}`, init);
-    if (resp.ok || resp.status !== 404) return resp;
-    last = resp;
+/** Trim, strip trailing slash, and add http:// when the scheme is missing. */
+function normalizePeerUrl(url) {
+  let s = String(url || '').trim();
+  if (!s) return '';
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(s)) s = 'http://' + s;
+  return s.replace(/\/$/, '');
+}
+
+function describePeerFetchError(err, url) {
+  const msg = (err && err.message) ? String(err.message) : String(err || 'unknown error');
+  const target = String(url || '').trim() || '(no URL)';
+  if (/Failed to fetch|fetch failed|NetworkError|Load failed|getaddrinfo|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|certificate|SSL|TLS/i.test(msg)) {
+    return (
+      'Could not reach peer at ' + target + '. ' +
+      'Use your Cheng-Pro LAN address (e.g. http://192.168.0.132:8080) while on ship Wi‑Fi, ' +
+      'or a public hostname that actually resolves and serves Cheng-Pro. ' +
+      'HTTPS needs a valid certificate. Standalone Tank Chief uses port 3080. ' +
+      '(' + msg + ')'
+    );
   }
-  return last;
+  return msg + ' (' + target + ')';
+}
+
+async function fetchPeerSync(url, apiPath, init) {
+  const bases = peerSyncBases(url);
+  if (!bases.length) throw new Error('No sync URL configured');
+  let lastErr = null;
+  let lastResp = null;
+  for (const base of bases) {
+    try {
+      const resp = await fetch(`${base}${apiPath}`, init);
+      if (resp.ok || resp.status !== 404) return resp;
+      lastResp = resp;
+    } catch (err) {
+      lastErr = err;
+      lastErr.peerUrl = base;
+    }
+  }
+  if (lastResp) return lastResp;
+  throw new Error(describePeerFetchError(lastErr, bases[0]));
 }
 
 app.get('/api/sync/export', (req, res) => {
@@ -848,12 +880,54 @@ app.post('/api/sync/import', (req, res) => {
   }
 });
 
+app.post('/api/sync/probe', asyncHandler(async (req, res) => {
+  const settings = store.getSettings();
+  const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
+  if (!url) return res.status(400).json({ error: 'No sync URL configured' });
+  const bases = peerSyncBases(url);
+  const tried = [];
+  for (const base of bases) {
+    for (const apiPath of ['/api/health', '/api/sync/export']) {
+      const full = base + apiPath;
+      try {
+        const resp = await fetch(full, { method: 'GET', cache: 'no-store' });
+        let product = null;
+        try {
+          const body = await resp.clone().json();
+          product = body.product || (body.ok ? 'tank-chief' : null);
+        } catch { /* ignore non-JSON */ }
+        tried.push({ url: full, status: resp.status, ok: resp.ok, product });
+        if (resp.ok) {
+          return res.json({
+            ok: true,
+            base,
+            path: apiPath,
+            product: product || 'reachable',
+            tried,
+            hint: 'Peer is reachable. Pull/Push should work with this URL.',
+          });
+        }
+      } catch (err) {
+        tried.push({ url: full, ok: false, error: err.message || String(err) });
+      }
+    }
+  }
+  res.status(502).json({
+    ok: false,
+    tried,
+    error: describePeerFetchError(
+      new Error((tried.find((t) => t.error) || {}).error || 'Failed to fetch'),
+      url
+    ),
+  });
+}));
+
 app.post('/api/sync/pull', asyncHandler(async (req, res) => {
   const settings = store.getSettings();
-  const url = (req.body?.syncUrl || settings.syncUrl || '').replace(/\/$/, '');
+  const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
   const resp = await fetchPeerSync(url, '/api/sync/export');
-  if (!resp.ok) throw new Error('Remote sync failed: HTTP ' + resp.status);
+  if (!resp.ok) throw new Error('Remote sync failed: HTTP ' + resp.status + ' from ' + url);
   const payload = await resp.json();
   const results = store.applySyncPayload(payload);
   if (payload.settings) {
@@ -866,7 +940,7 @@ app.post('/api/sync/pull', asyncHandler(async (req, res) => {
 
 app.post('/api/sync/push', asyncHandler(async (req, res) => {
   const settings = store.getSettings();
-  const url = (req.body?.syncUrl || settings.syncUrl || '').replace(/\/$/, '');
+  const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
   const payload = store.syncPushBundle();
   const resp = await fetchPeerSync(url, '/api/sync/import', {
@@ -874,7 +948,7 @@ app.post('/api/sync/push', asyncHandler(async (req, res) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!resp.ok) throw new Error('Remote sync push failed: HTTP ' + resp.status);
+  if (!resp.ok) throw new Error('Remote sync push failed: HTTP ' + resp.status + ' from ' + url);
   const result = await resp.json();
   res.json({ ok: true, remote: result, to: url });
 }));

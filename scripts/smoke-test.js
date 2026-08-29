@@ -127,6 +127,18 @@ async function main() {
     assert.equal(syncTanks.status, 200, 'tank sync export under /tanks');
     assert.equal(syncTanks.json.format, 'vessel-fuel-tms-sync');
 
+    const probeOk = await request(port, 'POST', '/api/sync/probe', {
+      syncUrl: `http://127.0.0.1:${port}`,
+    });
+    assert.equal(probeOk.status, 200, 'sync probe self');
+    assert.equal(probeOk.json.ok, true);
+
+    const probeBad = await request(port, 'POST', '/api/sync/probe', {
+      syncUrl: 'https://voyagemanager.tsogs.cloud',
+    });
+    assert.equal(probeBad.status, 502);
+    assert.ok(/Could not reach peer/i.test(probeBad.json.error || ''), probeBad.json.error);
+
     require('./perf-calc-test');
 
     console.log('smoke-test: ok');
