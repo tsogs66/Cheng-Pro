@@ -99,6 +99,25 @@ async function main() {
     const shell = await request(port, 'GET', '/');
     assert.equal(shell.status, 200);
     assert.ok(String(shell.raw).includes('Cheng-Pro'));
+    assert.ok(String(shell.raw).includes('Performance'), 'Performance menu item');
+    assert.ok(String(shell.raw).includes('perf-calc.js'), 'perf-calc script');
+
+    const engineVessel = await request(port, 'PUT', `/api/shell/vessels/${id}`, {
+      name: 'MV SMOKE TEST',
+      imo: '9988776',
+      flag: 'LR',
+      mcrRpm: 91,
+      mcrKw: 18630,
+      sfoc100: 178.5,
+      sfoc85: 175.2,
+      lcvRef: 42700,
+      lcvActual: 41200,
+      slocRef: 0.85,
+      pitch: 5.85,
+    });
+    assert.equal(engineVessel.status, 200);
+    assert.equal(engineVessel.json.mcrKw, 18630);
+    assert.equal(engineVessel.json.lcvActual, 41200);
 
     const syncRoot = await request(port, 'GET', '/api/sync/export');
     assert.equal(syncRoot.status, 200, 'tank sync export at gateway root');
@@ -107,6 +126,8 @@ async function main() {
     const syncTanks = await request(port, 'GET', '/tanks/api/sync/export');
     assert.equal(syncTanks.status, 200, 'tank sync export under /tanks');
     assert.equal(syncTanks.json.format, 'vessel-fuel-tms-sync');
+
+    require('./perf-calc-test');
 
     console.log('smoke-test: ok');
   } finally {

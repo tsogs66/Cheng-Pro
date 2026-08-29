@@ -1,5 +1,11 @@
 window.ChengProModules = window.ChengProModules || {};
 
+const ENGINE_FIELDS = [
+  'mcrRpm', 'mcrKw', 'csrRpm', 'csrKw', 'pitch',
+  'sfoc100', 'sfoc85', 'slocRef', 'mechEff',
+  'fuelDensity', 'lubeDensity', 'lcvRef', 'lcvActual', 'propLawExp',
+];
+
 window.ChengProModules.vessel = {
   title: 'Vessel Setup',
   async render(root) {
@@ -18,23 +24,45 @@ window.ChengProModules.vessel = {
         <div class="section-head">
           <div>
             <h2>Vessel Setup</h2>
-            <p>Shared ship identity for Voyage Chief and Tank Chief. One form serves both.</p>
+            <p>Shared ship identity for Voyage Chief and Tank Chief. Engine data feeds Performance Calculation.</p>
           </div>
         </div>
-        <form id="vesselForm" class="grid-2">
-          <div class="field"><label>Name</label><input name="name" required value="${esc(v.name)}"></div>
-          <div class="field"><label>IMO</label><input name="imo" value="${esc(v.imo)}"></div>
-          <div class="field"><label>Call sign</label><input name="callSign" value="${esc(v.callSign || '')}"></div>
-          <div class="field"><label>Flag</label><input name="flag" value="${esc(v.flag || '')}"></div>
-          <div class="field"><label>Company</label><input name="company" value="${esc(v.company || v.owner || '')}"></div>
-          <div class="field"><label>Type</label><input name="type" value="${esc(v.type || '')}"></div>
-          <div class="field"><label>DWT</label><input name="dwt" value="${esc(v.dwt || '')}"></div>
-          <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></div>
+        <form id="vesselForm">
+          <div class="grid-2">
+            <div class="field"><label>Name</label><input name="name" required value="${esc(v.name)}"></div>
+            <div class="field"><label>IMO</label><input name="imo" value="${esc(v.imo)}"></div>
+            <div class="field"><label>Call sign</label><input name="callSign" value="${esc(v.callSign || '')}"></div>
+            <div class="field"><label>Flag</label><input name="flag" value="${esc(v.flag || '')}"></div>
+            <div class="field"><label>Company</label><input name="company" value="${esc(v.company || v.owner || '')}"></div>
+            <div class="field"><label>Type</label><input name="type" value="${esc(v.type || '')}"></div>
+            <div class="field"><label>DWT</label><input name="dwt" value="${esc(v.dwt || '')}"></div>
+            <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></div>
+          </div>
+
+          <h3 class="subhead">Main engine &amp; performance basis</h3>
+          <p class="hint">Ported from Voyage Chief setup. Used by Performance Calculation (propeller law, SFOC/SLOC, ISO correction).</p>
+          <div class="grid-2">
+            <div class="field"><label>M/E RPM (100% MCR)</label><input name="mcrRpm" type="number" step="0.1" value="${escNum(v.mcrRpm)}"></div>
+            <div class="field"><label>M/E kW (100% MCR)</label><input name="mcrKw" type="number" step="1" value="${escNum(v.mcrKw)}"></div>
+            <div class="field"><label>M/E RPM (85% / CSR)</label><input name="csrRpm" type="number" step="0.1" value="${escNum(v.csrRpm)}"></div>
+            <div class="field"><label>M/E kW (85% / CSR)</label><input name="csrKw" type="number" step="1" value="${escNum(v.csrKw)}"></div>
+            <div class="field"><label>Propeller pitch (m)</label><input name="pitch" type="number" step="0.01" value="${escNum(v.pitch)}"></div>
+            <div class="field"><label>Propeller-law exponent</label><input name="propLawExp" type="number" step="0.1" placeholder="3" value="${escNum(v.propLawExp)}"></div>
+            <div class="field"><label>SFOC @ 100% (g/kWh)</label><input name="sfoc100" type="number" step="0.1" value="${escNum(v.sfoc100)}"></div>
+            <div class="field"><label>SFOC @ 85% (g/kWh)</label><input name="sfoc85" type="number" step="0.1" value="${escNum(v.sfoc85)}"></div>
+            <div class="field"><label>SLOC reference (g/kWh)</label><input name="slocRef" type="number" step="0.01" placeholder="e.g. 0.8" value="${escNum(v.slocRef)}"></div>
+            <div class="field"><label>Mechanical efficiency</label><input name="mechEff" type="number" step="0.01" placeholder="0.90" value="${escNum(v.mechEff)}"></div>
+            <div class="field"><label>Fuel density (kg/L)</label><input name="fuelDensity" type="number" step="0.001" placeholder="0.96" value="${escNum(v.fuelDensity)}"></div>
+            <div class="field"><label>Lube density (kg/L)</label><input name="lubeDensity" type="number" step="0.001" placeholder="0.89" value="${escNum(v.lubeDensity)}"></div>
+            <div class="field"><label>Shop-trial LCV (kJ/kg)</label><input name="lcvRef" type="number" step="1" placeholder="42700" value="${escNum(v.lcvRef)}"></div>
+            <div class="field"><label>Actual bunker LCV (kJ/kg)</label><input name="lcvActual" type="number" step="1" placeholder="for ISO SFOC" value="${escNum(v.lcvActual)}"></div>
+          </div>
         </form>
         <div class="form-actions">
           <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
           ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
           <button type="button" class="btn" id="newVessel">New vessel</button>
+          <button type="button" class="btn" id="openPerf">Performance Calc</button>
           <button type="button" class="btn" id="openTanks">Open in Tank Chief</button>
           <button type="button" class="btn" id="openVoyage">Open in Voyage Chief</button>
         </div>
@@ -59,10 +87,25 @@ window.ChengProModules.vessel = {
 
     root.querySelector('#openTanks').addEventListener('click', () => ChengPro.openTanks());
     root.querySelector('#openVoyage').addEventListener('click', () => ChengPro.openVoyage());
+    root.querySelector('#openPerf').addEventListener('click', () =>
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'performance' })));
 
     root.querySelector('#saveVessel').addEventListener('click', async () => {
       const form = root.querySelector('#vesselForm');
-      const data = Object.fromEntries(new FormData(form).entries());
+      const raw = Object.fromEntries(new FormData(form).entries());
+      const data = {
+        name: raw.name,
+        imo: raw.imo,
+        callSign: raw.callSign,
+        flag: raw.flag,
+        company: raw.company,
+        type: raw.type,
+        dwt: raw.dwt,
+        notes: raw.notes,
+      };
+      for (const key of ENGINE_FIELDS) {
+        data[key] = parseOptionalNumber(raw[key]);
+      }
       try {
         if (active && !root._forceNew) {
           await ChengPro.api.fetch('/api/shell/vessels/' + encodeURIComponent(active.id), {
@@ -121,6 +164,17 @@ async function renderFleet(tbody) {
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
     });
   });
+}
+
+function parseOptionalNumber(v) {
+  if (v == null || String(v).trim() === '') return null;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function escNum(v) {
+  if (v == null || v === '') return '';
+  return esc(String(v));
 }
 
 function esc(s) {

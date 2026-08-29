@@ -54,6 +54,7 @@ window.ChengProModules.home = {
         <div class="form-actions">
           <button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>
           <button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>
+          <button type="button" class="btn" data-go="performance">Performance Calc</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
         </div>
       </section>
@@ -61,8 +62,10 @@ window.ChengProModules.home = {
 
     root.querySelector('#goVoyage').onclick = () => ChengPro.openVoyage();
     root.querySelector('#goTanks').onclick = () => ChengPro.openTanks();
-    root.querySelector('[data-go]').onclick = () =>
-      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
+    root.querySelectorAll('[data-go]').forEach((btn) => {
+      btn.onclick = () =>
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
+    });
   },
 };
 

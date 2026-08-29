@@ -68,7 +68,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     ok: true,
     product: 'cheng-pro',
-    version: '0.2.0',
+    version: require('../package.json').version,
     modules: { voyage, tanks },
     time: new Date().toISOString(),
   });
