@@ -817,15 +817,26 @@ app.post('/api/backup/import', upload.single('file'), (req, res) => {
 /* ---------- Sync (local <-> Proxmox / remote peer) ---------- */
 
 /** Cheng-Pro serves Tank Chief at /tanks; standalone Tank Chief uses the root.
- *  Prefer /tanks first on HTTPS (Cloudflare / public) so we hit Tank routes
- *  before any catch-all that serves the shell HTML. */
+ *  Prefer root first for dedicated Tank hosts; otherwise /tanks first on HTTPS.
+ *  Callers must skip HTML 200 responses and try the next base. */
 function peerSyncBases(url) {
   const base = normalizePeerUrl(url);
   if (!base) return [];
   const root = base.replace(/\/tanks$/i, '');
   const withTanks = /\/tanks$/i.test(base) ? base : `${root}/tanks`;
+  let host = '';
+  try { host = new URL(root).hostname || ''; } catch { /* ignore */ }
+  const tankHost = /tank/i.test(host);
   const https = /^https:/i.test(root);
+  if (tankHost) return [...new Set([root, withTanks])];
   return https ? [...new Set([withTanks, root])] : [...new Set([root, withTanks])];
+}
+
+function peerResponseLooksLikeHtml(resp, text) {
+  const ct = String(resp.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('text/html')) return true;
+  const trimmed = String(text || '').trim();
+  return /^<!doctype|<html/i.test(trimmed);
 }
 
 /** Trim, strip trailing slash, and add http:// when the scheme is missing. */
@@ -870,6 +881,16 @@ async function fetchPeerSync(url, apiPath, init) {
   for (const base of bases) {
     try {
       const resp = await fetch(`${base}${apiPath}`, reqInit);
+      if (resp.status === 404) {
+        lastResp = resp;
+        continue;
+      }
+      const ct = String(resp.headers.get('content-type') || '').toLowerCase();
+      /* Wrong mount (SPA HTML 200) — try the other base before giving up. */
+      if (resp.ok && ct.includes('text/html')) {
+        lastResp = resp;
+        continue;
+      }
       if (resp.ok || resp.status !== 404) return resp;
       lastResp = resp;
     } catch (err) {
@@ -923,10 +944,18 @@ app.post('/api/sync/probe', asyncHandler(async (req, res) => {
         });
         let product = null;
         let format = null;
+        let bodyText = '';
         try {
-          const body = await resp.clone().json();
-          product = body.product || (body.ok ? 'tank-chief' : null);
-          format = body.format || null;
+          bodyText = await resp.clone().text();
+        } catch { /* ignore */ }
+        if (peerResponseLooksLikeHtml(resp, bodyText)) {
+          tried.push({ url: full, status: resp.status, ok: false, error: 'HTML page (wrong mount or SPA)' });
+          continue;
+        }
+        try {
+          const body = bodyText ? JSON.parse(bodyText) : null;
+          product = body && (body.product || (body.ok ? 'tank-chief' : null));
+          format = (body && body.format) || null;
         } catch { /* ignore non-JSON */ }
         tried.push({ url: full, status: resp.status, ok: resp.ok, product, format });
         if (resp.ok && (

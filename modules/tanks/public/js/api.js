@@ -483,13 +483,28 @@ const Api = (() => {
     },
   };
 
+  /**
+   * Cheng-Pro serves Tank at /tanks; standalone Tank Chief serves at root.
+   * Prefer root first when the host looks like a dedicated Tank tunnel
+   * (e.g. tankmanagement.tsogs.cloud); otherwise prefer /tanks on HTTPS.
+   * Always try both — SPA catch-alls often return HTML 200 for the wrong prefix.
+   */
   function peerSyncBases(url) {
     const base = normalizeSyncUrl(url);
     if (!base) return [];
     const root = base.replace(/\/tanks$/i, '');
     const withTanks = /\/tanks$/i.test(base) ? base : `${root}/tanks`;
+    let host = '';
+    try { host = new URL(root).hostname || ''; } catch { /* ignore */ }
+    const tankHost = /tank/i.test(host);
     const https = /^https:/i.test(root);
+    if (tankHost) return [...new Set([root, withTanks])];
     return https ? [...new Set([withTanks, root])] : [...new Set([root, withTanks])];
+  }
+
+  function looksLikeHtmlBody(text) {
+    const trimmed = String(text || '').trim();
+    return /^<!doctype|<html/i.test(trimmed) || /cf-error|cloudflare/i.test(trimmed);
   }
 
   function voyageSyncCredentials() {
@@ -523,6 +538,7 @@ const Api = (() => {
     if (!bases.length) throw new Error('No sync URL configured');
     const auth = peerAuthHeaders(token);
     let lastErr = null;
+    const htmlHits = [];
     for (const base of bases) {
       const full = `${base}${apiPath}`;
       try {
@@ -541,29 +557,36 @@ const Api = (() => {
           lastErr = new Error('HTTP 404 at ' + full);
           continue;
         }
-        if (/^<!doctype|<html/i.test(trimmed) || /cf-error|cloudflare/i.test(trimmed)) {
-          throw new Error(
-            'Cloudflare/proxy returned a web page (HTTP ' + resp.status + ') at ' + full +
-            ' instead of Tank sync JSON. Use the same Cloudflare URL that works in Voyage Chief, ' +
-            'keep Tank on “On this device”, and confirm /tanks/api/sync/ping opens as JSON in a browser.'
-          );
+        /* SPA / wrong mount often returns HTML 200 — try the other base (/ vs /tanks). */
+        if (looksLikeHtmlBody(trimmed)) {
+          htmlHits.push(full + ' (HTTP ' + resp.status + ')');
+          lastErr = new Error('HTML at ' + full);
+          continue;
         }
         let data = null;
         try {
           data = trimmed ? JSON.parse(trimmed) : null;
         } catch {
-          throw new Error('Peer returned non-JSON (HTTP ' + resp.status + ') from ' + full);
+          lastErr = new Error('Peer returned non-JSON (HTTP ' + resp.status + ') from ' + full);
+          continue;
         }
         if (!resp.ok) {
           throw new Error((data && data.error) || ('HTTP ' + resp.status + ' from ' + full));
         }
         return { data, base, full };
       } catch (err) {
-        if (/web page|non-JSON|HTTP [453]/i.test(err.message || '') && !/404/.test(err.message || '')) {
+        if (/HTTP [453]/i.test(err.message || '') && !/404/.test(err.message || '')) {
           throw err;
         }
         lastErr = err;
       }
+    }
+    if (htmlHits.length) {
+      throw new Error(
+        'Peer returned a web page instead of Tank sync JSON at: ' + htmlHits.join('; ') + '. ' +
+        'Standalone Tank Chief (e.g. tankmanagement.*) uses /api/sync/… — Cheng-Pro unified uses /tanks/api/sync/…. ' +
+        'Keep Tank on “On this device” and confirm /api/sync/export opens as JSON in a browser.'
+      );
     }
     throw new Error(describeFetchError(lastErr, syncUrl));
   }

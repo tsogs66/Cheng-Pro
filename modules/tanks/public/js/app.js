@@ -2875,7 +2875,7 @@ function renderSettings(main) {
         <input id="sync-url" value="${escapeHtml(s.syncUrl || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().serverUrl) || '')}" placeholder="https://your-tunnel.example.com or http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
       <div class="form-row"><label>API token (optional)</label>
         <input id="sync-api-token" type="password" value="${escapeHtml(s.syncApiToken || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().apiToken) || '')}" placeholder="Same Bearer token as Voyage Chief sync" autocomplete="off"></div>
-      <p class="hint" style="margin:6px 0 0">Use the <strong>same Cloudflare URL</strong> that works in Voyage Chief (Cheng-Pro root — not voyage_manager.html). On HTTPS we try <code>/tanks/api/sync/…</code> first. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
+      <p class="hint" style="margin:6px 0 0">Peer URL can be your <strong>standalone Tank</strong> tunnel (e.g. <code>https://tankmanagement…</code>) or the Cheng-Pro / Voyage Cloudflare root. We try <code>/api/sync/…</code> and <code>/tanks/api/sync/…</code>. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
         <button class="btn" id="btn-probe-sync">Test connection</button>
