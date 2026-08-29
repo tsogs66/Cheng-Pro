@@ -45,6 +45,7 @@ const shellIndex = path.join(OUT, 'index.html');
 let shellHtml = fs.readFileSync(shellIndex, 'utf8');
 shellHtml = shellHtml.replace(/href="\/css\//g, 'href="css/');
 shellHtml = shellHtml.replace(/src="\/js\//g, 'src="js/');
+shellHtml = shellHtml.replace(/href="\/icons\//g, 'href="icons/');
 shellHtml = shellHtml.replace(/href="\/manifest\.webmanifest"/, 'href="manifest.webmanifest"');
 shellHtml = shellHtml.replace(
   '<script src="js/api.js"></script>',
@@ -66,6 +67,13 @@ const manifestPath = path.join(OUT, 'manifest.webmanifest');
 if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   manifest.start_url = './';
+  if (Array.isArray(manifest.icons)) {
+    for (const icon of manifest.icons) {
+      if (icon && typeof icon.src === 'string' && icon.src.startsWith('/')) {
+        icon.src = icon.src.slice(1);
+      }
+    }
+  }
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 }
 
