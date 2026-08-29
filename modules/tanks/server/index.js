@@ -36,7 +36,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 store.ensureDirs();
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   etag: false,
@@ -816,13 +816,16 @@ app.post('/api/backup/import', upload.single('file'), (req, res) => {
 
 /* ---------- Sync (local <-> Proxmox / remote peer) ---------- */
 
-/** Cheng-Pro serves Tank Chief at /tanks; standalone Tank Chief uses the root. */
+/** Cheng-Pro serves Tank Chief at /tanks; standalone Tank Chief uses the root.
+ *  Prefer /tanks first on HTTPS (Cloudflare / public) so we hit Tank routes
+ *  before any catch-all that serves the shell HTML. */
 function peerSyncBases(url) {
   const base = normalizePeerUrl(url);
   if (!base) return [];
-  const bases = [base];
-  if (!/\/tanks$/i.test(base)) bases.push(`${base}/tanks`);
-  return [...new Set(bases)];
+  const root = base.replace(/\/tanks$/i, '');
+  const withTanks = /\/tanks$/i.test(base) ? base : `${root}/tanks`;
+  const https = /^https:/i.test(root);
+  return https ? [...new Set([withTanks, root])] : [...new Set([root, withTanks])];
 }
 
 /** Trim, strip trailing slash, and add http:// when the scheme is missing. */
@@ -848,14 +851,25 @@ function describePeerFetchError(err, url) {
   return msg + ' (' + target + ')';
 }
 
+function peerAuthHeadersFromBody(body) {
+  const headers = {};
+  const token = String(body?.syncApiToken || body?.apiToken || '').trim();
+  if (token) headers.Authorization = 'Bearer ' + token;
+  return headers;
+}
+
 async function fetchPeerSync(url, apiPath, init) {
   const bases = peerSyncBases(url);
   if (!bases.length) throw new Error('No sync URL configured');
+  const auth = peerAuthHeadersFromBody(init && init.authBody);
+  const reqInit = { ...(init || {}) };
+  delete reqInit.authBody;
+  reqInit.headers = { ...(reqInit.headers || {}), ...auth };
   let lastErr = null;
   let lastResp = null;
   for (const base of bases) {
     try {
-      const resp = await fetch(`${base}${apiPath}`, init);
+      const resp = await fetch(`${base}${apiPath}`, reqInit);
       if (resp.ok || resp.status !== 404) return resp;
       lastResp = resp;
     } catch (err) {
@@ -866,6 +880,16 @@ async function fetchPeerSync(url, apiPath, init) {
   if (lastResp) return lastResp;
   throw new Error(describePeerFetchError(lastErr, bases[0]));
 }
+
+app.get('/api/sync/ping', (req, res) => {
+  res.json({
+    ok: true,
+    format: 'vessel-fuel-tms-sync',
+    product: 'tank-chief',
+    vesselCount: store.listVessels().length,
+    time: new Date().toISOString(),
+  });
+});
 
 app.get('/api/sync/export', (req, res) => {
   res.json(store.syncPushBundle());
@@ -887,24 +911,37 @@ app.post('/api/sync/probe', asyncHandler(async (req, res) => {
   const bases = peerSyncBases(url);
   const tried = [];
   for (const base of bases) {
-    for (const apiPath of ['/api/health', '/api/sync/export']) {
+    for (const apiPath of ['/api/sync/ping', '/api/health', '/api/sync/export']) {
       const full = base + apiPath;
       try {
-        const resp = await fetch(full, { method: 'GET', cache: 'no-store' });
+        const resp = await fetch(full, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: peerAuthHeadersFromBody({
+            syncApiToken: req.body?.syncApiToken || settings.syncApiToken || '',
+          }),
+        });
         let product = null;
+        let format = null;
         try {
           const body = await resp.clone().json();
           product = body.product || (body.ok ? 'tank-chief' : null);
+          format = body.format || null;
         } catch { /* ignore non-JSON */ }
-        tried.push({ url: full, status: resp.status, ok: resp.ok, product });
-        if (resp.ok) {
+        tried.push({ url: full, status: resp.status, ok: resp.ok, product, format });
+        if (resp.ok && (
+          format === 'vessel-fuel-tms-sync'
+          || apiPath === '/api/sync/ping'
+          || (apiPath === '/api/health' && product === 'tank-chief')
+        )) {
           return res.json({
             ok: true,
             base,
             path: apiPath,
             product: product || 'reachable',
+            format,
             tried,
-            hint: 'Peer is reachable. Pull/Push should work with this URL.',
+            hint: 'Peer Tank sync is reachable. Keep this phone on “On this device” and use Pull/Push.',
           });
         }
       } catch (err) {
@@ -926,13 +963,16 @@ app.post('/api/sync/pull', asyncHandler(async (req, res) => {
   const settings = store.getSettings();
   const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
-  const resp = await fetchPeerSync(url, '/api/sync/export');
+  const authBody = {
+    syncApiToken: req.body?.syncApiToken || settings.syncApiToken || '',
+  };
+  const resp = await fetchPeerSync(url, '/api/sync/export', { authBody });
   if (!resp.ok) throw new Error('Remote sync failed: HTTP ' + resp.status + ' from ' + url);
   const payload = await resp.json();
   const results = store.applySyncPayload(payload);
   if (payload.settings) {
-    // keep local syncUrl
-    const { syncUrl, ...rest } = payload.settings;
+    // keep local syncUrl / token
+    const { syncUrl, syncApiToken, ...rest } = payload.settings;
     store.saveSettings(rest);
   }
   res.json({ ok: true, results, from: url });
@@ -943,10 +983,14 @@ app.post('/api/sync/push', asyncHandler(async (req, res) => {
   const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
   if (!url) return res.status(400).json({ error: 'No sync URL configured' });
   const payload = store.syncPushBundle();
+  const authBody = {
+    syncApiToken: req.body?.syncApiToken || settings.syncApiToken || '',
+  };
   const resp = await fetchPeerSync(url, '/api/sync/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    authBody,
   });
   if (!resp.ok) throw new Error('Remote sync push failed: HTTP ' + resp.status + ' from ' + url);
   const result = await resp.json();

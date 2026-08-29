@@ -25,7 +25,7 @@ const SYNC_PORT = Number(process.env.SYNC_PORT || 8787);
 const tank = require('../modules/tanks/server');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 // JSON parsing for shell routes only; tank app has its own. Avoid double-parse on proxied bodies.
 app.use((req, res, next) => {
   if (req.path.startsWith('/tanks')) return next();
@@ -154,6 +154,7 @@ function forwardTankApi(req, res, next) {
 }
 
 app.get('/api/sync/export', forwardTankApi);
+app.get('/api/sync/ping', forwardTankApi);
 app.post('/api/sync/import', express.json({ limit: '50mb' }), forwardTankApi);
 app.post('/api/sync/probe', express.json({ limit: '1mb' }), forwardTankApi);
 app.post('/api/sync/pull', express.json({ limit: '1mb' }), forwardTankApi);

@@ -133,6 +133,13 @@ async function main() {
     assert.equal(probeOk.status, 200, 'sync probe self');
     assert.equal(probeOk.json.ok, true);
 
+    const ping = await request(port, 'GET', '/api/sync/ping');
+    assert.equal(ping.status, 200);
+    assert.equal(ping.json.format, 'vessel-fuel-tms-sync');
+    const pingTanks = await request(port, 'GET', '/tanks/api/sync/ping');
+    assert.equal(pingTanks.status, 200);
+    assert.equal(pingTanks.json.product, 'tank-chief');
+
     const probeBad = await request(port, 'POST', '/api/sync/probe', {
       syncUrl: 'https://voyagemanager.tsogs.cloud',
     });

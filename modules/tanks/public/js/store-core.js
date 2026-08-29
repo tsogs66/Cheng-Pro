@@ -79,6 +79,7 @@ function slugify(name) {
 function defaultSettings() {
   return {
     syncUrl: '',
+    syncApiToken: '',
     syncEnabled: false,
     autoSave: true,
     units: { volume: 'm3', weight: 'MT', density: 'kg/L' },

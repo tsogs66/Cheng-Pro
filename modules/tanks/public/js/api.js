@@ -454,10 +454,16 @@ const Api = (() => {
     getSettings: () => request('/api/settings'),
     saveSettings: (body) => request('/api/settings', { method: 'PUT', body }),
     backup: (onProgress) => download('/api/backup', onProgress),
-    syncPull: (syncUrl) => request('/api/sync/pull', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
-    syncPush: (syncUrl) => request('/api/sync/push', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
-    syncProbe: (syncUrl) => request('/api/sync/probe', { method: 'POST', body: { syncUrl: normalizeSyncUrl(syncUrl) } }),
+    /**
+     * Offline-first peer sync: fetch the Cloudflare/LAN peer from the browser
+     * (same as Voyage Chief), then apply into the on-device database.
+     */
+    syncPull: (syncUrl, token) => syncPullDirect(syncUrl, token),
+    syncPush: (syncUrl, token) => syncPushDirect(syncUrl, token),
+    syncProbe: (syncUrl, token) => syncProbeDirect(syncUrl, token),
     normalizeSyncUrl,
+    voyageSyncCredentials,
+    peerSyncBases,
     importCsv: async (vesselId, file) => {
       const fd = new FormData();
       fd.append('file', file);
@@ -476,6 +482,146 @@ const Api = (() => {
       return request('/api/backup/import', { method: 'POST', body: fd });
     },
   };
+
+  function peerSyncBases(url) {
+    const base = normalizeSyncUrl(url);
+    if (!base) return [];
+    const root = base.replace(/\/tanks$/i, '');
+    const withTanks = /\/tanks$/i.test(base) ? base : `${root}/tanks`;
+    const https = /^https:/i.test(root);
+    return https ? [...new Set([withTanks, root])] : [...new Set([root, withTanks])];
+  }
+
+  function voyageSyncCredentials() {
+    try {
+      const raw = localStorage.getItem('noonReportSyncCredentials');
+      if (!raw) return {};
+      const c = JSON.parse(raw);
+      return {
+        serverUrl: c.serverUrl || '',
+        apiToken: c.apiToken || '',
+        deviceId: c.deviceId || '',
+        deviceName: c.deviceName || '',
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  function peerAuthHeaders(extraToken) {
+    const headers = {};
+    const voyage = voyageSyncCredentials();
+    const token = String(extraToken || voyage.apiToken || '').trim();
+    if (token) headers.Authorization = 'Bearer ' + token;
+    if (voyage.deviceId) headers['X-Device-Id'] = voyage.deviceId;
+    if (voyage.deviceName) headers['X-Device-Name'] = voyage.deviceName;
+    return headers;
+  }
+
+  async function fetchPeerJson(syncUrl, apiPath, init = {}, token) {
+    const bases = peerSyncBases(syncUrl);
+    if (!bases.length) throw new Error('No sync URL configured');
+    const auth = peerAuthHeaders(token);
+    let lastErr = null;
+    for (const base of bases) {
+      const full = `${base}${apiPath}`;
+      try {
+        const resp = await fetch(full, {
+          cache: 'no-store',
+          credentials: 'omit',
+          ...init,
+          headers: {
+            ...(init.headers || {}),
+            ...auth,
+          },
+        });
+        const text = await resp.text();
+        const trimmed = (text || '').trim();
+        if (resp.status === 404) {
+          lastErr = new Error('HTTP 404 at ' + full);
+          continue;
+        }
+        if (/^<!doctype|<html/i.test(trimmed) || /cf-error|cloudflare/i.test(trimmed)) {
+          throw new Error(
+            'Cloudflare/proxy returned a web page (HTTP ' + resp.status + ') at ' + full +
+            ' instead of Tank sync JSON. Use the same Cloudflare URL that works in Voyage Chief, ' +
+            'keep Tank on “On this device”, and confirm /tanks/api/sync/ping opens as JSON in a browser.'
+          );
+        }
+        let data = null;
+        try {
+          data = trimmed ? JSON.parse(trimmed) : null;
+        } catch {
+          throw new Error('Peer returned non-JSON (HTTP ' + resp.status + ') from ' + full);
+        }
+        if (!resp.ok) {
+          throw new Error((data && data.error) || ('HTTP ' + resp.status + ' from ' + full));
+        }
+        return { data, base, full };
+      } catch (err) {
+        if (/web page|non-JSON|HTTP [453]/i.test(err.message || '') && !/404/.test(err.message || '')) {
+          throw err;
+        }
+        lastErr = err;
+      }
+    }
+    throw new Error(describeFetchError(lastErr, syncUrl));
+  }
+
+  async function syncPullDirect(syncUrl, token) {
+    const url = normalizeSyncUrl(syncUrl);
+    const { data, base } = await fetchPeerJson(url, '/api/sync/export', { method: 'GET' }, token);
+    if (!data || data.format !== 'vessel-fuel-tms-sync') {
+      throw new Error('Peer did not return a Tank sync bundle (expected format vessel-fuel-tms-sync)');
+    }
+    const applied = (transport === 'local' && canUseLocal())
+      ? await localRequest('/api/sync/import', { method: 'POST', body: data })
+      : await request('/api/sync/import', { method: 'POST', body: data });
+    return { ok: true, results: applied.results || applied, from: base };
+  }
+
+  async function syncPushDirect(syncUrl, token) {
+    const url = normalizeSyncUrl(syncUrl);
+    const bundle = (transport === 'local' && canUseLocal())
+      ? await localRequest('/api/sync/export')
+      : await request('/api/sync/export');
+    const { data, base } = await fetchPeerJson(url, '/api/sync/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bundle),
+    }, token);
+    return { ok: true, remote: data, to: base };
+  }
+
+  async function syncProbeDirect(syncUrl, token) {
+    const url = normalizeSyncUrl(syncUrl);
+    try {
+      const { data, base, full } = await fetchPeerJson(url, '/api/sync/ping', { method: 'GET' }, token);
+      return {
+        ok: true,
+        base,
+        path: '/api/sync/ping',
+        product: data.product || 'tank-chief',
+        format: data.format,
+        tried: [{ url: full, ok: true }],
+        hint: 'Tank peer reachable. Stay on “On this device” for offline work; use Pull/Push to sync.',
+      };
+    } catch (pingErr) {
+      const { data, base, full } = await fetchPeerJson(url, '/api/sync/export', { method: 'GET' }, token);
+      if (data.format !== 'vessel-fuel-tms-sync') {
+        throw pingErr;
+      }
+      return {
+        ok: true,
+        base,
+        path: '/api/sync/export',
+        product: data.format,
+        format: data.format,
+        tried: [{ url: full, ok: true }],
+        hint: 'Tank peer reachable via sync export.',
+      };
+    }
+  }
 })();
 
 window.Api = Api;

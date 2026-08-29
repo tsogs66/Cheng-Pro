@@ -2863,16 +2863,19 @@ function renderSettings(main) {
       <div class="section-title" style="margin-top:0">Where this device keeps its records</div>
       <div class="form-row"><label>Database</label>
         <select id="api-transport">
-          <option value="local">On this device — works with no network</option>
-          <option value="server" id="api-transport-server">On the server that served this page</option>
+          <option value="local">On this device — works offline (recommended)</option>
+          <option value="server" id="api-transport-server">On the Cheng-Pro server (needs network)</option>
         </select></div>
       <div class="hint" data-transport-note style="margin-top:8px;color:var(--text-faint);font-size:12px"></div>
+      <p class="hint" style="margin-top:8px">Cheng-Pro is offline-first: keep <strong>On this device</strong> for daily work. Use Pull/Push below when you have Cloudflare or LAN — same idea as Voyage Chief sync.</p>
     </div>
     <div class="form-panel">
-      <div class="section-title" style="margin-top:0">Remote sync (Proxmox / office)</div>
+      <div class="section-title" style="margin-top:0">Remote sync (Cloudflare / Proxmox / office)</div>
       <div class="form-row"><label>Peer sync URL</label>
-        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
-      <p class="hint" style="margin:6px 0 0">Cheng-Pro on the ship: use the LXC root URL on Wi‑Fi, e.g. <code>http://192.168.0.132:8080</code> (port 8080). Standalone Tank Chief: port 3080. <code>/tanks</code> is added automatically when needed. The hostname must resolve on this phone — a bad DNS name shows as “Failed to fetch”.</p>
+        <input id="sync-url" value="${escapeHtml(s.syncUrl || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().serverUrl) || '')}" placeholder="https://your-tunnel.example.com or http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
+      <div class="form-row"><label>API token (optional)</label>
+        <input id="sync-api-token" type="password" value="${escapeHtml(s.syncApiToken || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().apiToken) || '')}" placeholder="Same Bearer token as Voyage Chief sync" autocomplete="off"></div>
+      <p class="hint" style="margin:6px 0 0">Use the <strong>same Cloudflare URL</strong> that works in Voyage Chief (Cheng-Pro root — not voyage_manager.html). On HTTPS we try <code>/tanks/api/sync/…</code> first. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
         <button class="btn" id="btn-probe-sync">Test connection</button>
@@ -2883,7 +2886,7 @@ function renderSettings(main) {
       <div class="sync-save-status" id="sync-save-status" role="status" aria-live="polite"></div>
       <div class="sync-probe-status" id="sync-probe-status" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.4"></div>
       <div class="hint" style="margin-top:8px;color:var(--text-faint);font-size:12px">
-        Local and LXC instances can sync when either becomes reachable. Offline edits stay in IndexedDB until flushed. Voyage Chief uses the same Cheng-Pro root URL under Setup → Sync (not this Tank peer field alone).
+        Pull/Push copy tank data when online. Soundings and calibrations stay on this phone until you sync. Voyage Chief sync is separate (Setup → Sync) but can share this URL and token.
       </div>
     </div>
     <div class="form-panel">
@@ -3004,16 +3007,22 @@ function renderSettings(main) {
     };
   }
 
-  document.getElementById('btn-save-sync').onclick = async () => {
+  function readSyncForm() {
     const raw = document.getElementById('sync-url').value.trim();
     const syncUrl = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
     if (syncUrl !== raw) document.getElementById('sync-url').value = syncUrl;
+    const syncApiToken = (document.getElementById('sync-api-token')?.value || '').trim();
+    return { syncUrl, syncApiToken };
+  }
+
+  document.getElementById('btn-save-sync').onclick = async () => {
+    const { syncUrl, syncApiToken } = readSyncForm();
     setSyncSaveStatus('Saving sync settings…', 'pending');
     setSettingsBusy(true);
     try {
       Api.setServerBase(syncUrl);
-      STATE.settings = await Api.saveSettings({ syncUrl, syncEnabled: true });
-      setSyncSaveStatus('Sync settings saved', 'ok');
+      STATE.settings = await Api.saveSettings({ syncUrl, syncApiToken, syncEnabled: true });
+      setSyncSaveStatus('Sync settings saved — stay on “On this device” for offline use', 'ok');
       showToast('Sync settings saved');
     } catch (e) {
       setSyncSaveStatus(e.message || 'Could not save sync settings', 'err');
@@ -3036,15 +3045,13 @@ function renderSettings(main) {
   }
 
   document.getElementById('btn-probe-sync').onclick = async () => {
-    const raw = document.getElementById('sync-url').value.trim();
-    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
-    if (!url) { showToast('Enter a peer sync URL'); return; }
-    if (url !== raw) document.getElementById('sync-url').value = url;
+    const { syncUrl, syncApiToken } = readSyncForm();
+    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
     setSettingsBusy(true);
-    setProbeStatus('Testing ' + url + '…', 'pending');
-    Progress.start(progressHost(), 'Testing peer…', url);
+    setProbeStatus('Testing ' + syncUrl + '…', 'pending');
+    Progress.start(progressHost(), 'Testing peer…', syncUrl);
     try {
-      const res = await Api.syncProbe(url);
+      const res = await Api.syncProbe(syncUrl, syncApiToken);
       const detail = res.base
         ? `OK — reached ${res.base}${res.path || ''} (${res.product || 'ok'})`
         : 'OK — peer answered';
@@ -3062,15 +3069,13 @@ function renderSettings(main) {
   };
 
   document.getElementById('btn-pull').onclick = async () => {
-    const raw = document.getElementById('sync-url').value.trim();
-    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
-    if (!url) { showToast('Enter a peer sync URL'); return; }
-    if (url !== raw) document.getElementById('sync-url').value = url;
+    const { syncUrl, syncApiToken } = readSyncForm();
+    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
     setSettingsBusy(true);
-    Progress.start(progressHost(), 'Pulling from peer…', `Connecting to ${url}…`);
+    Progress.start(progressHost(), 'Pulling from peer…', `Connecting to ${syncUrl}…`);
     try {
       Progress.set(null, 'Downloading vessels from peer…');
-      const res = await Api.syncPull(url);
+      const res = await Api.syncPull(syncUrl, syncApiToken);
       const count = (res.results || []).length;
       Progress.set(70, count
         ? `Applying ${count} vessel${count === 1 ? '' : 's'}…`
@@ -3095,15 +3100,13 @@ function renderSettings(main) {
   };
 
   document.getElementById('btn-push').onclick = async () => {
-    const raw = document.getElementById('sync-url').value.trim();
-    const url = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
-    if (!url) { showToast('Enter a peer sync URL'); return; }
-    if (url !== raw) document.getElementById('sync-url').value = url;
+    const { syncUrl, syncApiToken } = readSyncForm();
+    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
     setSettingsBusy(true);
     Progress.start(progressHost(), 'Pushing to peer…', 'Preparing local vessels…');
     try {
-      Progress.set(null, `Uploading to ${url}…`);
-      const res = await Api.syncPush(url);
+      Progress.set(null, `Uploading to ${syncUrl}…`);
+      const res = await Api.syncPush(syncUrl, syncApiToken);
       const remoteCount = (res.remote && res.remote.results) ? res.remote.results.length : null;
       Progress.set(90, 'Confirming on peer…');
       await Progress.yieldToPaint();
