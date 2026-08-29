@@ -75,4 +75,6 @@ if (!fs.existsSync(keystorePath)) {
   );
 }
 
+execSync('node scripts/apply-android-icons.js', { cwd: root, stdio: 'inherit' });
+
 console.log(`Android release prep: versionName=${versionName} versionCode=${versionCode}`);

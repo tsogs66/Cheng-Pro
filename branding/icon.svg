@@ -1,0 +1,16 @@
+<!-- Cheng-Pro program mark  option G (Monogram CP).
+     Tank Chief frame + gold fuel + Voyage droplets + CP monogram. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <!-- tank frame -->
+  <rect x="118" y="128" width="276" height="268" rx="28" fill="#152238" stroke="#3aa0ff" stroke-width="18"/>
+  <rect x="232" y="88" width="48" height="58" rx="10" fill="#3aa0ff"/>
+  <!-- fuel -->
+  <path d="M136 320 h240 v52 a16 16 0 0 1-16 16 H152 a16 16 0 0 1-16-16z" fill="#e6b34d"/>
+  <!-- CP -->
+  <path d="M214 168c-52 0-88 38-88 92s36 92 88 92c26 0 48-10 64-26l-26-26c-10 10-22 16-38 16-30 0-50-24-50-56s20-56 50-56c16 0 28 6 38 16l26-26c-16-16-38-26-64-26z" fill="#f1f5f9"/>
+  <path d="M268 176h66c44 0 76 26 76 70s-32 70-76 70h-32v68h-34V176zm34 38v64h30c22 0 40-12 40-32s-18-32-40-32h-30z" fill="#f1f5f9"/>
+  <!-- Voyage droplets -->
+  <path d="M96 72c-22 32-36 52-36 70a36 36 0 0 0 72 0c0-18-14-38-36-70z" fill="#3aa0ff"/>
+  <path d="M416 360c-22 32-36 52-36 70a36 36 0 0 0 72 0c0-18-14-38-36-70z" fill="#14b8a6"/>
+</svg>
