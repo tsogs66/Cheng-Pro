@@ -55,15 +55,33 @@ window.ChengProModules.performance = {
       <section class="panel">
         <div class="section-head">
           <div>
+            <h2>Period (time)</h2>
+            <p>Set start/end (ship time) to derive watch hours. Optionally enter M/E run hours if different from the watch.</p>
+          </div>
+        </div>
+        <form id="perfTimeForm" class="grid-2">
+          <div class="field"><label>Period start</label><input name="periodStart" type="datetime-local"></div>
+          <div class="field"><label>Period end</label><input name="periodEnd" type="datetime-local"></div>
+          <div class="field"><label>Clock change (hours)</label><input name="clockChangeHrs" type="number" step="0.1" inputmode="decimal" placeholder="e.g. +1 or −1 zone"></div>
+          <div class="field"><label>Watch / elapsed hours</label><input name="hours" type="number" step="0.01" inputmode="decimal" placeholder="auto from start/end"></div>
+          <div class="field"><label>M/E run hours</label><input name="meRunHours" type="number" step="0.01" inputmode="decimal" placeholder="blank → use watch hours"></div>
+          <div class="field"><label>Distance steamed (NM)</label><input name="distanceNm" type="number" step="0.1" inputmode="decimal" placeholder="for slip / speed"></div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
             <h2>Operating inputs</h2>
-            <p>Enter any known values. Leave blanks for unknowns — the solver fills the rest.</p>
+            <p>Enter any known values. Leave blanks for unknowns — the solver fills the rest. Rev counters derive average RPM over the period.</p>
           </div>
         </div>
         <form id="perfForm" class="grid-2">
+          <div class="field"><label>Rev counter start</label><input name="revStart" type="number" step="1" inputmode="decimal"></div>
+          <div class="field"><label>Rev counter end</label><input name="revEnd" type="number" step="1" inputmode="decimal"></div>
           <div class="field"><label>RPM</label><input name="rpm" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 78"></div>
           <div class="field"><label>% MCR</label><input name="mcrPct" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 65"></div>
           <div class="field"><label>Shaft power SHP (kW)</label><input name="kw" type="number" step="1" inputmode="decimal" placeholder="or leave blank"></div>
-          <div class="field"><label>Run hours</label><input name="hours" type="number" step="0.1" inputmode="decimal" placeholder="for period projections"></div>
           <div class="field"><label>SFOC measured (g/kWh)</label><input name="sfoc" type="number" step="0.1" inputmode="decimal" placeholder="blank → shop-trial curve"></div>
           <div class="field"><label>SLOC measured (g/kWh)</label><input name="sloc" type="number" step="0.01" inputmode="decimal" placeholder="blank → vessel ref"></div>
           <div class="field"><label>Fuel consumption (kg/h)</label><input name="fuelKgHr" type="number" step="0.1" inputmode="decimal"></div>
@@ -86,7 +104,7 @@ window.ChengProModules.performance = {
         <div class="section-head">
           <div>
             <h2>Results</h2>
-            <p>Derived values update when you calculate. ISO SFOC uses LCV_ref ÷ LCV_actual.</p>
+            <p>Period totals use M/E run hours when set; otherwise watch hours from the time range.</p>
           </div>
         </div>
         <div class="grid-3" id="perfStats"></div>
@@ -108,6 +126,7 @@ window.ChengProModules.performance = {
       </section>
     `;
 
+    const timeForm = root.querySelector('#perfTimeForm');
     const form = root.querySelector('#perfForm');
     const results = root.querySelector('#perfResults');
     const stats = root.querySelector('#perfStats');
@@ -121,16 +140,34 @@ window.ChengProModules.performance = {
     root.querySelector('[data-go]').onclick = () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
 
+    function syncHoursFromRange() {
+      const td = Object.fromEntries(new FormData(timeForm).entries());
+      const start = td.periodStart ? Date.parse(td.periodStart) : NaN;
+      const end = td.periodEnd ? Date.parse(td.periodEnd) : NaN;
+      const clock = parseFloat(String(td.clockChangeHrs || '').replace(',', '.'));
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        let hrs = (end - start) / 3600000;
+        if (Number.isFinite(clock)) hrs += clock;
+        if (hrs > 0) timeForm.hours.value = String(Math.round(hrs * 100) / 100);
+      }
+    }
+
+    timeForm.periodStart.addEventListener('change', syncHoursFromRange);
+    timeForm.periodEnd.addEventListener('change', syncHoursFromRange);
+    timeForm.clockChangeHrs.addEventListener('change', syncHoursFromRange);
+
     root.querySelector('#clearPerf').onclick = () => {
       form.reset();
+      timeForm.reset();
       results.hidden = true;
     };
 
     root.querySelector('#demoPerf').onclick = () => {
       form.reset();
+      timeForm.reset();
       const csr = basis.csrRpm || (basis.mcrRpm ? basis.mcrRpm * Math.pow(0.85, 1 / 3) : null);
       if (csr) form.rpm.value = String(Math.round(csr * 10) / 10);
-      form.hours.value = '24';
+      timeForm.hours.value = '24';
       run();
     };
 
@@ -143,12 +180,16 @@ window.ChengProModules.performance = {
     });
 
     function run() {
-      const data = Object.fromEntries(new FormData(form).entries());
+      syncHoursFromRange();
+      const timeData = Object.fromEntries(new FormData(timeForm).entries());
+      const data = Object.assign({}, timeData, Object.fromEntries(new FormData(form).entries()));
       const solved = ChengProPerfCalc.solve(basis, data);
       const v = solved.values;
       results.hidden = false;
       stats.innerHTML = [
-        stat('RPM', fmt(v.rpm, 2)),
+        stat('Watch hours', fmt(v.watchHours, 2) + (v.watchHours != null ? ' h' : '')),
+        stat('M/E run hours', fmt(v.meRunHours, 2) + (v.meRunHours != null ? ' h' : '')),
+        stat('Avg RPM', fmt(v.rpm, 2)),
         stat('% MCR', fmt(v.mcrPct, 2) + (v.mcrPct != null ? ' %' : '')),
         stat('SHP (kW)', fmt(v.shpKw, 1)),
         stat('IHP (kW)', fmt(v.ihpKw, 1)),
@@ -165,10 +206,13 @@ window.ChengProModules.performance = {
         stat('Fuel period ISO', fmt(v.fuelMtIsoPeriod, 3) + (v.fuelMtIsoPeriod != null ? ' MT' : ''), 'iso'),
         stat('LO period', fmt(v.lubeLPeriod, 2) + (v.lubeLPeriod != null ? ' L' : '')),
         stat('Engine speed', fmt(v.engineSpeedKn, 2) + (v.engineSpeedKn != null ? ' kn' : '')),
+        stat('Obs. speed', fmt(v.obsSpeedKn, 2) + (v.obsSpeedKn != null ? ' kn' : '')),
+        stat('Slip', fmt(v.slipPct, 1) + (v.slipPct != null ? ' %' : '')),
         stat('Thermal load', fmt(v.thermalLoadPct, 1) + (v.thermalLoadPct != null ? ' %' : '')),
         stat('BTE', fmt(v.btePct, 1) + (v.btePct != null ? ' %' : '')),
         stat('BTE (ISO SFOC)', fmt(v.bteIsoPct, 1) + (v.bteIsoPct != null ? ' %' : ''), 'iso'),
         stat('LCV factor', fmt(v.lcvFactor, 4)),
+        stat('Δ revs', fmt(v.revDelta, 0)),
       ].join('');
 
       notesEl.innerHTML = solved.notes.length

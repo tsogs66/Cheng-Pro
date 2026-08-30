@@ -75,16 +75,18 @@ window.ChengProModules.home = {
           </div>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>
-          <button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>
-          <button type="button" class="btn" data-go="performance">Performance Calc</button>
-          <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
+          ${(!window.ChengLicense || ChengLicense.moduleAllowed('voyage')) ? '<button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>' : ''}
+          ${(!window.ChengLicense || ChengLicense.moduleAllowed('tanks')) ? '<button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>' : ''}
+          ${(!window.ChengLicense || ChengLicense.moduleAllowed('eorb')) ? '<button type="button" class="btn" id="goEorb">Open e-ORB</button>' : ''}
+          ${(!window.ChengLicense || ChengLicense.moduleAllowed('performance')) ? '<button type="button" class="btn" data-go="performance">Performance Calc</button>' : ''}
+          ${(!window.ChengLicense || ChengLicense.moduleAllowed('vessel')) ? '<button type="button" class="btn" data-go="vessel">Vessel Setup</button>' : ''}
         </div>
       </section>`}
     `;
 
     root.querySelector('#goVoyage')?.addEventListener('click', () => ChengPro.openVoyage());
     root.querySelector('#goTanks')?.addEventListener('click', () => ChengPro.openTanks());
+    root.querySelector('#goEorb')?.addEventListener('click', () => ChengPro.openEorb());
     root.querySelectorAll('[data-go]').forEach((btn) => {
       btn.onclick = () =>
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));

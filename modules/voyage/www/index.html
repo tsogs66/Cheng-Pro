@@ -10506,6 +10506,12 @@ function syncBottomNav(pageName){
 
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
+  if (pageName === 'orb' && !voyageEorbAllowed()){
+    try {
+      alert('e-ORB requires a ChEng AIO license or a Voyage Chief key with the e-ORB add-on. Open ChEng AIO → e-ORB, or activate the add-on.');
+    } catch (_) {}
+    return;
+  }
   const prev = _activeTab;
   document.querySelectorAll('#tabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.page===pageName));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id==='page-'+pageName));
@@ -20389,6 +20395,33 @@ function isChengAioEmbedded(){
 }
 
 /**
+ * e-ORB tab: hidden in standalone Voyage unless ChEng AIO key or eorb add-on.
+ * When embedded via AIO, the tab is hidden (use AIO → e-ORB) except deep-link ?page=orb.
+ */
+function voyageEorbAllowed(){
+  try {
+    if (/[?&]page=orb\b/.test(location.search)) return true;
+    if (isChengAioEmbedded()) return false;
+    if (window.ChengLicense && typeof ChengLicense.eorbLicensed === 'function') {
+      return ChengLicense.eorbLicensed();
+    }
+  } catch (_) { /* ignore */ }
+  return false;
+}
+
+function applyEorbLicenseVisibility(){
+  const ok = voyageEorbAllowed();
+  document.querySelectorAll('#tabs .tab[data-page="orb"], #bnMoreSheet [data-page="orb"]').forEach((el) => {
+    el.hidden = !ok;
+    el.style.display = ok ? '' : 'none';
+  });
+  if (!ok) {
+    const page = document.getElementById('page-orb');
+    if (page) page.classList.remove('active');
+  }
+}
+
+/**
  * Inside ChEng AIO, shared ship identity is read-only here — edit in AIO → Vessel Setup.
  * Standalone Voyage Chief keeps full Vessel Data editing. ROB / voyage ops stay editable.
  */
@@ -21268,6 +21301,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     try {
       if (window.ChengLicense) await ChengLicense.ensureLicensed();
     } catch (licErr) { console.warn('License gate', licErr); }
+    try { applyEorbLicenseVisibility(); } catch (_) {}
 
     beginActivity('boot', 'Opening the local database…', { source: 'program' });
     if (penInputLikely()) enablePenInputMode();
@@ -21338,6 +21372,10 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     _programReady = true;
     endActivity('boot');
     document.getElementById('dbStatus').textContent = '● local database ready';
+    try {
+      applyEorbLicenseVisibility();
+      if (/[?&]page=orb\b/.test(location.search) && voyageEorbAllowed()) switchTab('orb');
+    } catch (_) {}
   } catch(e){
     console.error('Startup error:', e);
     try{ endActivity('boot'); }catch(_){}

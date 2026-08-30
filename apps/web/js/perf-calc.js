@@ -87,8 +87,34 @@
 
     const coeffs = sfocCurveCoefficients(sfoc100, sfoc85);
 
+    /* ---- Time / period integration ---- */
+    let watchHours = num(i.hours);
+    const periodStart = i.periodStart ? Date.parse(i.periodStart) : NaN;
+    const periodEnd = i.periodEnd ? Date.parse(i.periodEnd) : NaN;
+    const clockChangeHrs = num(i.clockChangeHrs);
+    if ((!has(watchHours) || !(watchHours > 0))
+      && Number.isFinite(periodStart) && Number.isFinite(periodEnd) && periodEnd > periodStart) {
+      watchHours = (periodEnd - periodStart) / 3600000;
+      if (has(clockChangeHrs)) watchHours += clockChangeHrs;
+    }
+    let meRunHours = num(i.meRunHours);
+    if (!has(meRunHours) || !(meRunHours > 0)) meRunHours = watchHours;
+    /* Period consumption / SFOC weighting uses M/E run hours when available. */
+    const hours = has(meRunHours) && meRunHours > 0 ? meRunHours : null;
+
+    const revStart = num(i.revStart);
+    const revEnd = num(i.revEnd);
+    let revDelta = null;
+    let rpmFromRevs = null;
+    if (has(revStart) && has(revEnd) && revEnd >= revStart && has(hours) && hours > 0) {
+      revDelta = revEnd - revStart;
+      rpmFromRevs = revDelta / (hours * 60);
+    }
+
+    const distanceNm = num(i.distanceNm);
+
     const out = {
-      rpm: num(i.rpm),
+      rpm: num(i.rpm) != null ? num(i.rpm) : rpmFromRevs,
       mcrPct: num(i.mcrPct),
       kw: num(i.kw),
       sfoc: num(i.sfoc),
@@ -97,7 +123,7 @@
       fuelLhr: num(i.fuelLhr),
       lubeKgHr: num(i.lubeKgHr),
       lubeLhr: num(i.lubeLhr),
-      hours: num(i.hours),
+      hours,
       fuelKgPeriod: num(i.fuelKgPeriod),
       fuelLPeriod: num(i.fuelLPeriod),
       lubeKgPeriod: num(i.lubeKgPeriod),
@@ -106,6 +132,16 @@
 
     const derivedFrom = {};
     const notes = [];
+
+    if (has(rpmFromRevs) && !has(num(i.rpm))) {
+      derivedFrom.rpm = 'Δ revs ÷ (M/E run hours × 60)';
+    }
+    if (i.periodStart && i.periodEnd && !has(num(i.hours)) && has(watchHours)) {
+      notes.push('Watch hours derived from period start/end' + (has(clockChangeHrs) ? ' (incl. clock change)' : '') + '.');
+    }
+    if (has(meRunHours) && has(watchHours) && meRunHours !== watchHours) {
+      notes.push('Period fuel/SFOC uses M/E run hours (' + round(meRunHours, 2) + ' h), not watch hours.');
+    }
 
     function set(key, value, from) {
       if (!has(value)) return false;
@@ -216,8 +252,7 @@
       : null;
     const lcvFactor = lcvCorrectionFactor(lcvRef, lcvActual);
 
-    // Projections
-    const hours = has(out.hours) && out.hours > 0 ? out.hours : null;
+    // Projections — integrate by M/E run hours (falls back to watch hours)
     const lubeL24h = has(out.lubeLhr) ? out.lubeLhr * 24 : null;
     const fuelL24h = has(out.fuelLhr) ? out.fuelLhr * 24 : null;
     const fuelMtPeriod = has(out.fuelKgHr) && hours ? (out.fuelKgHr * hours) / 1000 : null;
@@ -228,6 +263,14 @@
     const engineSpeedKn = has(out.rpm) && has(pitch) && pitch > 0
       ? (out.rpm * pitch * 60) / NM_METERS
       : null;
+    let obsSpeedKn = null;
+    let slipPct = null;
+    if (has(distanceNm) && has(watchHours) && watchHours > 0) {
+      obsSpeedKn = distanceNm / watchHours;
+      if (has(engineSpeedKn) && engineSpeedKn > 0) {
+        slipPct = ((engineSpeedKn - obsSpeedKn) / engineSpeedKn) * 100;
+      }
+    }
     let thermalLoadPct = null;
     if (has(out.kw) && has(out.rpm) && out.rpm > 0 && has(mcrKw) && has(mcrRpm) && mcrRpm > 0) {
       thermalLoadPct = ((out.kw / out.rpm) / (mcrKw / mcrRpm)) * 100;
@@ -261,6 +304,9 @@
       'ISO SFOC: measured SFOC × (shop-trial LCV ÷ bunker LCV).',
       'IHP (kW) = SHP (kW) ÷ mechanical efficiency.',
       'Projected LO L/24h = LO L/h × 24 (scale by run hours for voyage period).',
+      'Period start/end → watch hours; M/E run hours weight SFOC/fuel for the period.',
+      'Rev counter Δ ÷ (run hours × 60) → average RPM.',
+      'Obs. speed = distance NM ÷ watch hours; slip % = (engine − obs) / engine × 100.',
       'Thermal load % = (P/N) ÷ (P_mcr/N_mcr) × 100 — torque-related load.',
       'Brake thermal efficiency from SFOC and LCV.',
       'Engine speed (kn) = RPM × pitch(m) × 60 ÷ 1852.',
@@ -292,11 +338,16 @@
         fuelMtIsoPeriod: pack(fuelMtIsoPeriod, 3),
         lubeLPeriod: pack(lubeLPeriodProj, 2),
         engineSpeedKn: pack(engineSpeedKn, 2),
+        obsSpeedKn: pack(obsSpeedKn, 2),
+        slipPct: pack(slipPct, 2),
         thermalLoadPct: pack(thermalLoadPct, 2),
         btePct: pack(btePct, 2),
         bteIsoPct: pack(bteIsoPct, 2),
         lcvFactor: pack(lcvFactor, 4),
         hours: pack(hours, 2),
+        watchHours: pack(watchHours, 2),
+        meRunHours: pack(meRunHours, 2),
+        revDelta: pack(revDelta, 0),
         mechEff: pack(mechEff, 3),
         fuelDensity: pack(fuelDensity, 3),
         lubeDensity: pack(lubeDensity, 3),

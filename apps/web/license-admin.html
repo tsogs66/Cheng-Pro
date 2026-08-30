@@ -86,7 +86,7 @@
         <div>
           <label>SKU</label>
           <select id="issueSku">
-            <option value="cheng-aio">cheng-aio</option>
+            <option value="cheng-aio">cheng-aio (all modules)</option>
             <option value="voyage-chief">voyage-chief</option>
             <option value="tank-chief">tank-chief</option>
           </select>
@@ -99,6 +99,12 @@
           </select>
         </div>
         <div><label>Years (yearly)</label><input id="issueYears" type="number" min="1" value="1"></div>
+        <div>
+          <label>Add-ons</label>
+          <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0;padding-top:8px">
+            <input id="issueAddonEorb" type="checkbox" style="width:auto"> e-ORB
+          </label>
+        </div>
       </div>
       <div class="actions">
         <button type="button" class="primary" id="btnIssue">Issue &amp; email</button>
@@ -171,7 +177,7 @@
             ${revoked}
           </td>
           <td>
-            <div>${escapeHtml(L.sku)}</div>
+            <div>${escapeHtml(L.sku)}${(L.addons && L.addons.length) ? ' · ' + escapeHtml(L.addons.join(', ')) : ''}</div>
             <div class="muted">${escapeHtml(L.plan)}${L.expiresAt ? ' · ' + escapeHtml(String(L.expiresAt).slice(0,10)) : ''}</div>
           </td>
           <td>
@@ -213,6 +219,7 @@
             sku: $('issueSku').value,
             plan: $('issuePlan').value,
             years: Number($('issueYears').value) || 1,
+            addons: $('issueAddonEorb').checked ? ['eorb'] : [],
             emailDelivery: true,
           }),
         });

@@ -18,11 +18,13 @@ Client-side DRM cannot stop a determined cracker. This system makes unpaid shari
 
 | SKU | Seats | Notes |
 |-----|-------|--------|
-| `voyage-chief` | 1 Android + 1 Windows | Standalone Voyage |
-| `tank-chief` | 1 Android + 1 Windows | Standalone Tank |
-| `cheng-aio` | 1 Android + 1 Windows | Unlocks Voyage + Tank modules inside AIO |
+| `voyage-chief` | 1 Android + 1 Windows | Standalone Voyage; in AIO unlocks Voyage (+ Performance) only |
+| `tank-chief` | 1 Android + 1 Windows | Standalone Tank; in AIO unlocks Tanks only |
+| `cheng-aio` | 1 Android + 1 Windows | Unlocks Voyage + Tank + Performance + e-ORB inside AIO; also activates standalone apps |
 
-A ChEng AIO license does **not** auto-activate the standalone EXEs unless you sell a bundle SKU later.
+**Add-on:** `eorb` — enables Electronic ORB. Included with `cheng-aio`. On `voyage-chief` (or issued with the add-on) unlocks the e-ORB tab / AIO e-ORB menu. Standalone Voyage hides e-ORB unless this add-on (or an AIO key) is present.
+
+A ChEng AIO license activates every program. A Voyage or Tank key can be entered in the AIO shell but only opens that program’s modules.
 
 ## Plans
 
