@@ -10,6 +10,7 @@
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1420">
+<meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,6 +48,19 @@
 })();
 </script>
 <script src="theme.js"></script>
+<script src="license-config.js"></script>
+<script>
+  window.CHENG_LICENSE_SKU = 'voyage-chief';
+  window.CHENG_LICENSE_PRODUCT = 'Voyage Chief';
+  /* Portable / EXE builds: set meta license-api or window.CHENG_LICENSE_API to the production host. */
+  try {
+    var licMeta = document.querySelector('meta[name="license-api"]');
+    if (!window.CHENG_LICENSE_API && licMeta && licMeta.content) {
+      window.CHENG_LICENSE_API = licMeta.content;
+    }
+  } catch (_e) {}
+</script>
+<script src="license.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -1805,6 +1819,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>Chief Engineer</label><input id="s_chEng"></div>
         <div class="field"><label>DWT (tonnes) — for CII</label><input type="number" step="1" id="s_dwt" placeholder="e.g. 60000"></div>
         <div class="field"><label>IMO No.</label><input id="s_imoNo" placeholder="IMO 1234567"></div>
+        <div class="field"><label>Call sign</label><input id="s_callSign" placeholder="e.g. 3EXX9"></div>
         <div class="field"><label>Flag registry</label><select id="s_flag"></select></div>
       </div>
       <div class="btn-row" style="margin-top:12px;">
@@ -1815,7 +1830,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="btn-row" id="registerVesselRow" hidden style="margin-top:8px;">
         <button class="ghost small" id="btnRegisterVessel" type="button">Register Vessel</button>
       </div>
-      <div class="hint">Vessel name, company, Chief Engineer, DWT, IMO number and flag registry are stored per vessel and used on printouts, CII and the e-ORB prefill. Flag here is the same register as on the e-ORB tab.</div>
+      <div class="hint">Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel and used on printouts, CII and the e-ORB prefill. Inside <strong>ChEng AIO</strong> these identity fields are managed only in AIO → Vessel Setup (this panel becomes read-only). Opening ROB and voyage ops stay here.</div>
 
       <h3 class="sub">Vessel Stamp</h3>
       <div class="stamp-row">
@@ -9620,6 +9635,7 @@ function render(){
      Guarded with ?? '': assigning undefined puts the literal text "undefined" in the
      box, which then saves back as the Chief Engineer's name. */
   document.getElementById('s_vesselName').value = state.setup.vesselName ?? '';
+  document.getElementById('s_callSign').value = state.setup.callSign ?? state.setup.orb?.callSign ?? '';
   setChEngInputs(state.setup.chEng ?? '');
   const dwtEl = document.getElementById('s_dwt');
   if (dwtEl) dwtEl.value = state.setup.dwt ?? '';
@@ -12387,9 +12403,15 @@ async function saveVesselIdentity(){
   state.setup.chEng = document.getElementById('s_chEng').value;
   state.setup.dwt = parseFloat(document.getElementById('s_dwt')?.value) || null;
   state.setup.imoNo = document.getElementById('s_imoNo')?.value || '';
+  state.setup.callSign = document.getElementById('s_callSign')?.value || '';
   state.setup.company = document.getElementById('s_company')?.value || '';
   state.setup.flag = document.getElementById('s_flag')?.value || '';
-  if (state.setup.orb) state.setup.orb.flag = state.setup.flag || state.setup.orb.flag;
+  if (state.setup.orb) {
+    state.setup.orb.flag = state.setup.flag || state.setup.orb.flag;
+    state.setup.orb.callSign = state.setup.callSign || state.setup.orb.callSign;
+    state.setup.orb.shipName = state.setup.vesselName || state.setup.orb.shipName;
+    state.setup.orb.imo = state.setup.imoNo || state.setup.orb.imo;
+  }
   const v = activeVessel();
   if (v) v.name = document.getElementById('s_vesselName').value.trim() || v.name;
   const status = document.getElementById('vesselSaveStatus');
@@ -20340,6 +20362,8 @@ function renderVesselLock(){
           ? 'No vessel is assigned to you yet. Enter this ship\u2019s name, IMO and company, then Register Vessel to add it to the fleet database.'
           : '');
   }
+  /* ChEng AIO embedded: shared identity is edited only in AIO Vessel Setup. */
+  applyChengAioVesselHubLock(identityLocked);
   const regRow = document.getElementById('registerVesselRow');
   if (regRow) regRow.hidden = !(session.username && !isAdmin && !assignedVessel);
   const note = document.getElementById('vesselLockNote');
@@ -20353,6 +20377,40 @@ function renderVesselLock(){
   if (isAdmin) renderFleetOffice();
 }
 
+/** True when Voyage runs inside ChEng AIO (iframe / shell). */
+function isChengAioEmbedded(){
+  try {
+    if (window.ChengPro || window.ChengProShell) return true;
+    if (window.parent && window.parent !== window && (window.parent.ChengPro || window.parent.ChengProShell)) return true;
+  } catch (_) { /* cross-origin */ }
+  try {
+    return /[?&]chengaio=1\b/.test(location.search) || localStorage.getItem('chengAioEmbedded') === '1';
+  } catch (_) { return false; }
+}
+
+/**
+ * Inside ChEng AIO, shared ship identity is read-only here — edit in AIO → Vessel Setup.
+ * Standalone Voyage Chief keeps full Vessel Data editing. ROB / voyage ops stay editable.
+ */
+function applyChengAioVesselHubLock(alreadyLocked){
+  const hub = isChengAioEmbedded();
+  const lock = hub || !!alreadyLocked;
+  ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.disabled = lock;
+    else el.readOnly = lock;
+    if (hub) {
+      el.title = 'Managed in ChEng AIO → Vessel Setup. Opening ROB and voyage data stay editable here.';
+    }
+  });
+  const saveBtn = document.getElementById('btnSaveVesselIdentity');
+  if (saveBtn) saveBtn.hidden = !!hub;
+  const idNote = document.getElementById('vesselIdentityNote');
+  if (idNote && hub) {
+    idNote.textContent = 'Ship identity (name, IMO, call sign, flag, company, DWT) is managed in ChEng AIO → Vessel Setup. Fuel/lube opening ROB and voyage setup remain on this tab.';
+  }
+}
 
 /* ---------------- device enrollment ----------------
    A laptop earns offline access by signing in online once. The device then
@@ -21206,6 +21264,11 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
 
 (async function init(){
   try {
+    /* Standalone EXE / portable: hard license gate. Skipped when embedded in ChEng AIO. */
+    try {
+      if (window.ChengLicense) await ChengLicense.ensureLicensed();
+    } catch (licErr) { console.warn('License gate', licErr); }
+
     beginActivity('boot', 'Opening the local database…', { source: 'program' });
     if (penInputLikely()) enablePenInputMode();
     await openDB();

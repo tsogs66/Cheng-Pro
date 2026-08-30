@@ -79,24 +79,74 @@ Voyage/Tank cloud sync tokens stay vessel/account scoped. License answers “may
 `POST /api/license/heartbeat` — refresh grace  
 `POST /api/license/pair/start` — Android creates pairing code  
 `POST /api/license/pair/complete` — Windows redeems code  
-`POST /api/license/transfer` — request seat move  
-`GET  /api/license/admin/...` — revoke, approve transfer (fleet/support)
+`POST /api/license/transfer` — request seat move (cooldown + yearly cap)  
+`POST /api/license/issue` — admin: create key (+ email by default)  
+`POST /api/license/purchase-webhook` — admin: issue + always email  
+`GET/POST /api/license/admin/...` — list, force transfer, revoke, resend, audit  
 
-Remote URL: `LICENSE_SERVER_URL` (production). Desktop/LXC can host a local license DB for testing.
+Admin UI: `/license-admin` (enter `LICENSE_ADMIN_TOKEN` in the page).
+
+### Production license host
+
+Run the license API on a reachable host (same machine as ChEng AIO, or dedicated):
+
+```bash
+LICENSE_PORT=8788 \
+LICENSE_ADMIN_TOKEN='…' \
+LICENSE_SIGNING_SECRET='…' \
+LICENSE_ENFORCE=1 \
+SMTP_HOST=smtp.example.com SMTP_PORT=587 \
+SMTP_USER=… SMTP_PASS=… \
+LICENSE_MAIL_FROM='licenses@example.com' \
+npm run license-host
+```
+
+Or keep using the full ChEng AIO gateway (`npm start`) — it mounts the same `/api/license` routes.
+
+Clients point at the host with:
+
+- AIO / same-origin: `/api/license` (default)
+- Standalone Voyage/Tank EXE: `LICENSE_SERVER_URL=https://licenses.example.com` (Tank injects `/js/license-config.js`) or `meta name="license-api"` / `localStorage.chengLicenseApi`
+
+### Email delivery
+
+On issue / purchase-webhook / admin resend:
+
+1. **Webhook** if `LICENSE_MAIL_WEBHOOK_URL` is set (optional `LICENSE_MAIL_WEBHOOK_TOKEN`)
+2. Else **SMTP** via nodemailer (`SMTP_HOST` / `LICENSE_SMTP_*`)
+3. Always appends to `data/license-mail-outbox.jsonl` as a safety net
 
 ## Client
 
-All three apps include a small license module that:
+All three apps include the same `license.js` (`ChengLicense`):
 
-1. On boot: load cached entitlement
-2. If grace remaining ≤ 7 days and online → heartbeat
-3. If no entitlement / grace expired → Activation UI
-4. Never block reading local backups while locked (data ownership)
+1. On boot: load cached entitlement; skip gate when embedded in AIO (`chengaio=1` / parent shell)
+2. Fetch `/status` — when `enforce: true`, lock UI until activated
+3. If grace remaining ≤ 7 days and online → heartbeat
+4. SKU check: `voyage-chief` / `tank-chief` / `cheng-aio` keys are not interchangeable
+
+## Hard enforce
+
+- Server: `LICENSE_ENFORCE=1` (default) → `/status` reports `enforce: true`
+- Soft/dev: `LICENSE_ENFORCE=0`
+- Clients cache the flag after the first successful status fetch
+
+## Admin transfer console
+
+Open `/license-admin` on the license host. With the admin token you can:
+
+- Issue a key and email it
+- Search licenses
+- Force-clear Android/Windows seats (bypass cooldown)
+- Revoke a license
+- Re-email a key
+- Read the audit log
 
 ## Rollout
 
-1. Scaffold server + client (this change)
-2. Wire Activation UI in ChEng AIO shell
-3. Wire Voyage/Tank standalone
-4. Production license host + purchase email delivery
-5. Admin transfer console
+1. ~~Scaffold server + client~~
+2. ~~Wire Activation UI in ChEng AIO shell~~
+3. ~~Wire Voyage/Tank standalone (same client)~~
+4. ~~Production license host + purchase email delivery~~
+5. ~~Admin transfer console~~
+6. Point portable/EXE builds at `LICENSE_SERVER_URL` and set `LICENSE_ENFORCE=1` in production

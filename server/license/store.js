@@ -162,6 +162,12 @@ function activate({ licenseKey, email, seat, deviceId, deviceLabel }) {
     err.status = 402;
     throw err;
   }
+  if (license.revokedAt) {
+    const err = new Error('License revoked');
+    err.status = 403;
+    err.code = 'REVOKED';
+    throw err;
+  }
   if (!deviceId) {
     const err = new Error('deviceId required');
     err.status = 400;
@@ -205,6 +211,12 @@ function heartbeat({ licenseId, seat, deviceId, entitlement }) {
   if (lic.expiresAt && lic.expiresAt < new Date().toISOString()) {
     const err = new Error('License expired');
     err.status = 402;
+    throw err;
+  }
+  if (lic.revokedAt) {
+    const err = new Error('License revoked');
+    err.status = 403;
+    err.code = 'REVOKED';
     throw err;
   }
   const seats = seatSlot(lic, seat);
@@ -316,6 +328,112 @@ function requestTransfer({ licenseKey, email, seat, reason }) {
   return { ok: true, message: `${seat} seat cleared — activate on the new device` };
 }
 
+function publicLicenseView(license) {
+  return {
+    id: license.id,
+    key: license.key,
+    email: license.email,
+    sku: license.sku,
+    plan: license.plan,
+    createdAt: license.createdAt,
+    expiresAt: license.expiresAt || null,
+    revokedAt: license.revokedAt || null,
+    seats: {
+      android: license.seats?.android
+        ? {
+            deviceId: license.seats.android.deviceId,
+            deviceLabel: license.seats.android.deviceLabel || '',
+            boundAt: license.seats.android.boundAt,
+            lastSeenAt: license.seats.android.lastSeenAt,
+          }
+        : null,
+      windows: license.seats?.windows
+        ? {
+            deviceId: license.seats.windows.deviceId,
+            deviceLabel: license.seats.windows.deviceLabel || '',
+            boundAt: license.seats.windows.boundAt,
+            lastSeenAt: license.seats.windows.lastSeenAt,
+          }
+        : null,
+    },
+    transfers: license.transfers || [],
+  };
+}
+
+function listLicenses({ q } = {}) {
+  const db = load();
+  const needle = String(q || '').trim().toLowerCase();
+  let rows = Object.values(db.licenses).map(publicLicenseView);
+  if (needle) {
+    rows = rows.filter((r) =>
+      r.email.includes(needle)
+      || r.key.toLowerCase().includes(needle)
+      || r.id.toLowerCase().includes(needle)
+      || (r.sku || '').includes(needle));
+  }
+  rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  return rows;
+}
+
+function getAudit({ limit } = {}) {
+  const db = load();
+  const n = Math.min(500, Math.max(1, Number(limit) || 100));
+  return (db.audit || []).slice(-n).reverse();
+}
+
+/** Admin: clear a seat ignoring cooldown / yearly cap. */
+function adminForceTransfer({ licenseId, licenseKey, seat, reason }) {
+  const db = load();
+  const license = (licenseId && db.licenses[licenseId]) || findByKey(db, licenseKey);
+  if (!license) {
+    const err = new Error('License not found');
+    err.status = 404;
+    throw err;
+  }
+  const seats = seatSlot(license, seat);
+  seats[seat] = null;
+  license.transfers = license.transfers || [];
+  license.transfers.push({
+    at: new Date().toISOString(),
+    seat,
+    reason: reason || 'admin_override',
+    admin: true,
+  });
+  audit(db, 'admin_transfer', { licenseId: license.id, seat, reason });
+  save(db);
+  return { ok: true, license: publicLicenseView(license) };
+}
+
+function adminRevoke({ licenseId, licenseKey, reason }) {
+  const db = load();
+  const license = (licenseId && db.licenses[licenseId]) || findByKey(db, licenseKey);
+  if (!license) {
+    const err = new Error('License not found');
+    err.status = 404;
+    throw err;
+  }
+  license.revokedAt = new Date().toISOString();
+  license.seats = { android: null, windows: null };
+  audit(db, 'admin_revoke', { licenseId: license.id, reason: reason || '' });
+  save(db);
+  return { ok: true, license: publicLicenseView(license) };
+}
+
+function findLicense({ licenseId, licenseKey, email }) {
+  const db = load();
+  if (licenseId && db.licenses[licenseId]) return publicLicenseView(db.licenses[licenseId]);
+  if (licenseKey) {
+    const l = findByKey(db, licenseKey);
+    if (l) return publicLicenseView(l);
+  }
+  if (email) {
+    const needle = String(email).trim().toLowerCase();
+    const l = Object.values(db.licenses).find((x) => x.email === needle);
+    if (l) return publicLicenseView(l);
+  }
+  return null;
+}
+
 module.exports = {
   GRACE_DAYS,
   TRANSFER_COOLDOWN_DAYS,
@@ -328,4 +446,10 @@ module.exports = {
   requestTransfer,
   verifyEntitlement,
   load,
+  listLicenses,
+  getAudit,
+  adminForceTransfer,
+  adminRevoke,
+  findLicense,
+  publicLicenseView,
 };

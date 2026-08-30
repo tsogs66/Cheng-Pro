@@ -20,3 +20,4 @@ __pycache__/
 *.pyc
 *.AppImage
 data/licenses.json
+data/license-mail-outbox.jsonl

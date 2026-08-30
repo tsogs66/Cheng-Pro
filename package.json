@@ -9,6 +9,7 @@
     "dev": "node server/index.js",
     "seed": "node scripts/seed-demo.js",
     "test": "node scripts/smoke-test.js && node scripts/test-license.js",
+    "license-host": "node server/license/host.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win --publish never",
     "dist:linux": "electron-builder --linux --publish never",
@@ -22,7 +23,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^9.0.6"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.1",
