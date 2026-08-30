@@ -160,6 +160,10 @@ app.post('/api/sync/probe', express.json({ limit: '1mb' }), forwardTankApi);
 app.post('/api/sync/pull', express.json({ limit: '1mb' }), forwardTankApi);
 app.post('/api/sync/push', express.json({ limit: '50mb' }), forwardTankApi);
 
+/* Per-user license seats (yearly / lifetime, 60-day grace) */
+const { mountLicenseRoutes } = require('./license/routes');
+mountLicenseRoutes(app);
+
 /* Voyage Chief auth + sync + admin (full Python stack) */
 app.use('/api/auth', requireVoyage);
 app.use('/api/admin', requireVoyage);

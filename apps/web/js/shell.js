@@ -164,6 +164,18 @@
 
     await fillVesselSelect();
 
+    /* Soft license banner — hard lock when LICENSE_ENFORCE=1 on server later. */
+    if (window.ChengLicense) {
+      try {
+        const gate = await ChengLicense.ensureLicensed();
+        if (!gate.ok) {
+          showToast('License not active — open License to activate (60-day offline grace after check)');
+        } else if (ChengLicense.daysLeft(gate.entitlement) <= 7) {
+          showToast('License check due in ' + ChengLicense.daysLeft(gate.entitlement) + ' days');
+        }
+      } catch { /* ignore */ }
+    }
+
     const vessels = ChengPro.vessel.getListSync();
     const firstRun = !vessels.length;
     if (firstRun) {
