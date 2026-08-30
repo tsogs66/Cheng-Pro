@@ -36,11 +36,17 @@
       document.documentElement.classList.add('use-bottom-nav');
     }
     /* Apply before first paint so the login card is not white with dark-theme
-       ghost labels for a frame while bindBrightMode runs later in the file. */
-    if (localStorage.getItem('vm_bright') === '1') document.documentElement.classList.add('bright');
+       ghost labels for a frame while MarineTheme runs later. */
+    var k = null;
+    try { k = localStorage.getItem('marine_bright'); } catch (_e) {}
+    if (k === null) {
+      try { k = localStorage.getItem('vm_bright'); } catch (_e2) {}
+    }
+    if (k === '1') document.documentElement.classList.add('bright');
   }catch(_e){}
 })();
 </script>
+<script src="theme.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -58,6 +64,7 @@
     --nav-active-bg:rgba(201,154,83,0.12);
     /* Read-only / calculated field treatment */
     --calc-bg:rgba(0,0,0,0.22);
+    --muted:#a9a292;
   }
   html.bright{
     --ink:#f4f1ea; --panel:#ffffff; --panel2:#f7f5ef;
@@ -72,6 +79,7 @@
     --nav-item-bg:rgba(18,34,56,0.04);
     --nav-active-bg:rgba(138,90,26,0.14);
     --calc-bg:rgba(18,34,56,0.05);
+    --muted:#4a5568;
   }
   html.bright body{
     background:linear-gradient(180deg, #efebe3 0%, #f7f5ef 40%, #ffffff 100%);
@@ -128,6 +136,24 @@
      every time you open the app. */
   .byline{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.04em;
           color:var(--muted); margin-top:3px;}
+  /* Theme control: masthead on desktop; fixed bottom-left on phone so it never
+     overlaps ChEng AIO / system chrome at the top-right. */
+  .theme-toggle{
+    border:1px solid var(--line-strong); background:rgba(0,0,0,0.18); color:var(--brass);
+    border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600;
+    letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; white-space:nowrap;
+  }
+  html.bright .theme-toggle{background:rgba(18,34,56,0.06);}
+  .theme-toggle:hover{border-color:var(--brass); color:var(--paper);}
+  .theme-fab{
+    position:fixed; left:max(12px, env(safe-area-inset-left));
+    bottom:max(72px, calc(14px + env(safe-area-inset-bottom)));
+    z-index:90; box-shadow:0 8px 24px rgba(0,0,0,0.35); display:none;
+  }
+  @media (max-width:900px){
+    .status-row .theme-toggle{display:none;}
+    .theme-fab{display:inline-flex;}
+  }
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -158,6 +184,7 @@
   .field label{font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--paper-dim);}
   .field input, .field select{background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 8px; width:100%;}
   .field input:focus, .field select:focus{outline:none; border-color:var(--teal); box-shadow:0 0 0 2px rgba(87,179,171,0.28);}
+  .field input::placeholder, .login-field input::placeholder{color:var(--muted); opacity:0.85;}
   button:focus-visible, .tab:focus-visible, .bn-item:focus-visible{outline:2px solid var(--teal); outline-offset:2px;}
 
   /* ---- Editable vs calculated fields ----
@@ -1491,56 +1518,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 </style>
 </head>
 <body>
-
-<script>
-/* Cheng-Pro: default sync/login server to this origin; share active vessel id */
-(function(){
-  try {
-    var origin = location.origin;
-    var key = 'noonReportSyncCredentials';
-    var raw = localStorage.getItem(key);
-    var creds = raw ? JSON.parse(raw) : {};
-    if (!creds.serverUrl) {
-      creds.serverUrl = origin;
-      localStorage.setItem(key, JSON.stringify(creds));
-    }
-    var sessKey = 'noonReportSession';
-    var sessRaw = localStorage.getItem(sessKey);
-    if (sessRaw) {
-      var sess = JSON.parse(sessRaw);
-      if (sess && !sess.serverUrl) { sess.serverUrl = origin; localStorage.setItem(sessKey, JSON.stringify(sess)); }
-    }
-  } catch (e) {}
-})();
-
-/** Mirror active Voyage vessel identity + engine basis for Cheng-Pro Vessel Setup / Perf. */
-function mirrorActiveVesselToChengPro(){
-  try{
-    const v = (typeof activeVessel === 'function') ? activeVessel() : null;
-    const setup = (typeof state !== 'undefined' && state.setup) ? state.setup : {};
-    const hint = {
-      voyageId: (v && v.id) || (state && state.activeVesselId) || null,
-      slug: (v && v.slug) || (setup.sync && setup.sync.vesselId) || '',
-      name: setup.vesselName || (v && v.name) || '',
-      imo: setup.imoNo || '',
-      company: setup.company || '',
-      flag: setup.flag || '',
-      dwt: setup.dwt != null ? setup.dwt : '',
-      callSign: setup.callSign || '',
-      mcrRpm: setup.mcrRpm, mcrKw: setup.mcrKw,
-      csrRpm: setup.csrRpm, csrKw: setup.csrKw,
-      pitch: setup.pitch,
-      sfoc100: setup.sfoc100, sfoc85: setup.sfoc85,
-      lcvRef: setup.lcvRef, lcvActual: setup.lcvActual,
-      updatedAt: new Date().toISOString()
-    };
-    localStorage.setItem('chengProVoyageActiveHint', JSON.stringify(hint));
-  }catch(_){}
-}
-</script>
-<a href="/" style="position:fixed;top:8px;right:10px;z-index:99999;background:#123040;color:#e7f3f0;padding:8px 12px;border-radius:10px;text-decoration:none;font:600 12px sans-serif;border:1px solid rgba(168,214,208,.3)">Cheng-Pro</a>
-
-
 <!--
   Login gate. Sits above the app until the user signs in to the central vessel
   database, or chooses to work offline. A vessel account brings exactly one
@@ -1637,12 +1614,13 @@ function mirrorActiveVesselToChengPro(){
       </div>
     </div>
     <div class="status-row">
-      <button type="button" class="ghost small" id="btnToggleBright" title="Day / bright mode for sunlight">Bright</button>
+      <button type="button" class="theme-toggle" data-theme-toggle id="btnToggleBright" title="Day / bright mode for sunlight">Bright</button>
       <div id="dbStatus">● local database ready</div>
       <div id="syncStatus">○ sync not configured</div>
       <div id="appVersion" title="The build this device is running. Quote it when reporting a problem."></div>
     </div>
   </div>
+  <button type="button" class="theme-toggle theme-fab" data-theme-toggle title="Day / bright mode for sunlight">Bright</button>
 
   <div class="tabs" id="tabs">
     <div class="tab active" data-page="summary">Summary</div>
@@ -4169,62 +4147,24 @@ function nextGaugeUid(){ return 'g' + (++_gaugeUid); }
 /* ---------------- local database (IndexedDB) ---------------- */
 let db;
 let dbOpenPromise = null;
-const VOYAGE_IDB_NAME = 'noonReportDB';
-const VOYAGE_IDB_STORES = [
-  ['meta', { keyPath: 'key' }],
-  ['entries', { keyPath: 'id' }],
-  ['receipts', { keyPath: 'id' }],
-  ['documents', { keyPath: 'id' }],
-  ['abstracts', { keyPath: 'id' }],
-  ['printHistory', { keyPath: 'id' }],
-  ['voyageLegs', { keyPath: 'id' }],
-  ['orbEntries', { keyPath: 'id' }],
-];
-/* v7 repairs phones where Cheng-Pro opened noonReportDB at v6 with no stores. */
-const VOYAGE_IDB_VERSION = 7;
-
-function ensureVoyageObjectStores(d){
-  for (const [name, opts] of VOYAGE_IDB_STORES){
-    if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, opts);
-  }
-}
-
-function missingVoyageStores(d){
-  return VOYAGE_IDB_STORES.map(([name]) => name).filter((name) => !d.objectStoreNames.contains(name));
-}
-
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open(VOYAGE_IDB_NAME, VOYAGE_IDB_VERSION);
+    const req = indexedDB.open('noonReportDB', 6);
     req.onupgradeneeded = (e)=>{
-      ensureVoyageObjectStores(e.target.result);
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
+      if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('receipts')) d.createObjectStore('receipts', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('documents')) d.createObjectStore('documents', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('abstracts')) d.createObjectStore('abstracts', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('printHistory')) d.createObjectStore('printHistory', {keyPath:'id'});
+      /* One archived leg per vessel + voyage number + B|L — keeps active lists short. */
+      if (!d.objectStoreNames.contains('voyageLegs')) d.createObjectStore('voyageLegs', {keyPath:'id'});
+      /* Vessel-lifetime Oil Record Book entries (not voyage-leg scoped). */
+      if (!d.objectStoreNames.contains('orbEntries')) d.createObjectStore('orbEntries', {keyPath:'id'});
     };
-    req.onsuccess = async (e)=>{
-      const opened = e.target.result;
-      const missing = missingVoyageStores(opened);
-      if (missing.length){
-        const nextVer = opened.version + 1;
-        try{ opened.close(); }catch(_){}
-        db = null;
-        dbOpenPromise = null;
-        const repair = indexedDB.open(VOYAGE_IDB_NAME, nextVer);
-        repair.onupgradeneeded = (ev)=> ensureVoyageObjectStores(ev.target.result);
-        repair.onsuccess = (ev)=>{
-          db = ev.target.result;
-          db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; };
-          resolve(db);
-        };
-        repair.onerror = ()=>{
-          dbOpenPromise = null;
-          reject(repair.error || new Error('IndexedDB schema repair failed (missing: ' + missing.join(', ') + ')'));
-        };
-        return;
-      }
-      db = opened;
-      db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; };
-      resolve(db);
-    };
+    req.onsuccess = (e)=>{ db = e.target.result; db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; }; resolve(db); };
     req.onerror = (e)=>{ dbOpenPromise = null; reject(req.error || new Error('IndexedDB failed to open')); };
     req.onblocked = ()=>{ console.warn('IndexedDB open blocked — another tab of this app is probably open with an older version. Close it and reload.'); };
   });
@@ -6211,7 +6151,6 @@ async function loadVesselFromDb(vesselId){
   exitEditMode();
   await applyMirroredSyncCredentials();
   await renderVoyageLibrary();
-  if (typeof mirrorActiveVesselToChengPro === 'function') mirrorActiveVesselToChengPro();
   } finally {
     if (own) endActivity('load-vessel');
   }
@@ -10062,7 +10001,6 @@ async function saveSetup(){
     { key:'activeVesselId', value: state.activeVesselId }
   ];
   await dbPutMany('meta', rows);
-  if (typeof mirrorActiveVesselToChengPro === 'function') mirrorActiveVesselToChengPro();
 }
 
 /* ---------------- tabs ---------------- */
@@ -12539,13 +12477,25 @@ document.getElementById('btnPullVesselRemote').addEventListener('click', async (
   await pullVesselFromServer(vesselId);
 });
 
-(function bindBrightMode(){
+/* Theme toggle: MarineTheme (theme.js) binds [data-theme-toggle] and dual-writes
+   marine_bright + legacy vm_bright. Left here only as a no-op safety if theme.js
+   failed to load. */
+(function bindBrightModeFallback(){
+  if (window.MarineTheme) return;
   const btn = document.getElementById('btnToggleBright');
   if (!btn) return;
-  if (localStorage.getItem('vm_bright') === '1') document.documentElement.classList.add('bright');
+  try {
+    const k = localStorage.getItem('marine_bright') ?? localStorage.getItem('vm_bright');
+    if (k === '1') document.documentElement.classList.add('bright');
+  } catch (_e) {}
   btn.addEventListener('click', ()=>{
     document.documentElement.classList.toggle('bright');
-    localStorage.setItem('vm_bright', document.documentElement.classList.contains('bright') ? '1' : '0');
+    const on = document.documentElement.classList.contains('bright');
+    try {
+      localStorage.setItem('marine_bright', on ? '1' : '0');
+      localStorage.setItem('vm_bright', on ? '1' : '0');
+    } catch (_e) {}
+    btn.textContent = on ? 'Night' : 'Bright';
   });
 })();
 

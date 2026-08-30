@@ -40,20 +40,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.remove('show'), 2800);
-  try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch { /* ignore */ }
-}
-
-function setSyncSaveStatus(msg, kind = 'ok') {
-  const el = document.getElementById('sync-save-status');
-  if (!el) return;
-  if (!msg) {
-    el.textContent = '';
-    el.className = 'sync-save-status';
-    return;
-  }
-  el.textContent = msg;
-  el.className = 'sync-save-status show ' + kind;
+  showToast._t = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
 /** Chrome/Edge/Android fire this once; keep it so About can offer Install. */
@@ -416,6 +403,15 @@ function renderNav() {
   credit.innerHTML = `<span>${Branding.APP_NAME}</span>`
     + Branding.AUTHORS.map((a) => `<b>${a}</b>`).join('');
   nav.appendChild(credit);
+
+  const themeBtn = document.createElement('button');
+  themeBtn.type = 'button';
+  themeBtn.className = 'theme-toggle no-print';
+  themeBtn.setAttribute('data-theme-toggle', '');
+  themeBtn.textContent = document.documentElement.classList.contains('bright') ? 'Night' : 'Bright';
+  themeBtn.title = 'Day / bright mode for sunlight';
+  nav.appendChild(themeBtn);
+  if (window.MarineTheme) MarineTheme.bind(nav);
 
   document.getElementById('vessel-switcher').onchange = async (e) => {
     const id = e.target.value;
@@ -1022,7 +1018,7 @@ function renderAddTank(main) {
     </div>
     <div class="btn-row">
       <button class="btn primary" id="btn-add-tank">Add tank</button>
-      <a class="btn" href="/tanks/api/templates/tanks.csv">Download CSV template</a>
+      <a class="btn" href="/api/templates/tanks.csv">Download CSV template</a>
       <a class="btn" id="btn-export-tanks-csv" href="#">Export tanks CSV</a>
     </div>
     <div class="section-title">Import tanks from sounding PDF</div>
@@ -1306,7 +1302,7 @@ function renderCalibrationList(main) {
       <button class="btn primary" id="btn-print-fuel-book">Print all fuel calibration</button>
       <label class="btn">Import workbook<input type="file" id="excel-import" accept=".xlsm,.xlsx" hidden></label>
       <button class="btn" id="btn-import-repo-excel">Import repo workbook</button>
-      <a class="btn" href="/tanks/api/templates/calibration.csv">Calibration CSV template</a>
+      <a class="btn" href="/api/templates/calibration.csv">Calibration CSV template</a>
     </div>`;
   main.appendChild(head);
 
@@ -1395,8 +1391,8 @@ function renderCalibrationEditor(main, tankId) {
     <div class="btn-row">
       <button class="btn small" id="btn-back-tank">Back to tank</button>
       <button class="btn small primary" id="btn-print-tank-calib">Print / PDF</button>
-      <a class="btn small" id="btn-export-csv" href="/tanks/api/vessels/${STATE.activeVesselId}/tanks/${tankId}/calibration.csv">Export CSV</a>
-      <a class="btn small" id="btn-export-xlsx" href="/tanks/api/vessels/${STATE.activeVesselId}/tanks/${tankId}/calibration.xlsx">Export Excel</a>
+      <a class="btn small" id="btn-export-csv" href="/api/vessels/${STATE.activeVesselId}/tanks/${tankId}/calibration.csv">Export CSV</a>
+      <a class="btn small" id="btn-export-xlsx" href="/api/vessels/${STATE.activeVesselId}/tanks/${tankId}/calibration.xlsx">Export Excel</a>
       <label class="btn small">Import CSV/Excel<input type="file" id="table-import" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
       <label class="btn small">Import PDF<input type="file" id="pdf-import" accept=".pdf,application/pdf" hidden></label>
       <label class="hint" style="display:flex;align-items:center;gap:4px;margin:0;font-size:12px">
@@ -2863,30 +2859,23 @@ function renderSettings(main) {
       <div class="section-title" style="margin-top:0">Where this device keeps its records</div>
       <div class="form-row"><label>Database</label>
         <select id="api-transport">
-          <option value="local">On this device — works offline (recommended)</option>
-          <option value="server" id="api-transport-server">On the ChEng AIO server (needs network)</option>
+          <option value="local">On this device — works with no network</option>
+          <option value="server">On the server that served this page</option>
         </select></div>
       <div class="hint" data-transport-note style="margin-top:8px;color:var(--text-faint);font-size:12px"></div>
-      <p class="hint" style="margin-top:8px">ChEng AIO is offline-first: keep <strong>On this device</strong> for daily work. Use Pull/Push below when you have Cloudflare or LAN — same idea as Voyage Chief sync.</p>
     </div>
     <div class="form-panel">
-      <div class="section-title" style="margin-top:0">Remote sync (Cloudflare / Proxmox / office)</div>
+      <div class="section-title" style="margin-top:0">Remote sync (Proxmox / office)</div>
       <div class="form-row"><label>Peer sync URL</label>
-        <input id="sync-url" value="${escapeHtml(s.syncUrl || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().serverUrl) || '')}" placeholder="https://your-tunnel.example.com or http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
-      <div class="form-row"><label>API token (optional)</label>
-        <input id="sync-api-token" type="password" value="${escapeHtml(s.syncApiToken || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().apiToken) || '')}" placeholder="Same Bearer token as Voyage Chief sync" autocomplete="off"></div>
-      <p class="hint" style="margin:6px 0 0">Peer URL can be your <strong>standalone Tank</strong> tunnel (e.g. <code>https://tankmanagement…</code>) or the ChEng AIO / Voyage Cloudflare root. We try <code>/api/sync/…</code> and <code>/tanks/api/sync/…</code>. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
+        <input id="sync-url" value="${s.syncUrl||''}" placeholder="http://192.168.1.50:3080"></div>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
-        <button class="btn" id="btn-probe-sync">Test connection</button>
         <button class="btn" id="btn-pull">Pull from peer</button>
         <button class="btn primary" id="btn-push">Push to peer</button>
         <button class="btn" id="btn-flush">Flush offline queue</button>
       </div>
-      <div class="sync-save-status" id="sync-save-status" role="status" aria-live="polite"></div>
-      <div class="sync-probe-status" id="sync-probe-status" role="status" aria-live="polite" style="display:none;margin-top:8px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.4"></div>
       <div class="hint" style="margin-top:8px;color:var(--text-faint);font-size:12px">
-        Pull/Push copy tank data when online. Soundings and calibrations stay on this phone until you sync. Voyage Chief sync is separate (Setup → Sync) but can share this URL and token.
+        Local and LXC instances can sync when either becomes reachable. Offline edits stay in IndexedDB until flushed.
       </div>
     </div>
     <div class="form-panel">
@@ -2966,36 +2955,15 @@ function renderSettings(main) {
      under the new one's name. */
   const transportBox = document.getElementById('api-transport');
   const transportNote = document.querySelector('[data-transport-note]');
-  const serverOption = document.getElementById('api-transport-server');
-  if (serverOption && Api.isBundledClient && Api.isBundledClient()) {
-    serverOption.textContent = 'On the ChEng AIO server (needs sync URL below)';
-  }
   if (transportBox) {
     transportBox.value = Api.getTransport();
     transportBox.disabled = !Api.canUseLocal();
-    const onServer = Api.getTransport() === 'server';
-    if (onServer && Api.isBundledClient && Api.isBundledClient()) {
-      const base = Api.getServerBase() || s.syncUrl || '';
-      transportNote.textContent = base
-        ? `Records are read and saved on ${base}. This device keeps a cached copy when the server is out of reach.`
-        : 'Enter the ChEng AIO server URL below, save settings, then switch to server mode.';
-    } else {
-      transportNote.textContent = onServer
-        ? 'Records are on the server. This device shows a cached copy when the server is out of reach.'
-        : 'Records are on this device. Nothing is sent anywhere — use Push below to copy them to a server.';
-    }
+    transportNote.textContent = Api.getTransport() === 'local'
+      ? 'Records are on this device. Nothing is sent anywhere — use Push below to copy them to a server.'
+      : 'Records are on the server. This device shows a cached copy when the server is out of reach.';
     transportBox.onchange = () => {
       const mode = transportBox.value;
       if (mode === Api.getTransport()) return;
-      if (mode === 'server' && Api.isBundledClient && Api.isBundledClient()) {
-        const url = document.getElementById('sync-url')?.value.trim() || Api.getServerBase() || '';
-        if (!url) {
-          showToast('Enter the ChEng AIO server URL below and save settings first');
-          transportBox.value = Api.getTransport();
-          return;
-        }
-        Api.setServerBase(url);
-      }
       const ask = mode === 'local'
         ? 'Use this device\u2019s own records? The server\u2019s records are not copied across — '
           + 'use Pull first if you want them here.'
@@ -3007,80 +2975,19 @@ function renderSettings(main) {
     };
   }
 
-  function readSyncForm() {
-    const raw = document.getElementById('sync-url').value.trim();
-    const syncUrl = Api.normalizeSyncUrl ? Api.normalizeSyncUrl(raw) : raw.replace(/\/$/, '');
-    if (syncUrl !== raw) document.getElementById('sync-url').value = syncUrl;
-    const syncApiToken = (document.getElementById('sync-api-token')?.value || '').trim();
-    return { syncUrl, syncApiToken };
-  }
-
   document.getElementById('btn-save-sync').onclick = async () => {
-    const { syncUrl, syncApiToken } = readSyncForm();
-    setSyncSaveStatus('Saving sync settings…', 'pending');
-    setSettingsBusy(true);
-    try {
-      /* Peer sync URL is for Pull/Push only. Do not set apiServerBase here —
-         that forced the ChEng AIO Vessel tab onto the network and dropped
-         on-device vessels when offline / airplane mode. */
-      if (Api.getTransport() === 'server') {
-        Api.setServerBase(syncUrl);
-      }
-      STATE.settings = await Api.saveSettings({ syncUrl, syncApiToken, syncEnabled: true });
-      setSyncSaveStatus('Sync settings saved — stay on “On this device” for offline use', 'ok');
-      showToast('Sync settings saved');
-    } catch (e) {
-      setSyncSaveStatus(e.message || 'Could not save sync settings', 'err');
-      showToast(e.message || 'Could not save sync settings');
-    } finally {
-      setSettingsBusy(false);
-    }
-  };
-
-  function setProbeStatus(msg, kind) {
-    const el = document.getElementById('sync-probe-status');
-    if (!el) return;
-    el.style.display = msg ? 'block' : 'none';
-    el.textContent = msg || '';
-    el.style.background = kind === 'ok' ? 'rgba(61,184,160,0.12)'
-      : kind === 'err' ? 'rgba(220,80,80,0.12)' : 'rgba(255,255,255,0.04)';
-    el.style.border = kind === 'ok' ? '1px solid rgba(61,184,160,0.35)'
-      : kind === 'err' ? '1px solid rgba(220,80,80,0.4)' : '1px solid var(--line, #333)';
-    el.style.color = kind === 'err' ? '#f0a0a0' : 'inherit';
-  }
-
-  document.getElementById('btn-probe-sync').onclick = async () => {
-    const { syncUrl, syncApiToken } = readSyncForm();
-    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
-    setSettingsBusy(true);
-    setProbeStatus('Testing ' + syncUrl + '…', 'pending');
-    Progress.start(progressHost(), 'Testing peer…', syncUrl);
-    try {
-      const res = await Api.syncProbe(syncUrl, syncApiToken);
-      const detail = res.base
-        ? `OK — reached ${res.base}${res.path || ''} (${res.product || 'ok'})`
-        : 'OK — peer answered';
-      setProbeStatus(detail, 'ok');
-      Progress.done('Peer reachable');
-      showToast('Peer reachable');
-    } catch (e) {
-      const msg = e.message || 'Connection failed';
-      setProbeStatus(msg, 'err');
-      Progress.done();
-      showToast(msg);
-    } finally {
-      setSettingsBusy(false);
-    }
+    STATE.settings = await Api.saveSettings({ syncUrl: document.getElementById('sync-url').value.trim(), syncEnabled: true });
+    showToast('Sync settings saved');
   };
 
   document.getElementById('btn-pull').onclick = async () => {
-    const { syncUrl, syncApiToken } = readSyncForm();
-    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
+    const url = document.getElementById('sync-url').value.trim();
+    if (!url) { showToast('Enter a peer sync URL'); return; }
     setSettingsBusy(true);
-    Progress.start(progressHost(), 'Pulling from peer…', `Connecting to ${syncUrl}…`);
+    Progress.start(progressHost(), 'Pulling from peer…', `Connecting to ${url}…`);
     try {
       Progress.set(null, 'Downloading vessels from peer…');
-      const res = await Api.syncPull(syncUrl, syncApiToken);
+      const res = await Api.syncPull(url);
       const count = (res.results || []).length;
       Progress.set(70, count
         ? `Applying ${count} vessel${count === 1 ? '' : 's'}…`
@@ -3094,10 +3001,8 @@ function renderSettings(main) {
       }
       Progress.done(count ? `Pulled ${count} vessel${count === 1 ? '' : 's'}` : 'Pull complete');
       showToast('Pulled ' + count + ' vessel(s)');
-      setProbeStatus('', null);
     } catch (e) {
       Progress.done();
-      setProbeStatus(e.message, 'err');
       showToast(e.message);
     } finally {
       setSettingsBusy(false);
@@ -3105,13 +3010,13 @@ function renderSettings(main) {
   };
 
   document.getElementById('btn-push').onclick = async () => {
-    const { syncUrl, syncApiToken } = readSyncForm();
-    if (!syncUrl) { showToast('Enter a peer sync URL'); return; }
+    const url = document.getElementById('sync-url').value.trim();
+    if (!url) { showToast('Enter a peer sync URL'); return; }
     setSettingsBusy(true);
     Progress.start(progressHost(), 'Pushing to peer…', 'Preparing local vessels…');
     try {
-      Progress.set(null, `Uploading to ${syncUrl}…`);
-      const res = await Api.syncPush(syncUrl, syncApiToken);
+      Progress.set(null, `Uploading to ${url}…`);
+      const res = await Api.syncPush(url);
       const remoteCount = (res.remote && res.remote.results) ? res.remote.results.length : null;
       Progress.set(90, 'Confirming on peer…');
       await Progress.yieldToPaint();
@@ -3119,10 +3024,8 @@ function renderSettings(main) {
         ? `Pushed ${remoteCount} vessel${remoteCount === 1 ? '' : 's'}`
         : 'Pushed to peer');
       showToast('Pushed to peer');
-      setProbeStatus('', null);
     } catch (e) {
       Progress.done();
-      setProbeStatus(e.message, 'err');
       showToast(e.message);
     } finally {
       setSettingsBusy(false);
@@ -3526,10 +3429,10 @@ async function boot() {
   }
 
   if ('serviceWorker' in navigator) {
-    const swUrl = (window.CHENG_PRO_BUNDLED || window.CHENG_PRO_EMBEDDED_BASE)
-      ? 'sw.js'
-      : '/sw.js';
-    navigator.serviceWorker.register(swUrl).catch(() => {});
+    // No ?v here on purpose: the browser re-fetches this URL and compares the
+    // bytes, so a pinned version only ever goes stale. The cache name inside
+    // the worker is what versions the cached files.
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
   render();

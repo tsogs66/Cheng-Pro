@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b1c24">
+  <meta name="theme-color" content="#0a1420">
+  <meta name="author" content="Marvin C. Endozo (ts0gs)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>ChEng AIO</title>
@@ -13,14 +14,22 @@
   <!-- No Google Fonts — offline first launch must not block on network CSS. -->
   <link rel="stylesheet" href="/css/shell.css">
   <link rel="manifest" href="/manifest.webmanifest">
+  <script>
+    /* Apply before first paint (same as Voyage Chief). */
+    try {
+      if (localStorage.getItem('marine_bright') === '1' || localStorage.getItem('vm_bright') === '1') {
+        document.documentElement.classList.add('bright');
+      }
+    } catch (_e) {}
+  </script>
   <style>
-    /* Critical first paint before shell.css (airplane / slow storage). */
-    html, body { margin: 0; background: #07141a; color: #e7f3f0; font-family: Georgia, "Times New Roman", serif; }
+    html, body { margin: 0; background: #0a1420; color: #e9e4d6; font-family: Georgia, "Times New Roman", serif; }
+    html.bright, html.bright body { background: #efebe3; color: #122238; }
     #main:empty::before {
       content: "Starting ChEng AIO…";
       display: block;
       padding: 2rem 1.25rem;
-      color: #8fb3ad;
+      color: #a9a292;
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     }
   </style>
@@ -34,6 +43,7 @@
         <div class="brand-text">
           <strong>ChEng AIO</strong>
           <span>Chief Engineer All-In-One</span>
+          <div class="brand-byline" id="appByline">ts0gs · Marvin C. Endozo</div>
         </div>
       </div>
       <div class="vessel-switcher" id="vesselSwitcher">
@@ -41,9 +51,12 @@
         <select id="activeVessel" aria-label="Active vessel"></select>
       </div>
       <div class="topbar-meta" id="topbarMeta">
+        <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+        <span class="app-version" id="appVersion" title="Build version"></span>
         <span id="healthDot" class="health-dot" title="Server"></span>
       </div>
     </header>
+    <button type="button" class="theme-toggle theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
 
     <div class="body">
       <aside class="sidebar" id="sidebar">
@@ -71,6 +84,7 @@
 
   <div class="toast" id="toast" hidden></div>
 
+  <script src="/js/theme.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/bridge.js"></script>
   <script src="/js/voyage-bridge.js"></script>

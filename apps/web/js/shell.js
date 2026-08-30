@@ -131,6 +131,11 @@
       const health = await withTimeout(ChengPro.api.fetch('/api/health'), 8000, 'Health check');
       healthDot.classList.toggle('ok', !!health.ok);
       healthDot.classList.toggle('bad', !health.ok);
+      const verEl = document.getElementById('appVersion');
+      if (verEl) {
+        const ver = health.version || health.appVersion;
+        if (ver) verEl.textContent = 'v' + String(ver).replace(/^v/, '');
+      }
     } catch {
       healthDot.classList.add('bad');
     }
