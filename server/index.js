@@ -47,6 +47,7 @@ function requireVoyage(req, res, next) {
 
 /* Per-user vessel data (license email). Tank module app has its own middleware;
  * shell vessel routes use the same store — scope them here too. */
+const { parseScopedEntitlement } = require('./license-scope');
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/shell') && !req.path.startsWith('/api/status')
       && req.path !== '/api/admin/users') {
@@ -54,11 +55,14 @@ app.use((req, res, next) => {
   }
   try {
     const store = require('../modules/tanks/server/store');
-    const email = req.get('x-license-email') || null;
-    const master = req.get('x-license-master') === '1';
-    const actAs = master ? (req.get('x-act-as-user') || null) : null;
+    const scope = parseScopedEntitlement(req, res);
+    if (scope === null) return;
     if (typeof store.runWithUserScope === 'function') {
-      return store.runWithUserScope({ email, master, actAs }, () => next());
+      return store.runWithUserScope({
+        email: scope.email,
+        master: scope.master,
+        actAs: scope.actAs,
+      }, () => next());
     }
   } catch { /* store not ready */ }
   return next();
@@ -180,13 +184,14 @@ app.delete('/api/shell/vessels/:id', (req, res) => {
 });
 
 /* Tank peer sync at gateway root — Android/clients often use http://host:8080 without /tanks */
+const { requireSyncAuth: requireGatewaySyncAuth } = require('./license-scope');
 function forwardTankApi(req, res, next) {
   tank.app(req, res, next);
 }
 
-app.get('/api/sync/export', forwardTankApi);
+app.get('/api/sync/export', requireGatewaySyncAuth, forwardTankApi);
 app.get('/api/sync/ping', forwardTankApi);
-app.post('/api/sync/import', express.json({ limit: '50mb' }), forwardTankApi);
+app.post('/api/sync/import', express.json({ limit: '50mb' }), requireGatewaySyncAuth, forwardTankApi);
 app.post('/api/sync/probe', express.json({ limit: '1mb' }), forwardTankApi);
 app.post('/api/sync/pull', express.json({ limit: '1mb' }), forwardTankApi);
 app.post('/api/sync/push', express.json({ limit: '50mb' }), forwardTankApi);

@@ -345,3 +345,30 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   border: 0;
   background: var(--ink);
 }
+
+/* About / guide */
+.about-sub {
+  font-family: var(--display);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin: 18px 0 8px;
+}
+.about-steps {
+  margin: 0 0 8px;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.about-steps li { margin-bottom: 4px; }
+.about-faq dt {
+  margin-top: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.about-faq dd {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}

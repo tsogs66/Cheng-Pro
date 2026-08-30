@@ -86,6 +86,12 @@
       }
       const allowed = ChengLicense.modulesAllowed(ent);
       const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb';
+      if (mod === 'about' || mod === 'home' || mod === 'license') {
+        el.hidden = false;
+        el.classList.remove('nav-warn');
+        el.removeAttribute('title');
+        return;
+      }
       if (soft) {
         /* Always show; warn when the program is not on the AIO key. */
         el.hidden = false;

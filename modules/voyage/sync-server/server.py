@@ -62,6 +62,13 @@ def current_license_email() -> Optional[str]:
     return getattr(_request_ctx, "email", None)
 
 
+def email_slug(email: str) -> str:
+    """Match tank emailSlug: user@x.com -> user-x-com."""
+    s = re.sub(r"[^a-z0-9]+", "-", (email or "").strip().lower())
+    s = s.strip("-")[:64]
+    return s or "anonymous"
+
+
 def bind_request_license_email(handler: BaseHTTPRequestHandler) -> None:
     """Scope vessel files under users/<email>/ when X-License-Email is set.
 
@@ -81,10 +88,12 @@ def bind_request_license_email(handler: BaseHTTPRequestHandler) -> None:
 
 DATA_DIR = Path(os.environ.get("SYNC_DATA_DIR", "./sync-data"))
 DEFAULT_API_TOKEN = "change-me-in-production"
-API_TOKEN = os.environ.get("SYNC_API_TOKEN", DEFAULT_API_TOKEN)
+_raw_token = os.environ.get("SYNC_API_TOKEN", DEFAULT_API_TOKEN)
+API_TOKEN = _raw_token
+ALLOW_OPEN_SYNC = os.environ.get("SYNC_ALLOW_OPEN", "").strip() == "1"
 # No SYNC_API_TOKEN reached the process: the server has no secret to check against,
 # so it cannot authenticate anyone. See _auth_reason().
-TOKEN_CONFIGURED = API_TOKEN != DEFAULT_API_TOKEN
+TOKEN_CONFIGURED = bool(API_TOKEN) and API_TOKEN != DEFAULT_API_TOKEN
 HOST = os.environ.get("SYNC_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SYNC_PORT", "8787"))
 ALLOWED_ORIGINS = [
@@ -133,7 +142,7 @@ def vessel_dir(vessel: str, email: str | None = None) -> Path:
         email = current_license_email()
     root = DATA_DIR
     if email:
-        root = DATA_DIR / "users" / safe_slug(email)
+        root = DATA_DIR / "users" / email_slug(email)
     return root / safe_slug(vessel)
 
 
@@ -189,7 +198,7 @@ def send_cors(handler: BaseHTTPRequestHandler) -> None:
     handler.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
     handler.send_header(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token, X-License-Email, X-License-Master, X-Act-As-User",
+        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token, X-License-Email, X-License-Master, X-Act-As-User, X-License-Entitlement",
     )
     handler.send_header("Access-Control-Expose-Headers", "ETag")
     handler.send_header("Access-Control-Max-Age", "86400")
@@ -361,8 +370,12 @@ class SyncHandler(BaseHTTPRequestHandler):
                 }
 
         if not TOKEN_CONFIGURED:
-            return {"kind": "open", "role": ROLE_ADMIN, "username": None, "vesselId": None,
-                    "readable": None, "writable": None, "reason": ""}
+            if ALLOW_OPEN_SYNC:
+                return {"kind": "open", "role": ROLE_ADMIN, "username": None, "vesselId": None,
+                        "readable": None, "writable": None, "reason": ""}
+            return {"kind": "none", "role": "", "username": None, "vesselId": None,
+                    "readable": set(), "writable": None,
+                    "reason": "token_required"}
 
         if not token:
             return {"kind": "none", "role": "", "username": None, "vesselId": None,
