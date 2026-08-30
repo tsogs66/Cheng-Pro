@@ -20,16 +20,17 @@ Client-side DRM cannot stop a determined cracker. This system makes unpaid shari
 |-----|------------|-------|--------|
 | `voyage-chief` | `VC-` | 1 Android + 1 Windows | Standalone Voyage; in AIO unlocks Voyage (+ Performance) only |
 | `tank-chief` | `TC-` | 1 Android + 1 Windows | Standalone Tank; in AIO unlocks Tanks only |
-| `cheng-aio` | `CA-` | 1 Android + 1 Windows | Unlocks Voyage + Tank + Performance + e-ORB inside AIO; also activates standalone apps |
-| `cheng-admin` | `MA-` | 1 Android + 1 Windows | **Master** license: unlocks every product/module; entitlement includes `master: true`. Intended for fleet/admin operators who may access email-scoped customer DBs |
+| `cheng-aio` | `CA-` | 1 Android + 1 Windows | AIO shell + Performance + Vessel. **Programs** Voyage Chief, Tank Chief, and e-ORB are selected as add-ons at issue time |
 
-Legacy keys may still use the `CK-` fallback prefix.
+**Add-ons (tick in `/license-admin`):**
+- `voyage-chief` — opens Voyage Chief from AIO (and is the standalone Voyage SKU)
+- `tank-chief` — opens Tank Chief from AIO (and is the standalone Tank SKU)
+- `eorb` — Electronic ORB (AIO embeds the full book; standalone Voyage shows the e-ORB tab only with this add-on)
+- `master` — same unlock as `cheng-admin`
 
-**Add-ons:**
-- `eorb` — enables Electronic ORB. Included with `cheng-aio` / `cheng-admin`. On `voyage-chief` (or issued with the add-on) unlocks the e-ORB tab / AIO e-ORB menu.
-- `master` — same unlock as `cheng-admin` when attached to another SKU; sets `entitlement.master`.
+Existing ChEng AIO keys that were issued with an empty add-on list are migrated on the server to include Voyage + Tank + e-ORB.
 
-A ChEng AIO or master (`cheng-admin` / `master` add-on) license activates every program. A Voyage or Tank key can be entered in the AIO shell but only opens that program’s modules.
+AIO holds the seat: Voyage/Tank opened from AIO with `?chengaio=1` do **not** ask for license again.
 
 **Email-scoped data:** customer Voyage/Tank databases and sync are keyed by the license email. A master entitlement may present `X-License-Master: 1` (via `ChengLicense.authHeaders()`) so admin tooling can reach those email-scoped DBs; ordinary keys stay limited to their own email.
 

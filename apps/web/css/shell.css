@@ -244,3 +244,104 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .menu-btn { display: none; }
   :root { --bottom-h: 48px; }
 }
+
+/* Nav warning when program not on AIO key */
+.nav-item.nav-warn, .bottom-item.nav-warn {
+  color: var(--danger);
+  opacity: 0.92;
+}
+.nav-item.nav-warn::after, .bottom-item.nav-warn::after {
+  content: "!";
+  margin-left: 4px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+/* Home — product-style composition */
+.home-hero h1 {
+  font-family: var(--display);
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  color: var(--brass);
+}
+.home-kicker {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.home-lead, .home-copy, .home-aside {
+  margin: 0;
+  max-width: 40rem;
+  line-height: 1.55;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+.home-aside { margin-top: 12px; font-size: 0.92rem; }
+.home-vessel-line {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.home-vessel-line span { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.home-vessel-line strong { font-size: 1.15rem; color: var(--text); }
+.home-vessel-line em { font-style: normal; font-family: var(--mono); font-size: 0.9rem; color: var(--teal); }
+.home-section h2 {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin: 0 0 14px;
+}
+.home-feature-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 22px;
+}
+.home-feature-list article h3 {
+  margin: 0 0 6px;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.home-feature-list article p { margin: 0 0 12px; color: var(--muted); line-height: 1.5; font-size: 0.95rem; }
+.home-warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--danger);
+  background: rgba(224, 106, 76, 0.1);
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.home-meta { margin: 14px 0 0; font-size: 0.78rem; color: var(--muted); font-family: var(--mono); }
+@media (max-width: 900px) {
+  .home-feature-list { grid-template-columns: 1fr; }
+}
+
+/* e-ORB full embed inside AIO shell */
+.main:has(.eorb-embed-wrap) {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--topbar-h) - var(--bottom-h) - var(--safe-top) - var(--safe-bottom));
+}
+.eorb-embed-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink);
+}
+.eorb-embed-frame {
+  flex: 1;
+  width: 100%;
+  min-height: calc(100dvh - var(--topbar-h) - var(--bottom-h) - 8px);
+  border: 0;
+  background: var(--ink);
+}

@@ -46,8 +46,14 @@
           next = 'license';
           showToast('Activate a license to use the suite');
         } else if (ChengLicense.isValid(ent) && !ChengLicense.moduleAllowed(next, ent)) {
-          showToast('Not included on this license (' + (ent.sku || '') + ')');
-          next = 'home';
+          const soft = next === 'voyage' || next === 'tanks' || next === 'eorb';
+          if (soft) {
+            /* Stay on the module so it can show the missing-program warning. */
+            showToast('Not included on this license — see details');
+          } else {
+            showToast('Not included on this license (' + (ent.sku || '') + ')');
+            next = 'home';
+          }
         }
       } catch { /* ignore */ }
     }
@@ -70,13 +76,27 @@
   function applyLicenseNav() {
     if (!window.ChengLicense) return;
     const ent = ChengLicense.loadEntitlement();
-    if (!ChengLicense.isValid(ent)) {
-      document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => { el.hidden = false; });
-      return;
-    }
-    const allowed = ChengLicense.modulesAllowed(ent);
     document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => {
-      el.hidden = !allowed.includes(el.dataset.module);
+      const mod = el.dataset.module;
+      if (!ChengLicense.isValid(ent)) {
+        el.hidden = false;
+        el.classList.remove('nav-warn');
+        el.removeAttribute('title');
+        return;
+      }
+      const allowed = ChengLicense.modulesAllowed(ent);
+      const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb';
+      if (soft) {
+        /* Always show; warn when the program is not on the AIO key. */
+        el.hidden = false;
+        const ok = allowed.includes(mod);
+        el.classList.toggle('nav-warn', !ok);
+        el.title = ok ? '' : 'Not included on this license';
+        return;
+      }
+      el.hidden = !(allowed.includes(mod) || mod === 'home' || mod === 'license');
+      el.classList.remove('nav-warn');
+      el.removeAttribute('title');
     });
   }
 

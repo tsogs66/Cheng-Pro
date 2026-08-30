@@ -32,14 +32,27 @@ function signingSecret() {
 
 function load() {
   const p = storePath();
+  let db;
   try {
     if (!fs.existsSync(p)) {
       return { licenses: {}, pairing: {}, audit: [] };
     }
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    db = JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch {
     return { licenses: {}, pairing: {}, audit: [] };
   }
+  /* Pre-addon AIO keys had empty addons but meant the full suite. */
+  let changed = false;
+  for (const lic of Object.values(db.licenses || {})) {
+    if (lic.sku === 'cheng-aio' && !lic.addonsSelected
+        && (!Array.isArray(lic.addons) || lic.addons.length === 0)) {
+      lic.addons = ['voyage-chief', 'tank-chief', 'eorb'];
+      lic.addonsSelected = true;
+      changed = true;
+    }
+  }
+  if (changed) save(db);
+  return db;
 }
 
 function save(db) {
@@ -133,11 +146,12 @@ function keyPrefixForSku(sku) {
 
 /**
  * Create a sellable license (admin / purchase webhook).
- * addons: optional string[] — supports 'eorb' (e-ORB book) and 'master'.
+ * addons: optional string[] — 'eorb', 'voyage-chief', 'tank-chief', 'master'.
+ * On cheng-aio, voyage-chief / tank-chief / eorb are selected programs (like add-ons).
  * SKU `cheng-admin` is the master license (unlocks everything; entitlement.master = true).
  */
 function normalizeAddons(addons) {
-  const allow = new Set(['eorb', 'master']);
+  const allow = new Set(['eorb', 'master', 'voyage-chief', 'tank-chief']);
   const list = Array.isArray(addons) ? addons : (typeof addons === 'string' ? addons.split(',') : []);
   return [...new Set(list.map((a) => String(a || '').trim().toLowerCase()).filter((a) => allow.has(a)))];
 }
@@ -164,6 +178,7 @@ function issueLicense({ email, sku, plan, years, addons }) {
     sku: resolvedSku,
     plan: plan || 'yearly',
     addons: normalizeAddons(addons),
+    addonsSelected: true,
     createdAt: now,
     expiresAt,
     seats: { android: null, windows: null },

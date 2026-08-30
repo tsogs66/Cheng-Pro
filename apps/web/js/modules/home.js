@@ -7,86 +7,91 @@ window.ChengProModules.home = {
     let health = { ok: false };
     try { health = await ChengPro.api.fetch('/api/health'); } catch { /* ignore */ }
     const vessels = ChengPro.vessel.getListSync();
-    const voyageOk = !!(health.modules && health.modules.voyage && health.modules.voyage.ok);
-    const tanksOk = !!(health.modules && health.modules.tanks && health.modules.tanks.ok);
-    const bundled = window.ChengProBundled && ChengProBundled.isBundledClient();
     const firstRun = !vessels.length;
+    const ver = health.version || '';
+
+    const hasVoyage = !window.ChengLicense || ChengLicense.moduleAllowed('voyage');
+    const hasTanks = !window.ChengLicense || ChengLicense.moduleAllowed('tanks');
+    const hasEorb = !window.ChengLicense || ChengLicense.moduleAllowed('eorb');
+    const hasPerf = !window.ChengLicense || ChengLicense.moduleAllowed('performance');
 
     root.innerHTML = `
-      <section class="panel hero">
+      <section class="home-hero panel">
+        <p class="home-kicker">Chief engineer suite</p>
         <h1>ChEng AIO</h1>
-        <p>${firstRun
-          ? 'Works fully offline on this device. Create a vessel to unlock Voyage Chief, Tank Chief, and Performance — no network required.'
-          : 'All-in-one suite for marine chief engineers. One active vessel feeds full Voyage Chief and Tank Chief side by side. Ship details are shared; voyage and tank records stay in their own stores.'
-        }${bundled && !firstRun ? ' On this device, tank data is stored locally until you sync or switch to server mode in Tank Chief.' : ''}</p>
+        <p class="home-lead">
+          Built for the people who keep the plant running — one vessel identity,
+          then the tools you already know: Voyage Chief for the noon book and ROB chain,
+          Tank Chief for soundings and bunkers, and e-ORB when your company carries the book electronically.
+        </p>
         ${firstRun ? `
-        <div class="form-actions" style="margin-top:16px">
-          <button type="button" class="btn primary" data-go="vessel">Create vessel (offline)</button>
-        </div>` : ''}
+        <div class="form-actions" style="margin-top:18px">
+          <button type="button" class="btn primary" data-go="vessel">Set up this vessel</button>
+        </div>
+        <p class="home-aside">Start with the ship name and IMO. You can fill engine particulars later when you need Performance.</p>
+        ` : `
+        <div class="home-vessel-line">
+          <span>Working vessel</span>
+          <strong>${active ? esc(active.name) : 'None selected'}</strong>
+          ${active?.imo ? `<em>${esc(active.imo)}</em>` : ''}
+        </div>
+        `}
       </section>
-      ${firstRun ? `
-      <section class="panel">
-        <div class="section-head">
-          <div>
-            <h2>First-run checklist</h2>
-            <p>Everything below works without Wi‑Fi or Cloudflare.</p>
-          </div>
-        </div>
-        <ol style="margin:0;padding-left:1.2rem;color:var(--muted);line-height:1.7">
-          <li>Open <strong>Vessel Setup</strong> and enter ship name / IMO</li>
-          <li>Optionally fill main-engine fields for Performance Calc</li>
-          <li>Open <strong>Tank Chief</strong> or <strong>Voyage Chief</strong> for day-to-day work</li>
-          <li>When online later, set peer sync under Tank → Backup / Sync</li>
-        </ol>
-      </section>` : `
-      <section class="panel">
-        <div class="section-head">
-          <div>
-            <h2>Working context</h2>
-            <p>Only the active vessel is served to both full modules.</p>
-          </div>
-        </div>
-        <div class="grid-3">
-          <div class="stat">
-            <div class="label">Active vessel</div>
-            <div class="value">${active ? esc(active.name) : 'None'}</div>
-          </div>
-          <div class="stat">
-            <div class="label">IMO</div>
-            <div class="value">${active?.imo ? esc(active.imo) : '—'}</div>
-          </div>
-          <div class="stat">
-            <div class="label">Fleet size</div>
-            <div class="value">${vessels.length}</div>
-          </div>
-        </div>
-        <div class="chips" style="margin-top:14px">
-          <span class="chip ${health.ok ? 'on' : ''}">${bundled && health.version === 'bundled' ? 'On-device' : 'Gateway'} ${health.ok ? 'ready' : 'offline'}</span>
-          <span class="chip ${voyageOk ? 'on' : ''}">Voyage auth/sync ${voyageOk ? 'ready' : 'down'}</span>
-          <span class="chip ${tanksOk ? 'on' : ''}">Tanks ${tanksOk ? 'ready' : 'down'}</span>
-          <span class="chip">v${esc(health.version || '0.2.0')}</span>
+
+      <section class="panel home-section">
+        <h2>What this suite covers</h2>
+        <div class="home-feature-list">
+          <article>
+            <h3>Voyage Chief</h3>
+            <p>Daily noon and intermediate reports, ROB continuity, bunker receipts, abstracts, and voyage library — the paperwork you need at sea, offline on the tablet or PC.</p>
+            ${hasVoyage
+              ? '<button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>'
+              : '<p class="home-warn">Not on this license — ask the office to include Voyage Chief on your ChEng AIO key.</p>'}
+          </article>
+          <article>
+            <h3>Tank Chief</h3>
+            <p>Soundings with trim and list, calibration tables, fuel condition reports, and bunkering records. Same active vessel as Voyage, separate tank database.</p>
+            ${hasTanks
+              ? '<button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>'
+              : '<p class="home-warn">Not on this license — ask the office to include Tank Chief on your ChEng AIO key.</p>'}
+          </article>
+          <article>
+            <h3>e-ORB</h3>
+            <p>Electronic Oil Record Book Part I — coded entries, signatures, and a printable book. Lives with the voyage data for this vessel.</p>
+            ${hasEorb
+              ? '<button type="button" class="btn" id="goEorb">Open e-ORB</button>'
+              : '<p class="home-warn">Not on this license — e-ORB is an optional program on the key.</p>'}
+          </article>
+          <article>
+            <h3>Performance</h3>
+            <p>Watch and voyage performance from the figures you already keep — slip, consumption, and engine run hours between two times.</p>
+            ${hasPerf
+              ? '<button type="button" class="btn" data-go="performance">Open Performance</button>'
+              : ''}
+          </article>
         </div>
       </section>
-      <section class="panel">
-        <div class="section-head">
-          <div>
-            <h2>Open modules</h2>
-            <p>Full Voyage Chief and Tank Chief — same active vessel.</p>
-          </div>
-        </div>
+
+      <section class="panel home-section">
+        <h2>How licensing works here</h2>
+        <p class="home-copy">
+          You activate once in ChEng AIO with the email and key from your office.
+          Voyage Chief and Tank Chief opened from this menu use that same seat —
+          you do not sign in again. Standalone Voyage or Tank installs keep their own keys.
+        </p>
         <div class="form-actions">
-          ${(!window.ChengLicense || ChengLicense.moduleAllowed('voyage')) ? '<button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>' : ''}
-          ${(!window.ChengLicense || ChengLicense.moduleAllowed('tanks')) ? '<button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>' : ''}
-          ${(!window.ChengLicense || ChengLicense.moduleAllowed('eorb')) ? '<button type="button" class="btn" id="goEorb">Open e-ORB</button>' : ''}
-          ${(!window.ChengLicense || ChengLicense.moduleAllowed('performance')) ? '<button type="button" class="btn" data-go="performance">Performance Calc</button>' : ''}
-          ${(!window.ChengLicense || ChengLicense.moduleAllowed('vessel')) ? '<button type="button" class="btn" data-go="vessel">Vessel Setup</button>' : ''}
+          <button type="button" class="btn" data-go="license">License</button>
+          <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
         </div>
-      </section>`}
+        ${ver ? `<p class="home-meta">Build ${esc(ver)}</p>` : ''}
+      </section>
     `;
 
     root.querySelector('#goVoyage')?.addEventListener('click', () => ChengPro.openVoyage());
     root.querySelector('#goTanks')?.addEventListener('click', () => ChengPro.openTanks());
-    root.querySelector('#goEorb')?.addEventListener('click', () => ChengPro.openEorb());
+    root.querySelector('#goEorb')?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'eorb' }));
+    });
     root.querySelectorAll('[data-go]').forEach((btn) => {
       btn.onclick = () =>
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));

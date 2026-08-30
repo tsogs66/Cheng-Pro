@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <title>Voyage Chief — Engine Log</title>
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1420">
 <meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
@@ -46,6 +46,26 @@
     if (k === '1') document.documentElement.classList.add('bright');
   }catch(_e){}
 })();
+
+    /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
+    (function lockMobileViewport() {
+      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+      function apply() {
+        let meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'viewport');
+          document.head.appendChild(meta);
+        }
+        if (meta.getAttribute('content') !== WANT) meta.setAttribute('content', WANT);
+      }
+      apply();
+      try {
+        const mo = new MutationObserver(apply);
+        mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['content', 'name'] });
+      } catch (_e) {}
+      setInterval(apply, 1500);
+    })();
 </script>
 <script src="theme.js"></script>
 <script src="license-config.js"></script>
@@ -10549,10 +10569,13 @@ function syncBottomNav(pageName){
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
   if (pageName === 'orb' && !voyageEorbAllowed()){
-    try {
-      alert('e-ORB requires a ChEng AIO license or a Voyage Chief key with the e-ORB add-on. Open ChEng AIO → e-ORB, or activate the add-on.');
-    } catch (_) {}
-    return;
+    const aioOrb = isChengAioEmbedded() && /[?&]page=orb\b/.test(location.search);
+    if (!aioOrb) {
+      try {
+        alert('e-ORB requires a license with the e-ORB program. In ChEng AIO open e-ORB from the menu, or activate the add-on on a standalone Voyage key.');
+      } catch (_) {}
+      return;
+    }
   }
   const prev = _activeTab;
   document.querySelectorAll('#tabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.page===pageName));
@@ -20447,12 +20470,12 @@ function isChengAioEmbedded(){
 }
 
 /**
- * e-ORB tab: hidden in standalone Voyage unless ChEng AIO key or eorb add-on.
- * When embedded via AIO, the tab is hidden (use AIO → e-ORB) except deep-link ?page=orb.
+ * e-ORB tab: always hidden when embedded in ChEng AIO (use AIO → e-ORB iframe).
+ * Standalone Voyage: show only when the license includes e-ORB (AIO key, eorb add-on, or master).
+ * Deep-link ?page=orb still opens the book for the AIO embed without showing the tab.
  */
 function voyageEorbAllowed(){
   try {
-    if (/[?&]page=orb\b/.test(location.search)) return true;
     if (isChengAioEmbedded()) return false;
     if (window.ChengLicense && typeof ChengLicense.eorbLicensed === 'function') {
       return ChengLicense.eorbLicensed();
@@ -20462,12 +20485,21 @@ function voyageEorbAllowed(){
 }
 
 function applyEorbLicenseVisibility(){
+  const embedded = isChengAioEmbedded();
   const ok = voyageEorbAllowed();
   document.querySelectorAll('#tabs .tab[data-page="orb"], #bnMoreSheet [data-page="orb"]').forEach((el) => {
     el.hidden = !ok;
     el.style.display = ok ? '' : 'none';
   });
-  if (!ok) {
+  /* AIO iframe embed: strip Voyage chrome so only the book shows. */
+  if (embedded && /[?&]eorbEmbed=1\b/.test(location.search)) {
+    document.documentElement.classList.add('eorb-embed');
+    document.body.classList.add('eorb-embed');
+    document.querySelectorAll('.masthead, #tabs, .bottom-nav, #bnMoreSheet, #bnMoreBackdrop').forEach((el) => {
+      if (el) el.style.display = 'none';
+    });
+  }
+  if (!ok && !(embedded && /[?&]page=orb\b/.test(location.search))) {
     const page = document.getElementById('page-orb');
     if (page) page.classList.remove('active');
   }
@@ -21439,7 +21471,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     document.getElementById('dbStatus').textContent = '● local database ready';
     try {
       applyEorbLicenseVisibility();
-      if (/[?&]page=orb\b/.test(location.search) && voyageEorbAllowed()) switchTab('orb');
+      const wantOrb = /[?&]page=orb\b/.test(location.search);
+      if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
     } catch (_) {}
   } catch(e){
     console.error('Startup error:', e);

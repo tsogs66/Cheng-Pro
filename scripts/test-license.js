@@ -9,9 +9,17 @@ process.env.LICENSE_SIGNING_SECRET = 'test-secret';
 const lic = require('../server/license/store');
 const mail = require('../server/license/mail');
 
-const issued = lic.issueLicense({ email: 'a@b.com', sku: 'cheng-aio', plan: 'yearly' });
+const issued = lic.issueLicense({
+  email: 'a@b.com',
+  sku: 'cheng-aio',
+  plan: 'yearly',
+  addons: ['voyage-chief', 'tank-chief', 'eorb'],
+});
 assert.ok(issued.key);
 assert.ok(issued.key.startsWith('CA-'), 'cheng-aio key prefix');
+assert.deepEqual(issued.addons.sort(), ['eorb', 'tank-chief', 'voyage-chief'].sort());
+const aioBare = lic.issueLicense({ email: 'bare@c.com', sku: 'cheng-aio', plan: 'yearly', addons: [] });
+assert.deepEqual(aioBare.addons, []);
 const withOrb = lic.issueLicense({ email: 'b@c.com', sku: 'voyage-chief', plan: 'lifetime', addons: ['eorb'] });
 assert.deepEqual(withOrb.addons, ['eorb']);
 assert.ok(withOrb.key.startsWith('VC-'), 'voyage-chief key prefix');

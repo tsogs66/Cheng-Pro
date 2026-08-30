@@ -75,7 +75,10 @@
     },
     openTanks: () => {
       if (window.ChengLicense && !ChengLicense.moduleAllowed('tanks')) {
-        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'Tank Chief not on this license' }));
+        window.dispatchEvent(new CustomEvent('chengpro:toast', {
+          detail: 'Tank Chief is not on this license — ask the office to include it on your ChEng AIO key.',
+        }));
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'tanks' }));
         return;
       }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
@@ -84,26 +87,38 @@
         : '/tanks/';
       window.location.href = base + (base.includes('?') ? '&' : '?') + 'chengaio=1';
     },
-    openVoyage: (opts) => {
-      if (window.ChengLicense && !ChengLicense.moduleAllowed('voyage') && !(opts && opts.page === 'orb' && ChengLicense.moduleAllowed('eorb'))) {
-        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'Voyage Chief not on this license' }));
-        return;
-      }
-      try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+    voyageEmbedUrl: (opts) => {
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('voyage')
         : '/voyage/';
-      const url = base.includes('voyage_manager') ? base : (base.replace(/\/?$/, '/') + 'voyage_manager.html');
+      const url = base.includes('voyage_manager') || base.includes('index.html')
+        ? base
+        : (base.replace(/\/?$/, '/') + 'voyage_manager.html');
       const q = new URLSearchParams({ chengaio: '1' });
       if (opts && opts.page) q.set('page', String(opts.page));
-      window.location.href = url + (url.includes('?') ? '&' : '?') + q.toString();
+      if (opts && opts.eorbEmbed) q.set('eorbEmbed', String(opts.eorbEmbed));
+      return url + (url.includes('?') ? '&' : '?') + q.toString();
+    },
+    openVoyage: (opts) => {
+      if (window.ChengLicense && !ChengLicense.moduleAllowed('voyage')
+          && !(opts && opts.page === 'orb' && ChengLicense.moduleAllowed('eorb'))) {
+        window.dispatchEvent(new CustomEvent('chengpro:toast', {
+          detail: 'Voyage Chief is not on this license — ask the office to include it on your ChEng AIO key.',
+        }));
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'voyage' }));
+        return;
+      }
+      try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+      window.location.href = root.ChengPro.voyageEmbedUrl(opts || {});
     },
     openEorb: () => {
       if (window.ChengLicense && !ChengLicense.eorbLicensed()) {
-        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'e-ORB requires ChEng AIO or an e-ORB add-on' }));
+        window.dispatchEvent(new CustomEvent('chengpro:toast', {
+          detail: 'e-ORB is not on this license',
+        }));
         return;
       }
-      root.ChengPro.openVoyage({ page: 'orb' });
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'eorb' }));
     },
   };
 })(window);

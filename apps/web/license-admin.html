@@ -86,7 +86,7 @@
         <div>
           <label>SKU</label>
           <select id="issueSku">
-            <option value="cheng-aio">cheng-aio (all modules)</option>
+            <option value="cheng-aio">cheng-aio (shell + selected programs)</option>
             <option value="voyage-chief">voyage-chief</option>
             <option value="tank-chief">tank-chief</option>
             <option value="cheng-admin">cheng-admin — master (all DBs)</option>
@@ -102,10 +102,19 @@
         </div>
         <div><label>Years (yearly)</label><input id="issueYears" type="number" min="1" value="1"></div>
         <div>
-          <label>Add-ons</label>
-          <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0;padding-top:8px">
-            <input id="issueAddonEorb" type="checkbox" style="width:auto"> e-ORB
-          </label>
+          <label>Programs / add-ons</label>
+          <div id="issueAddons" style="display:flex;flex-direction:column;gap:6px;padding-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
+              <input id="issueAddonVoyage" type="checkbox" checked style="width:auto"> Voyage Chief
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
+              <input id="issueAddonTank" type="checkbox" checked style="width:auto"> Tank Chief
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
+              <input id="issueAddonEorb" type="checkbox" checked style="width:auto"> e-ORB
+            </label>
+          </div>
+          <p class="muted" style="margin:6px 0 0;font-size:.78rem">For <code>cheng-aio</code>, tick the programs this key may open. Standalone Voyage/Tank SKUs ignore Voyage/Tank ticks; e-ORB still applies to Voyage keys.</p>
         </div>
       </div>
       <div class="actions">
@@ -214,18 +223,23 @@
     $('btnIssue').onclick = async () => {
       try {
         statusEl.textContent = 'Issuing…';
+        const sku = $('issueSku').value;
+        const addons = [];
+        if ($('issueAddonVoyage').checked) addons.push('voyage-chief');
+        if ($('issueAddonTank').checked) addons.push('tank-chief');
+        if ($('issueAddonEorb').checked) addons.push('eorb');
         const data = await api('/issue', {
           method: 'POST',
           body: JSON.stringify({
             email: $('issueEmail').value.trim(),
-            sku: $('issueSku').value,
+            sku,
             plan: $('issuePlan').value,
             years: Number($('issueYears').value) || 1,
-            addons: $('issueAddonEorb').checked ? ['eorb'] : [],
+            addons,
             emailDelivery: true,
           }),
         });
-        statusEl.textContent = `Issued ${data.license.key} → ${data.delivery?.channel || 'no mail'} (${data.license.email})`;
+        statusEl.textContent = `Issued ${data.license.key} → ${data.delivery?.channel || 'no mail'} (${data.license.email}) [${(data.license.addons || []).join(', ') || 'no add-ons'}]`;
         await refresh();
       } catch (e) {
         statusEl.textContent = e.message;
