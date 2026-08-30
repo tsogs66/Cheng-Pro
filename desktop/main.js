@@ -1,5 +1,8 @@
 /**
  * ChEng AIO desktop (Electron).
+ *
+ * Portable builds (USB): all databases live beside the .exe under ChEngAIO-data/
+ * so the stick is fully standalone across PCs.
  */
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
@@ -7,12 +10,47 @@ const fs = require('fs');
 
 const isPackaged = app.isPackaged;
 
-function resolveDataDir() {
-  if (process.env.CHENG_PRO_PORTABLE === '1' || process.env.PORTABLE_EXECUTABLE_DIR) {
-    const base = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
-    return path.join(base, 'cheng-pro-data');
+function portableBaseDir() {
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    return process.env.PORTABLE_EXECUTABLE_DIR;
   }
-  return path.join(app.getPath('userData'), 'data');
+  if (process.env.CHENG_PRO_PORTABLE === '1' || process.env.CHENG_AIO_PORTABLE === '1') {
+    return path.dirname(process.execPath);
+  }
+  /* electron-builder portable .exe name often contains "Portable". */
+  try {
+    if (/portable/i.test(path.basename(process.execPath))) {
+      return path.dirname(process.execPath);
+    }
+  } catch { /* ignore */ }
+  return '';
+}
+
+function resolvePaths() {
+  const portableBase = portableBaseDir();
+  if (portableBase) {
+    const root = path.join(portableBase, 'ChEngAIO-data');
+    return {
+      portable: true,
+      root,
+      serverData: path.join(root, 'server'),
+      userData: path.join(root, 'electron-profile'),
+    };
+  }
+  return {
+    portable: false,
+    root: app.getPath('userData'),
+    serverData: path.join(app.getPath('userData'), 'data'),
+    userData: app.getPath('userData'),
+  };
+}
+
+const paths = resolvePaths();
+if (paths.portable) {
+  fs.mkdirSync(paths.serverData, { recursive: true });
+  fs.mkdirSync(paths.userData, { recursive: true });
+  /* Must run before ready — puts IndexedDB / localStorage on the USB too. */
+  app.setPath('userData', paths.userData);
 }
 
 let mainWindow = null;
@@ -42,7 +80,7 @@ async function createWindow(port) {
 }
 
 app.whenReady().then(async () => {
-  const DATA_DIR = resolveDataDir();
+  const DATA_DIR = paths.serverData;
   fs.mkdirSync(DATA_DIR, { recursive: true });
   process.env.CHENG_PRO_DATA_DIR = DATA_DIR;
   process.env.TMS_DATA_DIR = DATA_DIR;
@@ -61,6 +99,12 @@ app.whenReady().then(async () => {
       process.env.TMS_PYTHON_HOME = path.join(runtime, 'python');
     }
   }
+
+  console.log(
+    paths.portable
+      ? `ChEng AIO portable data (USB): ${paths.root}`
+      : `ChEng AIO data directory: ${DATA_DIR}`
+  );
 
   const { boot } = require('../server/index.js');
   const server = await boot();
