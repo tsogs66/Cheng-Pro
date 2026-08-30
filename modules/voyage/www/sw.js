@@ -1,11 +1,14 @@
 /* Voyage Chief — service worker (offline cache)
  * ts0gs · Marvin C. Endozo
  */
-const CACHE = 'noon-report-v164';
+const CACHE = 'noon-report-v165';
 const PRECACHE = [
   './voyage_manager.html',
   './eorb.js',
   './ship_time.js',
+  './theme.js',
+  './license-config.js',
+  './license.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',
