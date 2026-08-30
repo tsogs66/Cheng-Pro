@@ -80,6 +80,13 @@ function verifyEntitlement(ent) {
   }
 }
 
+function isMasterLicense(license) {
+  if (!license) return false;
+  if (license.sku === 'cheng-admin') return true;
+  const addons = Array.isArray(license.addons) ? license.addons : [];
+  return addons.includes('master');
+}
+
 function makeEntitlement(license, seat, deviceId) {
   const now = new Date().toISOString();
   return signEntitlement({
@@ -88,6 +95,7 @@ function makeEntitlement(license, seat, deviceId) {
     plan: license.plan,
     email: license.email,
     addons: Array.isArray(license.addons) ? license.addons.slice() : [],
+    master: isMasterLicense(license),
     deviceSeat: seat,
     deviceId,
     issuedAt: license.createdAt,
@@ -112,12 +120,24 @@ function seatSlot(license, seat) {
   return license.seats;
 }
 
+const KEY_PREFIX_BY_SKU = {
+  'cheng-aio': 'CA',
+  'voyage-chief': 'VC',
+  'tank-chief': 'TC',
+  'cheng-admin': 'MA',
+};
+
+function keyPrefixForSku(sku) {
+  return KEY_PREFIX_BY_SKU[sku] || 'CK';
+}
+
 /**
  * Create a sellable license (admin / purchase webhook).
- * addons: optional string[] — currently supports 'eorb' (e-ORB book).
+ * addons: optional string[] — supports 'eorb' (e-ORB book) and 'master'.
+ * SKU `cheng-admin` is the master license (unlocks everything; entitlement.master = true).
  */
 function normalizeAddons(addons) {
-  const allow = new Set(['eorb']);
+  const allow = new Set(['eorb', 'master']);
   const list = Array.isArray(addons) ? addons : (typeof addons === 'string' ? addons.split(',') : []);
   return [...new Set(list.map((a) => String(a || '').trim().toLowerCase()).filter((a) => allow.has(a)))];
 }
@@ -134,12 +154,14 @@ function issueLicense({ email, sku, plan, years, addons }) {
     err.status = 400;
     throw err;
   }
-  const key = ('CK-' + crypto.randomBytes(4).toString('hex') + '-' + crypto.randomBytes(4).toString('hex')).toUpperCase();
+  const resolvedSku = sku || 'cheng-aio';
+  const prefix = keyPrefixForSku(resolvedSku);
+  const key = (prefix + '-' + crypto.randomBytes(4).toString('hex') + '-' + crypto.randomBytes(4).toString('hex')).toUpperCase();
   const license = {
     id,
     key,
     email: String(email || '').trim().toLowerCase(),
-    sku: sku || 'cheng-aio',
+    sku: resolvedSku,
     plan: plan || 'yearly',
     addons: normalizeAddons(addons),
     createdAt: now,
@@ -456,6 +478,9 @@ module.exports = {
   GRACE_DAYS,
   TRANSFER_COOLDOWN_DAYS,
   TRANSFER_YEARLY_CAP,
+  KEY_PREFIX_BY_SKU,
+  keyPrefixForSku,
+  isMasterLicense,
   issueLicense,
   activate,
   heartbeat,

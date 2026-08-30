@@ -16,15 +16,22 @@ Client-side DRM cannot stop a determined cracker. This system makes unpaid shari
 
 ## Products / SKUs
 
-| SKU | Seats | Notes |
-|-----|-------|--------|
-| `voyage-chief` | 1 Android + 1 Windows | Standalone Voyage; in AIO unlocks Voyage (+ Performance) only |
-| `tank-chief` | 1 Android + 1 Windows | Standalone Tank; in AIO unlocks Tanks only |
-| `cheng-aio` | 1 Android + 1 Windows | Unlocks Voyage + Tank + Performance + e-ORB inside AIO; also activates standalone apps |
+| SKU | Key prefix | Seats | Notes |
+|-----|------------|-------|--------|
+| `voyage-chief` | `VC-` | 1 Android + 1 Windows | Standalone Voyage; in AIO unlocks Voyage (+ Performance) only |
+| `tank-chief` | `TC-` | 1 Android + 1 Windows | Standalone Tank; in AIO unlocks Tanks only |
+| `cheng-aio` | `CA-` | 1 Android + 1 Windows | Unlocks Voyage + Tank + Performance + e-ORB inside AIO; also activates standalone apps |
+| `cheng-admin` | `MA-` | 1 Android + 1 Windows | **Master** license: unlocks every product/module; entitlement includes `master: true`. Intended for fleet/admin operators who may access email-scoped customer DBs |
 
-**Add-on:** `eorb` — enables Electronic ORB. Included with `cheng-aio`. On `voyage-chief` (or issued with the add-on) unlocks the e-ORB tab / AIO e-ORB menu. Standalone Voyage hides e-ORB unless this add-on (or an AIO key) is present.
+Legacy keys may still use the `CK-` fallback prefix.
 
-A ChEng AIO license activates every program. A Voyage or Tank key can be entered in the AIO shell but only opens that program’s modules.
+**Add-ons:**
+- `eorb` — enables Electronic ORB. Included with `cheng-aio` / `cheng-admin`. On `voyage-chief` (or issued with the add-on) unlocks the e-ORB tab / AIO e-ORB menu.
+- `master` — same unlock as `cheng-admin` when attached to another SKU; sets `entitlement.master`.
+
+A ChEng AIO or master (`cheng-admin` / `master` add-on) license activates every program. A Voyage or Tank key can be entered in the AIO shell but only opens that program’s modules.
+
+**Email-scoped data:** customer Voyage/Tank databases and sync are keyed by the license email. A master entitlement may present `X-License-Master: 1` (via `ChengLicense.authHeaders()`) so admin tooling can reach those email-scoped DBs; ordinary keys stay limited to their own email.
 
 ## Plans
 
@@ -125,7 +132,8 @@ All three apps include the same `license.js` (`ChengLicense`):
 1. On boot: load cached entitlement; skip gate when embedded in AIO (`chengaio=1` / parent shell)
 2. Fetch `/status` — when `enforce: true`, lock UI until activated
 3. If grace remaining ≤ 7 days and online → heartbeat
-4. SKU check: `voyage-chief` / `tank-chief` / `cheng-aio` keys are not interchangeable
+4. SKU check: product keys are not interchangeable, except `cheng-aio` / `cheng-admin` (master) which unlock every app
+5. Helpers: `isMaster`, `licenseEmail`, `authHeaders` (sends `X-License-Email` / `X-License-Master`)
 
 ## Hard enforce
 
