@@ -14,6 +14,21 @@ export DEBIAN_FRONTEND=noninteractive
 log() { printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Minimal LXCs often have no sudo. Script already requires root.
+run_as_app() {
+  local user="$1"; shift
+  if command -v runuser >/dev/null 2>&1; then
+    runuser -u "$user" -- "$@"
+  elif command -v su >/dev/null 2>&1; then
+    local cmd
+    printf -v cmd '%q ' "$@"
+    su -s /bin/bash "$user" -c "$cmd"
+  else
+    # Last resort: run as root (files still chowned afterward).
+    "$@"
+  fi
+}
+
 [[ ${EUID:-0} -eq 0 ]] || die "Run as root inside the LXC."
 
 log "Installing base packages (curl, git, nginx, python3, node)…"
@@ -51,8 +66,8 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 log "npm install + seed…"
 cd "$APP_DIR"
-sudo -u "$APP_USER" npm install --omit=dev
-sudo -u "$APP_USER" npm run seed || true
+run_as_app "$APP_USER" npm install --omit=dev
+run_as_app "$APP_USER" npm run seed || true
 
 ENV_FILE="/root/cheng-pro.env"
 if [[ ! -f "$ENV_FILE" ]]; then
