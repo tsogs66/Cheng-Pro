@@ -27,7 +27,7 @@ window.ChengProModules.license = {
             <input readonly value="${seat} · ${escapeHtml(L.deviceId().slice(0, 18))}…">
           </div>
           <div class="field"><label>SKU</label>
-            <input readonly value="${escapeHtml(ent?.sku || '—')}">
+            <input readonly value="${escapeHtml(ent?.sku || '—')}${ent?.addons?.length ? ' · ' + escapeHtml(ent.addons.join(', ')) : ''}">
           </div>
           <div class="field"><label>Plan</label>
             <input readonly value="${escapeHtml(ent?.plan || '—')}${ent?.expiresAt ? ' · expires ' + escapeHtml(String(ent.expiresAt).slice(0, 10)) : ''}">

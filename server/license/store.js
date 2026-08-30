@@ -87,6 +87,7 @@ function makeEntitlement(license, seat, deviceId) {
     sku: license.sku,
     plan: license.plan,
     email: license.email,
+    addons: Array.isArray(license.addons) ? license.addons.slice() : [],
     deviceSeat: seat,
     deviceId,
     issuedAt: license.createdAt,
@@ -113,8 +114,15 @@ function seatSlot(license, seat) {
 
 /**
  * Create a sellable license (admin / purchase webhook).
+ * addons: optional string[] — currently supports 'eorb' (e-ORB book).
  */
-function issueLicense({ email, sku, plan, years }) {
+function normalizeAddons(addons) {
+  const allow = new Set(['eorb']);
+  const list = Array.isArray(addons) ? addons : (typeof addons === 'string' ? addons.split(',') : []);
+  return [...new Set(list.map((a) => String(a || '').trim().toLowerCase()).filter((a) => allow.has(a)))];
+}
+
+function issueLicense({ email, sku, plan, years, addons }) {
   const db = load();
   const id = newId('lic');
   const now = new Date().toISOString();
@@ -133,15 +141,24 @@ function issueLicense({ email, sku, plan, years }) {
     email: String(email || '').trim().toLowerCase(),
     sku: sku || 'cheng-aio',
     plan: plan || 'yearly',
+    addons: normalizeAddons(addons),
     createdAt: now,
     expiresAt,
     seats: { android: null, windows: null },
     transfers: [],
   };
   db.licenses[id] = license;
-  audit(db, 'issue', { licenseId: id, email: license.email, sku: license.sku, plan: license.plan });
+  audit(db, 'issue', { licenseId: id, email: license.email, sku: license.sku, plan: license.plan, addons: license.addons });
   save(db);
-  return { id, key, email: license.email, sku: license.sku, plan: license.plan, expiresAt };
+  return {
+    id,
+    key,
+    email: license.email,
+    sku: license.sku,
+    plan: license.plan,
+    addons: license.addons,
+    expiresAt,
+  };
 }
 
 function activate({ licenseKey, email, seat, deviceId, deviceLabel }) {
@@ -335,6 +352,7 @@ function publicLicenseView(license) {
     email: license.email,
     sku: license.sku,
     plan: license.plan,
+    addons: Array.isArray(license.addons) ? license.addons : [],
     createdAt: license.createdAt,
     expiresAt: license.expiresAt || null,
     revokedAt: license.revokedAt || null,

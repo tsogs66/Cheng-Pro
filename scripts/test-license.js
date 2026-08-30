@@ -11,6 +11,10 @@ const mail = require('../server/license/mail');
 
 const issued = lic.issueLicense({ email: 'a@b.com', sku: 'cheng-aio', plan: 'yearly' });
 assert.ok(issued.key);
+const withOrb = lic.issueLicense({ email: 'b@c.com', sku: 'voyage-chief', plan: 'lifetime', addons: ['eorb'] });
+assert.deepEqual(withOrb.addons, ['eorb']);
+const aOrb = lic.activate({ licenseKey: withOrb.key, email: 'b@c.com', seat: 'android', deviceId: 'phone1' });
+assert.deepEqual(aOrb.addons, ['eorb']);
 const a = lic.activate({ licenseKey: issued.key, email: 'a@b.com', seat: 'android', deviceId: 'd1' });
 assert.ok(lic.verifyEntitlement(a));
 assert.throws(() => lic.activate({ licenseKey: issued.key, email: 'a@b.com', seat: 'android', deviceId: 'd2' }), /seat already bound|SEAT_TAKEN/i);

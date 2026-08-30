@@ -38,6 +38,7 @@ function mountLicenseRoutes(app) {
       transferCooldownDays: license.TRANSFER_COOLDOWN_DAYS,
       transferYearlyCap: license.TRANSFER_YEARLY_CAP,
       skus: ['cheng-aio', 'voyage-chief', 'tank-chief'],
+      addons: ['eorb'],
       plans: ['yearly', 'lifetime'],
       enforce: process.env.LICENSE_ENFORCE !== '0',
       mailConfigured: mail.mailConfigured(),

@@ -74,19 +74,36 @@
       fetch: (path, init) => ChengProApi.api(path, init),
     },
     openTanks: () => {
+      if (window.ChengLicense && !ChengLicense.moduleAllowed('tanks')) {
+        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'Tank Chief not on this license' }));
+        return;
+      }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('tanks')
         : '/tanks/';
       window.location.href = base + (base.includes('?') ? '&' : '?') + 'chengaio=1';
     },
-    openVoyage: () => {
+    openVoyage: (opts) => {
+      if (window.ChengLicense && !ChengLicense.moduleAllowed('voyage') && !(opts && opts.page === 'orb' && ChengLicense.moduleAllowed('eorb'))) {
+        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'Voyage Chief not on this license' }));
+        return;
+      }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('voyage')
         : '/voyage/';
       const url = base.includes('voyage_manager') ? base : (base.replace(/\/?$/, '/') + 'voyage_manager.html');
-      window.location.href = url + (url.includes('?') ? '&' : '?') + 'chengaio=1';
+      const q = new URLSearchParams({ chengaio: '1' });
+      if (opts && opts.page) q.set('page', String(opts.page));
+      window.location.href = url + (url.includes('?') ? '&' : '?') + q.toString();
+    },
+    openEorb: () => {
+      if (window.ChengLicense && !ChengLicense.eorbLicensed()) {
+        window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'e-ORB requires ChEng AIO or an e-ORB add-on' }));
+        return;
+      }
+      root.ChengPro.openVoyage({ page: 'orb' });
     },
   };
 })(window);

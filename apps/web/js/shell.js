@@ -45,6 +45,9 @@
         if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
           next = 'license';
           showToast('Activate a license to use the suite');
+        } else if (ChengLicense.isValid(ent) && !ChengLicense.moduleAllowed(next, ent)) {
+          showToast('Not included on this license (' + (ent.sku || '') + ')');
+          next = 'home';
         }
       } catch { /* ignore */ }
     }
@@ -62,6 +65,19 @@
     } catch (e) {
       main.innerHTML = `<section class="panel"><p class="empty">${escapeHtml(e.message)}</p></section>`;
     }
+  }
+
+  function applyLicenseNav() {
+    if (!window.ChengLicense) return;
+    const ent = ChengLicense.loadEntitlement();
+    if (!ChengLicense.isValid(ent)) {
+      document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => { el.hidden = false; });
+      return;
+    }
+    const allowed = ChengLicense.modulesAllowed(ent);
+    document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => {
+      el.hidden = !allowed.includes(el.dataset.module);
+    });
   }
 
   function showToast(msg) {
@@ -178,9 +194,11 @@
     if (window.ChengLicense) {
       try {
         const gate = await ChengLicense.ensureLicensed();
+        applyLicenseNav();
         if (!gate.ok && gate.enforced) {
           showToast('Activation required — enter your license key');
           await navigate('license');
+          return;
         } else if (!gate.ok) {
           showToast('License not active — open License to activate (60-day offline grace after check)');
         } else if (ChengLicense.daysLeft(gate.entitlement) <= 7) {
@@ -191,7 +209,9 @@
 
     const vessels = ChengPro.vessel.getListSync();
     const firstRun = !vessels.length;
-    if (firstRun) {
+    const ent = window.ChengLicense && ChengLicense.loadEntitlement();
+    const canVessel = !window.ChengLicense || !ChengLicense.isValid(ent) || ChengLicense.moduleAllowed('vessel', ent);
+    if (firstRun && canVessel) {
       showToast('Offline ready — create your vessel to begin');
       await navigate('vessel');
     } else {

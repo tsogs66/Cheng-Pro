@@ -214,7 +214,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   }
   .menu-btn { display: inline-flex; }
   .bottom-nav {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; position: sticky; bottom: 0; z-index: 30;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr)); gap: 4px; position: sticky; bottom: 0; z-index: 30;
     padding: 8px 8px calc(8px + var(--safe-bottom));
     background: rgba(10,20,32,0.96); border-top: 1px solid var(--line);
   }
