@@ -157,14 +157,22 @@ function mountLicenseRoutes(app) {
 
   app.use('/api/license', r);
 
-  /* Static admin console (token entered in the page; never baked into HTML). */
+  /* Static admin console (token entered in the page; never baked into HTML).
+   * Registered on the app (not only under /api/license) so nginx/proxy hits work
+   * at /license-admin without falling through to the ChEng shell SPA. */
   const adminHtml = path.join(__dirname, '..', '..', 'apps', 'web', 'license-admin.html');
-  app.get('/license-admin', (req, res) => {
-    res.sendFile(adminHtml);
-  });
-  app.get('/license-admin.html', (req, res) => {
-    res.sendFile(adminHtml);
-  });
+  const sendAdmin = (req, res) => {
+    res.type('html');
+    res.sendFile(adminHtml, (err) => {
+      if (err) {
+        console.error('[license] failed to send license-admin.html:', err.message);
+        if (!res.headersSent) res.status(500).send('License admin page missing on server — update ChEng AIO.');
+      }
+    });
+  };
+  app.get('/license-admin', sendAdmin);
+  app.get('/license-admin/', sendAdmin);
+  app.get('/license-admin.html', sendAdmin);
 }
 
 module.exports = { mountLicenseRoutes, requireAdmin };

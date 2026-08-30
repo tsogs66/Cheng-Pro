@@ -65,10 +65,27 @@ PY
 SYNC_ADMIN_USER=admin
 SYNC_ADMIN_PASSWORD=$ADMIN_PASS
 SYNC_API_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+LICENSE_ADMIN_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+LICENSE_SIGNING_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+LICENSE_ENFORCE=1
 EOF
   chmod 600 "$ENV_FILE"
   log "Admin password (save now):"
   grep SYNC_ADMIN_PASSWORD "$ENV_FILE"
+  log "License admin token (save now):"
+  grep LICENSE_ADMIN_TOKEN "$ENV_FILE"
+else
+  # Backfill license secrets on existing installs without overwriting known values.
+  if ! grep -q '^LICENSE_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_ADMIN_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')" >>"$ENV_FILE"
+    log "Added LICENSE_ADMIN_TOKEN to $ENV_FILE"
+  fi
+  if ! grep -q '^LICENSE_SIGNING_SECRET=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_SIGNING_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >>"$ENV_FILE"
+  fi
+  if ! grep -q '^LICENSE_ENFORCE=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_ENFORCE=1" >>"$ENV_FILE"
+  fi
 fi
 
 # shellcheck disable=SC1090
@@ -94,6 +111,10 @@ Environment=TMS_DATA_DIR=$APP_DIR/data
 Environment=SYNC_ADMIN_USER=$SYNC_ADMIN_USER
 Environment=SYNC_ADMIN_PASSWORD=$SYNC_ADMIN_PASSWORD
 Environment=SYNC_API_TOKEN=$SYNC_API_TOKEN
+Environment=LICENSE_ADMIN_TOKEN=$LICENSE_ADMIN_TOKEN
+Environment=LICENSE_SIGNING_SECRET=${LICENSE_SIGNING_SECRET:-}
+Environment=LICENSE_ENFORCE=${LICENSE_ENFORCE:-1}
+Environment=LICENSE_REQUIRE_ADMIN=1
 ExecStart=$NODE_BIN $APP_DIR/server/index.js
 Restart=on-failure
 RestartSec=5
@@ -155,10 +176,11 @@ if [[ -n "$GUEST_IP" ]]; then
 else
   echo "  Network:  http://<this-CT-ip>:${PORT}/"
 fi
-echo "  Tanks:    /tanks/"
-echo "  Voyage:   /voyage/"
-echo "  Admin:    cat $ENV_FILE"
-echo "  Status:   systemctl status cheng-pro nginx"
+echo "  Tanks:          /tanks/"
+echo "  Voyage:         /voyage/"
+echo "  License admin:  /license-admin   (paste LICENSE_ADMIN_TOKEN from $ENV_FILE)"
+echo "  Secrets:        cat $ENV_FILE"
+echo "  Status:         systemctl status cheng-pro nginx"
 echo "=============================================="
 
 [[ "$ok" -eq 1 ]] || exit 1
