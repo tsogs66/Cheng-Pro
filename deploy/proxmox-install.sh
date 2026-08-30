@@ -14,6 +14,21 @@ export DEBIAN_FRONTEND=noninteractive
 log() { printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Minimal LXCs often have no sudo. Script already requires root.
+run_as_app() {
+  local user="$1"; shift
+  if command -v runuser >/dev/null 2>&1; then
+    runuser -u "$user" -- "$@"
+  elif command -v su >/dev/null 2>&1; then
+    local cmd
+    printf -v cmd '%q ' "$@"
+    su -s /bin/bash "$user" -c "$cmd"
+  else
+    # Last resort: run as root (files still chowned afterward).
+    "$@"
+  fi
+}
+
 [[ ${EUID:-0} -eq 0 ]] || die "Run as root inside the LXC."
 
 log "Installing base packages (curl, git, nginx, python3, node)…"
@@ -51,8 +66,8 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 log "npm install + seed…"
 cd "$APP_DIR"
-sudo -u "$APP_USER" npm install --omit=dev
-sudo -u "$APP_USER" npm run seed || true
+run_as_app "$APP_USER" npm install --omit=dev
+run_as_app "$APP_USER" npm run seed || true
 
 ENV_FILE="/root/cheng-pro.env"
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -65,10 +80,27 @@ PY
 SYNC_ADMIN_USER=admin
 SYNC_ADMIN_PASSWORD=$ADMIN_PASS
 SYNC_API_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+LICENSE_ADMIN_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+LICENSE_SIGNING_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+LICENSE_ENFORCE=1
 EOF
   chmod 600 "$ENV_FILE"
   log "Admin password (save now):"
   grep SYNC_ADMIN_PASSWORD "$ENV_FILE"
+  log "License admin token (save now):"
+  grep LICENSE_ADMIN_TOKEN "$ENV_FILE"
+else
+  # Backfill license secrets on existing installs without overwriting known values.
+  if ! grep -q '^LICENSE_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_ADMIN_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(24))')" >>"$ENV_FILE"
+    log "Added LICENSE_ADMIN_TOKEN to $ENV_FILE"
+  fi
+  if ! grep -q '^LICENSE_SIGNING_SECRET=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_SIGNING_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" >>"$ENV_FILE"
+  fi
+  if ! grep -q '^LICENSE_ENFORCE=' "$ENV_FILE" 2>/dev/null; then
+    echo "LICENSE_ENFORCE=1" >>"$ENV_FILE"
+  fi
 fi
 
 # shellcheck disable=SC1090
@@ -94,6 +126,10 @@ Environment=TMS_DATA_DIR=$APP_DIR/data
 Environment=SYNC_ADMIN_USER=$SYNC_ADMIN_USER
 Environment=SYNC_ADMIN_PASSWORD=$SYNC_ADMIN_PASSWORD
 Environment=SYNC_API_TOKEN=$SYNC_API_TOKEN
+Environment=LICENSE_ADMIN_TOKEN=$LICENSE_ADMIN_TOKEN
+Environment=LICENSE_SIGNING_SECRET=${LICENSE_SIGNING_SECRET:-}
+Environment=LICENSE_ENFORCE=${LICENSE_ENFORCE:-1}
+Environment=LICENSE_REQUIRE_ADMIN=1
 ExecStart=$NODE_BIN $APP_DIR/server/index.js
 Restart=on-failure
 RestartSec=5
@@ -155,10 +191,11 @@ if [[ -n "$GUEST_IP" ]]; then
 else
   echo "  Network:  http://<this-CT-ip>:${PORT}/"
 fi
-echo "  Tanks:    /tanks/"
-echo "  Voyage:   /voyage/"
-echo "  Admin:    cat $ENV_FILE"
-echo "  Status:   systemctl status cheng-pro nginx"
+echo "  Tanks:          /tanks/"
+echo "  Voyage:         /voyage/"
+echo "  License admin:  /license-admin   (paste LICENSE_ADMIN_TOKEN from $ENV_FILE)"
+echo "  Secrets:        cat $ENV_FILE"
+echo "  Status:         systemctl status cheng-pro nginx"
 echo "=============================================="
 
 [[ "$ok" -eq 1 ]] || exit 1

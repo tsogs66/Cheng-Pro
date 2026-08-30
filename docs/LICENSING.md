@@ -94,7 +94,17 @@ Voyage/Tank cloud sync tokens stay vessel/account scoped. License answers “may
 `POST /api/license/purchase-webhook` — admin: issue + always email  
 `GET/POST /api/license/admin/...` — list, force transfer, revoke, resend, audit  
 
-Admin UI: `/license-admin` (enter `LICENSE_ADMIN_TOKEN` in the page).
+Admin UI: `/license-admin` (or `/license-admin.html`). Enter `LICENSE_ADMIN_TOKEN` in the page.
+
+If that URL shows the normal ChEng AIO shell instead of “License Admin”, the server is on an older build — re-run the Proxmox install/update script, then confirm with:
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/health   # version should be ≥ 0.3.14
+curl -fsS http://127.0.0.1:8080/license-admin | head
+# expect: <title>License Admin — ChEng</title>
+```
+
+Token lives in `/root/cheng-pro.env` as `LICENSE_ADMIN_TOKEN` (created/backfilled by `deploy/proxmox-install.sh`).
 
 ### Production license host
 

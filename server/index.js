@@ -240,7 +240,13 @@ app.use(express.static(webRoot, {
 }));
 
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/') || req.path.startsWith('/tanks') || req.path.startsWith('/voyage')) {
+  if (
+    req.path.startsWith('/api/') ||
+    req.path.startsWith('/tanks') ||
+    req.path.startsWith('/voyage') ||
+    req.path === '/license-admin' ||
+    req.path === '/license-admin.html'
+  ) {
     return next();
   }
   res.sendFile(path.join(webRoot, 'index.html'));
@@ -264,10 +270,12 @@ async function boot() {
 
   const server = await new Promise((resolve, reject) => {
     const s = app.listen(PORT, HOST, () => {
-      console.log(`ChEng AIO listening on http://${HOST}:${s.address().port}`);
-      console.log(`  Shell:   http://${HOST}:${s.address().port}/`);
-      console.log(`  Tanks:   http://${HOST}:${s.address().port}/tanks/`);
-      console.log(`  Voyage:  http://${HOST}:${s.address().port}/voyage/`);
+      const base = `http://${HOST}:${s.address().port}`;
+      console.log(`ChEng AIO listening on ${base}`);
+      console.log(`  Shell:         ${base}/`);
+      console.log(`  Tanks:         ${base}/tanks/`);
+      console.log(`  Voyage:        ${base}/voyage/`);
+      console.log(`  License admin: ${base}/license-admin`);
       resolve(s);
     });
     s.on('error', reject);
