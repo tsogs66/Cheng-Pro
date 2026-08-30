@@ -45,6 +45,37 @@ function requireVoyage(req, res, next) {
   return voyageProxy(req, res);
 }
 
+/* Per-user vessel data (license email). Tank module app has its own middleware;
+ * shell vessel routes use the same store — scope them here too. */
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/shell') && !req.path.startsWith('/api/status')
+      && req.path !== '/api/admin/users') {
+    return next();
+  }
+  try {
+    const store = require('../modules/tanks/server/store');
+    const email = req.get('x-license-email') || null;
+    const master = req.get('x-license-master') === '1';
+    const actAs = master ? (req.get('x-act-as-user') || null) : null;
+    if (typeof store.runWithUserScope === 'function') {
+      return store.runWithUserScope({ email, master, actAs }, () => next());
+    }
+  } catch { /* store not ready */ }
+  return next();
+});
+
+app.get('/api/admin/users', (req, res) => {
+  try {
+    const store = require('../modules/tanks/server/store');
+    if (!store.isMasterScope || !store.isMasterScope()) {
+      return res.status(403).json({ error: 'Forbidden — master license required' });
+    }
+    res.json({ users: store.listUserDatabases() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ---------- Combined health ---------- */
 app.get('/api/health', async (req, res) => {
   let voyage = null;

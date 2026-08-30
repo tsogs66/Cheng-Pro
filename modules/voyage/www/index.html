@@ -1719,7 +1719,9 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
   <!-- VESSEL DATA (internal page id: setup) -->
   <div class="page" id="page-setup">
-    <div class="panel">
+    <!-- ARCHIVED (APP_FEATURES.accountLogin / vesselAssignmentUi): fleet account sign-in.
+         Code + handlers remain for future use; see docs/ARCHIVED_FEATURES.md -->
+    <div class="panel" id="accountAssignmentPanel" hidden>
       <h2>Account &amp; Vessel Assignment</h2>
       <div class="login-signed" id="assignedVesselLabel">Not signed in — no vessel assigned</div>
       <div class="btn-row" style="margin-top:10px;">
@@ -1729,6 +1731,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Your login decides which vessel this program loads. A chief engineer is fixed to one ship; a fleet manager picks one ship at a time, or stays in Fleet Office with none loaded.</div>
     </div>
 
+    <!-- ARCHIVED (APP_FEATURES.fleetOffice): Fleet Office panel kept in DOM for future use -->
     <div class="panel" id="fleetOfficePanel" hidden>
       <h2>Fleet Office</h2>
       <p class="hint">One live chief engineer per ship. Create an account, then Assign on that row — do not reuse the create form. Posting someone onto an occupied ship signs the incumbent off. Generated passwords are shown once — copy them onto the handover sheet.</p>
@@ -1784,8 +1787,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
     </div>
 
-    <div class="panel">
-      <h2>Fleet — Vessel Selection</h2>
+    <div class="panel" id="vesselSelectionPanel">
+      <h2>Vessel Selection</h2>
       <div class="vessel-locked-note" id="vesselLockNote"></div>
       <div class="form-grid cols3">
         <div class="field span2">
@@ -3117,7 +3120,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div id="remoteVoyageList" class="hint" style="display:none; margin-top:8px;"></div>
       <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden). Sync Now pushes the active voyage + condition only.</div>
     </div>
-    <div class="panel" id="androidInstallPanel">
+    <!-- ARCHIVED (APP_FEATURES.installAndroid): install panels kept for future use -->
+    <div class="panel" id="androidInstallPanel" hidden>
       <h2>Install on Android / tablet</h2>
       <div class="hint" id="androidInstallHint">Install Voyage Chief on this device for offline use and a home-screen icon. Works on Android phones, Android tablets, and iPad (Safari). On slow ship internet, wait for the progress bar to finish before leaving this page.</div>
       <div class="btn-row" style="margin-top:10px;">
@@ -3145,7 +3149,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         2. Tap Share → <strong>Add to Home Screen</strong> → Add.
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" id="pcInstallPanel" hidden>
       <h2>Install on PC (local)</h2>
       <div class="hint">First-time ship PC setup — one command installs Voyage Chief onto the computer and always runs it locally (<code>http://127.0.0.1</code>), not from the website. Later updates use the same local install. Voyage data stays in this PC’s browser.</div>
       <div class="field span2" style="margin-top:10px;">
@@ -4477,6 +4481,44 @@ function paintActivity(force){
   }
 }
 /* ACTIVITY_PROGRESS_END */
+
+/* ---------------- feature archive (safekept for future use) ---------------- */
+/**
+ * Product packaging flags. Set true to restore archived fleet-account flows.
+ * Server auth routes and client handlers stay in the file; only UI/boot is gated.
+ * Snapshot before this change: branch archive/pre-license-login-1944
+ */
+const APP_FEATURES = {
+  accountLogin: false,       /* username/password gate + Account panel */
+  fleetOffice: false,        /* Fleet Office panel + login Open Fleet Office */
+  vesselAssignmentUi: false, /* Account & Vessel Assignment block */
+  installAndroid: false,     /* Setup → Install on Android */
+  installPc: false,          /* Setup → Install on PC */
+  serverSync: true,          /* Setup → Server Sync URL (kept) */
+};
+
+function applyArchivedFeatureVisibility(){
+  const f = APP_FEATURES;
+  const hide = (id, on) => { const el = document.getElementById(id); if (el) el.hidden = !!on; };
+  hide('loginGate', !f.accountLogin);
+  hide('accountAssignmentPanel', !(f.accountLogin || f.vesselAssignmentUi));
+  hide('fleetOfficePanel', !f.fleetOffice);
+  hide('androidInstallPanel', !f.installAndroid);
+  hide('pcInstallPanel', !f.installPc);
+  const syncPanel = document.querySelector('#page-data .panel');
+  /* Server Sync is the first panel on Setup — leave visible when serverSync true */
+  if (!f.serverSync && syncPanel && syncPanel.querySelector('#sync_serverUrl')) {
+    syncPanel.hidden = true;
+  }
+  /* License identity replaces fleet login when archived */
+  try {
+    const note = document.getElementById('vesselLockNote');
+    if (note && !f.accountLogin) {
+      const email = (window.ChengLicense && ChengLicense.licenseEmail && ChengLicense.licenseEmail()) || '';
+      if (email) note.textContent = `Licensed to ${email}. Vessels you add stay in your account database on the sync server.`;
+    }
+  } catch (_) {}
+}
 
 /* ---------------- state ---------------- */
 const state = {
@@ -16481,6 +16523,12 @@ function syncRequestHeaders(extra){
   if (token) headers.Authorization = 'Bearer ' + token;
   if (deviceId) headers['X-Device-Id'] = deviceId;
   if (deviceName) headers['X-Device-Name'] = deviceName;
+  /* Email-scoped server folders: data/users/<email-slug>/<vessel>/… */
+  try {
+    if (window.ChengLicense && typeof ChengLicense.authHeaders === 'function') {
+      Object.assign(headers, ChengLicense.authHeaders());
+    }
+  } catch (_) {}
   return headers;
 }
 
@@ -20382,8 +20430,9 @@ function renderVesselLock(){
       : '';
   }
   const office = document.getElementById('fleetOfficePanel');
-  if (office) office.hidden = !isAdmin;
-  if (isAdmin) renderFleetOffice();
+  if (office) office.hidden = !APP_FEATURES.fleetOffice || !isAdmin;
+  if (APP_FEATURES.fleetOffice && isAdmin) renderFleetOffice();
+  applyArchivedFeatureVisibility();
 }
 
 /** True when Voyage runs inside ChEng AIO (iframe / shell). */
@@ -21202,6 +21251,18 @@ document.getElementById('fleetOfficePanel')?.addEventListener('click', (e)=>{
  * and its vessel assignment is already known.
  */
 async function initLoginGate(){
+  /* Archived: fleet username/password sign-in. License email+key is the gate. */
+  if (!APP_FEATURES.accountLogin){
+    showLoginGate(false);
+    state.session = state.session || { offline: true, role: 'license', username: null, vessel: null };
+    try {
+      const email = window.ChengLicense && ChengLicense.licenseEmail && ChengLicense.licenseEmail();
+      if (email) state.session.licenseEmail = email;
+    } catch (_) {}
+    renderVesselLock();
+    applyArchivedFeatureVisibility();
+    return;
+  }
   const stored = readStoredSession();
   const sync = ensureSyncConfig();
   const enroll = readDeviceEnrollment();
@@ -21305,6 +21366,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       if (window.ChengLicense) await ChengLicense.ensureLicensed();
     } catch (licErr) { console.warn('License gate', licErr); }
     try { applyEorbLicenseVisibility(); } catch (_) {}
+    try { applyArchivedFeatureVisibility(); } catch (_) {}
 
     beginActivity('boot', 'Opening the local database…', { source: 'program' });
     if (penInputLikely()) enablePenInputMode();

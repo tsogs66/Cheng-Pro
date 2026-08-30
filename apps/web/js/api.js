@@ -28,6 +28,11 @@
       headers['X-Session-Token'] = token;
       headers.Authorization = 'Bearer ' + token;
     }
+    try {
+      if (typeof ChengLicense !== 'undefined' && ChengLicense.authHeaders) {
+        Object.assign(headers, ChengLicense.authHeaders());
+      }
+    } catch { /* ignore */ }
     const res = await fetch(path, { ...options, headers });
     const text = await res.text();
     let data = null;

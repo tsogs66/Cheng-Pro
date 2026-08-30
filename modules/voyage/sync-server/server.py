@@ -3,6 +3,8 @@
 
 Stores voyage snapshots as JSON files under:
   <DATA_DIR>/<vessel>/<voyageNo>/<CONDITION>.json
+  or, when X-License-Email is sent:
+  <DATA_DIR>/users/<email-slug>/<vessel>/<voyageNo>/<CONDITION>.json
 
 Each voyage number is a folder; B (ballast) and L (laden) legs are separate files
 so records stay short and can be pulled independently. Voyage condition is only B or L.
@@ -39,6 +41,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
+import threading
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from accounts import (  # noqa: E402
@@ -49,6 +53,31 @@ from accounts import (  # noqa: E402
     AccountError,
     AccountStore,
 )
+
+# Per-request license email → data/users/<email-slug>/…
+_request_ctx = threading.local()
+
+
+def current_license_email() -> Optional[str]:
+    return getattr(_request_ctx, "email", None)
+
+
+def bind_request_license_email(handler: BaseHTTPRequestHandler) -> None:
+    """Scope vessel files under users/<email>/ when X-License-Email is set.
+
+    Master (X-License-Master: 1) may pass X-Act-As-User to open another account.
+    Master without act-as keeps the legacy unscoped DATA_DIR root.
+    """
+    master = (handler.headers.get("X-License-Master") or "").strip() == "1"
+    act_as = (handler.headers.get("X-Act-As-User") or "").strip().lower()
+    email = (handler.headers.get("X-License-Email") or "").strip().lower()
+    if master and act_as:
+        _request_ctx.email = act_as
+    elif master:
+        _request_ctx.email = None
+    else:
+        _request_ctx.email = email or None
+
 
 DATA_DIR = Path(os.environ.get("SYNC_DATA_DIR", "./sync-data"))
 DEFAULT_API_TOKEN = "change-me-in-production"
@@ -98,38 +127,44 @@ def safe_condition(value: str) -> str:
     return "B"
 
 
-def vessel_dir(vessel: str) -> Path:
-    return DATA_DIR / safe_slug(vessel)
+def vessel_dir(vessel: str, email: str | None = None) -> Path:
+    """Vessel folder. With license email scope, nest under users/<email-slug>/."""
+    if email is None:
+        email = current_license_email()
+    root = DATA_DIR
+    if email:
+        root = DATA_DIR / "users" / safe_slug(email)
+    return root / safe_slug(vessel)
 
 
-def voyage_dir(vessel: str, voyage: str) -> Path:
-    return vessel_dir(vessel) / safe_slug(voyage)
+def voyage_dir(vessel: str, voyage: str, email: str | None = None) -> Path:
+    return vessel_dir(vessel, email) / safe_slug(voyage)
 
 
-def voyage_leg_path(vessel: str, voyage: str, condition: str) -> Path:
-    return voyage_dir(vessel, voyage) / f"{safe_condition(condition)}.json"
+def voyage_leg_path(vessel: str, voyage: str, condition: str, email: str | None = None) -> Path:
+    return voyage_dir(vessel, voyage, email) / f"{safe_condition(condition)}.json"
 
 
-def legacy_flat_path(vessel: str, voyage: str, condition: str) -> Path:
+def legacy_flat_path(vessel: str, voyage: str, condition: str, email: str | None = None) -> Path:
     """Old layout: <vessel>/<voyage>-<CONDITION>.json"""
-    return vessel_dir(vessel) / f"{safe_slug(voyage)}-{safe_condition(condition)}.json"
+    return vessel_dir(vessel, email) / f"{safe_slug(voyage)}-{safe_condition(condition)}.json"
 
 
-def resolve_leg_path(vessel: str, voyage: str, condition: str) -> Path:
+def resolve_leg_path(vessel: str, voyage: str, condition: str, email: str | None = None) -> Path:
     """Prefer B.json/L.json; fall back to legacy BALLAST/LADEN names and flat files."""
     cond = safe_condition(condition)
-    folder = voyage_leg_path(vessel, voyage, cond)
+    folder = voyage_leg_path(vessel, voyage, cond, email)
     if folder.exists():
         return folder
     # Legacy full-word filenames inside voyage folder
     legacy_word = {"B": "BALLAST", "L": "LADEN"}[cond]
-    word_path = voyage_dir(vessel, voyage) / f"{legacy_word}.json"
+    word_path = voyage_dir(vessel, voyage, email) / f"{legacy_word}.json"
     if word_path.exists():
         return word_path
-    legacy = legacy_flat_path(vessel, voyage, cond)
+    legacy = legacy_flat_path(vessel, voyage, cond, email)
     if legacy.exists():
         return legacy
-    legacy_flat_word = vessel_dir(vessel) / f"{safe_slug(voyage)}-{legacy_word}.json"
+    legacy_flat_word = vessel_dir(vessel, email) / f"{safe_slug(voyage)}-{legacy_word}.json"
     if legacy_flat_word.exists():
         return legacy_flat_word
     return folder
@@ -154,7 +189,7 @@ def send_cors(handler: BaseHTTPRequestHandler) -> None:
     handler.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
     handler.send_header(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token",
+        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token, X-License-Email, X-License-Master, X-Act-As-User",
     )
     handler.send_header("Access-Control-Expose-Headers", "ETag")
     handler.send_header("Access-Control-Max-Age", "86400")
@@ -267,6 +302,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         print(f"[{utc_now()}] {self.address_string()} {fmt % args}")
 
     def do_OPTIONS(self) -> None:
+        bind_request_license_email(self)
         self.send_response(HTTPStatus.NO_CONTENT)
         send_cors(self)
         self.end_headers()
@@ -470,6 +506,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self) -> None:
+        bind_request_license_email(self)
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             json_response(
@@ -710,6 +747,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         return out
 
     def do_POST(self) -> None:
+        bind_request_license_email(self)
         parsed = urlparse(self.path)
         parts = [p for p in parsed.path.strip("/").split("/") if p]
         try:
@@ -758,6 +796,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_DELETE(self) -> None:
+        bind_request_license_email(self)
         parsed = urlparse(self.path)
         parts = [p for p in parsed.path.strip("/").split("/") if p]
         try:
@@ -1137,6 +1176,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         )
 
     def do_PUT(self) -> None:
+        bind_request_license_email(self)
         parsed = urlparse(self.path)
         parts = [p for p in parsed.path.strip("/").split("/") if p]
         if not (parts and parts[0] == "api" and parts[1] == "voyage"):

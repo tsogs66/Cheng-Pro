@@ -227,3 +227,20 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .theme-fab { display: inline-flex; }
   :root { --bottom-h: 56px; }
 }
+
+/* Tablet landscape — keep sidebar usable, tighten chrome */
+@media (min-width: 901px) and (max-width: 1180px) and (orientation: landscape) {
+  .sidebar { width: 200px; }
+  .brand-text strong { font-size: 1rem; }
+  .grid-2 { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .panel { padding: 14px; }
+}
+
+/* Phone landscape — prefer bottom nav, compact topbar */
+@media (orientation: landscape) and (max-height: 480px) {
+  .topbar { padding-top: 6px; padding-bottom: 6px; }
+  .sidebar { display: none; }
+  .bottom-nav { display: grid; }
+  .menu-btn { display: none; }
+  :root { --bottom-h: 48px; }
+}
