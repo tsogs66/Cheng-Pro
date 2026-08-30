@@ -853,8 +853,8 @@ function describePeerFetchError(err, url) {
   if (/Failed to fetch|fetch failed|NetworkError|Load failed|getaddrinfo|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|certificate|SSL|TLS/i.test(msg)) {
     return (
       'Could not reach peer at ' + target + '. ' +
-      'Use your Cheng-Pro LAN address (e.g. http://192.168.0.132:8080) while on ship Wi‑Fi, ' +
-      'or a public hostname that actually resolves and serves Cheng-Pro. ' +
+      'Use your ChEng AIO LAN address (e.g. http://192.168.0.132:8080) while on ship Wi‑Fi, ' +
+      'or a public hostname that actually resolves and serves ChEng AIO. ' +
       'HTTPS needs a valid certificate. Standalone Tank Chief uses port 3080. ' +
       '(' + msg + ')'
     );

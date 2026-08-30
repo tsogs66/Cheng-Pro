@@ -74,7 +74,7 @@
       const res = await LocalApi.handle('GET', '/api/health');
       return {
         ok: true,
-        product: 'cheng-pro',
+        product: 'cheng-aio',
         version: 'bundled',
         modules: {
           tanks: { ok: res.status < 400, ...(res.body || {}) },
@@ -98,7 +98,7 @@
       } catch (err) {
         /* Offline with server transport — fall back to on-device so Vessel holds. */
         if (/Failed to fetch|NetworkError|Load failed|fetch failed/i.test(err.message || '')) {
-          console.warn('Cheng-Pro shell: server unreachable, using on-device vessel store');
+          console.warn('ChEng AIO shell: server unreachable, using on-device vessel store');
           const method = (options.method || 'GET').toUpperCase();
           let body = options.body;
           if (typeof body === 'string') {

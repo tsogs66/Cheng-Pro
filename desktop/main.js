@@ -1,5 +1,5 @@
 /**
- * Cheng-Pro desktop (Electron).
+ * ChEng AIO desktop (Electron).
  */
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
@@ -24,7 +24,7 @@ async function createWindow(port) {
     height: 840,
     minWidth: 960,
     minHeight: 640,
-    title: 'Cheng-Pro',
+    title: 'ChEng AIO',
     backgroundColor: '#07141a',
     webPreferences: {
       nodeIntegration: false,

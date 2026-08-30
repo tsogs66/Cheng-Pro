@@ -52,7 +52,7 @@ async function main() {
   try {
     const health = await request(port, 'GET', '/api/health');
     assert.equal(health.status, 200);
-    assert.equal(health.json.product, 'cheng-pro');
+    assert.equal(health.json.product, 'cheng-aio');
     assert.ok(health.json.modules.voyage.ok, 'voyage sync should be ok');
     assert.ok(health.json.modules.tanks.ok, 'tanks should be ok');
 
@@ -78,7 +78,7 @@ async function main() {
 
     const tankPage = await request(port, 'GET', '/tanks/');
     assert.equal(tankPage.status, 200);
-    assert.ok(String(tankPage.raw).includes('Cheng-Pro') || String(tankPage.raw).includes('Tank'));
+    assert.ok(String(tankPage.raw).includes('ChEng AIO') || String(tankPage.raw).includes('Tank'));
 
     const voyagePage = await request(port, 'GET', '/voyage/');
     assert.equal(voyagePage.status, 200);
@@ -98,7 +98,7 @@ async function main() {
 
     const shell = await request(port, 'GET', '/');
     assert.equal(shell.status, 200);
-    assert.ok(String(shell.raw).includes('Cheng-Pro'));
+    assert.ok(String(shell.raw).includes('ChEng AIO'));
     assert.ok(String(shell.raw).includes('Performance'), 'Performance menu item');
     assert.ok(String(shell.raw).includes('perf-calc.js'), 'perf-calc script');
     assert.ok(String(shell.raw).includes('voyage-bridge.js'), 'voyage bridge script');

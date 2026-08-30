@@ -1,6 +1,6 @@
 {
   "appId": "marine.chengpro.app",
-  "appName": "Cheng-Pro",
+  "appName": "ChEng AIO",
   "webDir": "www-android",
   "server": {
     "androidScheme": "https"

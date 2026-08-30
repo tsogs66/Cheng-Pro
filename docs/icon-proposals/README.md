@@ -1,11 +1,7 @@
-# Cheng-Pro icon — selected
+# ChEng AIO icon — selected
 
-**Selected: G — Monogram CP** (polished variant).
+**Selected: 06 — Twin motifs** (Tank sounding + Voyage gauge).
 
-Applied to:
-- Android launcher (`mipmap-*`) and splash
-- Desktop Electron (`desktop/build/icon.png`)
-- Web shell favicon / PWA / brand mark (`apps/web/icons/`)
-- Tank module icons (`modules/tanks/public/icons/`)
+Applied as the program icon for Android, desktop, and web.
 
-Master files: `SELECTED-G-monogram.png` / `SELECTED-G-monogram.svg` and `apps/web/icons/icon.svg`.
+Previously evaluated options 01–10 and A–J remain in this folder for reference.

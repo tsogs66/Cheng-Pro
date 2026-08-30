@@ -172,7 +172,7 @@
   boot().catch((e) => {
     console.error(e);
     main.innerHTML = `<section class="panel hero">
-      <h1>Cheng-Pro</h1>
+      <h1>ChEng AIO</h1>
       <p>Could not finish startup: ${escapeHtml(e.message || 'unknown error')}.</p>
       <div class="form-actions" style="margin-top:16px">
         <button type="button" class="btn primary" id="retryBoot">Try again</button>

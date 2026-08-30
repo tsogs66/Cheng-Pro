@@ -7,7 +7,7 @@ window.ChengProModules.voyage = {
     root.innerHTML = `
       <section class="panel hero">
         <h1>Voyage Chief</h1>
-        <p>Full noon-report, ROB, e-ORB and fleet sync module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Sign in with fleet credentials; sync URL defaults to this Cheng-Pro server.</p>
+        <p>Full noon-report, ROB, e-ORB and fleet sync module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Sign in with fleet credentials; sync URL defaults to this ChEng AIO server.</p>
         <div class="form-actions" style="margin-top:16px">
           <button type="button" class="btn primary" id="launchVoyage">Launch Voyage Chief</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
@@ -37,7 +37,7 @@ window.ChengProModules.tanks = {
     root.innerHTML = `
       <section class="panel hero">
         <h1>Tank Chief</h1>
-        <p>Full sounding, calibration, fuel report and bunkering module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Active vessel is shared with Cheng-Pro and Voyage.</p>
+        <p>Full sounding, calibration, fuel report and bunkering module${active ? ' for <strong>' + esc(active.name) + '</strong>' : ''}. Active vessel is shared with ChEng AIO and Voyage.</p>
         <div class="form-actions" style="margin-top:16px">
           <button type="button" class="btn primary" id="launchTanks">Launch Tank Chief</button>
           <button type="button" class="btn" data-go="vessel">Vessel Setup</button>

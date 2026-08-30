@@ -53,7 +53,7 @@
           try {
             await refreshList();
           } catch (err) {
-            console.warn('Cheng-Pro vessel list:', err.message);
+            console.warn('ChEng AIO vessel list:', err.message);
           }
         }
         return list.slice();

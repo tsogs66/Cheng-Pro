@@ -2864,10 +2864,10 @@ function renderSettings(main) {
       <div class="form-row"><label>Database</label>
         <select id="api-transport">
           <option value="local">On this device — works offline (recommended)</option>
-          <option value="server" id="api-transport-server">On the Cheng-Pro server (needs network)</option>
+          <option value="server" id="api-transport-server">On the ChEng AIO server (needs network)</option>
         </select></div>
       <div class="hint" data-transport-note style="margin-top:8px;color:var(--text-faint);font-size:12px"></div>
-      <p class="hint" style="margin-top:8px">Cheng-Pro is offline-first: keep <strong>On this device</strong> for daily work. Use Pull/Push below when you have Cloudflare or LAN — same idea as Voyage Chief sync.</p>
+      <p class="hint" style="margin-top:8px">ChEng AIO is offline-first: keep <strong>On this device</strong> for daily work. Use Pull/Push below when you have Cloudflare or LAN — same idea as Voyage Chief sync.</p>
     </div>
     <div class="form-panel">
       <div class="section-title" style="margin-top:0">Remote sync (Cloudflare / Proxmox / office)</div>
@@ -2875,7 +2875,7 @@ function renderSettings(main) {
         <input id="sync-url" value="${escapeHtml(s.syncUrl || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().serverUrl) || '')}" placeholder="https://your-tunnel.example.com or http://192.168.0.132:8080" inputmode="url" autocomplete="url"></div>
       <div class="form-row"><label>API token (optional)</label>
         <input id="sync-api-token" type="password" value="${escapeHtml(s.syncApiToken || (Api.voyageSyncCredentials && Api.voyageSyncCredentials().apiToken) || '')}" placeholder="Same Bearer token as Voyage Chief sync" autocomplete="off"></div>
-      <p class="hint" style="margin:6px 0 0">Peer URL can be your <strong>standalone Tank</strong> tunnel (e.g. <code>https://tankmanagement…</code>) or the Cheng-Pro / Voyage Cloudflare root. We try <code>/api/sync/…</code> and <code>/tanks/api/sync/…</code>. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
+      <p class="hint" style="margin:6px 0 0">Peer URL can be your <strong>standalone Tank</strong> tunnel (e.g. <code>https://tankmanagement…</code>) or the ChEng AIO / Voyage Cloudflare root. We try <code>/api/sync/…</code> and <code>/tanks/api/sync/…</code>. Token is reused from Voyage when left blank. LAN: <code>http://&lt;LXC-IP&gt;:8080</code>.</p>
       <div class="btn-row">
         <button class="btn" id="btn-save-sync">Save settings</button>
         <button class="btn" id="btn-probe-sync">Test connection</button>
@@ -2968,7 +2968,7 @@ function renderSettings(main) {
   const transportNote = document.querySelector('[data-transport-note]');
   const serverOption = document.getElementById('api-transport-server');
   if (serverOption && Api.isBundledClient && Api.isBundledClient()) {
-    serverOption.textContent = 'On the Cheng-Pro server (needs sync URL below)';
+    serverOption.textContent = 'On the ChEng AIO server (needs sync URL below)';
   }
   if (transportBox) {
     transportBox.value = Api.getTransport();
@@ -2978,7 +2978,7 @@ function renderSettings(main) {
       const base = Api.getServerBase() || s.syncUrl || '';
       transportNote.textContent = base
         ? `Records are read and saved on ${base}. This device keeps a cached copy when the server is out of reach.`
-        : 'Enter the Cheng-Pro server URL below, save settings, then switch to server mode.';
+        : 'Enter the ChEng AIO server URL below, save settings, then switch to server mode.';
     } else {
       transportNote.textContent = onServer
         ? 'Records are on the server. This device shows a cached copy when the server is out of reach.'
@@ -2990,7 +2990,7 @@ function renderSettings(main) {
       if (mode === 'server' && Api.isBundledClient && Api.isBundledClient()) {
         const url = document.getElementById('sync-url')?.value.trim() || Api.getServerBase() || '';
         if (!url) {
-          showToast('Enter the Cheng-Pro server URL below and save settings first');
+          showToast('Enter the ChEng AIO server URL below and save settings first');
           transportBox.value = Api.getTransport();
           return;
         }
@@ -3021,7 +3021,7 @@ function renderSettings(main) {
     setSettingsBusy(true);
     try {
       /* Peer sync URL is for Pull/Push only. Do not set apiServerBase here —
-         that forced the Cheng-Pro Vessel tab onto the network and dropped
+         that forced the ChEng AIO Vessel tab onto the network and dropped
          on-device vessels when offline / airplane mode. */
       if (Api.getTransport() === 'server') {
         Api.setServerBase(syncUrl);

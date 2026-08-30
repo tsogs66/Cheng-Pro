@@ -1,7 +1,7 @@
 {
-  "name": "Cheng-Pro",
-  "short_name": "Cheng-Pro",
-  "description": "All-in-one chief engineer suite — voyage and tank management",
+  "name": "ChEng AIO",
+  "short_name": "ChEng AIO",
+  "description": "ChEng AIO — all-in-one marine chief engineer suite (Voyage Chief + Tank Chief)",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

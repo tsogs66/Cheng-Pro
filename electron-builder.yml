@@ -1,5 +1,5 @@
 appId: marine.chengpro.app
-productName: Cheng-Pro
+productName: ChEng AIO
 copyright: ts0gs (Marvin C. Endozo)
 
 directories:
@@ -35,7 +35,7 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
-  artifactName: ChengPro-${version}-${arch}.${ext}
+  artifactName: ChEngAIO-${version}-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -43,14 +43,14 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Cheng-Pro
-  uninstallDisplayName: Cheng-Pro
+  shortcutName: ChEng AIO
+  uninstallDisplayName: ChEng AIO
 
 portable:
-  artifactName: ChengPro-Portable-${version}-${arch}.${ext}
+  artifactName: ChEngAIO-Portable-${version}-${arch}.${ext}
 
 linux:
   target:
     - AppImage
   category: Utility
-  artifactName: ChengPro-${version}.${ext}
+  artifactName: ChEngAIO-${version}.${ext}

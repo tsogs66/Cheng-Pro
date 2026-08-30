@@ -1,12 +1,12 @@
-# Cheng-Pro
+# ChEng AIO
 
 All-in-one software for marine chief engineers: **Voyage Chief** + **Tank Chief** under one shell, one Proxmox/Debian server, and shared active vessel.
 
-## What you get (v0.2)
+## What you get
 
 | Surface | URL | Source |
 |---------|-----|--------|
-| Cheng-Pro shell | `/` | Shared vessel setup + launcher |
+| ChEng AIO shell | `/` | Shared vessel setup + launcher |
 | Tank Chief (full) | `/tanks/` | Ported from `tank-management` |
 | Voyage Chief (full) | `/voyage/` | Ported from `voyage-manager` |
 | Auth + voyage sync | `/api/auth`, `/api/admin`, `/api/voyage`, … | Voyage Python sync-server |
@@ -37,7 +37,7 @@ Admin login (Voyage / Fleet Office): username `admin`, password from `SYNC_ADMIN
 
 | Target | Command / artifact |
 |--------|---------------------|
-| Windows installer + portable EXE | `npm run dist:win` (electron-builder) → `ChengPro-*.exe` |
+| Windows installer + portable EXE | `npm run dist:win` (electron-builder) → `ChEngAIO-*.exe` |
 | Linux AppImage | `npm run dist:linux` |
 | Android APK | `npm run android:apk` (after Android SDK). Release APK is **signed for sideload** — enable “Install unknown apps” for your file manager. If install fails, use Chrome → `http://<server>:8080` → **Add to Home screen** (PWA). |
 | CI | `.github/workflows/release.yml` on `v*` tags |
@@ -61,7 +61,7 @@ Installs Node + Python3, nginx :8080 → gateway, writes `/root/cheng-pro.env` w
 ## Layout
 
 ```
-apps/web/                 Cheng-Pro shell
+apps/web/                 ChEng AIO shell
 modules/tanks/            Full Tank Chief (public + server)
 modules/voyage/           Voyage SPA (www) + Python sync-server
 server/index.js           Unified gateway

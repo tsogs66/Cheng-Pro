@@ -14,7 +14,7 @@ window.ChengProModules.home = {
 
     root.innerHTML = `
       <section class="panel hero">
-        <h1>Cheng-Pro</h1>
+        <h1>ChEng AIO</h1>
         <p>${firstRun
           ? 'Works fully offline on this device. Create a vessel to unlock Voyage Chief, Tank Chief, and Performance — no network required.'
           : 'All-in-one suite for marine chief engineers. One active vessel feeds full Voyage Chief and Tank Chief side by side. Ship details are shared; voyage and tank records stay in their own stores.'

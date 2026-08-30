@@ -64,7 +64,7 @@ const Api = (() => {
     if (transport !== 'server' || !isBundledClient()) return prefixed;
     const base = getServerBase();
     if (!base) {
-      const err = new Error('Set the Cheng-Pro server URL under Backup / Sync before using server mode');
+      const err = new Error('Set the ChEng AIO server URL under Backup / Sync before using server mode');
       err.status = 400;
       err.rejected = true;
       throw err;
@@ -584,7 +584,7 @@ const Api = (() => {
     if (htmlHits.length) {
       throw new Error(
         'Peer returned a web page instead of Tank sync JSON at: ' + htmlHits.join('; ') + '. ' +
-        'Standalone Tank Chief (e.g. tankmanagement.*) uses /api/sync/… — Cheng-Pro unified uses /tanks/api/sync/…. ' +
+        'Standalone Tank Chief (e.g. tankmanagement.*) uses /api/sync/… — ChEng AIO unified uses /tanks/api/sync/…. ' +
         'Keep Tank on “On this device” and confirm /api/sync/export opens as JSON in a browser.'
       );
     }

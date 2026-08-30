@@ -69,7 +69,7 @@ if (!fs.existsSync(keystorePath)) {
       '-keyalg RSA -keysize 2048 -validity 10000',
       `-storepass "${pass}"`,
       `-keypass "${pass}"`,
-      '-dname "CN=Cheng-Pro, OU=Mobile, O=Cheng-Pro, C=US"',
+      '-dname "CN=ChEng AIO, OU=Mobile, O=ChEng AIO, C=US"',
     ].join(' '),
     { stdio: 'inherit' }
   );

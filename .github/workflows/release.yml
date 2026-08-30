@@ -60,7 +60,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-release.apk "dist/ChengPro-${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/ChEngAIO-${VERSION}.apk"
           ls -lh dist/
       - uses: actions/upload-artifact@v4
         with:
@@ -89,13 +89,13 @@ jobs:
           files: release/*
           fail_on_unmatched_files: false
           body: |
-            ## Cheng-Pro ${{ github.ref_name }}
+            ## ChEng AIO ${{ github.ref_name }}
 
             All-in-one marine chief engineer suite: **Voyage Chief** + **Tank Chief**.
 
             ### Install
             - **Windows**: run the NSIS installer, or use the portable EXE from USB
-            - **Android**: install `ChengPro-*.apk` (signed for sideload). On the phone: Settings → Security → allow install from your file manager or browser. If v0.2.0 failed, use this build or add the PWA from `http://<server>:8080` via Chrome → Add to Home screen.
+            - **Android**: install `ChEngAIO-*.apk` (signed for sideload). On the phone: Settings → Security → allow install from your file manager or browser. If v0.2.0 failed, use this build or add the PWA from `http://<server>:8080` via Chrome → Add to Home screen.
             - **Server (Proxmox/Debian)**: see `deploy/proxmox-install.sh`
 
             ### Run from source

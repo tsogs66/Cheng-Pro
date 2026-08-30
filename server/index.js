@@ -1,5 +1,5 @@
 /**
- * Cheng-Pro unified gateway
+ * ChEng AIO unified gateway
  * - Shell UI at /
  * - Full Tank Chief at /tanks (API /tanks/api/*)
  * - Full Voyage Chief SPA at /voyage
@@ -67,7 +67,7 @@ app.get('/api/health', async (req, res) => {
   }
   res.json({
     ok: true,
-    product: 'cheng-pro',
+    product: 'cheng-aio',
     version: require('../package.json').version,
     modules: { voyage, tanks },
     time: new Date().toISOString(),
@@ -187,7 +187,7 @@ app.get('/voyage/*', (req, res, next) => {
   res.sendFile(path.join(voyageWww, 'index.html'));
 });
 
-/* Cheng-Pro shell */
+/* ChEng AIO shell */
 const webRoot = path.join(ROOT, 'apps', 'web');
 app.use(express.static(webRoot, {
   etag: false,
@@ -212,7 +212,7 @@ app.use((err, req, res, next) => {
 });
 
 async function boot() {
-  console.log(`Cheng-Pro data directory: ${DATA_DIR}`);
+  console.log(`ChEng AIO data directory: ${DATA_DIR}`);
   try {
     voyageMeta = await startVoyageSync({ port: SYNC_PORT, chengDataDir: DATA_DIR });
     voyageProxy = proxyToVoyage(voyageMeta.port);
@@ -224,7 +224,7 @@ async function boot() {
 
   const server = await new Promise((resolve, reject) => {
     const s = app.listen(PORT, HOST, () => {
-      console.log(`Cheng-Pro listening on http://${HOST}:${s.address().port}`);
+      console.log(`ChEng AIO listening on http://${HOST}:${s.address().port}`);
       console.log(`  Shell:   http://${HOST}:${s.address().port}/`);
       console.log(`  Tanks:   http://${HOST}:${s.address().port}/tanks/`);
       console.log(`  Voyage:  http://${HOST}:${s.address().port}/voyage/`);
