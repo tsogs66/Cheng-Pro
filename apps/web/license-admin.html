@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>License Admin — ChEng</title>
+  <style>
+    :root {
+      --bg: #0a1420; --panel: #122238; --text: #e9e4d6; --muted: #a9a292;
+      --brass: #c99a53; --teal: #57b3ab; --alert: #e06a4c; --line: rgba(233,228,214,.16);
+      --font: "Segoe UI", "Helvetica Neue", sans-serif; --mono: "IBM Plex Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: var(--font); color: var(--text);
+      background: radial-gradient(1000px 500px at 10% -10%, #16283f, transparent), var(--bg);
+      padding: 24px 18px 48px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: .9rem; margin-bottom: 18px; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px 18px; margin-bottom: 16px;
+    }
+    label { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%; background: #0a1420; border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: 8px 10px; font: inherit;
+    }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button {
+      border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--text);
+      border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600;
+    }
+    button.primary { background: var(--brass); color: #0a1420; border-color: var(--brass); }
+    button.danger { color: var(--alert); border-color: rgba(224,106,76,.5); }
+    button:hover { border-color: var(--brass); }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+    .mono { font-family: var(--mono); font-size: .8rem; }
+    .muted { color: var(--muted); }
+    .ok { color: var(--teal); }
+    .bad { color: var(--alert); }
+    #status { min-height: 1.2em; margin-top: 8px; color: var(--muted); }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line);
+      font-size: .75rem; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>License admin</h1>
+    <p class="sub">Issue keys, email delivery, force seat transfers, revoke. Token stays in this browser only.</p>
+
+    <section class="panel">
+      <div class="row">
+        <div>
+          <label>Admin token</label>
+          <input id="token" type="password" autocomplete="off" placeholder="LICENSE_ADMIN_TOKEN">
+        </div>
+        <div>
+          <label>API base</label>
+          <input id="apiBase" value="/api/license" placeholder="/api/license or https://licenses.example.com/api/license">
+        </div>
+        <div>
+          <label>Search</label>
+          <input id="q" placeholder="email / key / id">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" id="btnRefresh">Refresh licenses</button>
+        <button type="button" id="btnAudit">Load audit</button>
+      </div>
+      <p id="status"></p>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 10px;font-size:1rem;color:var(--brass)">Issue + email key</h2>
+      <div class="row">
+        <div><label>Customer email</label><input id="issueEmail" type="email" placeholder="ce@company.com"></div>
+        <div>
+          <label>SKU</label>
+          <select id="issueSku">
+            <option value="cheng-aio">cheng-aio</option>
+            <option value="voyage-chief">voyage-chief</option>
+            <option value="tank-chief">tank-chief</option>
+          </select>
+        </div>
+        <div>
+          <label>Plan</label>
+          <select id="issuePlan">
+            <option value="yearly">yearly</option>
+            <option value="lifetime">lifetime</option>
+          </select>
+        </div>
+        <div><label>Years (yearly)</label><input id="issueYears" type="number" min="1" value="1"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary" id="btnIssue">Issue &amp; email</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 10px;font-size:1rem;color:var(--brass)">Licenses</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Email / key</th>
+              <th>SKU / plan</th>
+              <th>Seats</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 style="margin:0 0 10px;font-size:1rem;color:var(--brass)">Audit</h2>
+      <pre id="audit" class="mono muted" style="white-space:pre-wrap;margin:0;max-height:280px;overflow:auto">—</pre>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $('status');
+
+    function token() { return $('token').value.trim(); }
+    function apiBase() { return $('apiBase').value.replace(/\/$/, ''); }
+
+    async function api(path, opts = {}) {
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+      if (token()) headers['x-license-admin-token'] = token();
+      const res = await fetch(apiBase() + path, { ...opts, headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+
+    function seatCell(s) {
+      if (!s) return '<span class="muted">free</span>';
+      return `<span class="mono">${escapeHtml((s.deviceId || '').slice(0, 14))}…</span><br><span class="muted">${escapeHtml((s.deviceLabel || '').slice(0, 40))}</span>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderRows(licenses) {
+      const tb = $('tbody');
+      tb.innerHTML = '';
+      if (!licenses.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="muted">No licenses</td></tr>';
+        return;
+      }
+      for (const L of licenses) {
+        const tr = document.createElement('tr');
+        const revoked = L.revokedAt ? `<span class="bad">revoked</span>` : `<span class="ok">active</span>`;
+        tr.innerHTML = `
+          <td>
+            <div>${escapeHtml(L.email)}</div>
+            <div class="mono">${escapeHtml(L.key)}</div>
+            <div class="muted mono">${escapeHtml(L.id)}</div>
+            ${revoked}
+          </td>
+          <td>
+            <div>${escapeHtml(L.sku)}</div>
+            <div class="muted">${escapeHtml(L.plan)}${L.expiresAt ? ' · ' + escapeHtml(String(L.expiresAt).slice(0,10)) : ''}</div>
+          </td>
+          <td>
+            <div><span class="pill">android</span> ${seatCell(L.seats.android)}</div>
+            <div style="margin-top:6px"><span class="pill">windows</span> ${seatCell(L.seats.windows)}</div>
+          </td>
+          <td>
+            <div class="actions" style="margin:0">
+              <button type="button" data-act="resend" data-id="${escapeHtml(L.id)}">Re-email</button>
+              <button type="button" data-act="xfer-android" data-id="${escapeHtml(L.id)}">Clear Android</button>
+              <button type="button" data-act="xfer-windows" data-id="${escapeHtml(L.id)}">Clear Windows</button>
+              <button type="button" class="danger" data-act="revoke" data-id="${escapeHtml(L.id)}">Revoke</button>
+            </div>
+          </td>`;
+        tb.appendChild(tr);
+      }
+    }
+
+    async function refresh() {
+      statusEl.textContent = 'Loading…';
+      const q = $('q').value.trim();
+      const data = await api('/admin/licenses' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
+      renderRows(data.licenses || []);
+      statusEl.textContent = (data.licenses || []).length + ' license(s)';
+    }
+
+    $('btnRefresh').onclick = () => refresh().catch((e) => { statusEl.textContent = e.message; });
+    $('q').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') refresh().catch((err) => { statusEl.textContent = err.message; });
+    });
+
+    $('btnIssue').onclick = async () => {
+      try {
+        statusEl.textContent = 'Issuing…';
+        const data = await api('/issue', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: $('issueEmail').value.trim(),
+            sku: $('issueSku').value,
+            plan: $('issuePlan').value,
+            years: Number($('issueYears').value) || 1,
+            emailDelivery: true,
+          }),
+        });
+        statusEl.textContent = `Issued ${data.license.key} → ${data.delivery?.channel || 'no mail'} (${data.license.email})`;
+        await refresh();
+      } catch (e) {
+        statusEl.textContent = e.message;
+      }
+    };
+
+    $('btnAudit').onclick = async () => {
+      try {
+        const data = await api('/admin/audit?limit=80');
+        $('audit').textContent = (data.audit || []).map((a) => JSON.stringify(a)).join('\n') || '—';
+      } catch (e) {
+        statusEl.textContent = e.message;
+      }
+    };
+
+    $('tbody').onclick = async (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const act = btn.getAttribute('data-act');
+      try {
+        if (act === 'resend') {
+          const data = await api('/admin/resend', { method: 'POST', body: JSON.stringify({ licenseId: id }) });
+          statusEl.textContent = `Re-sent via ${data.delivery?.channel}`;
+        } else if (act === 'xfer-android' || act === 'xfer-windows') {
+          const seat = act === 'xfer-android' ? 'android' : 'windows';
+          if (!confirm('Force-clear ' + seat + ' seat? (bypasses cooldown)')) return;
+          await api('/admin/transfer', {
+            method: 'POST',
+            body: JSON.stringify({ licenseId: id, seat, reason: 'admin_console' }),
+          });
+          statusEl.textContent = seat + ' seat cleared';
+          await refresh();
+        } else if (act === 'revoke') {
+          if (!confirm('Revoke this license permanently?')) return;
+          await api('/admin/revoke', {
+            method: 'POST',
+            body: JSON.stringify({ licenseId: id, reason: 'admin_console' }),
+          });
+          statusEl.textContent = 'Revoked';
+          await refresh();
+        }
+      } catch (err) {
+        statusEl.textContent = err.message;
+      }
+    };
+
+    try {
+      const saved = sessionStorage.getItem('licenseAdminToken');
+      if (saved) $('token').value = saved;
+    } catch {}
+    $('token').addEventListener('change', () => {
+      try { sessionStorage.setItem('licenseAdminToken', token()); } catch {}
+    });
+  </script>
+</body>
+</html>

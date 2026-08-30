@@ -2533,7 +2533,7 @@ function renderSetup(main) {
     </div>
     <div class="form-row"><label>Notes</label><textarea id="s-notes" class="textarea-json" style="min-height:80px">${cur.notes||''}</textarea></div>
     <div class="btn-row">
-      <button class="btn primary" id="btn-save-vessel"${dis}>${cur.id?'Save vessel details':'Create vessel'}</button>
+      <button class="btn primary" id="btn-save-vessel">${cur.id ? (embedded ? 'Save Chief Engineer / notes' : 'Save vessel details') : 'Create vessel'}</button>
       <button class="btn" id="btn-new-vessel"${dis}>Create blank vessel</button>
       <button class="btn" id="btn-clone-vessel"${dis}>Clone active as new</button>
     </div>`;
@@ -3426,6 +3426,12 @@ function renderAbout(main) {
 
 /* ---------- Boot ---------- */
 async function boot() {
+  try {
+    if (window.ChengLicense) await ChengLicense.ensureLicensed();
+  } catch (e) {
+    console.warn('License gate', e);
+  }
+
   Api.onStatus((online) => {
     STATE.online = online;
     const dot = document.querySelector('.status-dot');

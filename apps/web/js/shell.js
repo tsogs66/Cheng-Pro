@@ -38,7 +38,17 @@
   }
 
   async function navigate(module) {
-    current = module || 'home';
+    let next = module || 'home';
+    if (window.ChengLicense && next !== 'license') {
+      try {
+        const ent = ChengLicense.loadEntitlement();
+        if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
+          next = 'license';
+          showToast('Activate a license to use the suite');
+        }
+      } catch { /* ignore */ }
+    }
+    current = next;
     setNavActive(current);
     closeSidebar();
     const mod = window.ChengProModules[current];
@@ -164,11 +174,14 @@
 
     await fillVesselSelect();
 
-    /* Soft license banner — hard lock when LICENSE_ENFORCE=1 on server later. */
+    /* License gate — hard lock when server reports enforce (default on). */
     if (window.ChengLicense) {
       try {
         const gate = await ChengLicense.ensureLicensed();
-        if (!gate.ok) {
+        if (!gate.ok && gate.enforced) {
+          showToast('Activation required — enter your license key');
+          await navigate('license');
+        } else if (!gate.ok) {
           showToast('License not active — open License to activate (60-day offline grace after check)');
         } else if (ChengLicense.daysLeft(gate.entitlement) <= 7) {
           showToast('License check due in ' + ChengLicense.daysLeft(gate.entitlement) + ' days');

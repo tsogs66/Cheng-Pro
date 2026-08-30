@@ -10,6 +10,7 @@
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1420">
+<meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,6 +48,19 @@
 })();
 </script>
 <script src="theme.js"></script>
+<script src="license-config.js"></script>
+<script>
+  window.CHENG_LICENSE_SKU = 'voyage-chief';
+  window.CHENG_LICENSE_PRODUCT = 'Voyage Chief';
+  /* Portable / EXE builds: set meta license-api or window.CHENG_LICENSE_API to the production host. */
+  try {
+    var licMeta = document.querySelector('meta[name="license-api"]');
+    if (!window.CHENG_LICENSE_API && licMeta && licMeta.content) {
+      window.CHENG_LICENSE_API = licMeta.content;
+    }
+  } catch (_e) {}
+</script>
+<script src="license.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -21250,6 +21264,11 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
 
 (async function init(){
   try {
+    /* Standalone EXE / portable: hard license gate. Skipped when embedded in ChEng AIO. */
+    try {
+      if (window.ChengLicense) await ChengLicense.ensureLicensed();
+    } catch (licErr) { console.warn('License gate', licErr); }
+
     beginActivity('boot', 'Opening the local database…', { source: 'program' });
     if (penInputLikely()) enablePenInputMode();
     await openDB();
