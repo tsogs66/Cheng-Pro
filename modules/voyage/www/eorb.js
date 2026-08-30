@@ -1099,7 +1099,7 @@
         code: 'I',
         selectedItems: ['I'],
         values: { remarks, weeklyInventory: true, inventoryKind: 'weekly-bilge' },
-        lines: [{ itemNo: 'I', text: remarks }],
+        lines: [{ itemNo: '', text: remarks }],
         title: 'Weekly inventory — oily bilge / bilge tanks (Code I, voluntary)'
       });
     } else if (options.requireBilge) {
@@ -1774,7 +1774,10 @@
         ].filter(Boolean).join(', ');
       }
       if (!text) return;
-      lines.push({ itemNo: item.no, text });
+      /* Code I (Part I) / Code O (Part II) remarks: letter sits in the Code column only;
+         Item No. stays blank — same layout as company beORB / MARPOL paper books. */
+      const itemNo = ((code === 'I' && item.no === 'I') || (code === 'O' && item.no === 'O')) ? '' : item.no;
+      lines.push({ itemNo, text });
     });
     return lines;
   }
@@ -1807,13 +1810,23 @@
     return errors;
   }
 
+  /**
+   * Book Date column — company e-ORB style: 24-Aug-2026 (title-case month).
+   * Signature lines use the same string uppercased → 24-AUG-2026.
+   */
   function formatOrbDate(isoDate) {
     if (!isoDate) return '';
     const d = new Date(isoDate + (isoDate.length === 10 ? 'T12:00:00' : ''));
     if (isNaN(d.getTime())) return isoDate;
-    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dd = String(d.getDate()).padStart(2, '0');
     return dd + '-' + months[d.getMonth()] + '-' + d.getFullYear();
+  }
+
+  /** Signature date on the book: 24-AUG-2026 (all-caps month, matching beORB printouts). */
+  function formatOrbSignDate(isoDate) {
+    const s = formatOrbDate(isoDate);
+    return s ? s.toUpperCase() : '';
   }
 
   function escapeHtml(s) {
@@ -1878,6 +1891,12 @@
    * code printed only on the first line of each entry, and the officer's signature under
    * its last. Shared by the printed sheet and the on-screen book so the two cannot drift
    * apart — they are meant to be the same document.
+   *
+   * Layout matches company beORB / MARPOL Appendix III paper books:
+   *   Date → 24-Aug-2026 (first line only)
+   *   Code (letter) → D / C / I (first line only)
+   *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
+   *   Signature → NAME - RANK, 24-AUG-2026 [SIGNATURE]
    */
   function bookRowsHtml(entries) {
     let body = '';
@@ -1886,21 +1905,40 @@
       const voided = !!e.voided;
       lines.forEach((ln, idx) => {
         const text = escapeHtml(ln.text);
+        let itemNo = ln.itemNo == null ? '' : String(ln.itemNo);
+        /* Older saves put "I"/"O" in Item No.; suppress so Code column alone carries the letter. */
+        if ((e.code === 'I' && itemNo.toUpperCase() === 'I') ||
+            (e.code === 'O' && itemNo.toUpperCase() === 'O')) {
+          itemNo = '';
+        }
         const signed = idx === lines.length - 1
-          ? '<div class="orb-sign">Signed: ' + escapeHtml(e.officerName || '') +
-              (e.officerRank ? (', ' + escapeHtml(e.officerRank)) : '') +
-              (e.officerSignedAt ? (' — ' + escapeHtml(formatOrbDate(e.officerSignedAt.slice(0, 10)))) : '') +
+          ? '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) +
               (voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '') +
               '</div>'
           : '';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
           '<td>' + (idx === 0 ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
           '<td>' + (idx === 0 ? escapeHtml(e.code) : '') + '</td>' +
-          '<td>' + escapeHtml(ln.itemNo) + '</td>' +
+          '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td>' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
       });
     });
     return body;
+  }
+
+  /** Officer line under the last item — beORB style: NAME - RANK, DD-MON-YYYY [SIGNATURE] */
+  function formatOrbSignature(e) {
+    const name = String(e && e.officerName || '').trim().toUpperCase();
+    const rank = String(e && e.officerRank || '').trim().toUpperCase();
+    const when = e && e.officerSignedAt
+      ? formatOrbSignDate(String(e.officerSignedAt).slice(0, 10))
+      : '';
+    const bits = [];
+    if (name) bits.push(name + (rank ? (' - ' + rank) : ''));
+    else if (rank) bits.push(rank);
+    if (when) bits.push(when);
+    if (!bits.length) return '';
+    return bits.join(', ') + ' [SIGNATURE]';
   }
 
   /* One stylesheet for the book, wherever it is drawn. The app injects this into the
@@ -1922,9 +1960,10 @@
     '  color:#16202e; white-space:normal;}',
     '.orb-book tbody td{color:#16202e; border-bottom:1px solid #b9ae8e;}',
     '.orb-book tbody tr:hover{background:rgba(0,0,0,.03);}',
-    '.orb-book td:nth-child(1){width:92px; white-space:nowrap;}',
-    '.orb-book td:nth-child(2){width:44px; text-align:center; font-weight:700;}',
-    '.orb-book td:nth-child(3){width:54px; text-align:center;}',
+    '.orb-book td:nth-child(1){width:96px; white-space:nowrap;}',
+    '.orb-book td:nth-child(2){width:52px; text-align:center; font-weight:700;}',
+    '.orb-book td:nth-child(3){width:64px; text-align:center;}',
+    '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
     '.orb-book tr.orb-voided td{color:#7a8496;}',
     '.orb-book .orb-sign{margin-top:4px; font-size:9.5px; font-style:italic; color:#4a5568;}',
     '.orb-book-empty{padding:22px; text-align:center; color:#6b7280; font-size:11px;}',
@@ -1959,7 +1998,7 @@
     const body = bookRowsHtml(rows);
     const sub = [t.subtitle, opts.rangeLabel].filter(Boolean).join(' · ');
     const table = body
-      ? '<table><thead><tr><th>Date</th><th>Code</th><th>Item</th>' +
+      ? '<table><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
         '<th>Record of operations / signature of officer in charge</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table>'
       : '<div class="orb-book-empty">' + escapeHtml(opts.emptyText || 'No entries in the selected period.') + '</div>';
@@ -2057,6 +2096,8 @@
     findTank,
     validateEntry,
     formatOrbDate,
+    formatOrbSignDate,
+    formatOrbSignature,
     buildPrintHtml,
     selectedItemNos,
     WEEKLY_INTERVAL_DAYS,
