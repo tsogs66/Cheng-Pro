@@ -125,3 +125,8 @@ Modules must:
 1. Prefer slug ids already used on server (`mv-…`, `captain-veniamis`).
 2. Voyage internal `v-*` ids map via `slug` or IMO match during import.
 3. After migration, one id is used in index, auth assignments, voyage paths, and tank folders.
+
+## See also
+
+- [VESSEL_OWNERSHIP.md](./VESSEL_OWNERSHIP.md) — AIO hub vs standalone
+- [LICENSING.md](./LICENSING.md) — seats, 60-day grace

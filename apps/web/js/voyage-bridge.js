@@ -317,9 +317,15 @@
       const setup = { ...(byKey.get(setupKey) || byKey.get('setup') || {}) };
       setup.vesselName = vessel.name;
       setup.imoNo = vessel.imo || setup.imoNo || '';
+      setup.callSign = vessel.callSign || setup.callSign || '';
       setup.flag = vessel.flag || '';
       setup.company = vessel.company || vessel.owner || '';
       setup.dwt = vessel.dwt !== '' && vessel.dwt != null ? vessel.dwt : setup.dwt;
+      if (!setup.orb) setup.orb = {};
+      if (vessel.callSign) setup.orb.callSign = vessel.callSign;
+      if (vessel.name) setup.orb.shipName = vessel.name;
+      if (vessel.imo) setup.orb.imo = vessel.imo;
+      if (vessel.flag) setup.orb.flag = vessel.flag;
       for (const key of ENGINE_KEYS) {
         if (vessel[key] != null && vessel[key] !== '') setup[key] = vessel[key];
       }
