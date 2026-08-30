@@ -19,3 +19,4 @@ modules/tanks/node_modules/
 __pycache__/
 *.pyc
 *.AppImage
+data/licenses.json

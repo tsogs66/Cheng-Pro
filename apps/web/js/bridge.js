@@ -74,14 +74,19 @@
       fetch: (path, init) => ChengProApi.api(path, init),
     },
     openTanks: () => {
-      window.location.href = (window.ChengProBundled && ChengProBundled.isBundledClient())
+      try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+      const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('tanks')
         : '/tanks/';
+      window.location.href = base + (base.includes('?') ? '&' : '?') + 'chengaio=1';
     },
     openVoyage: () => {
-      window.location.href = (window.ChengProBundled && ChengProBundled.isBundledClient())
+      try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+      const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('voyage')
         : '/voyage/';
+      const url = base.includes('voyage_manager') ? base : (base.replace(/\/?$/, '/') + 'voyage_manager.html');
+      window.location.href = url + (url.includes('?') ? '&' : '?') + 'chengaio=1';
     },
   };
 })(window);
