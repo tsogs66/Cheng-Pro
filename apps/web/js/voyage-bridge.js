@@ -351,16 +351,20 @@
 
   async function autoImportIfNeeded() {
     try {
-      const list = root.ChengPro?.vessel?.getListSync?.() || [];
-      const already = localStorage.getItem(AUTO_FLAG);
-      // Always refresh when Cheng-Pro has no vessels but Voyage might.
-      if (list.length && already) {
-        // Still refresh active vessel engine fields lightly from hint
-        return null;
-      }
       const fleet = await readVoyageFleet();
       if (!fleet.vessels.length && !readActiveHint()) return null;
-      if (!list.length || !already) {
+      let list = root.ChengPro?.vessel?.getListSync?.() || [];
+      if (!list.length && root.ChengPro?.vessel?.refresh) {
+        try {
+          await root.ChengPro.vessel.refresh();
+          list = root.ChengPro.vessel.getListSync?.() || [];
+        } catch { /* import can still create */ }
+      }
+      const already = localStorage.getItem(AUTO_FLAG);
+      const missing = fleet.vessels.some((row) => !findMatch(list, row.patch));
+      /* Re-import when Voyage has ships Cheng-Pro does not know yet — not only
+       * on the first empty boot (that left Voyage vessels invisible in AIO). */
+      if (missing || !list.length || !already) {
         return importIntoChengPro({ setActive: true });
       }
     } catch (err) {

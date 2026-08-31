@@ -182,7 +182,24 @@
 
   window.addEventListener('chengpro:navigate', (e) => navigate(e.detail));
   window.addEventListener('chengpro:toast', (e) => showToast(e.detail));
-  window.addEventListener('chengpro:license-changed', () => applyLicenseNav());
+  window.addEventListener('chengpro:license-changed', async () => {
+    applyLicenseNav();
+    try {
+      await ChengPro.vessel.refresh();
+    } catch { /* ignore */ }
+    if (window.ChengProVoyageBridge) {
+      try {
+        const result = await ChengProVoyageBridge.autoImportIfNeeded();
+        if (result && result.ok && (result.imported || result.updated)) {
+          await ChengPro.vessel.refresh();
+          showToast(result.message);
+        }
+      } catch (e) {
+        console.warn('Voyage vessel import after license:', e.message);
+      }
+    }
+    await fillVesselSelect();
+  });
 
   /**
    * Offline-first boot: paint UI immediately, then warm LocalApi.

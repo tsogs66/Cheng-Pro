@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const store = require('./store');
+const { parseScopedEntitlement, requireSyncAuth } = require('./license-scope');
 const {
   computeTank,
   blendFuels,
@@ -36,8 +37,47 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 store.ensureDirs();
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: true, credentials: true,
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-license-email',
+    'x-license-master',
+    'x-act-as-user',
+    'x-license-entitlement',
+  ],
+}));
 app.use(express.json({ limit: '50mb' }));
+
+/* Per-request license email scope — requires signed entitlement when scoped. */
+app.use((req, res, next) => {
+  const scope = parseScopedEntitlement(req, res);
+  if (scope === null) return;
+  store.runWithUserScope({
+    email: scope.email,
+    master: scope.master,
+    actAs: scope.actAs,
+  }, () => next());
+});
+
+app.get('/api/admin/users', (req, res) => {
+  if (!store.isMasterScope()) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  res.json({ users: store.listUserDatabases() });
+});
+
+app.get('/js/license-config.js', (req, res) => {
+  const raw = (process.env.LICENSE_SERVER_URL || process.env.CHENG_LICENSE_API || '').replace(/\/$/, '');
+  let api = '';
+  if (raw) {
+    api = /\/api\/license$/i.test(raw) ? raw : `${raw}/api/license`;
+  }
+  res.type('application/javascript');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(`window.CHENG_LICENSE_API=${JSON.stringify(api)};\n`);
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   etag: false,
   maxAge: 0,
@@ -912,11 +952,11 @@ app.get('/api/sync/ping', (req, res) => {
   });
 });
 
-app.get('/api/sync/export', (req, res) => {
+app.get('/api/sync/export', requireSyncAuth, (req, res) => {
   res.json(store.syncPushBundle());
 });
 
-app.post('/api/sync/import', (req, res) => {
+app.post('/api/sync/import', requireSyncAuth, (req, res) => {
   try {
     const results = store.applySyncPayload(req.body || {});
     res.json({ ok: true, results });
@@ -1034,7 +1074,7 @@ app.post('/api/vessels/:id/import-excel', upload.single('file'), asyncHandler(as
   } else if (req.body?.useRepoFile) {
     result = await excelImport.importWorkbook(excelImport.defaultWorkbookPath());
   } else if (req.body?.path) {
-    result = await excelImport.importWorkbook(req.body.path);
+    return res.status(400).json({ error: 'path upload is disabled; upload the workbook file instead' });
   } else {
     return res.status(400).json({ error: 'Upload a .xlsm/.xlsx file or pass useRepoFile:true' });
   }

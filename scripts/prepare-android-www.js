@@ -58,6 +58,8 @@ shellHtml = shellHtml.replace(
     '<script>window.CHENG_PRO_BUNDLED = true; window.CHENG_PRO_EMBEDDED_BASE = "tanks/embedded/";</script>',
     '<script src="tanks/js/node-shim.js"></script>',
     '<script src="tanks/js/node-require.js"></script>',
+    '<script src="tanks/js/fuel-report-core.js"></script>',
+    '<script src="tanks/js/bunkering-core.js"></script>',
     '<script src="tanks/js/store-core.js"></script>',
     '<script src="tanks/js/local-api.js"></script>',
     '<script src="js/api.js"></script>',
