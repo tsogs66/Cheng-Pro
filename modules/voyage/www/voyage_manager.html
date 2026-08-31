@@ -36,6 +36,13 @@
     if (native || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
       document.documentElement.classList.add('use-bottom-nav');
     }
+    /* ChEng AIO e-ORB iframe: hide Voyage tabs before first paint (CSS uses !important). */
+    var qs = location.search || '';
+    var aioEmbed = /\bchengaio=1\b/.test(qs);
+    try { if (!aioEmbed && localStorage.getItem('chengAioEmbedded') === '1') aioEmbed = true; } catch (_e3) {}
+    if (/\beorbEmbed=1\b/.test(qs) && aioEmbed) {
+      document.documentElement.classList.add('eorb-embed');
+    }
     /* Apply before first paint so the login card is not white with dark-theme
        ghost labels for a frame while MarineTheme runs later. */
     var k = null;
@@ -1151,6 +1158,24 @@
     padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px)) !important;
   }
   html.use-bottom-nav .footer-note{margin-bottom:12px;}
+  /* ChEng AIO → e-ORB tab: iframe shows only the ORB book — no Voyage Chief nav chrome */
+  html.eorb-embed .masthead,
+  html.eorb-embed #tabs,
+  html.eorb-embed .bottom-nav,
+  html.eorb-embed #bnMoreSheet,
+  html.eorb-embed .footer-note,
+  html.eorb-embed .theme-fab {
+    display: none !important;
+  }
+  html.eorb-embed body {
+    padding-bottom: 0 !important;
+  }
+  html.eorb-embed .page:not(#page-orb) {
+    display: none !important;
+  }
+  html.eorb-embed #page-orb {
+    display: block !important;
+  }
   @media (max-width:1100px), (hover:none) and (pointer:coarse){
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
@@ -10568,6 +10593,7 @@ function syncBottomNav(pageName){
 
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
+  if (isChengAioEmbedded() && /[?&]eorbEmbed=1\b/.test(location.search) && pageName !== 'orb') return;
   if (pageName === 'orb' && !voyageEorbAllowed()){
     const aioOrb = isChengAioEmbedded() && /[?&]page=orb\b/.test(location.search);
     if (!aioOrb) {
@@ -20491,13 +20517,18 @@ function applyEorbLicenseVisibility(){
     el.hidden = !ok;
     el.style.display = ok ? '' : 'none';
   });
-  /* AIO iframe embed: strip Voyage chrome so only the book shows. */
+  /* AIO iframe embed: strip Voyage chrome so only the ORB book shows (CSS uses !important). */
   if (embedded && /[?&]eorbEmbed=1\b/.test(location.search)) {
     document.documentElement.classList.add('eorb-embed');
     document.body.classList.add('eorb-embed');
-    document.querySelectorAll('.masthead, #tabs, .bottom-nav, #bnMoreSheet, #bnMoreBackdrop').forEach((el) => {
-      if (el) el.style.display = 'none';
-    });
+    document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+    document.querySelectorAll('#tabs .tab').forEach((t) => t.classList.remove('active'));
+    const orbPage = document.getElementById('page-orb');
+    const orbTab = document.querySelector('#tabs .tab[data-page="orb"]');
+    if (orbPage) orbPage.classList.add('active');
+    if (orbTab) orbTab.classList.add('active');
+    if (typeof _activeTab !== 'undefined') _activeTab = 'orb';
+    try { renderOrbUi(); } catch (_) {}
   }
   if (!ok && !(embedded && /[?&]page=orb\b/.test(location.search))) {
     const page = document.getElementById('page-orb');
