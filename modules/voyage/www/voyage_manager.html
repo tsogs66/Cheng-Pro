@@ -48,6 +48,11 @@
       try { k = localStorage.getItem('vm_bright'); } catch (_e2) {}
     }
     if (k === '1') document.documentElement.classList.add('bright');
+    try {
+      if (/[?&]chengaio=1\b/.test(location.search || '') || localStorage.getItem('chengAioEmbedded') === '1') {
+        document.documentElement.classList.add('chengaio-embed');
+      }
+    } catch (_e3) {}
   }catch(_e){}
 })();
 
@@ -175,8 +180,8 @@
      every time you open the app. */
   .byline{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.04em;
           color:var(--muted); margin-top:3px;}
-  /* Theme control: masthead on desktop; fixed bottom-left on phone so it never
-     overlaps ChEng AIO / system chrome at the top-right. */
+  /* Theme control: stay in the masthead on phone — bottom-left FAB fought the
+     bottom nav and sat under the fold on mobile browsers. */
   .theme-toggle{
     border:1px solid var(--line-strong); background:rgba(0,0,0,0.18); color:var(--brass);
     border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600;
@@ -184,15 +189,15 @@
   }
   html.bright .theme-toggle{background:rgba(18,34,56,0.06);}
   .theme-toggle:hover{border-color:var(--brass); color:var(--paper);}
-  .theme-fab{
-    position:fixed; left:max(12px, env(safe-area-inset-left));
-    bottom:max(58px, calc(52px + env(safe-area-inset-bottom)));
-    z-index:90; box-shadow:0 8px 24px rgba(0,0,0,0.35); display:none;
-  }
+  .theme-fab{ display:none !important; }
   @media (max-width:900px){
-    .status-row .theme-toggle{display:none;}
-    .theme-fab{display:inline-flex;}
+    .status-row .theme-toggle{display:inline-flex; padding:5px 10px; font-size:11px;}
   }
+  /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
+  html.chengaio-embed .masthead{
+    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
+  }
+  html.chengaio-embed .status-row{align-items:flex-end;}
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -993,9 +998,7 @@
     font-size:16px !important; min-height:36px; padding:6px 7px;
   }
   html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
-  html.compact-phone .theme-fab{
-    bottom:max(52px, calc(48px + env(safe-area-inset-bottom, 0px)));
-  }
+  html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
   /* ---- Landscape phone / short viewports: maximize vertical content ---- */
   @media (orientation: landscape) and (max-height:560px){
@@ -3132,6 +3135,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
   <!-- SETUP / SYNC (internal page id: data) -->
   <div class="page" id="page-data">
+    <div class="panel" id="appUpdatePanel">
+      <h2>App version</h2>
+      <div class="hint">This device is running <strong id="setupAppVersionLabel">…</strong>. Check GitHub for a newer Voyage Chief release (APK / installer). New APKs install over the existing app when signed with the same key — no need to uninstall first.</div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="primary small" type="button" id="btnCheckAppUpdate">Check for latest release</button>
+        <a class="btn-link-like" id="btnOpenLatestRelease" href="https://github.com/tsogs66/voyage-manager/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
+      </div>
+      <div class="hint" id="appUpdateStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
+    </div>
     <div class="panel">
       <h2>Server Sync</h2>
       <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally and upload on reconnect.</div>
@@ -17805,7 +17817,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v169';
+let androidInstallCacheName = 'noon-report-v170';
 
 /*
  * What the program is called.
@@ -17845,13 +17857,83 @@ const APP_AUTHOR_LINE = APP_AUTHOR.handle + ' · ' + APP_AUTHOR.name;
  * engineer can now compare what the header says against the file they installed,
  * and quote it when something is wrong.
  */
-function showAppVersion(){
-  const el = document.getElementById('appVersion');
-  if (!el) return;
+function currentAppVersionLabel(){
   const n = String(androidInstallCacheName || '').replace(/^noon-report-v/, '');
-  el.textContent = n ? ('v1.0.' + n) : '';
+  return n ? ('1.0.' + n) : '';
+}
+function showAppVersion(){
+  const ver = currentAppVersionLabel();
+  const el = document.getElementById('appVersion');
+  if (el) el.textContent = ver ? ('v' + ver) : '';
+  const setup = document.getElementById('setupAppVersionLabel');
+  if (setup) setup.textContent = ver ? ('v' + ver) : 'unknown';
 }
 showAppVersion();
+
+function parseSemverParts(v){
+  const m = String(v || '').trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+function isNewerVersion(latest, current){
+  const a = parseSemverParts(latest);
+  const b = parseSemverParts(current);
+  if (!a || !b) return String(latest) !== String(current);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+async function checkVoyageAppUpdate(){
+  const status = document.getElementById('appUpdateStatus');
+  const openBtn = document.getElementById('btnOpenLatestRelease');
+  const current = currentAppVersionLabel();
+  if (status) status.textContent = 'Checking GitHub for the latest Voyage Chief release…';
+  if (openBtn) openBtn.style.display = 'none';
+  try {
+    const res = await fetch('https://api.github.com/repos/tsogs66/voyage-manager/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('GitHub returned HTTP ' + res.status);
+    const data = await res.json();
+    const tag = String(data.tag_name || '').replace(/^v/i, '');
+    const url = data.html_url || 'https://github.com/tsogs66/voyage-manager/releases/latest';
+    const apk = Array.isArray(data.assets)
+      ? data.assets.find((a) => /\.apk$/i.test(a.name || ''))
+      : null;
+    if (openBtn) {
+      openBtn.href = apk && apk.browser_download_url ? apk.browser_download_url : url;
+      openBtn.textContent = apk ? ('Download ' + (apk.name || 'APK')) : 'Open latest release';
+      openBtn.style.display = 'inline-flex';
+    }
+    if (!tag) {
+      if (status) status.textContent = 'Could not read the latest release tag.';
+      return;
+    }
+    if (isNewerVersion(tag, current)) {
+      if (status) {
+        status.textContent = 'Update available: v' + tag + ' (this device: v' + current + '). Download the APK and open it — Android installs over the existing app; do not uninstall first.';
+      }
+    } else {
+      if (status) status.textContent = 'You are on the latest release (v' + current + ').';
+    }
+  } catch (err) {
+    if (status) {
+      status.textContent = 'Could not check for updates (' + (err && err.message ? err.message : 'offline') + '). Open GitHub releases when you have internet.';
+    }
+    if (openBtn) {
+      openBtn.href = 'https://github.com/tsogs66/voyage-manager/releases/latest';
+      openBtn.textContent = 'Open latest release';
+      openBtn.style.display = 'inline-flex';
+    }
+  }
+}
+document.getElementById('btnCheckAppUpdate')?.addEventListener('click', () => {
+  checkVoyageAppUpdate();
+});
 
 /* The masthead is outside the page divs, so the byline shows on every tab. */
 function showAppByline(){

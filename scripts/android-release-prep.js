@@ -2,7 +2,8 @@
 /**
  * Patch Capacitor's generated android/app/build.gradle for CI releases:
  * - versionCode / versionName from package.json
- * - release signing (sideload keystore generated in CI)
+ * - release signing from the committed sideload keystore (stable signature so
+ *   each new APK installs over the previous one without uninstalling)
  */
 const fs = require('fs');
 const path = require('path');
@@ -20,6 +21,17 @@ if (!fs.existsSync(gradlePath)) {
   process.exit(1);
 }
 
+const srcKeystore = path.join(root, 'signing', 'chengpro-sideload.keystore');
+const dstKeystore = path.join(root, 'android', 'app', 'sideload.keystore');
+if (!fs.existsSync(srcKeystore)) {
+  console.error('Missing signing/chengpro-sideload.keystore — commit the stable sideload key.');
+  process.exit(1);
+}
+fs.mkdirSync(path.dirname(dstKeystore), { recursive: true });
+fs.copyFileSync(srcKeystore, dstKeystore);
+
+const pass = process.env.CHENGPRO_KEYSTORE_PASS || 'chengpro';
+
 let gradle = fs.readFileSync(gradlePath, 'utf8');
 gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`);
 gradle = gradle.replace(/versionName\s+"[^"]+"/, `versionName "${versionName}"`);
@@ -31,9 +43,9 @@ if (!gradle.includes('signingConfigs')) {
     signingConfigs {
         release {
             storeFile file('sideload.keystore')
-            storePassword System.getenv('CHENGPRO_KEYSTORE_PASS') ?: 'chengpro'
+            storePassword System.getenv('CHENGPRO_KEYSTORE_PASS') ?: '${pass}'
             keyAlias 'chengpro'
-            keyPassword System.getenv('CHENGPRO_KEYSTORE_PASS') ?: 'chengpro'
+            keyPassword System.getenv('CHENGPRO_KEYSTORE_PASS') ?: '${pass}'
         }
     }$1`
   );
@@ -41,6 +53,14 @@ if (!gradle.includes('signingConfigs')) {
     /(release\s*\{\s*\n\s*minifyEnabled)/,
     'release {\n            signingConfig signingConfigs.release\n            minifyEnabled'
   );
+} else {
+  /* Ensure release uses the sideload config even if Cap regenerated a stub. */
+  if (!/signingConfig\s+signingConfigs\.release/.test(gradle)) {
+    gradle = gradle.replace(
+      /(release\s*\{)/,
+      '$1\n            signingConfig signingConfigs.release'
+    );
+  }
 }
 
 fs.writeFileSync(gradlePath, gradle);
@@ -53,28 +73,16 @@ if (fs.existsSync(manifestPath)) {
       '<application',
       '<application\n        android:usesCleartextTraffic="true"'
     );
-    fs.writeFileSync(manifestPath, manifest);
   }
-}
-
-const keystorePath = path.join(root, 'android/app/sideload.keystore');
-if (!fs.existsSync(keystorePath)) {
-  const pass = process.env.CHENGPRO_KEYSTORE_PASS || 'chengpro';
-  execSync(
-    [
-      'keytool -genkeypair -v',
-      '-storetype PKCS12',
-      `-keystore "${keystorePath}"`,
-      '-alias chengpro',
-      '-keyalg RSA -keysize 2048 -validity 10000',
-      `-storepass "${pass}"`,
-      `-keypass "${pass}"`,
-      '-dname "CN=ChEng AIO, OU=Mobile, O=ChEng AIO, C=US"',
-    ].join(' '),
-    { stdio: 'inherit' }
-  );
+  if (!manifest.includes('android.permission.REQUEST_INSTALL_PACKAGES')) {
+    manifest = manifest.replace(
+      /<manifest([^>]*)>/,
+      '<manifest$1>\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />'
+    );
+  }
+  fs.writeFileSync(manifestPath, manifest);
 }
 
 execSync('node scripts/apply-android-icons.js', { cwd: root, stdio: 'inherit' });
 
-console.log(`Android release prep: versionName=${versionName} versionCode=${versionCode}`);
+console.log(`Android release prep: versionName=${versionName} versionCode=${versionCode} (stable sideload key)`);
