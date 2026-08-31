@@ -43,8 +43,11 @@
       try {
         const ent = ChengLicense.loadEntitlement();
         if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
-          next = 'license';
-          showToast('Activate a license to use the suite');
+          /* Soft program tabs still open so they can show Open License (like e-ORB). */
+          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb') {
+            next = 'license';
+            showToast('Activate a license to use the suite');
+          }
         } else if (ChengLicense.isValid(ent) && !ChengLicense.moduleAllowed(next, ent)) {
           const soft = next === 'voyage' || next === 'tanks' || next === 'eorb';
           if (soft) {
@@ -62,15 +65,27 @@
     closeSidebar();
     const mod = window.ChengProModules[current];
     if (!mod) {
+      setFullscreenEmbed(false);
       main.innerHTML = '<section class="panel"><p class="empty">Unknown module.</p></section>';
       return;
     }
     main.innerHTML = '<section class="panel"><p class="empty">Loading…</p></section>';
     try {
       await mod.render(main);
+      const embedded = !!main.querySelector('.aio-embed-wrap');
+      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb'));
     } catch (e) {
+      setFullscreenEmbed(false);
       main.innerHTML = `<section class="panel"><p class="empty">${escapeHtml(e.message)}</p></section>`;
     }
+  }
+
+  function setFullscreenEmbed(on) {
+    document.documentElement.classList.toggle('aio-fullscreen-embed', !!on);
+    document.body.classList.toggle('aio-fullscreen-embed', !!on);
+    if (on) closeSidebar();
+    const fab = document.getElementById('aioHomeFab');
+    if (fab) fab.hidden = !on;
   }
 
   function applyLicenseNav() {
@@ -148,6 +163,7 @@
       navigate('home');
     }
   });
+  document.getElementById('aioHomeFab')?.addEventListener('click', () => navigate('home'));
 
   activeSelect.addEventListener('change', async () => {
     try {
