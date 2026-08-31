@@ -13,6 +13,8 @@
   const STORAGE_FALLBACK_KEY = 'chengAioLicenseEntitlementFb';
   const DEVICE_KEY = 'chengAioLicenseDeviceId';
   const ENFORCE_CACHE_KEY = 'chengAioLicenseEnforce';
+  const LICENSE_API_KEY = 'chengLicenseApi';
+  const SERVER_BASE_KEY = 'apiServerBase';
 
   function readStorage(key) {
     try {
@@ -71,10 +73,92 @@
   function apiBase() {
     if (global.CHENG_LICENSE_API) return String(global.CHENG_LICENSE_API).replace(/\/$/, '');
     try {
-      const meta = document.querySelector('meta[name="license-api"]');
-      if (meta && meta.content) return String(meta.content).replace(/\/$/, '');
+      const lic = readStorage(LICENSE_API_KEY);
+      if (lic && lic.trim()) return lic.trim().replace(/\/$/, '');
     } catch { /* ignore */ }
-    return '/api/license';
+    try {
+      const base = readStorage(SERVER_BASE_KEY);
+      if (base && base.trim()) {
+        const b = base.trim().replace(/\/$/, '');
+        return /\/api\/license$/i.test(b) ? b : `${b}/api/license`;
+      }
+    } catch { /* ignore */ }
+    try {
+      const meta = document.querySelector('meta[name="license-api"]');
+      if (meta && meta.content && meta.content.trim()) {
+        return String(meta.content).trim().replace(/\/$/, '');
+      }
+    } catch { /* ignore */ }
+    /* Browser on the ship server — same origin as ChEng AIO gateway. */
+    try {
+      if (typeof location !== 'undefined' && /^https?:$/i.test(location.protocol || '')) {
+        const host = location.hostname || '';
+        if (host && host !== 'localhost' && host !== '127.0.0.1') {
+          return '/api/license';
+        }
+      }
+    } catch { /* ignore */ }
+    return '';
+  }
+
+  function isBundledClient() {
+    try {
+      if (global.ChengProBundled && ChengProBundled.isBundledClient()) return true;
+    } catch { /* ignore */ }
+    try {
+      if (!/^https?:$/i.test(location.protocol || '')) return true;
+      const host = location.hostname || '';
+      return host === 'localhost' || host === '127.0.0.1';
+    } catch {
+      return false;
+    }
+  }
+
+  function setLicenseServerUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) {
+      writeStorage(LICENSE_API_KEY, null);
+      writeStorage(SERVER_BASE_KEY, null);
+      try { delete global.CHENG_LICENSE_API; } catch { /* ignore */ }
+      return '';
+    }
+    let base = raw.replace(/\/$/, '');
+    if (/\/api\/license$/i.test(base)) {
+      base = base.replace(/\/api\/license$/i, '');
+    }
+    if (!/^https?:\/\//i.test(base)) {
+      throw new Error('Server URL must start with http:// or https://');
+    }
+    writeStorage(SERVER_BASE_KEY, base);
+    writeStorage(LICENSE_API_KEY, null);
+    const api = `${base}/api/license`;
+    try { global.CHENG_LICENSE_API = api; } catch { /* ignore */ }
+    return api;
+  }
+
+  function getLicenseServerUrl() {
+    try {
+      const base = readStorage(SERVER_BASE_KEY);
+      if (base && base.trim()) return base.trim().replace(/\/$/, '');
+    } catch { /* ignore */ }
+    const api = apiBase();
+    if (api && /^https?:\/\//i.test(api)) {
+      return api.replace(/\/api\/license\/?$/i, '');
+    }
+    return '';
+  }
+
+  function requireApiBase() {
+    const base = apiBase();
+    if (base) return base;
+    if (isBundledClient()) {
+      throw new Error(
+        'License server URL is not set. On Android APK, open License and enter your ChEng AIO host (e.g. http://192.168.x.x:8080), Save, then activate.'
+      );
+    }
+    throw new Error(
+      'License server is not reachable. Open ChEng AIO from your ship server URL (http://<host>:8080), not as a blank local page.'
+    );
   }
 
   function isEmbeddedInAio() {
@@ -270,24 +354,34 @@
   }
 
   async function post(path, body) {
-    const res = await fetch(apiBase() + path, {
+    const base = requireApiBase();
+    const res = await fetch(base + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
     if (!res.ok) {
-      const err = new Error(data.error || res.statusText);
+      const err = new Error((data && data.error) || res.statusText || 'License request failed');
       err.status = res.status;
-      err.code = data.code;
+      err.code = data && data.code;
       throw err;
+    }
+    if (!data || typeof data !== 'object') {
+      throw new Error(
+        'License server returned a non-JSON response. Check the Server URL (should be your ChEng AIO host, e.g. http://192.168.x.x:8080).'
+      );
     }
     return data;
   }
 
   async function fetchStatus() {
+    const base = apiBase();
+    if (!base) return null;
     try {
-      const res = await fetch(apiBase() + '/status');
+      const res = await fetch(base + '/status');
       const data = await res.json().catch(() => ({}));
       if (typeof data.enforce === 'boolean') {
         try { localStorage.setItem(ENFORCE_CACHE_KEY, data.enforce ? '1' : '0'); } catch { /* ignore */ }
@@ -473,6 +567,11 @@
   }
 
   global.ChengLicense = {
+    apiBase,
+    requireApiBase,
+    isBundledClient,
+    setLicenseServerUrl,
+    getLicenseServerUrl,
     deviceId,
     detectSeat,
     loadEntitlement,
