@@ -210,7 +210,8 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
     padding-bottom: calc(24px + var(--safe-bottom));
   }
   .sidebar.open { transform: translateX(0); }
-  .sidebar-backdrop {
+  /* Only show when sidebar is open — plain display:block overrides the hidden attribute and blocks all taps */
+  .sidebar-backdrop:not([hidden]) {
     display: block; position: fixed; inset: 0; background: rgba(4,10,18,0.55); z-index: 45;
   }
   .menu-btn { display: inline-flex; }
