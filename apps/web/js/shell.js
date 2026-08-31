@@ -158,6 +158,7 @@
 
   window.addEventListener('chengpro:navigate', (e) => navigate(e.detail));
   window.addEventListener('chengpro:toast', (e) => showToast(e.detail));
+  window.addEventListener('chengpro:license-changed', () => applyLicenseNav());
 
   /**
    * Offline-first boot: paint UI immediately, then warm LocalApi.

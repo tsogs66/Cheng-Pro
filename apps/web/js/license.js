@@ -10,8 +10,43 @@
  */
 (function (global) {
   const STORAGE_KEY = 'chengAioLicenseEntitlement';
+  const STORAGE_FALLBACK_KEY = 'chengAioLicenseEntitlementFb';
   const DEVICE_KEY = 'chengAioLicenseDeviceId';
   const ENFORCE_CACHE_KEY = 'chengAioLicenseEnforce';
+
+  function readStorage(key) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v != null) return v;
+    } catch { /* ignore */ }
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function writeStorage(key, value) {
+    let ok = false;
+    try {
+      if (value == null) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, value);
+        sessionStorage.setItem(key, value);
+      }
+      ok = true;
+    } catch { /* ignore */ }
+    if (!ok) {
+      try {
+        if (value == null) sessionStorage.removeItem(key);
+        else sessionStorage.setItem(key, value);
+        ok = true;
+      } catch { /* ignore */ }
+    }
+    return ok;
+  }
 
   const KEY_PLACEHOLDER_BY_SKU = {
     'cheng-aio': 'CA-XXXXXXXX-XXXXXXXX',
@@ -55,10 +90,10 @@
 
   function deviceId() {
     try {
-      let id = localStorage.getItem(DEVICE_KEY);
+      let id = readStorage(DEVICE_KEY);
       if (id) return id;
       id = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      localStorage.setItem(DEVICE_KEY, id);
+      writeStorage(DEVICE_KEY, id);
       return id;
     } catch {
       return 'dev-ephemeral';
@@ -73,7 +108,7 @@
 
   function loadEntitlement() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = readStorage(STORAGE_KEY) || readStorage(STORAGE_FALLBACK_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -82,8 +117,26 @@
 
   function saveEntitlement(ent) {
     try {
-      if (ent) localStorage.setItem(STORAGE_KEY, JSON.stringify(ent));
-      else localStorage.removeItem(STORAGE_KEY);
+      if (ent) {
+        const payload = JSON.stringify(ent);
+        if (!writeStorage(STORAGE_KEY, payload)) {
+          throw new Error('Could not save license on this device — allow site storage (not private/incognito).');
+        }
+        writeStorage(STORAGE_FALLBACK_KEY, payload);
+        return true;
+      }
+      writeStorage(STORAGE_KEY, null);
+      writeStorage(STORAGE_FALLBACK_KEY, null);
+      return true;
+    } catch (e) {
+      if (e && e.message && e.message.includes('Could not save')) throw e;
+      throw new Error('Could not save license on this device — allow site storage (not private/incognito).');
+    }
+  }
+
+  function notifyLicenseChanged() {
+    try {
+      global.dispatchEvent(new CustomEvent('chengpro:license-changed'));
     } catch { /* ignore */ }
   }
 
@@ -263,13 +316,21 @@
       deviceId: deviceId(),
       deviceLabel: (navigator.userAgent || '').slice(0, 120),
     });
-    if (data.entitlement && !skuAllowed(data.entitlement)) {
-      saveEntitlement(null);
-      throw new Error('This key is for ' + data.entitlement.sku + ', not ' + productSku());
+    const ent = data && data.entitlement;
+    if (!ent || !ent.graceUntil) {
+      throw new Error('Activation succeeded but the server did not return a valid license — retry or update ChEng AIO.');
     }
-    saveEntitlement(data.entitlement);
+    if (!skuAllowed(ent)) {
+      saveEntitlement(null);
+      throw new Error('This key is for ' + ent.sku + ', not ' + productSku());
+    }
+    saveEntitlement(ent);
+    if (!isValid(loadEntitlement())) {
+      throw new Error('License could not be stored on this device — allow site storage and try again.');
+    }
     hideLock();
-    return data.entitlement;
+    notifyLicenseChanged();
+    return loadEntitlement();
   }
 
   async function heartbeat() {
@@ -282,7 +343,8 @@
       entitlement: ent,
     });
     saveEntitlement(data.entitlement);
-    return data.entitlement;
+    notifyLicenseChanged();
+    return loadEntitlement();
   }
 
   async function pairStart({ licenseKey, email }) {
@@ -299,9 +361,14 @@
       deviceId: deviceId(),
       deviceLabel: (navigator.userAgent || '').slice(0, 120),
     });
-    saveEntitlement(data.entitlement);
+    const ent = data && data.entitlement;
+    if (!ent || !ent.graceUntil) {
+      throw new Error('Pairing succeeded but no license was returned — try again.');
+    }
+    saveEntitlement(ent);
     hideLock();
-    return data.entitlement;
+    notifyLicenseChanged();
+    return loadEntitlement();
   }
 
   async function requestTransfer({ licenseKey, email, seat, reason }) {
@@ -360,7 +427,10 @@
           licenseKey: el.querySelector('#licLockKey').value.trim(),
         });
         st.textContent = 'Activated.';
-        location.reload();
+        try {
+          global.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'License activated' }));
+          global.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'license' }));
+        } catch { /* ignore */ }
       } catch (e) {
         st.textContent = e.message || 'Activation failed';
       }
