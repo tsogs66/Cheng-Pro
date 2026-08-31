@@ -109,8 +109,11 @@ window.ChengProModules.vessel = {
         await ChengPro.vessel.refresh();
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
       } catch (e) {
-        status.textContent = e.message || 'Import failed';
-        toast(e.message || 'Import failed');
+        const msg = e.message || 'Import failed';
+        status.textContent = /nothing registered/i.test(msg)
+          ? 'On-device database failed to start (update ChEng AIO). ' + msg
+          : msg;
+        toast(status.textContent);
       }
     });
 
