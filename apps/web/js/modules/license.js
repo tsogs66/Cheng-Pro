@@ -24,20 +24,26 @@ window.ChengProModules.license = {
             <input readonly value="${valid ? 'Active — ' + L.daysLeft(ent) + ' days until next check' : (ent ? 'Grace expired — activate / renew' : 'Not activated')}">
           </div>
           <div class="field"><label>This device seat</label>
-            <input readonly value="${seat} · ${escapeHtml(L.deviceId().slice(0, 18))}…">
+            <input readonly value="${seat} · ${escapeHtml(String(L.deviceId()).slice(0, 18))}…">
+          </div>
+          <div class="field"><label>Email</label>
+            <input readonly value="${escapeHtml(ent?.email || '—')}">
           </div>
           <div class="field"><label>SKU</label>
-            <input readonly value="${escapeHtml(ent?.sku || '—')}${ent?.addons?.length ? ' · ' + escapeHtml(ent.addons.join(', ')) : ''}">
+            <input readonly value="${escapeHtml(ent?.sku || '—')}${Array.isArray(ent?.addons) && ent.addons.length ? ' · ' + escapeHtml(ent.addons.join(', ')) : ''}">
           </div>
           <div class="field"><label>Plan</label>
             <input readonly value="${escapeHtml(ent?.plan || '—')}${ent?.expiresAt ? ' · expires ' + escapeHtml(String(ent.expiresAt).slice(0, 10)) : ''}">
+          </div>
+          <div class="field"><label>Programs on this key</label>
+            <input readonly value="${valid ? escapeHtml(L.modulesAllowed(ent).filter((m) => m !== 'license' && m !== 'about').join(', ') || '—') : '—'}">
           </div>
         </div>
 
         <h3 class="subhead">Activate with license key</h3>
         <form id="licActivate" class="grid-2">
           <div class="field"><label>Email</label><input name="email" type="email" required placeholder="you@company.com" value="${escapeHtml(ent?.email || '')}"></div>
-          <div class="field"><label>License key</label><input name="key" required placeholder="CK-XXXXXXXX-XXXXXXXX" style="text-transform:uppercase"></div>
+          <div class="field"><label>License key</label><input name="key" required placeholder="CA-XXXXXXXX-XXXXXXXX" style="text-transform:uppercase" autocomplete="off"></div>
         </form>
         <div class="form-actions">
           <button type="button" class="btn primary" id="btnLicActivate">Activate this device</button>
@@ -72,16 +78,16 @@ window.ChengProModules.license = {
       try {
         status.textContent = 'Activating…';
         const fd = new FormData(form);
-        await L.activate({
+        const ent = await L.activate({
           email: fd.get('email'),
           licenseKey: String(fd.get('key') || '').trim(),
           seat,
         });
-        status.textContent = 'Activated. Grace refreshed for 60 days.';
+        status.textContent = 'Activated — ' + (ent?.sku || 'license') + ', ' + L.daysLeft(ent) + ' days until next check.';
         window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: 'License activated' }));
-        await window.ChengProModules.license.render(root);
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'license' }));
       } catch (e) {
-        status.textContent = e.message;
+        status.textContent = e.message || 'Activation failed';
       }
     };
 
@@ -89,7 +95,7 @@ window.ChengProModules.license = {
       try {
         await L.heartbeat();
         status.textContent = 'Check OK — grace refreshed.';
-        await window.ChengProModules.license.render(root);
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'license' }));
       } catch (e) {
         status.textContent = e.message;
       }
@@ -112,7 +118,7 @@ window.ChengProModules.license = {
       try {
         await L.pairComplete({ code: root.querySelector('#pairCode').value.trim() });
         status.textContent = 'Windows seat paired.';
-        await window.ChengProModules.license.render(root);
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'license' }));
       } catch (e) {
         status.textContent = e.message;
       }
