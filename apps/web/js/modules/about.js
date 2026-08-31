@@ -1,8 +1,85 @@
 window.ChengProModules = window.ChengProModules || {};
 
+function parseSemverParts(v) {
+  const m = String(v || '').trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+function isNewerVersion(latest, current) {
+  const a = parseSemverParts(latest);
+  const b = parseSemverParts(current);
+  if (!a || !b) return String(latest) !== String(current);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+function currentAioVersion() {
+  const el = document.getElementById('appVersion');
+  const raw = (el && el.textContent) || '';
+  const m = raw.match(/v?(\d+\.\d+\.\d+)/);
+  if (m) return m[1];
+  try {
+    return (window.CHENG_PRO_VERSION || '').replace(/^v/i, '') || '0.3.26';
+  } catch {
+    return '0.3.26';
+  }
+}
+async function checkAioAppUpdate() {
+  const status = document.getElementById('about-update-status');
+  const link = document.getElementById('about-update-link');
+  const current = currentAioVersion();
+  if (status) status.textContent = 'Checking GitHub for the latest ChEng AIO release…';
+  if (link) link.style.display = 'none';
+  try {
+    const res = await fetch('https://api.github.com/repos/tsogs66/Cheng-Pro/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('GitHub returned HTTP ' + res.status);
+    const data = await res.json();
+    const tag = String(data.tag_name || '').replace(/^v/i, '');
+    const url = data.html_url || 'https://github.com/tsogs66/Cheng-Pro/releases/latest';
+    const apk = Array.isArray(data.assets)
+      ? data.assets.find((a) => /\.apk$/i.test(a.name || ''))
+      : null;
+    if (link) {
+      link.href = apk && apk.browser_download_url ? apk.browser_download_url : url;
+      link.textContent = apk ? ('Download ' + (apk.name || 'APK')) : 'Open latest release';
+      link.style.display = 'inline';
+    }
+    if (!tag) {
+      if (status) status.textContent = 'Could not read the latest release tag.';
+      return;
+    }
+    if (isNewerVersion(tag, current)) {
+      if (status) {
+        status.textContent =
+          'Update available: v' + tag + ' (this device: v' + current +
+          '). Download the APK and open it — Android installs over the existing app; do not uninstall first.';
+      }
+    } else {
+      if (status) status.textContent = 'You are on the latest release (v' + current + ').';
+    }
+  } catch (err) {
+    if (status) {
+      status.textContent =
+        'Could not check for updates (' + (err && err.message ? err.message : 'offline') +
+        '). Open GitHub releases when you have internet.';
+    }
+    if (link) {
+      link.href = 'https://github.com/tsogs66/Cheng-Pro/releases/latest';
+      link.textContent = 'Open latest release';
+      link.style.display = 'inline';
+    }
+  }
+}
+
 window.ChengProModules.about = {
   title: 'About & Guide',
   async render(root) {
+    const ver = currentAioVersion();
     root.innerHTML = `
       <section class="panel home-hero">
         <p class="home-kicker">About</p>
@@ -11,7 +88,12 @@ window.ChengProModules.about = {
           Chief Engineer All-In-One brings Voyage Chief, Tank Chief, e-ORB, and Performance
           onto one vessel identity. Built for daily work at sea — offline first, sync when the link is up.
         </p>
-        <p class="home-meta">ts0gs · Marvin C. Endozo</p>
+        <p class="home-meta">ts0gs · Marvin C. Endozo · v${ver}</p>
+        <div class="form-actions" style="margin-top:14px;">
+          <button type="button" class="btn primary" id="btnCheckAioUpdate">Check for latest release</button>
+          <a class="btn" id="about-update-link" href="https://github.com/tsogs66/Cheng-Pro/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
+        </div>
+        <p class="hint" id="about-update-status" role="status" aria-live="polite" style="margin-top:10px;"></p>
       </section>
 
       <section class="panel home-section" id="about-programs">
@@ -84,6 +166,13 @@ window.ChengProModules.about = {
           <li>Enter distance, revolutions or run hours, and consumption as required.</li>
           <li>Read slip, SFOC-related figures, and totals for the watch or voyage segment.</li>
         </ol>
+
+        <h3 class="about-sub">6. Android APK updates</h3>
+        <ol class="about-steps">
+          <li>Use <strong>Check for latest release</strong> above when online.</li>
+          <li>Download the new <code>ChEngAIO-*.apk</code> and open it — Android updates in place; do not uninstall first.</li>
+          <li>If a very old debug-signed build is installed, uninstall that one once; later builds overwrite cleanly.</li>
+        </ol>
       </section>
 
       <section class="panel home-section" id="about-scenarios">
@@ -142,5 +231,6 @@ window.ChengProModules.about = {
         </dl>
       </section>
     `;
+    root.querySelector('#btnCheckAioUpdate')?.addEventListener('click', checkAioAppUpdate);
   },
 };

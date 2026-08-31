@@ -91,9 +91,10 @@ DEFAULT_API_TOKEN = "change-me-in-production"
 _raw_token = os.environ.get("SYNC_API_TOKEN", DEFAULT_API_TOKEN)
 API_TOKEN = _raw_token
 ALLOW_OPEN_SYNC = os.environ.get("SYNC_ALLOW_OPEN", "").strip() == "1"
-# No SYNC_API_TOKEN reached the process: the server has no secret to check against,
-# so it cannot authenticate anyone. See _auth_reason().
+# No SYNC_API_TOKEN reached the process: the server has no secret to check against.
+# Open sync is opt-in via SYNC_ALLOW_OPEN=1 (closed by default for safety).
 TOKEN_CONFIGURED = bool(API_TOKEN) and API_TOKEN != DEFAULT_API_TOKEN
+OPEN_SYNC = (not TOKEN_CONFIGURED) and ALLOW_OPEN_SYNC
 HOST = os.environ.get("SYNC_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SYNC_PORT", "8787"))
 ALLOWED_ORIGINS = [
@@ -451,14 +452,12 @@ class SyncHandler(BaseHTTPRequestHandler):
 
     def _auth_reason(self) -> str:
         """'' when the request may proceed, otherwise why it may not."""
-        auth = self.headers.get("Authorization", "")
-        if not TOKEN_CONFIGURED:
-            # Unconfigured: the server is open to anyone who can reach it, with or
-            # without a token. Rejecting a bearer token here would protect nothing
-            # while making a correctly configured app look broken — which is exactly
-            # the 401 this used to produce. /api/health reports tokenConfigured:false
-            # so the app can say the server is open instead of guessing.
+        # Keep in sync with _principal(): open sync is opt-in (SYNC_ALLOW_OPEN=1).
+        if OPEN_SYNC:
             return ""
+        if not TOKEN_CONFIGURED:
+            return "token_required"
+        auth = self.headers.get("Authorization", "")
         if not auth:
             return "missing_token"
         # Compare wire bytes. http.server decodes headers as latin-1, so a non-ASCII
@@ -484,7 +483,11 @@ class SyncHandler(BaseHTTPRequestHandler):
                 "message": (
                     "No Authorization header was sent; the app needs the API token."
                     if reason == "missing_token"
-                    else "The bearer token does not match this server's SYNC_API_TOKEN."
+                    else (
+                        "This sync server requires SYNC_API_TOKEN (or SYNC_ALLOW_OPEN=1 for a lab-only open server)."
+                        if reason == "token_required"
+                        else "The bearer token does not match this server's SYNC_API_TOKEN."
+                    )
                 ),
             },
         )
@@ -532,10 +535,11 @@ class SyncHandler(BaseHTTPRequestHandler):
                     "time": utc_now(),
                     "static": bool(STATIC_DIR),
                     "layout": "vessel/voyageNo/CONDITION.json",
-                    # False = SYNC_API_TOKEN never reached this process, so every
-                    # request is accepted. The app surfaces this as a warning.
+                    # False = SYNC_API_TOKEN never reached this process.
+                    # authRequired is still true unless SYNC_ALLOW_OPEN=1 (closed by default).
                     "tokenConfigured": TOKEN_CONFIGURED,
-                    "authRequired": TOKEN_CONFIGURED,
+                    "authRequired": not OPEN_SYNC,
+                    "openSync": OPEN_SYNC,
                     # True once any account exists: the app should show its login
                     # screen instead of asking for a bare sync token.
                     "accountsEnabled": not ACCOUNTS.is_empty(),
@@ -1405,9 +1409,13 @@ def main() -> None:
         print(f"Serving static PWA from: {STATIC_DIR}")
     if not TOKEN_CONFIGURED:
         print("*" * 78)
-        print("WARNING: SYNC_API_TOKEN is not set — this server accepts EVERY request,")
-        print("         with or without a token. Anyone who can reach this URL can read")
-        print("         and overwrite voyage data. Set SYNC_API_TOKEN=<secret> and restart.")
+        if OPEN_SYNC:
+            print("WARNING: SYNC_ALLOW_OPEN=1 — this server accepts EVERY request.")
+            print("         Lab/LAN only. Prefer SYNC_API_TOKEN=<secret> in production.")
+        else:
+            print("WARNING: SYNC_API_TOKEN is not set — sync API is CLOSED (401).")
+            print("         Set SYNC_API_TOKEN=<secret> for clients, or SYNC_ALLOW_OPEN=1")
+            print("         only for a trusted lab/single-ship LAN with no public URL.")
         print("*" * 78)
     print("Cloudflare Tunnel example:")
     print(f"  cloudflared tunnel --url http://127.0.0.1:{PORT}")

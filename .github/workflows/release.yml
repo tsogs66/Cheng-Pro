@@ -95,8 +95,9 @@ jobs:
 
             ### Install
             - **Windows**: run the NSIS installer, or use the portable EXE from USB
-            - **Android**: install `ChEngAIO-*.apk` (signed for sideload). On the phone: Settings → Security → allow install from your file manager or browser. If v0.2.0 failed, use this build or add the PWA from `http://<server>:8080` via Chrome → Add to Home screen.
+            - **Android**: install `ChEngAIO-*.apk` (stable sideload signature). Open the new APK to **update in place** — do not uninstall first (data stays). Allow install from your file manager/browser if prompted. If an older debug-signed build is on the device, uninstall that one once, then future updates overwrite cleanly.
             - **Server (Proxmox/Debian)**: see `deploy/proxmox-install.sh`
+            - In the app: **About → Check for latest release** (or Setup in Voyage) compares this device to GitHub Releases.
 
             ### Run from source
             ```bash

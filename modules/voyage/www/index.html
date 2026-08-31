@@ -36,12 +36,9 @@
     if (native || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
       document.documentElement.classList.add('use-bottom-nav');
     }
-    /* ChEng AIO e-ORB iframe: hide Voyage tabs before first paint (CSS uses !important). */
-    var qs = location.search || '';
-    var aioEmbed = /\bchengaio=1\b/.test(qs);
-    try { if (!aioEmbed && localStorage.getItem('chengAioEmbedded') === '1') aioEmbed = true; } catch (_e3) {}
-    if (/\beorbEmbed=1\b/.test(qs) && aioEmbed) {
-      document.documentElement.classList.add('eorb-embed');
+    if ((window.innerWidth || 0) >= 1101) {
+      document.documentElement.classList.remove('use-bottom-nav');
+      document.documentElement.classList.add('use-top-tabs');
     }
     /* Apply before first paint so the login card is not white with dark-theme
        ghost labels for a frame while MarineTheme runs later. */
@@ -51,6 +48,11 @@
       try { k = localStorage.getItem('vm_bright'); } catch (_e2) {}
     }
     if (k === '1') document.documentElement.classList.add('bright');
+    try {
+      if (/[?&]chengaio=1\b/.test(location.search || '') || localStorage.getItem('chengAioEmbedded') === '1') {
+        document.documentElement.classList.add('chengaio-embed');
+      }
+    } catch (_e3) {}
   }catch(_e){}
 })();
 
@@ -126,6 +128,7 @@
     background:linear-gradient(180deg, #efebe3 0%, #f7f5ef 40%, #ffffff 100%);
   }
   *{box-sizing:border-box;}
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body{margin:0;padding:0;}
   body{
     background:radial-gradient(1200px 600px at 15% -10%, #16283f 0%, transparent 60%), var(--ink);
@@ -177,8 +180,8 @@
      every time you open the app. */
   .byline{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.04em;
           color:var(--muted); margin-top:3px;}
-  /* Theme control: masthead on desktop; fixed bottom-left on phone so it never
-     overlaps ChEng AIO / system chrome at the top-right. */
+  /* Theme control: stay in the masthead on phone — bottom-left FAB fought the
+     bottom nav and sat under the fold on mobile browsers. */
   .theme-toggle{
     border:1px solid var(--line-strong); background:rgba(0,0,0,0.18); color:var(--brass);
     border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600;
@@ -186,15 +189,15 @@
   }
   html.bright .theme-toggle{background:rgba(18,34,56,0.06);}
   .theme-toggle:hover{border-color:var(--brass); color:var(--paper);}
-  .theme-fab{
-    position:fixed; left:max(12px, env(safe-area-inset-left));
-    bottom:max(72px, calc(14px + env(safe-area-inset-bottom)));
-    z-index:90; box-shadow:0 8px 24px rgba(0,0,0,0.35); display:none;
-  }
+  .theme-fab{ display:none !important; }
   @media (max-width:900px){
-    .status-row .theme-toggle{display:none;}
-    .theme-fab{display:inline-flex;}
+    .status-row .theme-toggle{display:inline-flex; padding:5px 10px; font-size:11px;}
   }
+  /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
+  html.chengaio-embed .masthead{
+    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
+  }
+  html.chengaio-embed .status-row{align-items:flex-end;}
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -761,66 +764,64 @@
   @media (max-width:720px){
     html,body{overflow-x:clip;}
     body{
-      padding:12px 10px 88px;
-      padding-top:calc(12px + env(safe-area-inset-top));
-      padding-left:calc(10px + env(safe-area-inset-left));
-      padding-right:calc(10px + env(safe-area-inset-right));
-      padding-bottom:calc(88px + env(safe-area-inset-bottom));
+      padding:8px 8px 68px;
+      padding-top:calc(8px + env(safe-area-inset-top));
+      padding-left:calc(8px + env(safe-area-inset-left));
+      padding-right:calc(8px + env(safe-area-inset-right));
+      padding-bottom:calc(64px + env(safe-area-inset-bottom));
     }
-    h1{font-size:18px; line-height:1.2;}
-    .subtitle{font-size:10px;}
-    .masthead{align-items:flex-start; gap:10px; padding-bottom:10px; margin-bottom:4px;}
-    .masthead-left{gap:10px;}
-    .app-logo{width:42px;height:42px;}
+    h1{font-size:16px; line-height:1.2;}
+    .subtitle{font-size:9px;}
+    .masthead{align-items:flex-start; gap:8px; padding-bottom:8px; margin-bottom:2px;}
+    .masthead-left{gap:8px;}
+    .app-logo{width:34px;height:34px;}
     .status-row{align-items:flex-start; width:100%;}
-    #dbStatus,#syncStatus{font-size:10px; word-break:break-word;}
+    #dbStatus,#syncStatus{font-size:9px; word-break:break-word;}
+    .byline{font-size:9px; margin-top:2px;}
 
     /* Top tabs move into bottom bar on phone (also see html.use-bottom-nav) */
     .tabs{display:none;}
     .bottom-nav{display:flex;}
-    body{
-      padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px));
-    }
 
-    .panel{padding:14px 12px; margin-bottom:14px; border-radius:8px;}
-    .panel h2{font-size:13px; margin-bottom:12px;}
-    .panel h3.sub{font-size:10px; margin:14px 0 8px;}
+    .panel{padding:10px 10px; margin-bottom:10px; border-radius:6px;}
+    .panel h2{font-size:12px; margin-bottom:8px;}
+    .panel h3.sub{font-size:10px; margin:10px 0 6px;}
 
     /* Forms: 2-col default, full-width for long fields */
     .form-grid,.form-grid.cols2,.form-grid.cols3,.form-grid.cols5,.form-grid.cols6{
-      grid-template-columns:1fr 1fr; gap:10px 8px;
+      grid-template-columns:1fr 1fr; gap:8px 6px;
     }
     .field.span2{grid-column:1 / -1;}
-    .field label{font-size:10px;}
+    .field label{font-size:9px;}
     .field input,.field select,.field textarea,
     textarea{
       font-size:16px !important; /* prevent iOS focus zoom */
-      min-height:44px;
-      padding:10px 10px;
-      border-radius:6px;
+      min-height:38px;
+      padding:7px 8px;
+      border-radius:5px;
     }
-    .field textarea, textarea{min-height:88px; line-height:1.35;}
-    .pf-input{width:100%; max-width:100%; min-height:40px; font-size:16px; padding:8px;}
+    .field textarea, textarea{min-height:72px; line-height:1.35;}
+    .pf-input{width:100%; max-width:100%; min-height:36px; font-size:16px; padding:6px;}
 
     .stat-strip,.stat-strip.cols2,.stat-strip.cols3,.stat-strip.cols4,.stat-strip.cols5{
-      grid-template-columns:repeat(2,1fr); gap:10px;
-    }
-    .stat .num{font-size:16px;}
-    .stat .lbl{font-size:9px;}
-
-    .gauge-grid,.gauge-grid.cols2,.gauge-grid.cols4,.gauge-grid.cols5{
       grid-template-columns:repeat(2,1fr); gap:8px;
     }
-    .gauge-grid.large .gauge-box svg{max-width:160px;}
-    .gauge-grid.large .gauge-value{font-size:18px;}
+    .stat .num{font-size:14px;}
+    .stat .lbl{font-size:8px;}
 
-    /* Unit boxes / meters: stack denser layouts */
+    .gauge-grid,.gauge-grid.cols2,.gauge-grid.cols4,.gauge-grid.cols5{
+      grid-template-columns:repeat(2,1fr); gap:6px;
+    }
+    .gauge-grid.large .gauge-box svg{max-width:140px;}
+    .gauge-grid.large .gauge-value{font-size:16px;}
+
+    /* Unit boxes: keep 2-col on phone so forms stay scannable */
     .unit-group,.unit-group.cols2,.unit-group.cols3,
     .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{
-      grid-template-columns:1fr; gap:10px;
+      grid-template-columns:1fr 1fr; gap:8px;
     }
-    #fuelLubeMeterRow.unit-group.cols4{grid-template-columns:1fr;}
-    #meBlrRuntimeFields.unit-group.cols2{grid-template-columns:1fr;}
+    #fuelLubeMeterRow.unit-group.cols4{grid-template-columns:1fr 1fr;}
+    #meBlrRuntimeFields.unit-group.cols2{grid-template-columns:1fr 1fr;}
 
     /* Voyage Summary: readable stacks instead of tiny 5/6-col scroll rows */
     #voyageSummaryPanel .form-grid.cols5,
@@ -830,57 +831,57 @@
     }
     #vsCylFields.unit-group.cols6{
       grid-template-columns:repeat(2, minmax(0, 1fr));
-      overflow-x:visible; gap:8px;
+      overflow-x:visible; gap:6px;
     }
     #vsTurboScavRow.unit-group.cols3,
     #vsTurboScavRow.unit-group.cols3.no-turbos{
-      grid-template-columns:1fr; overflow-x:visible;
+      grid-template-columns:1fr 1fr; overflow-x:visible;
     }
     #vsOthersFields.form-grid.cols2{grid-template-columns:1fr 1fr;}
-    #vsGeRuntimeFields.unit-group.cols3{grid-template-columns:1fr;}
-    #voyageSummaryPanel .unit-group.cols3{grid-template-columns:1fr;}
+    #vsGeRuntimeFields.unit-group.cols3{grid-template-columns:1fr 1fr;}
+    #voyageSummaryPanel .unit-group.cols3{grid-template-columns:1fr 1fr;}
 
-    .ref-grid{grid-template-columns:repeat(2,1fr); gap:8px 10px;}
-    .ref-item .rv{font-size:12px;}
+    .ref-grid{grid-template-columns:repeat(2,1fr); gap:6px 8px;}
+    .ref-item .rv{font-size:11px;}
 
     .table-scroll{
       -webkit-overflow-scrolling:touch;
       max-height:none;
-      margin:0 -4px;
-      padding-bottom:4px;
+      margin:0 -2px;
+      padding-bottom:2px;
     }
-    table{font-size:11px;}
-    thead th, tbody td{padding:8px 6px;}
-    table.freeze-cols th:nth-child(1), table.freeze-cols td:nth-child(1){width:120px; min-width:120px;}
-    table.freeze-cols th:nth-child(2), table.freeze-cols td:nth-child(2){left:120px; width:110px; min-width:110px;}
+    table{font-size:10px;}
+    thead th, tbody td{padding:6px 4px;}
+    table.freeze-cols th:nth-child(1), table.freeze-cols td:nth-child(1){width:100px; min-width:100px;}
+    table.freeze-cols th:nth-child(2), table.freeze-cols td:nth-child(2){left:100px; width:96px; min-width:96px;}
 
-    .btn-row{gap:8px; margin-top:12px;}
+    .btn-row{gap:6px; margin-top:10px;}
     .btn-row > button{
-      flex:1 1 calc(50% - 8px);
-      min-height:44px;
-      padding:12px 14px;
-      font-size:12px;
+      flex:1 1 calc(50% - 6px);
+      min-height:40px;
+      padding:8px 10px;
+      font-size:11px;
     }
     .btn-row > button.primary,
     .btn-row > button.danger{flex:1 1 100%;}
-    button.small{min-height:40px; padding:8px 12px; font-size:11px;}
+    button.small{min-height:36px; padding:6px 10px; font-size:10px;}
     button,.tab{touch-action:manipulation; -webkit-tap-highlight-color:transparent;}
 
-    .receipt-row{flex-wrap:wrap; font-size:12px; gap:6px;}
-    .hint{font-size:12px; line-height:1.45;}
+    .receipt-row{flex-wrap:wrap; font-size:11px; gap:4px;}
+    .hint{font-size:11px; line-height:1.4;}
     .badge{margin-left:4px;}
-    .vs-photo-preview img{max-height:220px;}
-    .footer-note{font-size:10px; margin-top:20px; padding:0 4px;}
-    input[type="file"]{max-width:100%; font-size:14px;}
+    .vs-photo-preview img{max-height:180px;}
+    .footer-note{font-size:9px; margin-top:14px; padding:0 2px;}
+    input[type="file"]{max-width:100%; font-size:13px;}
   }
   @media (max-width:420px){
     .form-grid,.form-grid.cols2,.form-grid.cols3,.form-grid.cols5,.form-grid.cols6{
-      grid-template-columns:1fr;
+      grid-template-columns:1fr 1fr;
     }
     #vsOthersFields.form-grid.cols2{grid-template-columns:1fr 1fr;}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(2, minmax(0, 1fr));}
     .stat-strip,.stat-strip.cols2,.stat-strip.cols3,.stat-strip.cols4,.stat-strip.cols5{grid-template-columns:1fr 1fr;}
-    .btn-row > button{flex:1 1 100%;}
+    .btn-row > button{flex:1 1 calc(50% - 6px);}
   }
 
   /* ---- Tablet mid-width (portrait tablets / small laptops) ---- */
@@ -965,20 +966,39 @@
 
   /* Class fallback when orientation media is sticky after rotate (iOS/Android WebView) */
   html.short-viewport body,
-  html.short-viewport.use-bottom-nav body{
-    padding:8px 10px 64px !important;
+  html.short-viewport.use-bottom-nav body,
+  html.compact-phone body,
+  html.compact-phone.use-bottom-nav body{
+    padding:6px 8px 60px !important;
     padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
-    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom:calc(56px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  html.short-viewport .subtitle{display:none;}
+  html.short-viewport .subtitle,
+  html.compact-phone .subtitle{display:none;}
   html.short-viewport .hint{display:none;}
-  html.short-viewport .app-logo{width:32px; height:32px;}
-  html.short-viewport h1{font-size:15px;}
-  html.short-viewport .bottom-nav{padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px));}
-  html.short-viewport .bn-item{min-height:44px; font-size:8px;}
-  html.short-viewport .bn-item svg{width:18px; height:18px;}
+  html.short-viewport .app-logo,
+  html.compact-phone .app-logo{width:30px; height:30px;}
+  html.short-viewport h1,
+  html.compact-phone h1{font-size:14px;}
+  html.short-viewport .bottom-nav,
+  html.compact-phone .bottom-nav{padding:2px 2px calc(2px + env(safe-area-inset-bottom, 0px));}
+  html.short-viewport .bn-item,
+  html.compact-phone .bn-item{min-height:42px; font-size:8px; gap:1px; padding:3px 1px 2px;}
+  html.short-viewport .bn-item svg,
+  html.compact-phone .bn-item svg{width:17px; height:17px;}
   html.short-viewport .table-scroll{max-height:min(42vh, 280px);}
-  html.short-viewport .footer-note{display:none;}
+  html.short-viewport .footer-note,
+  html.compact-phone .footer-note{display:none;}
+  html.compact-phone .panel{padding:8px 9px; margin-bottom:8px;}
+  html.compact-phone .panel h2{font-size:11px; margin-bottom:6px;}
+  html.compact-phone .field input,
+  html.compact-phone .field select,
+  html.compact-phone .field textarea,
+  html.compact-phone textarea{
+    font-size:16px !important; min-height:36px; padding:6px 7px;
+  }
+  html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
+  html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
   /* ---- Landscape phone / short viewports: maximize vertical content ---- */
   @media (orientation: landscape) and (max-height:560px){
@@ -1143,8 +1163,8 @@
     display:none;
     position:fixed; left:0; right:0; bottom:0; z-index:1200;
     align-items:stretch; justify-content:space-around;
-    gap:2px;
-    padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap:1px;
+    padding:3px 2px calc(3px + env(safe-area-inset-bottom, 0px));
     background:var(--nav-bg);
     border-top:1px solid var(--line-strong);
     backdrop-filter:blur(12px);
@@ -1155,45 +1175,27 @@
   html.use-bottom-nav .tabs{display:none !important;}
   html.use-bottom-nav .bottom-nav{display:flex !important;}
   html.use-bottom-nav body{
-    padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  html.use-bottom-nav .footer-note{margin-bottom:12px;}
-  /* ChEng AIO → e-ORB tab: iframe shows only the ORB book — no Voyage Chief nav chrome */
-  html.eorb-embed .masthead,
-  html.eorb-embed #tabs,
-  html.eorb-embed .bottom-nav,
-  html.eorb-embed #bnMoreSheet,
-  html.eorb-embed .footer-note,
-  html.eorb-embed .theme-fab {
-    display: none !important;
-  }
-  html.eorb-embed body {
-    padding-bottom: 0 !important;
-  }
-  html.eorb-embed .page:not(#page-orb) {
-    display: none !important;
-  }
-  html.eorb-embed #page-orb {
-    display: block !important;
-  }
+  html.use-bottom-nav .footer-note{margin-bottom:8px;}
   @media (max-width:1100px), (hover:none) and (pointer:coarse){
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
     html:not(.use-top-tabs) body{
-      padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px));
     }
   }
   .bn-item{
-    flex:1 1 0; min-width:0; max-width:88px;
+    flex:1 1 0; min-width:0; max-width:80px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:3px; padding:6px 2px 4px;
+    gap:2px; padding:4px 2px 3px;
     border:0 !important; background:transparent; color:var(--paper-dim);
-    font-family:'Oswald',sans-serif; font-size:9px; letter-spacing:0.06em;
-    text-transform:uppercase; cursor:pointer; border-radius:8px;
-    min-height:52px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    font-family:'Oswald',sans-serif; font-size:8px; letter-spacing:0.05em;
+    text-transform:uppercase; cursor:pointer; border-radius:6px;
+    min-height:46px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     transition:color .15s ease, background .15s ease;
   }
-  .bn-item svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
+  .bn-item svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
   .bn-item.active{color:var(--brass); background:var(--nav-active-bg);}
   .bn-item:hover{color:var(--paper); border-color:transparent;}
   .bn-item.active:hover{color:var(--brass);}
@@ -1207,10 +1209,10 @@
   .bn-more-sheet.open{display:block;}
   .bn-more-panel{
     position:absolute; left:0; right:0; bottom:0;
-    padding:14px 12px calc(86px + env(safe-area-inset-bottom, 0px));
+    padding:12px 10px calc(70px + env(safe-area-inset-bottom, 0px));
     background:linear-gradient(180deg, var(--panel), var(--panel2));
     border-top:1px solid var(--line-strong);
-    border-radius:16px 16px 0 0;
+    border-radius:14px 14px 0 0;
     box-shadow:var(--nav-panel-shadow);
     max-height:min(70vh, 480px);
     overflow-y:auto;
@@ -3133,6 +3135,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
   <!-- SETUP / SYNC (internal page id: data) -->
   <div class="page" id="page-data">
+    <div class="panel" id="appUpdatePanel">
+      <h2>App version</h2>
+      <div class="hint">This device is running <strong id="setupAppVersionLabel">…</strong>. Check GitHub for a newer Voyage Chief release (APK / installer). New APKs install over the existing app when signed with the same key — no need to uninstall first.</div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="primary small" type="button" id="btnCheckAppUpdate">Check for latest release</button>
+        <a class="btn-link-like" id="btnOpenLatestRelease" href="https://github.com/tsogs66/voyage-manager/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
+      </div>
+      <div class="hint" id="appUpdateStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
+    </div>
     <div class="panel">
       <h2>Server Sync</h2>
       <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally and upload on reconnect.</div>
@@ -10593,7 +10604,6 @@ function syncBottomNav(pageName){
 
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
-  if (isChengAioEmbedded() && /[?&]eorbEmbed=1\b/.test(location.search) && pageName !== 'orb') return;
   if (pageName === 'orb' && !voyageEorbAllowed()){
     const aioOrb = isChengAioEmbedded() && /[?&]page=orb\b/.test(location.search);
     if (!aioOrb) {
@@ -10653,10 +10663,22 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       if (native || android || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
         document.documentElement.classList.add('use-bottom-nav');
       }
+      /* Wide desktop: keep top tabs even on touch laptops */
+      if ((window.innerWidth || 0) >= 1101) {
+        document.documentElement.classList.remove('use-bottom-nav');
+        document.documentElement.classList.add('use-top-tabs');
+      } else {
+        document.documentElement.classList.remove('use-top-tabs');
+      }
       const short = (window.innerHeight || 0) > 0 && (window.innerHeight || 0) <= 560;
       const landscape = (window.innerWidth || 0) > (window.innerHeight || 0);
+      const narrow = Math.min(window.innerWidth || 0, window.innerWidth || 0) <= 720
+        || Math.min(screen.width || 0, screen.height || 0) <= 720;
+      const compact = narrow || (document.documentElement.classList.contains('use-bottom-nav')
+        && Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900);
       document.documentElement.classList.toggle('short-viewport', short);
       document.documentElement.classList.toggle('landscape-view', landscape);
+      document.documentElement.classList.toggle('compact-phone', compact && !landscape);
     }catch(_){}
     syncBottomNav(_activeTab);
   }
@@ -17795,7 +17817,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v165';
+let androidInstallCacheName = 'noon-report-v170';
 
 /*
  * What the program is called.
@@ -17835,13 +17857,83 @@ const APP_AUTHOR_LINE = APP_AUTHOR.handle + ' · ' + APP_AUTHOR.name;
  * engineer can now compare what the header says against the file they installed,
  * and quote it when something is wrong.
  */
-function showAppVersion(){
-  const el = document.getElementById('appVersion');
-  if (!el) return;
+function currentAppVersionLabel(){
   const n = String(androidInstallCacheName || '').replace(/^noon-report-v/, '');
-  el.textContent = n ? ('v1.0.' + n) : '';
+  return n ? ('1.0.' + n) : '';
+}
+function showAppVersion(){
+  const ver = currentAppVersionLabel();
+  const el = document.getElementById('appVersion');
+  if (el) el.textContent = ver ? ('v' + ver) : '';
+  const setup = document.getElementById('setupAppVersionLabel');
+  if (setup) setup.textContent = ver ? ('v' + ver) : 'unknown';
 }
 showAppVersion();
+
+function parseSemverParts(v){
+  const m = String(v || '').trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+function isNewerVersion(latest, current){
+  const a = parseSemverParts(latest);
+  const b = parseSemverParts(current);
+  if (!a || !b) return String(latest) !== String(current);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+async function checkVoyageAppUpdate(){
+  const status = document.getElementById('appUpdateStatus');
+  const openBtn = document.getElementById('btnOpenLatestRelease');
+  const current = currentAppVersionLabel();
+  if (status) status.textContent = 'Checking GitHub for the latest Voyage Chief release…';
+  if (openBtn) openBtn.style.display = 'none';
+  try {
+    const res = await fetch('https://api.github.com/repos/tsogs66/voyage-manager/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error('GitHub returned HTTP ' + res.status);
+    const data = await res.json();
+    const tag = String(data.tag_name || '').replace(/^v/i, '');
+    const url = data.html_url || 'https://github.com/tsogs66/voyage-manager/releases/latest';
+    const apk = Array.isArray(data.assets)
+      ? data.assets.find((a) => /\.apk$/i.test(a.name || ''))
+      : null;
+    if (openBtn) {
+      openBtn.href = apk && apk.browser_download_url ? apk.browser_download_url : url;
+      openBtn.textContent = apk ? ('Download ' + (apk.name || 'APK')) : 'Open latest release';
+      openBtn.style.display = 'inline-flex';
+    }
+    if (!tag) {
+      if (status) status.textContent = 'Could not read the latest release tag.';
+      return;
+    }
+    if (isNewerVersion(tag, current)) {
+      if (status) {
+        status.textContent = 'Update available: v' + tag + ' (this device: v' + current + '). Download the APK and open it — Android installs over the existing app; do not uninstall first.';
+      }
+    } else {
+      if (status) status.textContent = 'You are on the latest release (v' + current + ').';
+    }
+  } catch (err) {
+    if (status) {
+      status.textContent = 'Could not check for updates (' + (err && err.message ? err.message : 'offline') + '). Open GitHub releases when you have internet.';
+    }
+    if (openBtn) {
+      openBtn.href = 'https://github.com/tsogs66/voyage-manager/releases/latest';
+      openBtn.textContent = 'Open latest release';
+      openBtn.style.display = 'inline-flex';
+    }
+  }
+}
+document.getElementById('btnCheckAppUpdate')?.addEventListener('click', () => {
+  checkVoyageAppUpdate();
+});
 
 /* The masthead is outside the page divs, so the byline shows on every tab. */
 function showAppByline(){
@@ -20517,18 +20609,13 @@ function applyEorbLicenseVisibility(){
     el.hidden = !ok;
     el.style.display = ok ? '' : 'none';
   });
-  /* AIO iframe embed: strip Voyage chrome so only the ORB book shows (CSS uses !important). */
+  /* AIO iframe embed: strip Voyage chrome so only the book shows. */
   if (embedded && /[?&]eorbEmbed=1\b/.test(location.search)) {
     document.documentElement.classList.add('eorb-embed');
     document.body.classList.add('eorb-embed');
-    document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
-    document.querySelectorAll('#tabs .tab').forEach((t) => t.classList.remove('active'));
-    const orbPage = document.getElementById('page-orb');
-    const orbTab = document.querySelector('#tabs .tab[data-page="orb"]');
-    if (orbPage) orbPage.classList.add('active');
-    if (orbTab) orbTab.classList.add('active');
-    if (typeof _activeTab !== 'undefined') _activeTab = 'orb';
-    try { renderOrbUi(); } catch (_) {}
+    document.querySelectorAll('.masthead, #tabs, .bottom-nav, #bnMoreSheet, #bnMoreBackdrop').forEach((el) => {
+      if (el) el.style.display = 'none';
+    });
   }
   if (!ok && !(embedded && /[?&]page=orb\b/.test(location.search))) {
     const page = document.getElementById('page-orb');

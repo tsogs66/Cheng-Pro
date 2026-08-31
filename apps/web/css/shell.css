@@ -181,6 +181,9 @@ html.bright .btn.primary { color: #fff8ee; }
   width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
   color: var(--text); display: none; align-items: center; justify-content: center;
 }
+@media (min-width: 901px) {
+  .menu-btn { display: none !important; }
+}
 .chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
   border: 1px solid var(--line); color: var(--muted); font-size: 0.78rem;
@@ -264,7 +267,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 }
 
 /* Phone landscape — compact chrome, still one-row bottom nav */
-@media (orientation: landscape) and (max-height: 480px) {
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
   .topbar { padding-top: 6px; padding-bottom: 6px; }
   .brand-byline { display: none; }
   .bottom-nav {
@@ -395,8 +398,10 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 .aio-home-fab {
   display: none;
   position: fixed;
+  /* Top-right: must not cover Voyage/Tank brand logo (top-left) or Menu */
   top: max(10px, env(safe-area-inset-top, 0px));
-  left: max(10px, env(safe-area-inset-left, 0px));
+  right: max(10px, env(safe-area-inset-right, 0px));
+  left: auto;
   z-index: 90;
   min-width: 48px;
   min-height: 40px;
