@@ -11,6 +11,9 @@ window.ChengProModules.license = {
     const ent = L.loadEntitlement();
     const valid = L.isValid(ent);
     const seat = L.detectSeat();
+    const serverUrl = L.getLicenseServerUrl ? L.getLicenseServerUrl() : '';
+    const licenseApi = L.apiBase ? L.apiBase() : '/api/license';
+    const needsServer = L.isBundledClient && L.isBundledClient();
     root.innerHTML = `
       <section class="panel">
         <div class="section-head">
@@ -19,6 +22,26 @@ window.ChengProModules.license = {
             <p>Per-user license: 1 Android + 1 Windows. Online check every 60 days (yearly or lifetime).</p>
           </div>
         </div>
+
+        <h3 class="subhead">License server</h3>
+        <p class="hint">${needsServer
+          ? 'Android APK / offline install: enter your ship ChEng AIO server address (the LXC IP and port, usually :8080). Activation calls this host — not the phone itself.'
+          : 'When you open ChEng AIO in Chrome at http://&lt;ship-server&gt;:8080, this can stay blank (same host). Set it if activation fails or you use the Android APK.'}
+        </p>
+        <div class="grid-2" style="margin-bottom:12px">
+          <div class="field"><label>ChEng AIO server URL</label>
+            <input id="licServerUrl" type="url" placeholder="http://192.168.x.x:8080" value="${escapeHtml(serverUrl)}" autocomplete="off">
+          </div>
+          <div class="field"><label>License API (resolved)</label>
+            <input readonly value="${escapeHtml(licenseApi || '— not set —')}">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-bottom:16px">
+          <button type="button" class="btn" id="btnLicSaveServer">Save server URL</button>
+          <button type="button" class="btn" id="btnLicTestServer">Test connection</button>
+        </div>
+        <p class="hint" id="licServerStatus" style="margin-top:0;margin-bottom:16px"></p>
+
         <div class="grid-2" style="margin-bottom:16px">
           <div class="field"><label>Status</label>
             <input readonly value="${valid ? 'Active — ' + L.daysLeft(ent) + ' days until next check' : (ent ? 'Grace expired — activate / renew' : 'Not activated')}">
@@ -72,7 +95,38 @@ window.ChengProModules.license = {
     `;
 
     const status = root.querySelector('#licStatus');
+    const serverStatus = root.querySelector('#licServerStatus');
     const form = root.querySelector('#licActivate');
+
+    root.querySelector('#btnLicSaveServer').onclick = () => {
+      try {
+        const url = root.querySelector('#licServerUrl').value.trim();
+        if (L.setLicenseServerUrl) {
+          L.setLicenseServerUrl(url);
+          serverStatus.textContent = url
+            ? 'Server URL saved — license API: ' + (L.apiBase() || '—')
+            : 'Server URL cleared — using same host when in browser.';
+          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'license' }));
+        }
+      } catch (e) {
+        serverStatus.textContent = e.message || 'Could not save server URL';
+      }
+    };
+
+    root.querySelector('#btnLicTestServer').onclick = async () => {
+      try {
+        serverStatus.textContent = 'Testing…';
+        const url = root.querySelector('#licServerUrl').value.trim();
+        if (url && L.setLicenseServerUrl) L.setLicenseServerUrl(url);
+        const st = await L.fetchStatus();
+        if (!st) throw new Error('No response — check URL and that ChEng AIO is running on the server.');
+        serverStatus.textContent = st.ok
+          ? `Connected — enforce=${st.enforce ? 'on' : 'off'}, mail=${st.mailConfigured ? 'yes' : 'no'}`
+          : 'Unexpected response from license server';
+      } catch (e) {
+        serverStatus.textContent = e.message || 'Connection failed';
+      }
+    };
 
     root.querySelector('#btnLicActivate').onclick = async () => {
       try {

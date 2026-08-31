@@ -200,6 +200,17 @@ app.post('/api/sync/push', express.json({ limit: '50mb' }), requireGatewaySyncAu
 const { mountLicenseRoutes } = require('./license/routes');
 mountLicenseRoutes(app);
 
+app.get('/js/license-config.js', (req, res) => {
+  const raw = (process.env.LICENSE_SERVER_URL || process.env.CHENG_LICENSE_API || '').replace(/\/$/, '');
+  let api = '';
+  if (raw) {
+    api = /\/api\/license$/i.test(raw) ? raw : `${raw}/api/license`;
+  }
+  res.type('application/javascript');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(`window.CHENG_LICENSE_API=${JSON.stringify(api)};\n`);
+});
+
 /* Voyage Chief auth + sync + admin (full Python stack) */
 app.use('/api/auth', requireVoyage);
 app.use('/api/admin', requireVoyage);
