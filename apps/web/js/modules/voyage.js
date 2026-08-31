@@ -12,6 +12,25 @@ function warnPanel(title, message) {
     </section>`;
 }
 
+function bindWarnNav(root) {
+  root.querySelectorAll('[data-go]').forEach((btn) => {
+    btn.onclick = () =>
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
+  });
+}
+
+function renderEmbed(root, { src, title }) {
+  root.innerHTML = `
+    <div class="aio-embed-wrap">
+      <iframe
+        class="aio-embed-frame"
+        title="${title}"
+        src="${src}"
+        allow="clipboard-read; clipboard-write"
+      ></iframe>
+    </div>`;
+}
+
 window.ChengProModules.voyage = {
   title: 'Voyage',
   async render(root) {
@@ -21,14 +40,13 @@ window.ChengProModules.voyage = {
         'Voyage Chief',
         'Voyage Chief is not included on this ChEng AIO license. Ask your office to add the Voyage Chief program when they issue or renew the key.'
       );
-      root.querySelectorAll('[data-go]').forEach((btn) => {
-        btn.onclick = () =>
-          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
-      });
+      bindWarnNav(root);
       return;
     }
-    /* Licensed — open the program directly (AIO already holds the seat). */
-    ChengPro.openVoyage();
+    renderEmbed(root, {
+      src: ChengPro.voyageEmbedUrl(),
+      title: 'Voyage Chief',
+    });
   },
 };
 
@@ -41,12 +59,12 @@ window.ChengProModules.tanks = {
         'Tank Chief',
         'Tank Chief is not included on this ChEng AIO license. Ask your office to add the Tank Chief program when they issue or renew the key.'
       );
-      root.querySelectorAll('[data-go]').forEach((btn) => {
-        btn.onclick = () =>
-          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
-      });
+      bindWarnNav(root);
       return;
     }
-    ChengPro.openTanks();
+    renderEmbed(root, {
+      src: ChengPro.tankEmbedUrl(),
+      title: 'Tank Chief',
+    });
   },
 };

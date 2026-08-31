@@ -73,6 +73,16 @@
     api: {
       fetch: (path, init) => ChengProApi.api(path, init),
     },
+    tankEmbedUrl: () => {
+      const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
+        ? ChengProBundled.moduleUrl('tanks')
+        : '/tanks/';
+      const url = base.includes('index.html')
+        ? base
+        : (base.replace(/\/?$/, '/') + 'index.html');
+      const q = new URLSearchParams({ chengaio: '1' });
+      return url + (url.includes('?') ? '&' : '?') + q.toString();
+    },
     openTanks: () => {
       if (window.ChengLicense && !ChengLicense.moduleAllowed('tanks')) {
         window.dispatchEvent(new CustomEvent('chengpro:toast', {
@@ -82,10 +92,12 @@
         return;
       }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
-      const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
-        ? ChengProBundled.moduleUrl('tanks')
-        : '/tanks/';
-      window.location.href = base + (base.includes('?') ? '&' : '?') + 'chengaio=1';
+      /* Stay in the AIO shell so bottom nav (Home) remains available. */
+      if (root.ChengProModules && root.ChengProModules.tanks) {
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'tanks' }));
+        return;
+      }
+      window.location.href = root.ChengPro.tankEmbedUrl();
     },
     voyageEmbedUrl: (opts) => {
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
@@ -109,6 +121,16 @@
         return;
       }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+      if (root.ChengProModules) {
+        if (opts && opts.page === 'orb') {
+          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'eorb' }));
+          return;
+        }
+        if (root.ChengProModules.voyage) {
+          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'voyage' }));
+          return;
+        }
+      }
       window.location.href = root.ChengPro.voyageEmbedUrl(opts || {});
     },
     openEorb: () => {
