@@ -20,10 +20,10 @@ window.ChengProModules.eorb = {
 
     const src = ChengPro.voyageEmbedUrl({ page: 'orb', eorbEmbed: '1' });
     root.innerHTML = `
-      <div class="eorb-embed-wrap" id="eorbEmbedWrap">
+      <div class="aio-embed-wrap" id="eorbEmbedWrap">
         <iframe
           id="eorbFrame"
-          class="eorb-embed-frame"
+          class="aio-embed-frame"
           title="Electronic Oil Record Book"
           src="${src}"
           allow="clipboard-read; clipboard-write"

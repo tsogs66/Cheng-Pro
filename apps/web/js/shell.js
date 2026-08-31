@@ -141,6 +141,14 @@
   });
   backdrop.addEventListener('click', closeSidebar);
 
+  document.getElementById('brandHome')?.addEventListener('click', () => navigate('home'));
+  document.getElementById('brandHome')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate('home');
+    }
+  });
+
   activeSelect.addEventListener('change', async () => {
     try {
       await ChengPro.vessel.setActive(activeSelect.value || null);

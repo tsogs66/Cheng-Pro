@@ -76,7 +76,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 2px solid var(--brass-dim);
 }
 html.bright .topbar { background: rgba(255,255,255,0.92); }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.brand:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 8px; }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
   background: #0f172a url('../icons/icon-192.png') center / cover no-repeat;
@@ -353,7 +354,8 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .home-feature-list { grid-template-columns: 1fr; }
 }
 
-/* e-ORB full embed inside AIO shell */
+/* Voyage / Tank / e-ORB full embed inside AIO shell — bottom nav stays visible */
+.main:has(.aio-embed-wrap),
 .main:has(.eorb-embed-wrap) {
   padding: 0;
   display: flex;
@@ -362,14 +364,17 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   padding-bottom: 0;
 }
 @media (max-width: 900px) {
+  .main:has(.aio-embed-wrap),
   .main:has(.eorb-embed-wrap) {
     padding-bottom: var(--bottom-h);
     min-height: calc(100dvh - var(--topbar-h) - var(--safe-top));
   }
+  .aio-embed-frame,
   .eorb-embed-frame {
     min-height: calc(100dvh - var(--topbar-h) - var(--bottom-h) - var(--safe-top) - 8px);
   }
 }
+.aio-embed-wrap,
 .eorb-embed-wrap {
   flex: 1;
   min-height: 0;
@@ -377,6 +382,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   flex-direction: column;
   background: var(--ink);
 }
+.aio-embed-frame,
 .eorb-embed-frame {
   flex: 1;
   width: 100%;
