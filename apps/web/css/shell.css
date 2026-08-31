@@ -192,7 +192,7 @@ table.data th, table.data td {
 }
 table.data th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .toast {
-  position: fixed; left: 50%; bottom: calc(18px + var(--safe-bottom)); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(18px + var(--bottom-h) + var(--safe-bottom)); transform: translateX(-50%);
   background: var(--panel-solid); color: var(--text); border: 1px solid var(--brass-dim);
   border-radius: 999px; padding: 10px 16px; z-index: 80; box-shadow: var(--shadow);
   max-width: min(92vw, 420px);
@@ -207,25 +207,50 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .sidebar {
     position: fixed; inset: 0 auto 0 0; width: min(280px, 86vw); z-index: 50;
     transform: translateX(-105%); transition: transform 0.2s ease;
+    padding-bottom: calc(24px + var(--safe-bottom));
   }
   .sidebar.open { transform: translateX(0); }
   .sidebar-backdrop {
     display: block; position: fixed; inset: 0; background: rgba(4,10,18,0.55); z-index: 45;
   }
   .menu-btn { display: inline-flex; }
+  /* Single-row primary nav — Vessel / License / About stay in the ☰ sidebar */
   .bottom-nav {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr)); gap: 4px; position: sticky; bottom: 0; z-index: 30;
-    padding: 8px 8px calc(8px + var(--safe-bottom));
-    background: rgba(10,20,32,0.96); border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    height: auto;
+    min-height: calc(56px + var(--safe-bottom));
+    padding: 6px 6px calc(6px + var(--safe-bottom));
+    background: rgba(10,20,32,0.97);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
   }
-  html.bright .bottom-nav { background: rgba(255,255,255,0.96); }
-  .bottom-item { padding: 8px 4px; border-radius: 10px; color: var(--muted); font-size: 0.7rem; }
+  html.bright .bottom-nav { background: rgba(255,255,255,0.97); }
+  .bottom-item {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 8px 2px;
+    border-radius: 10px; color: var(--muted);
+    font-size: 0.72rem; letter-spacing: 0.02em; font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .main {
+    padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
+  }
   .grid-2 { grid-template-columns: 1fr; }
   .brand-text strong { font-size: 1rem; }
+  .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  .topbar-meta .theme-toggle { display: none; }
-  .theme-fab { display: inline-flex; }
+  /* Bright stays in the top bar on phone — FAB was covering Home on the bottom nav */
+  .topbar-meta .theme-toggle { display: inline-flex; padding: 6px 10px; font-size: 11px; }
+  .theme-fab { display: none !important; }
   :root { --bottom-h: 56px; }
+  .home-hero h1 { font-size: 1.55rem; }
+  .home-lead { font-size: 0.95rem; }
+  .panel { padding: 14px; }
 }
 
 /* Tablet landscape — keep sidebar usable, tighten chrome */
@@ -236,12 +261,15 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .panel { padding: 14px; }
 }
 
-/* Phone landscape — prefer bottom nav, compact topbar */
+/* Phone landscape — compact chrome, still one-row bottom nav */
 @media (orientation: landscape) and (max-height: 480px) {
   .topbar { padding-top: 6px; padding-bottom: 6px; }
-  .sidebar { display: none; }
-  .bottom-nav { display: grid; }
-  .menu-btn { display: none; }
+  .brand-byline { display: none; }
+  .bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .bottom-item { min-height: 40px; font-size: 0.68rem; }
   :root { --bottom-h: 48px; }
 }
 
@@ -330,6 +358,16 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   display: flex;
   flex-direction: column;
   min-height: calc(100dvh - var(--topbar-h) - var(--bottom-h) - var(--safe-top) - var(--safe-bottom));
+  padding-bottom: 0;
+}
+@media (max-width: 900px) {
+  .main:has(.eorb-embed-wrap) {
+    padding-bottom: var(--bottom-h);
+    min-height: calc(100dvh - var(--topbar-h) - var(--safe-top));
+  }
+  .eorb-embed-frame {
+    min-height: calc(100dvh - var(--topbar-h) - var(--bottom-h) - var(--safe-top) - 8px);
+  }
 }
 .eorb-embed-wrap {
   flex: 1;
