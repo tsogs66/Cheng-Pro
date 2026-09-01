@@ -188,7 +188,7 @@
         try {
           await uploadTankBackup(file, true);
           await ChengPro.vessel.refresh();
-          setTank('Tank backup imported.');
+          setTank(`Tank backup imported — open Tank Chief (Settings → use “On the server” if you imported to the ship PC).`);
           toast('Tank backup imported');
         } catch (e) {
           setTank(e.message || 'Import failed');
@@ -223,7 +223,7 @@
         try {
           await uploadTankBackup(file, true);
           await ChengPro.vessel.refresh();
-          setTank('Vessel JSON imported.');
+          setTank('Vessel JSON imported — switch Tank Chief to “On the server” to view on this device.');
           toast('Vessel imported');
         } catch (e) {
           setTank(e.message || 'Import failed');
