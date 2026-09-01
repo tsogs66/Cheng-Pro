@@ -531,6 +531,7 @@ function touchVessel(id) {
   if (entry) {
     entry.name = vessel.name;
     entry.imo = vessel.imo;
+    entry.flag = vessel.flag || '';
     entry.updatedAt = vessel.updatedAt;
     saveIndex(index);
   }
@@ -840,6 +841,7 @@ function importBackup(backup, { merge = true } = {}) {
       id,
       name: vesselDoc.name || id,
       imo: vesselDoc.imo || '',
+      flag: vesselDoc.flag || '',
       updatedAt: now(),
     });
   }
