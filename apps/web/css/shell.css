@@ -492,3 +492,17 @@ html.aio-fullscreen-embed .aio-home-fab:not([hidden]) {
   color: var(--muted);
   line-height: 1.5;
 }
+
+.backup-page .backup-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (min-width: 900px) {
+  .backup-page .backup-grid { grid-template-columns: 1fr 1fr; }
+}
+.backup-page .form-panel h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.backup-page .hint { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }

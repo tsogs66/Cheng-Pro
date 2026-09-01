@@ -6095,8 +6095,12 @@ async function renderVoyageLibrary(){
     body.innerHTML = index.map(row=>{
       const b = row.B;
       const l = row.L;
-      const bTxt = b ? `${b.entryCount||0} entries` : '—';
-      const lTxt = l ? `${l.entryCount||0} entries` : '—';
+      const bTxt = b
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="B" title="Load voyage ${row.voyageNumber} ballast">${b.entryCount||0} entries</button>`
+        : '—';
+      const lTxt = l
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="L" title="Load voyage ${row.voyageNumber} laden">${l.entryCount||0} entries</button>`
+        : '—';
       const updated = [b?.updatedAt, l?.updatedAt].filter(Boolean).sort().slice(-1)[0] || '—';
       const active = isActiveScope && row.voyageNumber === activeVn ? ` style="background:rgba(63,200,220,0.08)"` : '';
       return `<tr${active}><td>${row.voyageNumber}${isActiveScope && row.voyageNumber===activeVn?' ★':''}</td><td>${bTxt}</td><td>${lTxt}</td><td>${updated=== '—' ? '—' : new Date(updated).toLocaleString()}</td></tr>`;
@@ -17749,6 +17753,30 @@ document.getElementById('btnRefreshVoyageLibrary')?.addEventListener('click', as
   await renderVoyageLibrary();
 });
 
+document.getElementById('voyageLibraryBody')?.addEventListener('click', async (ev)=>{
+  const btn = ev.target.closest('.voyage-leg-load');
+  if (!btn) return;
+  const vn = (btn.dataset.voyage || '').trim();
+  const cond = normalizeCondition(btn.dataset.cond);
+  if (!vn) return;
+  try {
+    const scopeVid = libraryScopeVesselId();
+    if (scopeVid && scopeVid !== state.activeVesselId){
+      await switchVessel(scopeVid);
+    }
+    await activateVoyageLeg(state.activeVesselId, vn, cond);
+    render();
+    applyEntryDefaults();
+    prefillFromLastEntry();
+    renderSyncUi();
+    await renderVoyageLibrary();
+    switchTab('summary');
+    showToast?.(`Loaded voyage ${vn} · ${cond}`);
+  } catch (e){
+    alert('Load failed: ' + e.message);
+  }
+});
+
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
   try {
     if (!navigator.storage || !navigator.storage.persist){
@@ -18602,6 +18630,52 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
 });
 
 document.getElementById('btnImportVessel')?.addEventListener('click', ()=> document.getElementById('fileImportVessel')?.click());
+
+/* ChEng AIO parent frame — backup/restore bridge (hidden iframe from Backup page). */
+window.addEventListener('message', async (ev)=>{
+  const msg = ev.data || {};
+  if (msg.type !== 'chengaio-voyage-backup') return;
+  const reply = (extra) => {
+    try {
+      ev.source.postMessage({ type: 'chengaio-voyage-backup-result', requestId: msg.requestId, ...extra }, ev.origin || '*');
+    } catch (_) {}
+  };
+  try {
+    if (msg.action === 'export-db') {
+      const payload = await buildFullDatabaseBackup();
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+      reply({ payload, filename: `voyage-chief-db-backup_${stamp}.json` });
+    } else if (msg.action === 'restore-db') {
+      await restoreFullDatabase(msg.payload);
+      reply({ message: 'Voyage database restored on this device.' });
+    } else if (msg.action === 'merge-db') {
+      await mergeFullDatabase(msg.payload);
+      reply({ message: 'Voyage database merged on this device.' });
+    } else if (msg.action === 'export-vessel') {
+      let vesselId = state.activeVesselId;
+      if (msg.vesselId) {
+        const v = (state.vessels || []).find(x => x.slug === msg.vesselId || x.id === msg.vesselId);
+        if (v) vesselId = v.id;
+      }
+      if (!vesselId) throw new Error('No vessel selected in Voyage Chief');
+      const payload = await buildVesselExport(vesselId);
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+      reply({
+        payload,
+        filename: `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`,
+      });
+    } else if (msg.action === 'import-vessel') {
+      if (!msg.payload) throw new Error('No vessel payload');
+      const res = await importVesselExport(msg.payload);
+      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records).` });
+    } else {
+      reply({ error: 'Unknown backup action: ' + msg.action });
+    }
+  } catch (e) {
+    reply({ error: e.message || String(e) });
+  }
+});
+
 document.getElementById('fileImportVessel')?.addEventListener('change', async (ev)=>{
   const file = ev.target.files && ev.target.files[0];
   ev.target.value = '';
@@ -21589,8 +21663,14 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     document.getElementById('dbStatus').textContent = '● local database ready';
     try {
       applyEorbLicenseVisibility();
-      const wantOrb = /[?&]page=orb\b/.test(location.search);
+      const qsPage = new URLSearchParams(location.search).get('page');
+      const wantOrb = qsPage === 'orb' || /[?&]page=orb\b/.test(location.search);
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
+      else if (qsPage === 'data') switchTab('data');
+      else if (qsPage === 'setup') switchTab('setup');
+      if (isChengAioEmbedded()) {
+        try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
+      }
     } catch (_) {}
   } catch(e){
     console.error('Startup error:', e);

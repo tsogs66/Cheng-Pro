@@ -292,22 +292,22 @@
   function modulesForSku(sku, addons) {
     const ads = resolveProgramAddons(sku, addons);
     if (sku === 'cheng-admin' || ads.includes('master')) {
-      return ['home', 'voyage', 'tanks', 'performance', 'eorb', 'vessel', 'license', 'about'];
+      return ['home', 'voyage', 'tanks', 'performance', 'eorb', 'vessel', 'backup', 'license', 'about'];
     }
     if (sku === 'cheng-aio') {
-      const mods = ['home', 'performance', 'vessel', 'license', 'about'];
+      const mods = ['home', 'performance', 'vessel', 'backup', 'license', 'about'];
       if (ads.includes('voyage-chief')) mods.push('voyage');
       if (ads.includes('tank-chief')) mods.push('tanks');
       if (ads.includes('eorb')) mods.push('eorb');
       return mods;
     }
     if (sku === 'voyage-chief') {
-      const mods = ['home', 'voyage', 'performance', 'vessel', 'license', 'about'];
+      const mods = ['home', 'voyage', 'performance', 'vessel', 'backup', 'license', 'about'];
       if (ads.includes('eorb')) mods.push('eorb');
       return mods;
     }
     if (sku === 'tank-chief') {
-      return ['home', 'tanks', 'vessel', 'license', 'about'];
+      return ['home', 'tanks', 'vessel', 'backup', 'license', 'about'];
     }
     return ['home', 'license', 'about'];
   }
