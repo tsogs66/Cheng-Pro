@@ -494,6 +494,7 @@ function createVessel(details = {}) {
     id: vessel.id,
     name: vessel.name,
     imo: vessel.imo,
+    flag: vessel.flag || '',
     updatedAt: vessel.updatedAt,
   });
   if (!index.activeVesselId) index.activeVesselId = id;

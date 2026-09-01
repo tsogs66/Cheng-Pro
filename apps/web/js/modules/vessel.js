@@ -35,7 +35,9 @@ window.ChengProModules.vessel = {
             <div class="field"><label>Name</label><input name="name" required value="${esc(v.name)}"></div>
             <div class="field"><label>IMO</label><input name="imo" value="${esc(v.imo)}"></div>
             <div class="field"><label>Call sign</label><input name="callSign" value="${esc(v.callSign || '')}"></div>
-            <div class="field"><label>Flag</label><input name="flag" value="${esc(v.flag || '')}"></div>
+            <div class="field"><label>Flag registry</label>
+              <select name="flag" id="vesselFlag">${flagSelectOptions(v.flag || '')}</select>
+              <span class="hint" id="vesselFlagHint">${esc(flagHint(v.flag || ''))}</span></div>
             <div class="field"><label>Company</label><input name="company" value="${esc(v.company || v.owner || '')}"></div>
             <div class="field"><label>Type</label><input name="type" value="${esc(v.type || '')}"></div>
             <div class="field"><label>DWT</label><input name="dwt" value="${esc(v.dwt || '')}"></div>
@@ -81,7 +83,7 @@ window.ChengProModules.vessel = {
         </div>
         <div class="table-wrap">
           <table class="data" id="fleetTable">
-            <thead><tr><th>Name</th><th>IMO</th><th>Updated</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>IMO</th><th>Flag</th><th>Updated</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -89,6 +91,16 @@ window.ChengProModules.vessel = {
     `;
 
     await renderFleet(root.querySelector('#fleetTable tbody'));
+
+    const flagSel = root.querySelector('#vesselFlag');
+    const flagHintEl = root.querySelector('#vesselFlagHint');
+    if (flagSel && flagHintEl) {
+      const refreshFlagHint = () => {
+        flagHintEl.textContent = flagHint(flagSel.value);
+      };
+      flagSel.addEventListener('change', refreshFlagHint);
+      refreshFlagHint();
+    }
 
     root.querySelector('#openTanks').addEventListener('click', () => ChengPro.openTanks());
     root.querySelector('#openVoyage').addEventListener('click', () => ChengPro.openVoyage());
@@ -124,7 +136,7 @@ window.ChengProModules.vessel = {
         name: raw.name,
         imo: raw.imo,
         callSign: raw.callSign,
-        flag: raw.flag,
+        flag: window.ChengFlagRegistry ? ChengFlagRegistry.normalizeCode(raw.flag) : raw.flag,
         company: raw.company,
         type: raw.type,
         dwt: raw.dwt,
@@ -186,18 +198,19 @@ async function renderFleet(tbody) {
   try {
     vessels = await ChengPro.vessel.list();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty">${esc(e.message || 'Could not load fleet')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">${esc(e.message || 'Could not load fleet')}</td></tr>`;
     return;
   }
   const activeId = ChengPro.vessel.getActive()?.id;
   if (!vessels.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No vessels yet — create one above. Data is stored on this device.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No vessels yet — create one above. Data is stored on this device.</td></tr>';
     return;
   }
   tbody.innerHTML = vessels.map((v) => `
     <tr>
       <td>${esc(v.name)}${v.id === activeId ? ' <span class="chip on">active</span>' : ''}</td>
       <td>${esc(v.imo || '—')}</td>
+      <td>${esc(flagLabel(v.flag))}</td>
       <td>${esc((v.updatedAt || '').slice(0, 19).replace('T', ' '))}</td>
       <td><button type="button" class="btn" data-activate="${esc(v.id)}">Activate</button></td>
     </tr>`).join('');
@@ -219,6 +232,31 @@ function parseOptionalNumber(v) {
 function escNum(v) {
   if (v == null || v === '') return '';
   return esc(String(v));
+}
+
+function flagSelectOptions(code) {
+  if (window.ChengFlagRegistry && ChengFlagRegistry.selectOptions) {
+    return ChengFlagRegistry.selectOptions(code);
+  }
+  const c = String(code || '').trim();
+  return `<option value="">—</option><option value="${esc(c)}"${c ? ' selected' : ''}>${esc(c || '—')}</option>`;
+}
+
+function flagLabel(code) {
+  if (window.ChengFlagRegistry && ChengFlagRegistry.displayLabel) {
+    return ChengFlagRegistry.displayLabel(code) || '—';
+  }
+  return String(code || '').trim() || '—';
+}
+
+function flagHint(code) {
+  const c = String(code || '').trim();
+  if (!c) return 'Same flag list as Voyage Chief — stored as registry code for e-ORB.';
+  if (window.ChengFlagRegistry && ChengFlagRegistry.displayName) {
+    const name = ChengFlagRegistry.displayName(c);
+    return name && name !== c ? `Stored as ${c} · ${name}` : `Stored as ${c}`;
+  }
+  return `Stored as ${c}`;
 }
 
 function esc(s) {
