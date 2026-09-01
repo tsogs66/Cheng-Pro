@@ -221,6 +221,12 @@ app.use('/api/vessels', requireVoyage);
 /* Full Tank Chief */
 app.use('/tanks', tank.app);
 
+/* LocalApi (and older clients) fetch /embedded/* from site root; Tank serves it under /tanks. */
+app.use('/embedded', express.static(path.join(ROOT, 'modules', 'tanks', 'public', 'embedded'), {
+  etag: false,
+  maxAge: 0,
+}));
+
 /* Full Voyage Chief SPA */
 const voyageWww = path.join(ROOT, 'modules', 'voyage', 'www');
 app.use('/voyage', express.static(voyageWww, {
