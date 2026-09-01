@@ -943,11 +943,12 @@ async function fetchPeerSync(url, apiPath, init) {
 }
 
 app.get('/api/sync/ping', (req, res) => {
+  const bundle = store.syncPushBundle();
   res.json({
     ok: true,
     format: 'vessel-fuel-tms-sync',
     product: 'tank-chief',
-    vesselCount: store.listVessels().length,
+    vesselCount: (bundle.index && bundle.index.vessels) ? bundle.index.vessels.length : store.listVessels().length,
     time: new Date().toISOString(),
   });
 });
@@ -1038,13 +1039,25 @@ app.post('/api/sync/pull', asyncHandler(async (req, res) => {
   const resp = await fetchPeerSync(url, '/api/sync/export', { authBody });
   if (!resp.ok) throw new Error('Remote sync failed: HTTP ' + resp.status + ' from ' + url);
   const payload = await resp.json();
+  if (!payload || payload.format !== 'vessel-fuel-tms-sync') {
+    throw new Error('Peer did not return a Tank sync bundle — check URL (AIO :8080, Tank :3080) and token');
+  }
+  const remoteCount = Object.keys(payload.vessels || {}).length;
+  if (!remoteCount) {
+    return res.json({
+      ok: true,
+      results: [],
+      from: url,
+      warning: 'Peer returned 0 vessels — add vessels on the peer or check its data folder',
+    });
+  }
   const results = store.applySyncPayload(payload);
   if (payload.settings) {
     // keep local syncUrl / token
     const { syncUrl, syncApiToken, ...rest } = payload.settings;
     store.saveSettings(rest);
   }
-  res.json({ ok: true, results, from: url });
+  res.json({ ok: true, results, from: url, remoteCount });
 }));
 
 app.post('/api/sync/push', asyncHandler(async (req, res) => {
