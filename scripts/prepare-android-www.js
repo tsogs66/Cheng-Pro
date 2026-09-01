@@ -62,6 +62,7 @@ shellHtml = shellHtml.replace(
     '<script src="tanks/js/bunkering-core.js"></script>',
     '<script src="tanks/js/store-core.js"></script>',
     '<script src="tanks/js/local-api.js"></script>',
+    '<script src="js/flag-registry.js"></script>',
     '<script src="js/api.js"></script>',
     '<script src="js/bundled.js"></script>',
     '<script src="js/shell-local.js"></script>',
