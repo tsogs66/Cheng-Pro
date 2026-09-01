@@ -89,17 +89,26 @@
     });
   }
 
+  function formatShipType(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    if (v === 'tanker') return 'Oil tanker';
+    if (v === 'other') return 'Cargo / other';
+    return v;
+  }
+
   function mapSetupToPatch(setup, registry) {
     const s = setup || {};
-    const name = (s.vesselName || registry?.name || '').trim() || 'Vessel';
+    const orb = s.orb || {};
+    const name = (s.vesselName || orb.shipName || registry?.name || '').trim() || 'Vessel';
     const patch = {
       name,
-      imo: normalizeImo(s.imoNo),
-      callSign: s.callSign || '',
-      flag: s.flag || '',
-      company: s.company || '',
-      type: s.shipType || s.type || '',
-      dwt: s.dwt != null && s.dwt !== '' ? String(s.dwt) : '',
+      imo: normalizeImo(s.imoNo || orb.imo),
+      callSign: String(s.callSign || orb.callSign || '').trim(),
+      flag: String(s.flag || orb.flag || '').trim(),
+      company: String(s.company || orb.company || '').trim(),
+      type: formatShipType(s.shipType || s.type || s.ciiShipType || orb.shipType),
+      dwt: s.dwt != null && s.dwt !== '' ? String(s.dwt) : (orb.dwt != null ? String(orb.dwt) : ''),
       notes: s.notes || '',
       voyageRegistryId: registry?.id || null,
       voyageSlug: registry?.slug || s.sync?.vesselId || slugify(name),
@@ -349,6 +358,39 @@
     }
   }
 
+  function profileFieldEmpty(vessel, key) {
+    if (!vessel) return true;
+    const v = vessel[key];
+    if (key === 'company') {
+      const c = vessel.company || vessel.owner;
+      return c == null || String(c).trim() === '';
+    }
+    return v == null || String(v).trim() === '';
+  }
+
+  function patchHasRicherIdentity(stored, patch) {
+    const keys = ['callSign', 'flag', 'company', 'type', 'dwt', 'mcrRpm', 'mcrKw', 'pitch'];
+    return keys.some((k) => {
+      const pv = patch[k];
+      if (pv == null || String(pv).trim() === '') return false;
+      return profileFieldEmpty(stored, k);
+    });
+  }
+
+  async function profileNeedsRefresh(list, fleet) {
+    for (const row of fleet.vessels) {
+      const match = findMatch(list, row.patch);
+      if (!match) return true;
+      let vessel = null;
+      try {
+        const data = await root.ChengPro.api.fetch('/api/shell/vessels/' + encodeURIComponent(match.id));
+        vessel = data && data.vessel;
+      } catch { /* treat as needs refresh */ return true; }
+      if (patchHasRicherIdentity(vessel, row.patch)) return true;
+    }
+    return false;
+  }
+
   async function autoImportIfNeeded() {
     try {
       const fleet = await readVoyageFleet();
@@ -362,10 +404,9 @@
       }
       const already = localStorage.getItem(AUTO_FLAG);
       const missing = fleet.vessels.some((row) => !findMatch(list, row.patch));
-      /* Re-import when Voyage has ships Cheng-Pro does not know yet — not only
-       * on the first empty boot (that left Voyage vessels invisible in AIO). */
-      if (missing || !list.length || !already) {
-        return importIntoChengPro({ setActive: true });
+      const refresh = await profileNeedsRefresh(list, fleet);
+      if (missing || !list.length || !already || refresh) {
+        return importIntoChengPro({ setActive: !list.length });
       }
     } catch (err) {
       console.warn('Voyage→Cheng-Pro auto-import skipped:', err.message);
