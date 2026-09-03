@@ -13271,7 +13271,7 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
     + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0');
   const safe = s => (s||'unknown').toString().replace(/[^a-zA-Z0-9-_]/g,'_');
   const backupName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}.json`;
-  downloadJsonFile(backupName, backupPayload);
+  try { await downloadJsonFile(backupName, backupPayload); } catch (_) { /* user cancelled share/picker */ }
 
   // Also save + download a Voyage Abstract snapshot, same naming scheme with an "abstract" identifier
   const abstractName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}_abstract.csv`;
@@ -18698,42 +18698,78 @@ document.getElementById('btnCopyPcInstall')?.addEventListener('click', async ()=
 const DB_BACKUP_FORMAT = 'noon-report-db-v1';
 const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','orbEntries'];
 
-function downloadJsonFile(filename, obj){
+async function downloadJsonFile(filename, obj){
   const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
   const blob = new Blob([text], {type:'application/json'});
   const safeName = filename || `voyage-chief-backup_${Date.now()}.json`;
 
-  /* Android WebView often swallows <a download>. Prefer the system Share sheet so
-     the engineer can Save to Files / Drive / USB. Fall back to the classic download. */
-  (async ()=>{
-    try {
-      const file = new File([blob], safeName, { type: 'application/json' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })){
-        await navigator.share({
-          files: [file],
-          title: safeName,
-          text: 'Voyage Chief database backup — save this file somewhere safe (Files, Drive, or USB).'
+  /* Order: Save-file picker (desktop) → Share sheet (Android) → <a download>.
+     Never revoke the blob URL immediately — WebView needs time to start. */
+  try {
+    if (typeof window.showSaveFilePicker === 'function'){
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: safeName,
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
         });
-        return;
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        try {
+          dbPut('meta', {
+            key: 'lastDbBackup',
+            value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'picker' }
+          });
+        } catch (_) {}
+        return { method: 'picker', filename: safeName };
+      } catch (e){
+        if (e && e.name === 'AbortError') throw e;
       }
-    } catch (e){
-      if (e && e.name === 'AbortError') return;
     }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = safeName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(_){} }, 2000);
-  })();
+  } catch (e){
+    if (e && e.name === 'AbortError') throw e;
+  }
+
+  try {
+    const file = new File([blob], safeName, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({
+        files: [file],
+        title: safeName,
+        text: 'Voyage Chief backup — use Save to Files / Drive / USB so you can find it later.'
+      });
+      try {
+        dbPut('meta', {
+          key: 'lastDbBackup',
+          value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'share' }
+        });
+      } catch (_) {}
+      return { method: 'share', filename: safeName };
+    }
+  } catch (e){
+    if (e && e.name === 'AbortError') throw e;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = safeName;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{
+    try{ a.remove(); }catch(_){}
+    try{ URL.revokeObjectURL(url); }catch(_){}
+  }, 4000);
 
   try {
     dbPut('meta', {
       key: 'lastDbBackup',
-      value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length }
+      value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'anchor' }
     });
   } catch (_) {}
+  return { method: 'anchor', filename: safeName };
 }
 
 function setDbBackupStatus(msg){
@@ -19069,13 +19105,26 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
     const payload = await buildVesselExport(vesselId);
     const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     const name = `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`;
-    downloadJsonFile(name, payload);
+    const saved = await downloadJsonFile(name, payload);
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
     const summary = vesselExportCountSummary(payload.counts);
-    setVesselExportStatus(`Exported ${payload.vessel.name}: ${name} — ${total} record(s) (${summary}). Sync API token excluded.`);
-    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${name}\nRecords: ${total}\n${summary}\n\nOn Android: Share → Save to Files / Drive.\nThe sync API token is not written to the file.`);
+    const where = saved.method === 'picker'
+      ? 'saved to the folder you chose'
+      : saved.method === 'share'
+        ? 'shared — use Save to Files / Drive / USB'
+        : 'check your Downloads folder';
+    setVesselExportStatus(`Exported ${payload.vessel.name}: ${saved.filename} — ${total} record(s) (${summary}). Sync API token excluded. (${where})`);
+    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${saved.filename}\nRecords: ${total}\n${summary}\n\n${
+      saved.method === 'picker' ? 'Saved to the folder you chose.'
+      : saved.method === 'share' ? 'On the share sheet: Save to Files / Drive / USB.'
+      : 'Check your Downloads folder.'
+    }\nThe sync API token is not written to the file.`);
   }catch(e){
     console.error(e);
+    if (e && e.name === 'AbortError'){
+      setVesselExportStatus('Export cancelled — nothing was saved.');
+      return;
+    }
     setVesselExportStatus('Vessel export failed: ' + e.message);
     alert('Vessel export failed: ' + e.message);
   }finally{
@@ -19167,17 +19216,29 @@ document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
     const payload = await buildFullDatabaseBackup();
     const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     const name = `voyage-chief-db-backup_${stamp}.json`;
-    downloadJsonFile(name, payload);
+    const saved = await downloadJsonFile(name, payload);
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
-    setDbBackupStatus(`Backup ready: ${name} — ${payload.vessels.length} vessel(s), ${total} store record(s). On Android, use Share → Save to Files / Drive.`);
+    const where = saved.method === 'picker'
+      ? 'saved to the folder you chose'
+      : saved.method === 'share'
+        ? 'shared — use Save to Files / Drive / USB'
+        : 'check your Downloads folder';
+    setDbBackupStatus(`Backup ${where}: ${saved.filename} — ${payload.vessels.length} vessel(s), ${total} store record(s).`);
     alert(
       'Full database backup ready.\n\n' +
-      'File: ' + name + '\nVessels: ' + payload.vessels.length + '\nRecords: ' + total + '\n\n' +
-      'On Android: choose Share → Save to Files, Drive, or USB so you can find it later.\n' +
-      'On Windows: check your Downloads folder.'
+      'File: ' + saved.filename + '\nVessels: ' + payload.vessels.length + '\nRecords: ' + total + '\n\n' +
+      (saved.method === 'picker'
+        ? 'Saved to the folder you chose.'
+        : saved.method === 'share'
+          ? 'On the share sheet: choose Save to Files, Drive, or USB.'
+          : 'Check your Downloads folder for the JSON file.')
     );
   }catch(e){
     console.error(e);
+    if (e && e.name === 'AbortError'){
+      setDbBackupStatus('Backup cancelled — nothing was saved.');
+      return;
+    }
     setDbBackupStatus('Backup failed: ' + e.message);
     alert('Database backup failed: ' + e.message);
   }finally{
@@ -19239,22 +19300,34 @@ document.getElementById('fileDbMerge')?.addEventListener('change', async (ev)=>{
 });
 
 /* ---------------- export / import (active voyage leg) ---------------- */
-document.getElementById('btnExportJSON').addEventListener('click', ()=>{
-  const payload = { setup: state.setup, entries: state.entries, receipts: state.receipts, documents: state.documents, exportedAt: new Date().toISOString() };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `voyage-chief-${(state.setup.voyageNumber||'voyage')}.json`;
-  a.click();
+document.getElementById('btnExportJSON').addEventListener('click', async ()=>{
+  try{
+    const payload = { setup: state.setup, entries: state.entries, receipts: state.receipts, documents: state.documents, exportedAt: new Date().toISOString() };
+    const saved = await downloadJsonFile(`voyage-chief-${(state.setup.voyageNumber||'voyage')}.json`, payload);
+    alert(saved.method === 'picker'
+      ? `Saved to the folder you chose:\n${saved.filename}`
+      : saved.method === 'share'
+        ? `Shared — use Save to Files / Drive / USB:\n${saved.filename}`
+        : `Download started — check Downloads for:\n${saved.filename}`);
+  }catch(e){
+    if (e && e.name === 'AbortError') return;
+    alert('Export failed: ' + (e.message || e));
+  }
 });
 
-document.getElementById('btnExportSetupJSON').addEventListener('click', ()=>{
-  const payload = { setup: state.setup, entries: [], receipts: [], exportedAt: new Date().toISOString(), setupOnly: true };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `voyage-chief-setup-${(state.setup.voyageNumber||'template')}.json`;
-  a.click();
+document.getElementById('btnExportSetupJSON').addEventListener('click', async ()=>{
+  try{
+    const payload = { setup: state.setup, entries: [], receipts: [], exportedAt: new Date().toISOString(), setupOnly: true };
+    const saved = await downloadJsonFile(`voyage-chief-setup-${(state.setup.voyageNumber||'template')}.json`, payload);
+    alert(saved.method === 'picker'
+      ? `Saved to the folder you chose:\n${saved.filename}`
+      : saved.method === 'share'
+        ? `Shared — use Save to Files / Drive / USB:\n${saved.filename}`
+        : `Download started — check Downloads for:\n${saved.filename}`);
+  }catch(e){
+    if (e && e.name === 'AbortError') return;
+    alert('Export failed: ' + (e.message || e));
+  }
 });
 
 document.getElementById('btnImportJSON').addEventListener('click', ()=> document.getElementById('fileImport').click());
