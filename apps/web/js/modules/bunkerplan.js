@@ -25,12 +25,12 @@ function bpProgramAllowed() {
 }
 
 window.ChengProModules.bunkerplan = {
-  title: 'Bunker Plan',
+  title: 'Consumption Plan',
   async render(root) {
     if (!bpProgramAllowed()) {
       root.innerHTML = bpLicenseNeededPanel(
-        'Bunker Consumption Calculation',
-        'Bunker plan requires Voyage Chief or Tank Chief on your license. Open <strong>License</strong> to activate.'
+        'Consumption Plan',
+        'Consumption Plan requires Voyage Chief or Tank Chief on your license. Open <strong>License</strong> to activate.'
       );
       bpBindNav(root);
       return;
@@ -40,7 +40,7 @@ window.ChengProModules.bunkerplan = {
       <div class="aio-embed-wrap" id="bpEmbedWrap">
         <iframe
           class="aio-embed-frame"
-          title="Bunker Consumption Calculation"
+          title="Consumption Plan"
           src="${src}"
           allow="clipboard-read; clipboard-write"
         ></iframe>
@@ -69,7 +69,7 @@ function requestTankRob(root) {
   }
   _tankRobFrame = document.createElement('iframe');
   _tankRobFrame.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
-  _tankRobFrame.src = ChengPro.tankEmbedUrl() + (ChengPro.tankEmbedUrl().includes('?') ? '&' : '?') + 'robOnly=1';
+  _tankRobFrame.src = ChengPro.tankEmbedUrl({ robOnly: '1' });
   _tankRobFrame.title = 'Tank ROB bridge';
   document.body.appendChild(_tankRobFrame);
 

@@ -73,7 +73,7 @@
     api: {
       fetch: (path, init) => ChengProApi.api(path, init),
     },
-    tankEmbedUrl: () => {
+    tankEmbedUrl: (opts) => {
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
         ? ChengProBundled.moduleUrl('tanks')
         : '/tanks/';
@@ -81,6 +81,9 @@
         ? base
         : (base.replace(/\/?$/, '/') + 'index.html');
       const q = new URLSearchParams({ chengaio: '1' });
+      if (opts && opts.page) q.set('page', String(opts.page));
+      if (opts && opts.bunkerEmbed) q.set('bunkerEmbed', String(opts.bunkerEmbed));
+      if (opts && opts.robOnly) q.set('robOnly', String(opts.robOnly));
       return url + (url.includes('?') ? '&' : '?') + q.toString();
     },
     openTanks: () => {
