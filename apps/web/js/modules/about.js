@@ -21,9 +21,9 @@ function currentAioVersion() {
   const m = raw.match(/v?(\d+\.\d+\.\d+)/);
   if (m) return m[1];
   try {
-    return (window.CHENG_PRO_VERSION || '').replace(/^v/i, '') || '0.3.48';
+    return (window.CHENG_PRO_VERSION || '').replace(/^v/i, '') || '0.3.49';
   } catch {
-    return '0.3.48';
+    return '0.3.49';
   }
 }
 async function checkAioAppUpdate() {
@@ -149,7 +149,7 @@ window.ChengProModules.about = {
         <ol class="about-steps">
           <li>Open Tanks on the active vessel.</li>
           <li>Import or edit calibration tables; take soundings with trim and list.</li>
-          <li>Build the fuel oil (tank condition) report; use bunker plan / after / summary as needed.</li>
+          <li>Build the fuel oil (tank condition) report; use bunkering plan / after / summary as needed.</li>
           <li>Backup / Sync to another PC or the AIO server when online.</li>
         </ol>
 

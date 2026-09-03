@@ -322,6 +322,7 @@
     if (moduleId === 'license' || moduleId === 'home' || moduleId === 'about') return true;
     const allowed = modulesAllowed(ent);
     if (moduleId === 'bunkerplan') return allowed.includes('voyage') || allowed.includes('tanks');
+    if (moduleId === 'bunkeringplan') return allowed.includes('tanks');
     return allowed.includes(moduleId);
   }
 

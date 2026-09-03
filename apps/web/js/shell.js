@@ -44,12 +44,12 @@
         const ent = ChengLicense.loadEntitlement();
         if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
           /* Soft program tabs still open so they can show Open License (like e-ORB). */
-          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb' && next !== 'bunkerplan') {
+          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb' && next !== 'bunkerplan' && next !== 'bunkeringplan') {
             next = 'license';
             showToast('Activate a license to use the suite');
           }
         } else if (ChengLicense.isValid(ent) && !ChengLicense.moduleAllowed(next, ent)) {
-          const soft = next === 'voyage' || next === 'tanks' || next === 'eorb';
+          const soft = next === 'voyage' || next === 'tanks' || next === 'eorb' || next === 'bunkerplan' || next === 'bunkeringplan';
           if (soft) {
             /* Stay on the module so it can show the missing-program warning. */
             showToast('Not included on this license — see details');
@@ -73,14 +73,14 @@
     try {
       await mod.render(main);
       const embedded = !!main.querySelector('.aio-embed-wrap');
-      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb' || current === 'bunkerplan'));
+      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb' || current === 'bunkerplan' || current === 'bunkeringplan'));
       /* Re-apply after rotate: Android stays fullscreen; Windows stays with chrome. */
       if (!window.__aioFsOrientBound) {
         window.__aioFsOrientBound = true;
         const reapply = () => {
           if (!document.querySelector('.aio-embed-wrap')) return;
           const modId = current;
-          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb' || modId === 'bunkerplan') {
+          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb' || modId === 'bunkerplan' || modId === 'bunkeringplan') {
             setFullscreenEmbed(true);
           }
         };
@@ -135,7 +135,7 @@
         return;
       }
       const allowed = ChengLicense.modulesAllowed(ent);
-      const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb' || mod === 'bunkerplan';
+      const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb' || mod === 'bunkerplan' || mod === 'bunkeringplan';
       if (mod === 'about' || mod === 'home' || mod === 'license') {
         el.hidden = false;
         el.classList.remove('nav-warn');
