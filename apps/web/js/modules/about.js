@@ -21,9 +21,9 @@ function currentAioVersion() {
   const m = raw.match(/v?(\d+\.\d+\.\d+)/);
   if (m) return m[1];
   try {
-    return (window.CHENG_PRO_VERSION || '').replace(/^v/i, '') || '0.3.37';
+    return (window.CHENG_PRO_VERSION || '').replace(/^v/i, '') || '0.3.38';
   } catch {
-    return '0.3.37';
+    return '0.3.38';
   }
 }
 async function checkAioAppUpdate() {
