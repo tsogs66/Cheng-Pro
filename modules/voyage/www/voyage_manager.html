@@ -1792,9 +1792,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="panel">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
         <button class="primary" id="btnSaveVoyageDetails">Update Voyage Details</button>
+        <button class="ghost" type="button" id="btnSnapshotMetersBaseline">Use current meters as next-report reference</button>
         <button class="danger" id="btnResetVoyage">Create New Voyage…</button>
       </div>
       <div class="hint" style="margin-top:12px; text-align:center;">Create New Voyage clears the voyage log and receipts to start fresh, but keeps everything continuous: your last entry's meter readings carry over as the opening reference for the next entry, current ROB becomes the new opening ROB, and Departure Port is set to this voyage's Arrival Port. Before it runs, Voyage No., Ships Condition, Date &amp; Time, and Time zone above must be updated to reflect the new voyage.</div>
+      <div class="hint" style="margin-top:8px; text-align:center;"><strong>Use current meters as next-report reference</strong> keeps the voyage log intact and sets the last entry’s counters + present ROB as the baseline for the succeeding report (same idea as carryover, without starting a new voyage).</div>
     </div>
   </div>
 
@@ -2071,6 +2073,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </table>
         </div>
         <div class="hint">Max Digits sets each meter's rollover point (rollover = 10^digits) — used for rollover-safe consumption calc if a flowmeter counter resets. Setup Type is the same Flowmeter Arrangement used on the Log Entry form. Changing meters on a saved log entry and saving again recalculates that watch and every later watch.</div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="primary small" id="btnLoadMetersFromLastEntry">Use last log entry as next-report reference</button>
+        </div>
+        <div class="hint">Copies the latest log entry’s flowmeters, rev counter, and ROB into these Setup fields and the carryover reference used for the next watch — without clearing the voyage log. Use this after restoring data or when the opening meters no longer match what is on the counters.</div>
       </div>
 
       <div class="grid">
@@ -6488,23 +6494,20 @@ async function pullVesselFromServer(vesselId){
   if (!vessel) return;
   if (!syncApiBase()){ alert('Configure the sync server URL on the Setup tab first.'); return; }
   const prevOverride = _syncSlugOverride;
-  return withActivity('pull-vessel', `Pulling ${vessel.name} from the server…`, async ({ update })=>{
+  return withActivity('pull-vessel', `Merging ${vessel.name} from the server…`, async ({ update })=>{
   try {
     if (vesselId !== state.activeVesselId) await switchVessel(vesselId);
     /* Pin the target after the switch — syncNow re-reads the Setup form, which would
        otherwise point the pull at whichever slug that form happens to show. */
     _syncSlugOverride = vesselOwnSyncSlug(vesselId);
-    update({ label: `Clearing local records for ${vessel.name}…`, source: 'server' });
-    for (const store of ['entries','receipts','documents','abstracts','printHistory']){
-      await clearVesselStore(store, vesselId);
-    }
-    update({ label: `Pulling ${vessel.name} from the server…` });
-    await syncNow({ pullOnly:true, policy:'remote' });
-    update({ label: 'Saving pulled records on this device…', source: 'program' });
+    /* Do not clear local stores — merge keeps the newer of local vs server per record. */
+    update({ label: `Merging ${vessel.name} from the server…` });
+    await syncNow({ pullOnly:true, policy:'merge' });
+    update({ label: 'Saving merged records on this device…', source: 'program' });
     await persistAllToDb();
     await loadVesselFromDb(vesselId);
     render();
-    alert(`Pulled records for ${vessel.name} from server (${_syncSlugOverride}).`);
+    alert(`Merged records for ${vessel.name} from server (${_syncSlugOverride}).\n\nNewer of local vs server kept for each log entry.`);
   } catch(err){
     alert('Pull failed: ' + err.message);
   } finally {
@@ -12149,6 +12152,85 @@ function fitPrintRoot(doc){
   return scale;
 }
 
+function isFragilePrintHost(){
+  try {
+    const cap = window.Capacitor;
+    const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
+    if (plat === 'android' || plat === 'ios') return true;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform()) return true;
+  } catch (_) {}
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')) return true;
+  try { if (isChengAioEmbedded()) return true; } catch (_) {}
+  return false;
+}
+
+/**
+ * Deliver a fitted print document. Desktop uses a hidden iframe + print().
+ * Android / AIO WebView often no-ops iframe.print(), so we also open a preview
+ * and offer the system Share sheet so the engineer can Print / Save / Send.
+ */
+async function deliverPrintHtml(fullHtml, label){
+  const title = label || 'Voyage report';
+  if (isChengAioEmbedded() && window.parent && window.parent !== window){
+    try {
+      window.parent.postMessage({ type: 'chengaio-voyage-print', html: fullHtml, label: title }, '*');
+    } catch (_) {}
+  }
+
+  if (isFragilePrintHost()){
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    let shared = false;
+    try {
+      const file = new File([blob], `${String(title).replace(/[^a-zA-Z0-9-_]+/g,'_') || 'report'}.html`, { type: 'text/html' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title, text: title });
+        shared = true;
+      }
+    } catch (e){
+      if (e && e.name === 'AbortError') shared = true; /* user dismissed share */
+    }
+    let opened = null;
+    try { opened = window.open(url, '_blank'); } catch (_) {}
+    if (!opened){
+      try {
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch (_) {}
+    }
+    if (!shared){
+      alert(
+        'Print preview opened.\n\n' +
+        'On Android: use the browser/app Share or Print menu, or open Reports → Print History → View / Download.\n\n' +
+        'The report was also saved to Print History on this device.'
+      );
+    }
+    setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(_){} }, 120000);
+    return;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:297mm;height:210mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(fullHtml);
+  doc.close();
+  const win = iframe.contentWindow;
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=>{
+    try{ win.focus(); win.print(); }
+    finally { setTimeout(cleanup, 1500); }
+  };
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+}
+
 function printSinglePage(sheetHtml){
   // Two equal halves on one A4 landscape sheet (fold on vertical center)
   const half = (label)=>`<div class="pr-copy"><span class="pr-copy-label">${label}</span><div class="pr-page-inner">${sheetHtml}</div></div>`;
@@ -12166,25 +12248,9 @@ function printSinglePage(sheetHtml){
 
   fitPrintRoot(doc);
   const fittedHtml = doc.body.innerHTML;
-  const win = iframe.contentWindow;
-
-  const cleanup = ()=>{
-    try{ iframe.remove(); }catch(e){}
-  };
-  const doPrint = ()=>{
-    try{
-      win.focus();
-      win.print();
-    } finally {
-      setTimeout(cleanup, 1500);
-    }
-  };
-
-  if (doc.fonts && doc.fonts.ready){
-    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
-  } else {
-    setTimeout(doPrint, 120);
-  }
+  const fullDoc = buildPrintDocumentHtml(fittedHtml);
+  try { iframe.remove(); } catch (_) {}
+  deliverPrintHtml(fullDoc, 'Voyage sheet');
   return fittedHtml;
 }
 
@@ -12314,19 +12380,9 @@ function printPortraitSinglePage(sheetHtml){
 
   fitPrintPortraitRoot(doc);
   const fittedHtml = doc.body.innerHTML;
-  const win = iframe.contentWindow;
-
-  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
-  const doPrint = ()=>{
-    try{ win.focus(); win.print(); }
-    finally { setTimeout(cleanup, 1500); }
-  };
-
-  if (doc.fonts && doc.fonts.ready){
-    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
-  } else {
-    setTimeout(doPrint, 120);
-  }
+  const fullDoc = buildPrintDocumentHtmlPortrait(fittedHtml);
+  try { iframe.remove(); } catch (_) {}
+  deliverPrintHtml(fullDoc, 'Noon / voyage report');
   return fittedHtml;
 }
 
@@ -12576,6 +12632,56 @@ async function saveVoyageDetails(){
   alert('Voyage Details saved.');
 }
 document.getElementById('btnSaveVoyageDetails').addEventListener('click', saveVoyageDetails);
+
+/**
+ * Snapshot the latest log entry (meters + ROB) as the reference for succeeding reports
+ * without clearing the voyage log. Updates setup.flowmeters, setup.carryover, and
+ * opening ROB fields so the next watch diffs against what is on the counters now.
+ */
+async function snapshotMetersAsNextReportReference(){
+  const last = sortedEntries()[sortedEntries().length - 1];
+  if (!last){
+    alert('No log entries yet. Enter the opening meters under Vessel Data → Flowmeters & Counters, then save.');
+    return;
+  }
+  const { consByFuel, consByLube } = computeDerived();
+  const { rob, robLube } = currentROB(consByFuel, consByLube);
+  const fm = state.setup.flowmeters || {};
+  const dig = (key, fallback=8) => (fm[key] && fm[key].digits != null) ? fm[key].digits : fallback;
+  const meIn = last.me?.meterIn != null ? last.me.meterIn : last.me?.meter;
+  const geIn = last.ge?.meterIn != null ? last.ge.meterIn : last.ge?.meter;
+  state.setup.flowmeters = {
+    main: { reading: meIn ?? null, digits: dig('main') },
+    mainOut: { reading: last.me?.meterOut ?? fm.mainOut?.reading ?? null, digits: dig('mainOut') },
+    aux: { reading: geIn ?? null, digits: dig('aux') },
+    auxOut: { reading: last.ge?.meterOut ?? fm.auxOut?.reading ?? null, digits: dig('auxOut') },
+    boiler: { reading: last.blr?.meter ?? null, digits: dig('boiler') },
+    cyl: { reading: last.cylMeter ?? null, digits: dig('cyl') },
+    rc: { reading: last.revCounter ?? null, digits: dig('rc') }
+  };
+  state.setup.carryover = JSON.parse(JSON.stringify(last));
+  state.setup.rob = { ...(rob || {}) };
+  state.setup.robLube = { ...(robLube || {}) };
+  await saveSetup();
+  try { renderFlowmeterCounterRows(); } catch (_) {}
+  try {
+    const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    setNum('s_fm_boiler_reading', state.setup.flowmeters.boiler.reading);
+    setNum('s_fm_cyl_reading', state.setup.flowmeters.cyl.reading);
+    setNum('s_fm_rc_reading', state.setup.flowmeters.rc.reading);
+  } catch (_) {}
+  render();
+  prefillFromLastEntry();
+  alert(
+    'Next-report reference updated from the latest log entry.\n\n' +
+    `Entry: ${last.operation || '—'} @ ${last.datetime || '—'}\n` +
+    'Flowmeters, rev counter, carryover, and Opening ROB now match present stock.\n' +
+    'The voyage log was not cleared.'
+  );
+}
+document.getElementById('btnSnapshotMetersBaseline')?.addEventListener('click', ()=> snapshotMetersAsNextReportReference());
+document.getElementById('btnLoadMetersFromLastEntry')?.addEventListener('click', ()=> snapshotMetersAsNextReportReference());
+
 document.getElementById('s_initTzOffset')?.addEventListener('change', ()=>{
   const n = parseInt(document.getElementById('s_initTzOffset').value, 10);
   if (!isFinite(n)) return;
@@ -12941,11 +13047,7 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
     + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0');
   const safe = s => (s||'unknown').toString().replace(/[^a-zA-Z0-9-_]/g,'_');
   const backupName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}.json`;
-  const backupBlob = new Blob([JSON.stringify(backupPayload, null, 2)], {type:'application/json'});
-  const backupLink = document.createElement('a');
-  backupLink.href = URL.createObjectURL(backupBlob);
-  backupLink.download = backupName;
-  backupLink.click();
+  downloadJsonFile(backupName, backupPayload);
 
   // Also save + download a Voyage Abstract snapshot, same naming scheme with an "abstract" identifier
   const abstractName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}_abstract.csv`;
@@ -17586,14 +17688,19 @@ async function syncNow(options = {}){
     const policy = forcePolicy || syncBefore.conflictPolicy || 'merge';
     if (pullOnly && !remote) throw new Error('No remote voyage snapshot found on server for ' + vessel + '/' + voyage + '/' + condition + '. Use List Remote Voyages, then Pull Selected Voyage Leg.');
 
-    /* Always merge remote peers before push so multi-device offline edits are not lost. */
+    /* Always merge remote peers before push so multi-device offline edits are not lost.
+       Pull-only used to force policy "remote" (full replace) — that wiped newer local
+       rows after an APK update. Pulls now default to merge (newer updatedAt wins). */
     if (remote){
-      if (pullOnly || policy === 'remote'){
-        update({ label: 'Applying server data on this device…' });
+      const applyPolicy = pullOnly
+        ? (forcePolicy || 'merge')
+        : policy;
+      if (applyPolicy === 'remote'){
+        update({ label: 'Replacing this device with server data…' });
         applyRemoteSnapshot(remote, 'remote');
         await persistAllToDb();
         await persistSyncCredentialsMirror(ensureSyncConfig());
-      } else if (policy === 'merge'){
+      } else if (applyPolicy === 'merge'){
         update({ label: 'Merging server data with this device…' });
         applyRemoteSnapshot(remote, 'merge');
         await persistAllToDb();
@@ -17675,10 +17782,16 @@ document.getElementById('btnSyncNow').addEventListener('click', async ()=>{
 });
 
 document.getElementById('btnPullRemote').addEventListener('click', async ()=>{
-  if (!confirm('Pull the latest data from the server and replace local voyage data?')) return;
+  if (!confirm(
+    'Pull from the server and MERGE with local data?\n\n' +
+    'Newer of local vs server is kept for each record (by updatedAt).\n\n' +
+    'OK = merge (recommended after an app update).\n' +
+    'Cancel = do nothing.\n\n' +
+    'To intentionally discard local data, set Conflict Policy to “Prefer server” and use Sync Now.'
+  )) return;
   try {
-    await syncNow({ pullOnly: true, policy: 'remote' });
-    alert('Pulled and applied server data.');
+    await syncNow({ pullOnly: true, policy: 'merge' });
+    alert('Pulled and merged with local data (newer of each record kept).');
   } catch (e){
     alert('Pull failed: ' + e.message);
   }
@@ -17775,17 +17888,17 @@ document.getElementById('btnPullVoyageLeg')?.addEventListener('click', async ()=
   const voyage = (document.getElementById('sync_pullVoyage')?.value || '').trim();
   const condition = normalizeCondition(document.getElementById('sync_pullCondition')?.value);
   if (!voyage){ alert('Select a voyage number first (List Remote Voyages refreshes the list).'); return; }
-  if (!confirm(`Pull ${voyage} / ${condition} from the server and make it the active leg?`)) return;
+  if (!confirm(`Pull ${voyage} / ${condition} from the server and merge it as the active leg?\n\nNewer of local vs server kept for each record.`)) return;
   const prevVn = state.setup.voyageNumber;
   const prevCond = state.setup.shipCondition;
   try {
     await archiveActiveVoyageLeg();
     state.setup.voyageNumber = voyage;
     state.setup.shipCondition = condition;
-    await syncNow({ pullOnly: true, policy: 'remote' });
+    await syncNow({ pullOnly: true, policy: 'merge' });
     await archiveActiveVoyageLeg();
     await renderVoyageLibrary();
-    alert(`Pulled voyage ${voyage} (${condition}) — ${state.entries.length} log entries.`);
+    alert(`Merged voyage ${voyage} (${condition}) — ${state.entries.length} log entries on this device.`);
   } catch (e){
     state.setup.voyageNumber = prevVn;
     state.setup.shipCondition = prevCond;
@@ -18350,12 +18463,41 @@ const DB_BACKUP_FORMAT = 'noon-report-db-v1';
 const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','orbEntries'];
 
 function downloadJsonFile(filename, obj){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(_){} }, 2000);
+  const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const safeName = filename || `voyage-chief-backup_${Date.now()}.json`;
+
+  /* Android WebView often swallows <a download>. Prefer the system Share sheet so
+     the engineer can Save to Files / Drive / USB. Fall back to the classic download. */
+  (async ()=>{
+    try {
+      const file = new File([blob], safeName, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({
+          files: [file],
+          title: safeName,
+          text: 'Voyage Chief database backup — save this file somewhere safe (Files, Drive, or USB).'
+        });
+        return;
+      }
+    } catch (e){
+      if (e && e.name === 'AbortError') return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>{ try{ URL.revokeObjectURL(a.href); }catch(_){} }, 2000);
+  })();
+
+  try {
+    dbPut('meta', {
+      key: 'lastDbBackup',
+      value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length }
+    });
+  } catch (_) {}
 }
 
 function setDbBackupStatus(msg){
@@ -18695,7 +18837,7 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
     const summary = vesselExportCountSummary(payload.counts);
     setVesselExportStatus(`Exported ${payload.vessel.name}: ${name} — ${total} record(s) (${summary}). Sync API token excluded.`);
-    alert(`Vessel export downloaded.\n\nVessel: ${payload.vessel.name}\nFile: ${name}\nRecords: ${total}\n${summary}\n\nThe sync API token is not written to the file.`);
+    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${name}\nRecords: ${total}\n${summary}\n\nOn Android: Share → Save to Files / Drive.\nThe sync API token is not written to the file.`);
   }catch(e){
     console.error(e);
     setVesselExportStatus('Vessel export failed: ' + e.message);
@@ -18791,8 +18933,13 @@ document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
     const name = `voyage-chief-db-backup_${stamp}.json`;
     downloadJsonFile(name, payload);
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
-    setDbBackupStatus(`Backup downloaded: ${name} — ${payload.vessels.length} vessel(s), ${total} store record(s).`);
-    alert('Full database backup downloaded.\n\nFile: ' + name + '\nVessels: ' + payload.vessels.length + '\nRecords: ' + total);
+    setDbBackupStatus(`Backup ready: ${name} — ${payload.vessels.length} vessel(s), ${total} store record(s). On Android, use Share → Save to Files / Drive.`);
+    alert(
+      'Full database backup ready.\n\n' +
+      'File: ' + name + '\nVessels: ' + payload.vessels.length + '\nRecords: ' + total + '\n\n' +
+      'On Android: choose Share → Save to Files, Drive, or USB so you can find it later.\n' +
+      'On Windows: check your Downloads folder.'
+    );
   }catch(e){
     console.error(e);
     setDbBackupStatus('Backup failed: ' + e.message);
