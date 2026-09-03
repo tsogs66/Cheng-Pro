@@ -1,5 +1,5 @@
 /* Service worker — cache shell for offline Android / local use */
-const CACHE = 'tank-chief-v64';
+const CACHE = 'tank-chief-v65';
 const ASSETS = [
   '/',
   '/index.html',
@@ -15,8 +15,6 @@ const ASSETS = [
   '/embedded/calc.js',
   '/embedded/bunker-live.js',
   '/embedded/index.js',
-  '/embedded/seed/conversion.json',
-  '/embedded/seed/iso8217.json',
   '/js/db.js',
   '/js/calc.js',
   '/js/progress.js',
