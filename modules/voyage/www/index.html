@@ -10477,7 +10477,13 @@ function printBunkerPlan(){
   </div>`;
 
   scheduleBunkerPlanSave();
-  printPortraitSinglePage(sheetHtml);
+  beginPrintHold();
+  try {
+    printPortraitSinglePage(sheetHtml);
+  } catch (err) {
+    endPrintHold();
+    throw err;
+  }
 }
 
 function bindBunkerPlanUi(){
@@ -12047,15 +12053,37 @@ function escPrint(s){
 }
 
 /** System printer picker (incl. Save as PDF). Never remove the print iframe
- *  until afterprint — early teardown freezes Chrome/Android on a dead preview. */
+ *  until afterprint — early teardown freezes Chrome/Android on a dead preview.
+ *  Also holds auto-sync: Print & Save marks pending changes, and a background
+ *  pull/upload during the dialog steals the UI and destroys the print frame. */
+let _printHoldSync = 0;
+function beginPrintHold(){
+  _printHoldSync += 1;
+  try{ clearTimeout(syncTimer); }catch(_e){}
+  syncTimer = null;
+}
+function endPrintHold(){
+  _printHoldSync = Math.max(0, _printHoldSync - 1);
+  if (_printHoldSync > 0) return;
+  try{
+    const sync = ensureSyncConfig();
+    if (sync.autoSync && sync.pendingChanges && navigator.onLine) queueBackgroundSync();
+  }catch(_e){}
+}
+function printHoldActive(){ return _printHoldSync > 0; }
+
 function runSystemPrint(win, cleanup){
   let done = false;
+  /* Caller may already hold sync (Print & Save). Don't double-count. */
+  const heldHere = !printHoldActive();
+  if (heldHere) beginPrintHold();
   const finish = ()=>{
     if (done) return;
     done = true;
     try{ win.removeEventListener('afterprint', finish); }catch(_e){}
     try{ window.removeEventListener('afterprint', finish); }catch(_e){}
     try{ cleanup && cleanup(); }catch(_e){}
+    endPrintHold();
   };
   try{ win.addEventListener('afterprint', finish); }catch(_e){}
   try{ window.addEventListener('afterprint', finish); }catch(_e){}
@@ -15113,9 +15141,16 @@ function printVoyageSummary(entryId){
 document.getElementById('btnPrintVoyageSummary').addEventListener('click', async ()=>{
   if (!currentVsEntryId) return;
   const id = currentVsEntryId;
-  const saved = await saveOpenVoyageSummary({ close: false });
-  if (!saved) return;
-  printVoyageSummary(id);
+  /* Hold sync before save — cascade can take longer than the 1.2s auto-sync delay. */
+  beginPrintHold();
+  try {
+    const saved = await saveOpenVoyageSummary({ close: false });
+    if (!saved) { endPrintHold(); return; }
+    printVoyageSummary(id);
+  } catch (err) {
+    endPrintHold();
+    throw err;
+  }
 });
 
 document.getElementById('btnCloseVoyageSummary').addEventListener('click', ()=>{
@@ -17616,6 +17651,9 @@ async function persistAllToDb(){
 
 let syncInFlight = null;
 async function syncNow(options = {}){
+  if (printHoldActive() && !options.force){
+    throw new Error('Print dialog is open — sync will run after printing finishes.');
+  }
   const pullOnly = !!options.pullOnly;
   const forcePolicy = options.policy;
   try{ await flushSyncSettingsFromForm(); }catch(_){}
@@ -17705,8 +17743,10 @@ async function syncNow(options = {}){
 
 let syncTimer = null;
 function queueBackgroundSync(){
+  if (printHoldActive()) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(()=>{
+    if (printHoldActive()) return;
     syncNow().catch(()=>{});
   }, 1200);
 }
@@ -17994,7 +18034,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v177';
+let androidInstallCacheName = 'noon-report-v178';
 
 /*
  * What the program is called.
