@@ -8,13 +8,37 @@
   }
 
   function downloadJson(name, data) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const safeName = name || `cheng-aio-backup-${Date.now()}.json`;
+    (async () => {
+      try {
+        const file = new File([blob], safeName, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: safeName,
+            text: 'ChEng AIO backup — save to Files, Drive, or USB.',
+          });
+          toast('Backup shared — save it to Files / Drive so you can find it later.');
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          toast('Share cancelled — backup was not saved.');
+          return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast('Backup download started — check Downloads (or Share on Android).');
+    })();
   }
 
   function readFileJson(file) {
