@@ -320,7 +320,9 @@
 
   function moduleAllowed(moduleId, ent) {
     if (moduleId === 'license' || moduleId === 'home' || moduleId === 'about') return true;
-    return modulesAllowed(ent).includes(moduleId);
+    const allowed = modulesAllowed(ent);
+    if (moduleId === 'bunkerplan') return allowed.includes('voyage') || allowed.includes('tanks');
+    return allowed.includes(moduleId);
   }
 
   function hasAddon(name, ent) {

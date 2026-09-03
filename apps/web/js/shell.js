@@ -44,7 +44,7 @@
         const ent = ChengLicense.loadEntitlement();
         if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
           /* Soft program tabs still open so they can show Open License (like e-ORB). */
-          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb') {
+          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb' && next !== 'bunkerplan') {
             next = 'license';
             showToast('Activate a license to use the suite');
           }
@@ -73,14 +73,14 @@
     try {
       await mod.render(main);
       const embedded = !!main.querySelector('.aio-embed-wrap');
-      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb'));
+      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb' || current === 'bunkerplan'));
       /* Re-apply after rotate: Android stays fullscreen; Windows stays with chrome. */
       if (!window.__aioFsOrientBound) {
         window.__aioFsOrientBound = true;
         const reapply = () => {
           if (!document.querySelector('.aio-embed-wrap')) return;
           const modId = current;
-          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb') {
+          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb' || modId === 'bunkerplan') {
             setFullscreenEmbed(true);
           }
         };
@@ -135,7 +135,7 @@
         return;
       }
       const allowed = ChengLicense.modulesAllowed(ent);
-      const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb';
+      const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb' || mod === 'bunkerplan';
       if (mod === 'about' || mod === 'home' || mod === 'license') {
         el.hidden = false;
         el.classList.remove('nav-warn');
