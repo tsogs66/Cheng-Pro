@@ -12046,6 +12046,29 @@ function escPrint(s){
   return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+/** System printer picker (incl. Save as PDF). Never remove the print iframe
+ *  until afterprint — early teardown freezes Chrome/Android on a dead preview. */
+function runSystemPrint(win, cleanup){
+  let done = false;
+  const finish = ()=>{
+    if (done) return;
+    done = true;
+    try{ win.removeEventListener('afterprint', finish); }catch(_e){}
+    try{ window.removeEventListener('afterprint', finish); }catch(_e){}
+    try{ cleanup && cleanup(); }catch(_e){}
+  };
+  try{ win.addEventListener('afterprint', finish); }catch(_e){}
+  try{ window.addEventListener('afterprint', finish); }catch(_e){}
+  try{
+    win.focus();
+    win.print();
+  }catch(err){
+    finish();
+    throw err;
+  }
+  setTimeout(finish, 120000);
+}
+
 function printDocumentCss(){
   const text = document.querySelector('style')?.textContent || '';
   const start = text.indexOf('.pr-page{');
@@ -12174,14 +12197,7 @@ function printSinglePage(sheetHtml){
   const cleanup = ()=>{
     try{ iframe.remove(); }catch(e){}
   };
-  const doPrint = ()=>{
-    try{
-      win.focus();
-      win.print();
-    } finally {
-      setTimeout(cleanup, 1500);
-    }
-  };
+  const doPrint = ()=> runSystemPrint(win, cleanup);
 
   if (doc.fonts && doc.fonts.ready){
     doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
@@ -12320,10 +12336,7 @@ function printPortraitSinglePage(sheetHtml){
   const win = iframe.contentWindow;
 
   const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
-  const doPrint = ()=>{
-    try{ win.focus(); win.print(); }
-    finally { setTimeout(cleanup, 1500); }
-  };
+  const doPrint = ()=> runSystemPrint(win, cleanup);
 
   if (doc.fonts && doc.fonts.ready){
     doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
@@ -17981,7 +17994,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v176';
+let androidInstallCacheName = 'noon-report-v177';
 
 /*
  * What the program is called.
@@ -20496,8 +20509,11 @@ document.getElementById('btnOrbPrint')?.addEventListener('click', ()=>{
   doc.write(html);
   doc.close();
   setTimeout(()=>{
-    try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-    finally{ setTimeout(()=> iframe.remove(), 1500); }
+    try{
+      runSystemPrint(iframe.contentWindow, ()=>{ try{ iframe.remove(); }catch(_e){} });
+    }catch(_e){
+      try{ iframe.remove(); }catch(_e2){}
+    }
   }, 250);
 });
 document.getElementById('btnOrbExportJson')?.addEventListener('click', ()=>{
