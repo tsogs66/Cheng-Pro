@@ -11034,6 +11034,21 @@ function printWeatherSection(entry){
   ].join(''));
 }
 
+/** Noon sheet block: voyage averages in place of weather / sea state. */
+function printNoonVoyageAveragesSection(perf, derivedRows){
+  const distSamples = (derivedRows || []).filter(r =>
+    r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+  const avgShipDist = distSamples.length
+    ? distSamples.reduce((s, r) => s + r.distanceShip, 0) / distSamples.length
+    : null;
+  return printSection('Voyage Averages', [
+    printRow('Average RPM', perf.avgRpm==null?'—':fmt(perf.avgRpm, 2)),
+    printRow('Average Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip, 2)),
+    printRow('Average Ship Distance', avgShipDist==null?'—':`${fmt(avgShipDist, 2)} nm`),
+    printRow('Average Ship Speed', perf.avgSpeedShip==null?'—':`${fmt(perf.avgSpeedShip, 2)} kn`)
+  ].join(''));
+}
+
 function printMeCylinderSection(report){
   const pr = report?.pumpRack || [], ex = report?.exhaustTemp || [];
   const cylN = meCylinderCount();
@@ -14747,7 +14762,7 @@ function buildVoyageNoonSheetHTML(entry){
   const row = getComputedRow(entryId);
   if (!entry || !row) return '';
 
-  const {perf} = computeDerived();
+  const {perf, rows: derivedRows} = computeDerived();
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
@@ -14785,12 +14800,12 @@ function buildVoyageNoonSheetHTML(entry){
     {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)}
   ];
 
+  /* Slip % stays under M/E Performance only — not repeated here. */
   const voyageSection = meRunningEarly ? printSection('Voyage Progress', [
     printRow('Engine Distance', `${fmt(row.distEngine,2)} nm`),
     printRow('Distance To Go', distanceToGo!=null?`${fmt(distanceToGo, 2)} nm`:'—'),
     printRow('Days To Go', daysToGoVal!=null?fmt(daysToGoVal,2):'—'),
     printRow('ETA', etaStr),
-    printRow('Slip %', fmt(row.slip,2)),
     printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
     /* The counter reading the daily figure was taken from, so the sheet carries the
        evidence as well as the difference. */
@@ -14938,14 +14953,12 @@ function buildVoyageNoonSheetHTML(entry){
   const robTable = printSection('Remaining On Board', printRobBalanceTableHtml(robBalanceRows(row, prevRobData, asOf)));
 
   const report = entry.report || {};
-  const noonOp = isNoonReportOp(entry.operation);
-  const isSea = SEA_TYPE_OPS.has(entry.operation);
   const meRunning = mainEngineInUse(entry, row);
   /* Prefer showing M/E cyl detail whenever the open form (or saved report) has readings. */
   const hasCylData = !!(report.pumpRack?.some(v=>v!=null&&v!=='') || report.exhaustTemp?.some(v=>v!=null&&v!==''));
   const showMeDetail = (canShowMeDetailOp(entry.operation) && meRunning) || hasCylData;
-  const weatherHtml = printWeatherSection(entry);
-  const weatherSection = (noonOp || isSea || weatherHtml) ? weatherHtml : '';
+  /* Weather / sea state is omitted on the noon sheet; voyage averages take that slot. */
+  const voyageAveragesSection = printNoonVoyageAveragesSection(perf, derivedRows);
   const cylSection = showMeDetail ? printMeCylinderSection(report) : '';
   const turboOthersSection = printTurboOthersSection(report, { includeMeAux: showMeDetail, entry });
   /* Engine stopped: omit M/E performance entirely — voyage progress and M/E KPIs
@@ -14956,7 +14969,7 @@ function buildVoyageNoonSheetHTML(entry){
   const soundingsSection = printSoundingsSection(report);
   /* Three column stacks — shorter page height so remarks/signatory are not clipped. */
   const col1 = [
-    weatherSection,
+    voyageAveragesSection,
     `<div class="pr-noon-pair">${fuelSection}${fwSection}</div>`,
     blrIncSection
   ].filter(Boolean).join('');
@@ -17895,7 +17908,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v171';
+let androidInstallCacheName = 'noon-report-v172';
 
 /*
  * What the program is called.
