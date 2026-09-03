@@ -55,38 +55,6 @@ function renderEmbed(root, { src, title }) {
     </div>`;
 }
 
-/* Voyage print inside the embed iframe often no-ops on Android WebView — open
-   the fitted HTML in the AIO shell so the system print/share UI can run. */
-if (!window.__chengAioPrintBridge) {
-  window.__chengAioPrintBridge = true;
-  window.addEventListener('message', (ev) => {
-    const msg = ev.data || {};
-    if (msg.type !== 'chengaio-voyage-print' || !msg.html) return;
-    try {
-      const blob = new Blob([msg.html], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, '_blank');
-      const tryPrint = () => {
-        try { if (w) w.print(); } catch { /* ignore */ }
-      };
-      if (w) {
-        if (w.document && w.document.readyState === 'complete') setTimeout(tryPrint, 80);
-        else w.addEventListener('load', () => setTimeout(tryPrint, 80));
-      } else {
-        const a = document.createElement('a');
-        a.href = url; a.target = '_blank'; a.rel = 'noopener';
-        document.body.appendChild(a); a.click(); a.remove();
-        window.dispatchEvent(new CustomEvent('chengpro:toast', {
-          detail: 'Print preview opened — use Share / Print, or allow pop-ups.',
-        }));
-      }
-      setTimeout(() => { try { URL.revokeObjectURL(url); } catch { /* ignore */ } }, 120000);
-    } catch (e) {
-      console.warn('AIO print bridge failed', e);
-    }
-  });
-}
-
 window.ChengProModules.voyage = {
   title: 'Voyage',
   async render(root) {

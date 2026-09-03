@@ -12152,85 +12152,6 @@ function fitPrintRoot(doc){
   return scale;
 }
 
-function isFragilePrintHost(){
-  try {
-    const cap = window.Capacitor;
-    const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
-    if (plat === 'android' || plat === 'ios') return true;
-    if (cap && cap.isNativePlatform && cap.isNativePlatform()) return true;
-  } catch (_) {}
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')) return true;
-  try { if (isChengAioEmbedded()) return true; } catch (_) {}
-  return false;
-}
-
-/**
- * Deliver a fitted print document. Desktop uses a hidden iframe + print().
- * Android / AIO WebView often no-ops iframe.print(), so we also open a preview
- * and offer the system Share sheet so the engineer can Print / Save / Send.
- */
-async function deliverPrintHtml(fullHtml, label){
-  const title = label || 'Voyage report';
-  if (isChengAioEmbedded() && window.parent && window.parent !== window){
-    try {
-      window.parent.postMessage({ type: 'chengaio-voyage-print', html: fullHtml, label: title }, '*');
-    } catch (_) {}
-  }
-
-  if (isFragilePrintHost()){
-    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    let shared = false;
-    try {
-      const file = new File([blob], `${String(title).replace(/[^a-zA-Z0-9-_]+/g,'_') || 'report'}.html`, { type: 'text/html' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title, text: title });
-        shared = true;
-      }
-    } catch (e){
-      if (e && e.name === 'AbortError') shared = true; /* user dismissed share */
-    }
-    let opened = null;
-    try { opened = window.open(url, '_blank'); } catch (_) {}
-    if (!opened){
-      try {
-        const a = document.createElement('a');
-        a.href = url; a.target = '_blank'; a.rel = 'noopener';
-        document.body.appendChild(a); a.click(); a.remove();
-      } catch (_) {}
-    }
-    if (!shared){
-      alert(
-        'Print preview opened.\n\n' +
-        'On Android: use the browser/app Share or Print menu, or open Reports → Print History → View / Download.\n\n' +
-        'The report was also saved to Print History on this device.'
-      );
-    }
-    setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(_){} }, 120000);
-    return;
-  }
-
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:297mm;height:210mm;border:0;opacity:0;pointer-events:none;';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  doc.open();
-  doc.write(fullHtml);
-  doc.close();
-  const win = iframe.contentWindow;
-  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
-  const doPrint = ()=>{
-    try{ win.focus(); win.print(); }
-    finally { setTimeout(cleanup, 1500); }
-  };
-  if (doc.fonts && doc.fonts.ready){
-    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
-  } else {
-    setTimeout(doPrint, 120);
-  }
-}
-
 function printSinglePage(sheetHtml){
   // Two equal halves on one A4 landscape sheet (fold on vertical center)
   const half = (label)=>`<div class="pr-copy"><span class="pr-copy-label">${label}</span><div class="pr-page-inner">${sheetHtml}</div></div>`;
@@ -12248,9 +12169,25 @@ function printSinglePage(sheetHtml){
 
   fitPrintRoot(doc);
   const fittedHtml = doc.body.innerHTML;
-  const fullDoc = buildPrintDocumentHtml(fittedHtml);
-  try { iframe.remove(); } catch (_) {}
-  deliverPrintHtml(fullDoc, 'Voyage sheet');
+  const win = iframe.contentWindow;
+
+  const cleanup = ()=>{
+    try{ iframe.remove(); }catch(e){}
+  };
+  const doPrint = ()=>{
+    try{
+      win.focus();
+      win.print();
+    } finally {
+      setTimeout(cleanup, 1500);
+    }
+  };
+
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
   return fittedHtml;
 }
 
@@ -12380,9 +12317,19 @@ function printPortraitSinglePage(sheetHtml){
 
   fitPrintPortraitRoot(doc);
   const fittedHtml = doc.body.innerHTML;
-  const fullDoc = buildPrintDocumentHtmlPortrait(fittedHtml);
-  try { iframe.remove(); } catch (_) {}
-  deliverPrintHtml(fullDoc, 'Noon / voyage report');
+  const win = iframe.contentWindow;
+
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=>{
+    try{ win.focus(); win.print(); }
+    finally { setTimeout(cleanup, 1500); }
+  };
+
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
   return fittedHtml;
 }
 
