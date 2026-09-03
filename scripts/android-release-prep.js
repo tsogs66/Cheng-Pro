@@ -84,5 +84,6 @@ if (fs.existsSync(manifestPath)) {
 }
 
 execSync('node scripts/apply-android-icons.js', { cwd: root, stdio: 'inherit' });
+execSync('node scripts/apply-android-print-bridge.js', { cwd: root, stdio: 'inherit' });
 
 console.log(`Android release prep: versionName=${versionName} versionCode=${versionCode} (stable sideload key)`);
