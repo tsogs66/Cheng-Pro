@@ -28,7 +28,14 @@ const Api = (() => {
     online = v;
     listeners.forEach((fn) => fn(online));
   }
-  window.addEventListener('online', () => { setOnline(true); flushQueue(); });
+  window.addEventListener('online', () => {
+    setOnline(true);
+    if (window.Branding && Branding.isPrintHold && Branding.isPrintHold()) {
+      Branding.afterPrintHold(() => { flushQueue(); });
+      return;
+    }
+    flushQueue();
+  });
   window.addEventListener('offline', () => setOnline(false));
 
   function onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
