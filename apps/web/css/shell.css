@@ -394,7 +394,8 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   background: var(--ink);
 }
 
-/* Full-screen program embed (portrait + landscape) — hide AIO chrome */
+/* Full-screen program embed on Android/mobile (portrait + landscape) — hide AIO chrome.
+   Windows desktop keeps topbar/sidebar (see shell.js wantsMobileFullscreenEmbed). */
 .aio-home-fab {
   display: none;
   position: fixed;

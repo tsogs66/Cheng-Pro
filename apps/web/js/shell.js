@@ -74,18 +74,53 @@
       await mod.render(main);
       const embedded = !!main.querySelector('.aio-embed-wrap');
       setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb'));
+      /* Re-apply after rotate: Android stays fullscreen; Windows stays with chrome. */
+      if (!window.__aioFsOrientBound) {
+        window.__aioFsOrientBound = true;
+        const reapply = () => {
+          if (!document.querySelector('.aio-embed-wrap')) return;
+          const modId = current;
+          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb') {
+            setFullscreenEmbed(true);
+          }
+        };
+        window.addEventListener('orientationchange', () => setTimeout(reapply, 120));
+        window.addEventListener('resize', () => {
+          clearTimeout(window.__aioFsResizeTimer);
+          window.__aioFsResizeTimer = setTimeout(reapply, 160);
+        });
+      }
     } catch (e) {
       setFullscreenEmbed(false);
       main.innerHTML = `<section class="panel"><p class="empty">${escapeHtml(e.message)}</p></section>`;
     }
   }
 
+  /** Android/mobile only — Windows desktop keeps AIO topbar/sidebar around embeds. */
+  function wantsMobileFullscreenEmbed() {
+    const ua = navigator.userAgent || '';
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
+    try {
+      if (window.ChengLicense && typeof ChengLicense.detectSeat === 'function'
+          && ChengLicense.detectSeat() === 'android') {
+        return true;
+      }
+    } catch { /* ignore */ }
+    try {
+      const cap = window.Capacitor;
+      const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
+      if (plat === 'android' || plat === 'ios') return true;
+    } catch { /* ignore */ }
+    return false;
+  }
+
   function setFullscreenEmbed(on) {
-    document.documentElement.classList.toggle('aio-fullscreen-embed', !!on);
-    document.body.classList.toggle('aio-fullscreen-embed', !!on);
-    if (on) closeSidebar();
+    const active = !!on && wantsMobileFullscreenEmbed();
+    document.documentElement.classList.toggle('aio-fullscreen-embed', active);
+    document.body.classList.toggle('aio-fullscreen-embed', active);
+    if (active) closeSidebar();
     const fab = document.getElementById('aioHomeFab');
-    if (fab) fab.hidden = !on;
+    if (fab) fab.hidden = !active;
   }
 
   function applyLicenseNav() {

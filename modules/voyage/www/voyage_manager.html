@@ -23,20 +23,28 @@
 <script src="eorb.js"></script>
 <script src="ship_time.js"></script>
 <script>
-/* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720). */
+/* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720).
+   Android/iOS always keep bottom nav in landscape — never restore top tabs for width ≥1101. */
 (function(){
   try{
     var cap = window.Capacitor;
     var native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (cap.getPlatform && cap.getPlatform() !== 'web')));
+    var ua = navigator.userAgent || '';
+    var mobileOs = /Android|iPhone|iPad|iPod/i.test(ua);
     var touch = false;
     try{
       touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
-    if (native || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var mobileLocked = native || mobileOs;
+    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
       document.documentElement.classList.add('use-bottom-nav');
     }
-    if ((window.innerWidth || 0) >= 1101) {
+    if (mobileLocked) {
+      document.documentElement.classList.add('is-mobile-chrome');
+      document.documentElement.classList.remove('use-top-tabs');
+    } else if ((window.innerWidth || 0) >= 1101) {
+      /* Windows desktop (incl. wide touch laptops): keep top tabs */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -10687,14 +10695,19 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
     try{
       const cap = window.Capacitor;
       const native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (cap.getPlatform && cap.getPlatform() !== 'web')));
-      const android = /android/i.test(navigator.userAgent || '');
+      const ua = navigator.userAgent || '';
+      const mobileOs = /Android|iPhone|iPad|iPod/i.test(ua);
+      const mobileLocked = native || mobileOs;
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
-      if (native || android || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+      if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
         document.documentElement.classList.add('use-bottom-nav');
       }
-      /* Wide desktop: keep top tabs even on touch laptops */
-      if ((window.innerWidth || 0) >= 1101) {
+      document.documentElement.classList.toggle('is-mobile-chrome', mobileLocked);
+      /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
+      if (mobileLocked) {
+        document.documentElement.classList.remove('use-top-tabs');
+      } else if ((window.innerWidth || 0) >= 1101) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {
@@ -17908,7 +17921,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v172';
+let androidInstallCacheName = 'noon-report-v173';
 
 /*
  * What the program is called.
