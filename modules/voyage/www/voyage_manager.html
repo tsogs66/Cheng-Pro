@@ -12072,9 +12072,67 @@ function endPrintHold(){
 }
 function printHoldActive(){ return _printHoldSync > 0; }
 
-function runSystemPrint(win, cleanup){
+/** Prefer AIO shell / Android PrintManager when window.print is a no-op. */
+function shouldBridgePrint(){
+  try{
+    if (window.__CHENG_ANDROID_PRINT__ || (window.ChengAndroidPrint && typeof ChengAndroidPrint.printHtml === 'function')) return true;
+    if (window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()) return true;
+    if (window.parent && window.parent !== window){
+      try{
+        if (window.parent.ChengAioPrint || window.parent.ChengAndroidPrint || window.parent.__CHENG_ANDROID_PRINT__) return true;
+        if (window.parent.ChengPro || window.parent.ChengProShell) return true;
+      }catch(_e){ return true; /* cross-origin embed: still try postMessage */ }
+    }
+  }catch(_e){}
+  return false;
+}
+
+function deliverPrintHtml(html, title, localWin, cleanup){
   let done = false;
-  /* Caller may already hold sync (Print & Save). Don't double-count. */
+  const heldHere = !printHoldActive();
+  if (heldHere) beginPrintHold();
+  const finish = ()=>{
+    if (done) return;
+    done = true;
+    try{ window.removeEventListener('message', onDone); }catch(_e){}
+    try{ cleanup && cleanup(); }catch(_e){}
+    endPrintHold();
+  };
+  const onDone = (ev)=>{
+    if (ev && ev.data && ev.data.type === 'chengaio-print-done') finish();
+  };
+  try{ window.addEventListener('message', onDone); }catch(_e){}
+
+  if (shouldBridgePrint()){
+    try{
+      const payload = { type:'chengaio-print', html:String(html||''), title: title || 'Voyage Chief' };
+      if (window.parent && window.parent !== window){
+        window.parent.postMessage(payload, '*');
+      } else if (window.ChengAioPrint && typeof ChengAioPrint.printHtmlDocument === 'function'){
+        ChengAioPrint.printHtmlDocument(payload.html, payload.title);
+      } else if (window.ChengAndroidPrint && typeof ChengAndroidPrint.printHtml === 'function'){
+        ChengAndroidPrint.printHtml(payload.html, payload.title);
+        try{ cleanup && cleanup(); }catch(_e){}
+        setTimeout(finish, 1500);
+        return;
+      } else {
+        throw new Error('No print bridge');
+      }
+      /* Local iframe is no longer needed — parent/native has the HTML. */
+      try{ cleanup && cleanup(); }catch(_e){}
+      setTimeout(finish, 180000);
+      return;
+    }catch(err){
+      console.warn('Print bridge failed, falling back to local print', err);
+    }
+  }
+
+  try{ window.removeEventListener('message', onDone); }catch(_e){}
+  runSystemPrintLocal(localWin, ()=>{ try{ cleanup && cleanup(); }catch(_e){} });
+}
+
+function runSystemPrintLocal(win, cleanup){
+  let done = false;
   const heldHere = !printHoldActive();
   if (heldHere) beginPrintHold();
   const finish = ()=>{
@@ -12095,6 +12153,18 @@ function runSystemPrint(win, cleanup){
     throw err;
   }
   setTimeout(finish, 120000);
+}
+
+function runSystemPrint(win, cleanup){
+  try{
+    const doc = win && win.document;
+    if (doc && doc.documentElement && shouldBridgePrint()){
+      const html = '<!DOCTYPE html>' + doc.documentElement.outerHTML;
+      deliverPrintHtml(html, (doc.title || 'Voyage Chief'), win, cleanup);
+      return;
+    }
+  }catch(_e){}
+  runSystemPrintLocal(win, cleanup);
 }
 
 function printDocumentCss(){

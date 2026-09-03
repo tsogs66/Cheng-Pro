@@ -315,6 +315,9 @@ const Api = (() => {
    * run and is tried again on the next one, still in order.
    */
   async function flushQueue(onProgress) {
+    if (window.Branding && Branding.isPrintHold && Branding.isPrintHold()) {
+      return { flushed: 0, pending: -1, held: true };
+    }
     if (transport === 'local') return { flushed: 0, pending: 0, dropped: 0 };
     if (flushing) return { flushed: 0, busy: true };
     flushing = true;
