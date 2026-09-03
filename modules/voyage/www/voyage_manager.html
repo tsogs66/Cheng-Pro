@@ -1463,6 +1463,32 @@
      reads as a sum rather than as one more reading. Declared after the stripe rule,
      which it ties with on specificity. */
   .pr-table tr.pr-total td{ background:#eef2f8; border-top:0.4mm solid #122238; }
+  /* Transposed ROB stock tables: tanks as columns, metric rows taller, larger type.
+     Present R.O.B. row stays bold so the handover figure reads first. */
+  .pr-table.pr-table-rob{
+    table-layout:auto; font-size:12px;
+  }
+  .pr-table.pr-table-rob th{
+    font-size:11px; padding:1.3mm 1.1mm; vertical-align:bottom; line-height:1.25;
+  }
+  .pr-table.pr-table-rob td{
+    font-size:12px; padding:1.6mm 1.1mm; line-height:1.3;
+  }
+  .pr-table.pr-table-rob td.row-lbl{
+    font-size:11.5px; font-weight:600; white-space:nowrap;
+  }
+  .pr-table.pr-table-rob .pr-rob-unit{
+    display:block; margin-top:0.3mm; font-size:9px; font-weight:400;
+    text-transform:none; letter-spacing:0; opacity:0.88;
+    font-family:'Inter',sans-serif;
+  }
+  .pr-table.pr-table-rob th.rob-total-col,
+  .pr-table.pr-table-rob td.rob-total-col{ background:#eef2f8; }
+  .pr-table.pr-table-rob tr.rob-present-row td{
+    font-weight:700; background:#f3f6fb;
+  }
+  .pr-table.pr-table-rob tr.rob-present-row td.row-lbl{ font-weight:700; }
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col{ background:#e4eaf3; }
   /* Says the list under it was cut, so a short list is never mistaken for the range. */
   .pr-note{ font-size:8.5px; color:#5a6578; font-style:italic; margin-top:0.8mm; }
   .pr-remarks{
@@ -11227,19 +11253,7 @@ function renderDepArrRobTable(consByFuel, consByLube){
 function printDepArrRobSheet(){
   const {consByFuel, consByLube} = computeDerived();
   const rows = depArrRobRows(consByFuel, consByLube);
-  const fmtU = (v, r) => r.unit==='MT' ? fmtFuel(v) : (r.cat==='fw' ? fmtRob(v, 'fw') : fmtLube(v));
-  const table = printSection('Departure / Arrival ROB', `
-    <table class="pr-table">
-      <tr><th>Tank</th><th>Opening</th><th>Received</th><th>Consumed</th><th>Present</th><th>Unit</th></tr>
-      ${rows.map(r=>`<tr${r.total?' class="rob-total"':''}>
-        <td class="row-lbl">${r.total?`<strong>${escPrint(r.label)}</strong>`:escPrint(r.label)}</td>
-        <td>${fmtU(r.open,r)}</td>
-        <td>${fmtU(r.received,r)}</td>
-        <td>${fmtU(r.consumed,r)}</td>
-        <td>${fmtU(r.present,r)}</td>
-        <td>${r.unit}</td>
-      </tr>`).join('')}
-    </table>`);
+  const table = printSection('Departure / Arrival ROB', printDepArrRobTableHtml(rows));
   const sheet = `<div class="pr-sheet">
     ${printDocHeader({ title: 'Dep / Arr ROB Comparison', subtitle: state.setup.voyageNumber||'Voyage', badge: state.setup.shipCondition||'' })}
     ${printMetaGrid([
@@ -12014,6 +12028,8 @@ function sizePrintTables(root){
   root.querySelectorAll('table.pr-table').forEach(table=>{
     /* Bunker plan leg tables keep a fixed Calibri 11px entry size */
     if (table.classList.contains('pr-bunker-entry-table')) return;
+    /* Transposed ROB tables keep the larger intentional type */
+    if (table.classList.contains('pr-table-rob')) return;
     const cols = table.querySelector('tr')?.children?.length || 0;
     const rows = table.querySelectorAll('tr').length;
     table.classList.remove('pr-table-wide', 'pr-table-xl');
@@ -12321,6 +12337,53 @@ function printKpiRow(items){
 
 function printSection(title, inner){
   return `<section class="pr-section"><h3 class="pr-section-title">${title}</h3><div class="pr-section-body">${inner}</div></section>`;
+}
+
+/**
+ * Transposed Remaining On Board print table: tanks/items as columns, metrics as rows.
+ * Gives each figure more vertical room and keeps Present R.O.B. bold.
+ * @param {Array<{label:string, unit?:string, total?:boolean, strong?:boolean}>} items
+ * @param {Array<{label:string, present?:boolean, get:(item)=>string}>} metrics
+ */
+function printTransposedRobTableHtml(items, metrics){
+  if (!items.length) return '<div class="pr-note">No tanks configured.</div>';
+  const head = `<tr><th></th>${items.map(it=>{
+    const unit = it.unit ? `<span class="pr-rob-unit">${escPrint(it.unit)}</span>` : '';
+    const lbl = it.strong || it.total ? `<strong>${escPrint(it.label)}</strong>` : escPrint(it.label);
+    return `<th class="${it.total||it.strong?'rob-total-col':''}">${lbl}${unit}</th>`;
+  }).join('')}</tr>`;
+  const body = metrics.map(m=>{
+    const presentCls = m.present ? ' class="rob-present-row"' : '';
+    const cells = items.map(it=>{
+      const val = m.get(it);
+      const colCls = it.total || it.strong ? ' class="rob-total-col"' : '';
+      const inner = m.present ? `<strong>${val}</strong>` : val;
+      return `<td${colCls}>${inner}</td>`;
+    }).join('');
+    return `<tr${presentCls}><td class="row-lbl">${escPrint(m.label)}</td>${cells}</tr>`;
+  }).join('');
+  return `<table class="pr-table pr-table-rob">${head}${body}</table>`;
+}
+
+function printRobBalanceTableHtml(rows){
+  return printTransposedRobTableHtml(rows, [
+    { label: 'Previous', get: r => fmtRob(r.prevVal, r.cat) },
+    { label: 'Consumption', get: r => r.consVal===null||r.consVal===undefined ? '—' : fmtRob(r.consVal, r.cat) },
+    { label: 'Present R.O.B.', present: true, get: r => fmtRob(r.nowVal, r.cat) }
+  ]);
+}
+
+function printDepArrRobTableHtml(rows){
+  const fmtU = (v, r) => r.unit==='MT' ? fmtFuel(v) : (r.cat==='fw' ? fmtRob(v, 'fw') : fmtLube(v));
+  return printTransposedRobTableHtml(rows.map(r=>({
+    ...r,
+    strong: !!r.total
+  })), [
+    { label: 'Opening', get: r => fmtU(r.open, r) },
+    { label: 'Received', get: r => fmtU(r.received, r) },
+    { label: 'Consumed', get: r => fmtU(r.consumed, r) },
+    { label: 'Present', present: true, get: r => fmtU(r.present, r) }
+  ]);
 }
 
 function printRow(label, value, cls){
@@ -13592,8 +13655,6 @@ document.getElementById('btnCloseRobSnapshot').addEventListener('click', ()=>{
 function printRobSnapshot(entry, dt, rowsForPrint){
   const dateStr = dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
   const timeStr = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  const tableRows = rowsForPrint.map(r=>`
-    <tr${r.strong?' class="rob-total"':''}><td class="row-lbl">${r.strong?`<strong>${r.label}</strong>`:r.label}</td><td>${fmtRob(r.prevVal,r.cat)}</td><td>${r.consVal===null||r.consVal===undefined?'—':fmtRob(r.consVal,r.cat)}</td><td>${fmtRob(r.nowVal,r.cat)}</td></tr>`).join('');
   const sheetHtml = `<div class="pr-sheet">
     ${printDocHeader({ title: 'Remaining On Board', subtitle: 'Fuel, Lube & Fresh Water Inventory Snapshot', badge: entry.operation })}
     ${printMetaGrid([
@@ -13601,11 +13662,7 @@ function printRobSnapshot(entry, dt, rowsForPrint){
       {label:'Time', value:timeStr},
       {label:'Operation', value:entry.operation}
     ], 3)}
-    ${printSection('Stock Balance', `
-      <table class="pr-table">
-        <tr><th>Item</th><th>Previous</th><th>Consumption</th><th>Present R.O.B.</th></tr>
-        ${tableRows}
-      </table>`)}
+    ${printSection('Stock Balance', printRobBalanceTableHtml(rowsForPrint))}
     ${printSignatory(entry)}
   </div>`;
   printSinglePage(sheetHtml);
@@ -14878,13 +14935,7 @@ function buildVoyageNoonSheetHTML(entry){
   }
   const voyageAvgSection = printSection('Voyage Time Averages', voyageAvgRows.join(''));
 
-  const robTable = printSection('Remaining On Board', `
-    <table class="pr-table">
-      <tr><th>Item</th><th>Previous</th><th>Consumption</th><th>Present R.O.B.</th></tr>
-      ${robBalanceRows(row, prevRobData, asOf).map(r=>{
-        return `<tr${r.strong?' class="rob-total"':''}><td class="row-lbl">${r.strong?`<strong>${r.label}</strong>`:r.label}</td><td>${fmtRob(r.prevVal,r.cat)}</td><td>${r.consVal===null||r.consVal===undefined?'—':fmtRob(r.consVal,r.cat)}</td><td>${fmtRob(r.nowVal,r.cat)}</td></tr>`;
-      }).join('')}
-    </table>`);
+  const robTable = printSection('Remaining On Board', printRobBalanceTableHtml(robBalanceRows(row, prevRobData, asOf)));
 
   const report = entry.report || {};
   const noonOp = isNoonReportOp(entry.operation);
@@ -17771,7 +17822,6 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
     renderSyncUi();
     await renderVoyageLibrary();
     switchTab('summary');
-    showToast?.(`Loaded voyage ${vn} · ${cond}`);
   } catch (e){
     alert('Load failed: ' + e.message);
   }
@@ -17845,7 +17895,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v170';
+let androidInstallCacheName = 'noon-report-v171';
 
 /*
  * What the program is called.
@@ -18631,7 +18681,6 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
 
 document.getElementById('btnImportVessel')?.addEventListener('click', ()=> document.getElementById('fileImportVessel')?.click());
 
-/* ChEng AIO parent frame — backup/restore bridge (hidden iframe from Backup page). */
 window.addEventListener('message', async (ev)=>{
   const msg = ev.data || {};
   if (msg.type !== 'chengaio-voyage-backup') return;
