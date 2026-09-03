@@ -7,38 +7,68 @@
     window.dispatchEvent(new CustomEvent('chengpro:toast', { detail: msg }));
   }
 
-  function downloadJson(name, data) {
+  function downloadWhereLabel(saved) {
+    if (!saved) return 'saved';
+    if (saved.method === 'picker') return 'saved to the folder you chose';
+    if (saved.method === 'share') return 'shared — use Save to Files / Drive / USB';
+    return `check Downloads for ${saved.filename}`;
+  }
+
+  /**
+   * Save JSON where the user can find it.
+   * Picker (desktop) → Share (Android) → <a download> with delayed revoke.
+   */
+  async function downloadJson(name, data) {
     const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     const blob = new Blob([text], { type: 'application/json' });
     const safeName = name || `cheng-aio-backup-${Date.now()}.json`;
-    (async () => {
-      try {
-        const file = new File([blob], safeName, { type: 'application/json' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: safeName,
-            text: 'ChEng AIO backup — save to Files, Drive, or USB.',
+
+    try {
+      if (typeof window.showSaveFilePicker === 'function') {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: safeName,
+            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           });
-          toast('Backup shared — save it to Files / Drive so you can find it later.');
-          return;
-        }
-      } catch (e) {
-        if (e && e.name === 'AbortError') {
-          toast('Share cancelled — backup was not saved.');
-          return;
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return { method: 'picker', filename: safeName };
+        } catch (e) {
+          if (e && e.name === 'AbortError') throw new Error('Save cancelled — nothing was written');
         }
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = safeName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast('Backup download started — check Downloads (or Share on Android).');
-    })();
+    } catch (e) {
+      if (e && e.message && /cancelled/i.test(e.message)) throw e;
+    }
+
+    try {
+      const file = new File([blob], safeName, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: safeName,
+          text: 'ChEng AIO backup — use Save to Files / Drive / USB so you can find it later.',
+        });
+        return { method: 'share', filename: safeName };
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('Share cancelled — backup was not saved');
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try { a.remove(); } catch (_) { /* ignore */ }
+      try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
+    }, 4000);
+    return { method: 'anchor', filename: safeName };
   }
 
   function readFileJson(file) {
@@ -140,8 +170,17 @@
       root.innerHTML = `
         <section class="panel backup-page">
           <h1>Backup &amp; Restore</h1>
-          <p class="hint">Export or import vessel databases offline. Tank Chief data is on the server (or device when using Tank locally). Voyage Chief data lives in the browser IndexedDB on this device.</p>
+          <p class="hint">Export or import vessel databases offline. On desktop you will be asked where to save the JSON. On Android, use the share sheet → <strong>Save to Files / Drive / USB</strong> — do not dismiss it or nothing is written.</p>
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'}</p>
+
+          <div class="form-panel" style="margin-bottom:16px">
+            <h2>Entire suite (Tank + Voyage)</h2>
+            <p class="hint">One JSON file with both Tank Chief and Voyage Chief databases from this device/server. Active vessel: <strong>${esc(activeLabel)}</strong></p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-suite-all">Export entire program</button>
+            </div>
+            <p class="hint" id="bk-suite-status">Ready.</p>
+          </div>
 
           <div class="backup-grid">
             <div class="form-panel">
@@ -181,8 +220,55 @@
 
       const tankStatus = root.querySelector('#bk-tank-status');
       const voyageStatus = root.querySelector('#bk-voyage-status');
+      const suiteStatus = root.querySelector('#bk-suite-status');
       const setTank = (t) => { if (tankStatus) tankStatus.textContent = t; };
       const setVoyage = (t) => { if (voyageStatus) voyageStatus.textContent = t; };
+      const setSuite = (t) => { if (suiteStatus) suiteStatus.textContent = t; };
+
+      root.querySelector('#bk-suite-all').onclick = async () => {
+        setSuite('Collecting Tank + Voyage databases…');
+        try {
+          let tankBackup = null;
+          let tankError = null;
+          try {
+            const res = await fetch('/tanks/api/backup', {
+              headers: typeof ChengLicense !== 'undefined' ? ChengLicense.authHeaders() : {},
+            });
+            if (!res.ok) throw new Error('Tank backup failed (' + res.status + ')');
+            tankBackup = await res.json();
+          } catch (e) {
+            tankError = e.message || 'Tank backup failed';
+          }
+
+          let voyageMsg = null;
+          let voyageError = null;
+          try {
+            voyageMsg = await voyagePost('export-db', {}, root);
+          } catch (e) {
+            voyageError = e.message || 'Voyage backup failed';
+          }
+
+          if (!tankBackup && !voyageMsg?.payload) {
+            throw new Error([tankError, voyageError].filter(Boolean).join(' · ') || 'Nothing to export');
+          }
+
+          const suite = {
+            format: 'cheng-aio-suite-v1',
+            exportedAt: new Date().toISOString(),
+            tank: tankBackup,
+            tankError: tankError || null,
+            voyage: voyageMsg?.payload || null,
+            voyageFilename: voyageMsg?.filename || null,
+            voyageError: voyageError || null,
+          };
+          const saved = await downloadJson(`cheng-aio-suite-${Date.now()}.json`, suite);
+          setSuite(`Entire program ${downloadWhereLabel(saved)}.`);
+          toast(`Entire program ${downloadWhereLabel(saved)}`);
+        } catch (e) {
+          setSuite(e.message || 'Export failed');
+          toast(e.message || 'Export failed');
+        }
+      };
 
       root.querySelector('#bk-tank-full').onclick = async () => {
         setTank('Preparing Tank backup…');
@@ -192,10 +278,10 @@
           });
           if (!res.ok) throw new Error('Backup failed');
           const backup = await res.json();
-          downloadJson(`fuel-tms-backup-${Date.now()}.json`, backup);
+          const saved = await downloadJson(`tank-chief-backup-${Date.now()}.json`, backup);
           const n = backup.index && backup.index.vessels ? backup.index.vessels.length : 0;
-          setTank(`Downloaded full backup (${n} vessel${n === 1 ? '' : 's'}).`);
-          toast('Tank backup downloaded');
+          setTank(`Full backup ${downloadWhereLabel(saved)} (${n} vessel${n === 1 ? '' : 's'}).`);
+          toast(`Tank backup ${downloadWhereLabel(saved)}`);
         } catch (e) {
           setTank(e.message || 'Backup failed');
           toast(e.message || 'Backup failed');
@@ -229,9 +315,9 @@
           });
           if (!res.ok) throw new Error('Vessel export failed');
           const backup = await res.json();
-          downloadJson(`fuel-tms-vessel-${active.id}.json`, backup);
-          setTank(`Exported vessel ${active.name}.`);
-          toast('Vessel backup saved');
+          const saved = await downloadJson(`tank-chief-vessel-${active.id}-${Date.now()}.json`, backup);
+          setTank(`Vessel ${active.name} ${downloadWhereLabel(saved)}.`);
+          toast(`Vessel backup ${downloadWhereLabel(saved)}`);
         } catch (e) {
           setTank(e.message || 'Export failed');
           toast(e.message || 'Export failed');
@@ -260,9 +346,9 @@
         try {
           const msg = await voyagePost('export-db', {}, root);
           if (msg.payload) {
-            downloadJson(msg.filename || `voyage-chief-db-${Date.now()}.json`, msg.payload);
-            setVoyage('Voyage database downloaded.');
-            toast('Voyage database downloaded');
+            const saved = await downloadJson(msg.filename || `voyage-chief-db-${Date.now()}.json`, msg.payload);
+            setVoyage(`Voyage database ${downloadWhereLabel(saved)}.`);
+            toast(`Voyage database ${downloadWhereLabel(saved)}`);
           }
         } catch (e) {
           setVoyage(e.message || 'Backup failed');
@@ -305,9 +391,9 @@
         try {
           const msg = await voyagePost('export-vessel', { vesselId: active && active.voyageSlug }, root);
           if (msg.payload) {
-            downloadJson(msg.filename || `voyage-vessel-${Date.now()}.json`, msg.payload);
-            setVoyage('Voyage vessel exported.');
-            toast('Voyage vessel exported');
+            const saved = await downloadJson(msg.filename || `voyage-vessel-${Date.now()}.json`, msg.payload);
+            setVoyage(`Voyage vessel ${downloadWhereLabel(saved)}.`);
+            toast(`Voyage vessel ${downloadWhereLabel(saved)}`);
           }
         } catch (e) {
           setVoyage(e.message || 'Export failed');
