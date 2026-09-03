@@ -23,20 +23,28 @@
 <script src="eorb.js"></script>
 <script src="ship_time.js"></script>
 <script>
-/* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720). */
+/* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720).
+   Android/iOS always keep bottom nav in landscape — never restore top tabs for width ≥1101. */
 (function(){
   try{
     var cap = window.Capacitor;
     var native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (cap.getPlatform && cap.getPlatform() !== 'web')));
+    var ua = navigator.userAgent || '';
+    var mobileOs = /Android|iPhone|iPad|iPod/i.test(ua);
     var touch = false;
     try{
       touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
-    if (native || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var mobileLocked = native || mobileOs;
+    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
       document.documentElement.classList.add('use-bottom-nav');
     }
-    if ((window.innerWidth || 0) >= 1101) {
+    if (mobileLocked) {
+      document.documentElement.classList.add('is-mobile-chrome');
+      document.documentElement.classList.remove('use-top-tabs');
+    } else if ((window.innerWidth || 0) >= 1101) {
+      /* Windows desktop (incl. wide touch laptops): keep top tabs */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -1463,6 +1471,32 @@
      reads as a sum rather than as one more reading. Declared after the stripe rule,
      which it ties with on specificity. */
   .pr-table tr.pr-total td{ background:#eef2f8; border-top:0.4mm solid #122238; }
+  /* Transposed ROB stock tables: tanks as columns, metric rows taller, larger type.
+     Present R.O.B. row stays bold so the handover figure reads first. */
+  .pr-table.pr-table-rob{
+    table-layout:auto; font-size:12px;
+  }
+  .pr-table.pr-table-rob th{
+    font-size:11px; padding:1.3mm 1.1mm; vertical-align:bottom; line-height:1.25;
+  }
+  .pr-table.pr-table-rob td{
+    font-size:12px; padding:1.6mm 1.1mm; line-height:1.3;
+  }
+  .pr-table.pr-table-rob td.row-lbl{
+    font-size:11.5px; font-weight:600; white-space:nowrap;
+  }
+  .pr-table.pr-table-rob .pr-rob-unit{
+    display:block; margin-top:0.3mm; font-size:9px; font-weight:400;
+    text-transform:none; letter-spacing:0; opacity:0.88;
+    font-family:'Inter',sans-serif;
+  }
+  .pr-table.pr-table-rob th.rob-total-col,
+  .pr-table.pr-table-rob td.rob-total-col{ background:#eef2f8; }
+  .pr-table.pr-table-rob tr.rob-present-row td{
+    font-weight:700; background:#f3f6fb;
+  }
+  .pr-table.pr-table-rob tr.rob-present-row td.row-lbl{ font-weight:700; }
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col{ background:#e4eaf3; }
   /* Says the list under it was cut, so a short list is never mistaken for the range. */
   .pr-note{ font-size:8.5px; color:#5a6578; font-style:italic; margin-top:0.8mm; }
   .pr-remarks{
@@ -6095,8 +6129,12 @@ async function renderVoyageLibrary(){
     body.innerHTML = index.map(row=>{
       const b = row.B;
       const l = row.L;
-      const bTxt = b ? `${b.entryCount||0} entries` : '—';
-      const lTxt = l ? `${l.entryCount||0} entries` : '—';
+      const bTxt = b
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="B" title="Load voyage ${row.voyageNumber} ballast">${b.entryCount||0} entries</button>`
+        : '—';
+      const lTxt = l
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="L" title="Load voyage ${row.voyageNumber} laden">${l.entryCount||0} entries</button>`
+        : '—';
       const updated = [b?.updatedAt, l?.updatedAt].filter(Boolean).sort().slice(-1)[0] || '—';
       const active = isActiveScope && row.voyageNumber === activeVn ? ` style="background:rgba(63,200,220,0.08)"` : '';
       return `<tr${active}><td>${row.voyageNumber}${isActiveScope && row.voyageNumber===activeVn?' ★':''}</td><td>${bTxt}</td><td>${lTxt}</td><td>${updated=== '—' ? '—' : new Date(updated).toLocaleString()}</td></tr>`;
@@ -10657,14 +10695,19 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
     try{
       const cap = window.Capacitor;
       const native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (cap.getPlatform && cap.getPlatform() !== 'web')));
-      const android = /android/i.test(navigator.userAgent || '');
+      const ua = navigator.userAgent || '';
+      const mobileOs = /Android|iPhone|iPad|iPod/i.test(ua);
+      const mobileLocked = native || mobileOs;
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
-      if (native || android || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+      if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
         document.documentElement.classList.add('use-bottom-nav');
       }
-      /* Wide desktop: keep top tabs even on touch laptops */
-      if ((window.innerWidth || 0) >= 1101) {
+      document.documentElement.classList.toggle('is-mobile-chrome', mobileLocked);
+      /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
+      if (mobileLocked) {
+        document.documentElement.classList.remove('use-top-tabs');
+      } else if ((window.innerWidth || 0) >= 1101) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {
@@ -11004,6 +11047,21 @@ function printWeatherSection(entry){
   ].join(''));
 }
 
+/** Noon sheet block: voyage averages in place of weather / sea state. */
+function printNoonVoyageAveragesSection(perf, derivedRows){
+  const distSamples = (derivedRows || []).filter(r =>
+    r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+  const avgShipDist = distSamples.length
+    ? distSamples.reduce((s, r) => s + r.distanceShip, 0) / distSamples.length
+    : null;
+  return printSection('Voyage Averages', [
+    printRow('Average RPM', perf.avgRpm==null?'—':fmt(perf.avgRpm, 2)),
+    printRow('Average Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip, 2)),
+    printRow('Average Ship Distance', avgShipDist==null?'—':`${fmt(avgShipDist, 2)} nm`),
+    printRow('Average Ship Speed', perf.avgSpeedShip==null?'—':`${fmt(perf.avgSpeedShip, 2)} kn`)
+  ].join(''));
+}
+
 function printMeCylinderSection(report){
   const pr = report?.pumpRack || [], ex = report?.exhaustTemp || [];
   const cylN = meCylinderCount();
@@ -11223,19 +11281,7 @@ function renderDepArrRobTable(consByFuel, consByLube){
 function printDepArrRobSheet(){
   const {consByFuel, consByLube} = computeDerived();
   const rows = depArrRobRows(consByFuel, consByLube);
-  const fmtU = (v, r) => r.unit==='MT' ? fmtFuel(v) : (r.cat==='fw' ? fmtRob(v, 'fw') : fmtLube(v));
-  const table = printSection('Departure / Arrival ROB', `
-    <table class="pr-table">
-      <tr><th>Tank</th><th>Opening</th><th>Received</th><th>Consumed</th><th>Present</th><th>Unit</th></tr>
-      ${rows.map(r=>`<tr${r.total?' class="rob-total"':''}>
-        <td class="row-lbl">${r.total?`<strong>${escPrint(r.label)}</strong>`:escPrint(r.label)}</td>
-        <td>${fmtU(r.open,r)}</td>
-        <td>${fmtU(r.received,r)}</td>
-        <td>${fmtU(r.consumed,r)}</td>
-        <td>${fmtU(r.present,r)}</td>
-        <td>${r.unit}</td>
-      </tr>`).join('')}
-    </table>`);
+  const table = printSection('Departure / Arrival ROB', printDepArrRobTableHtml(rows));
   const sheet = `<div class="pr-sheet">
     ${printDocHeader({ title: 'Dep / Arr ROB Comparison', subtitle: state.setup.voyageNumber||'Voyage', badge: state.setup.shipCondition||'' })}
     ${printMetaGrid([
@@ -12010,6 +12056,8 @@ function sizePrintTables(root){
   root.querySelectorAll('table.pr-table').forEach(table=>{
     /* Bunker plan leg tables keep a fixed Calibri 11px entry size */
     if (table.classList.contains('pr-bunker-entry-table')) return;
+    /* Transposed ROB tables keep the larger intentional type */
+    if (table.classList.contains('pr-table-rob')) return;
     const cols = table.querySelector('tr')?.children?.length || 0;
     const rows = table.querySelectorAll('tr').length;
     table.classList.remove('pr-table-wide', 'pr-table-xl');
@@ -12317,6 +12365,53 @@ function printKpiRow(items){
 
 function printSection(title, inner){
   return `<section class="pr-section"><h3 class="pr-section-title">${title}</h3><div class="pr-section-body">${inner}</div></section>`;
+}
+
+/**
+ * Transposed Remaining On Board print table: tanks/items as columns, metrics as rows.
+ * Gives each figure more vertical room and keeps Present R.O.B. bold.
+ * @param {Array<{label:string, unit?:string, total?:boolean, strong?:boolean}>} items
+ * @param {Array<{label:string, present?:boolean, get:(item)=>string}>} metrics
+ */
+function printTransposedRobTableHtml(items, metrics){
+  if (!items.length) return '<div class="pr-note">No tanks configured.</div>';
+  const head = `<tr><th></th>${items.map(it=>{
+    const unit = it.unit ? `<span class="pr-rob-unit">${escPrint(it.unit)}</span>` : '';
+    const lbl = it.strong || it.total ? `<strong>${escPrint(it.label)}</strong>` : escPrint(it.label);
+    return `<th class="${it.total||it.strong?'rob-total-col':''}">${lbl}${unit}</th>`;
+  }).join('')}</tr>`;
+  const body = metrics.map(m=>{
+    const presentCls = m.present ? ' class="rob-present-row"' : '';
+    const cells = items.map(it=>{
+      const val = m.get(it);
+      const colCls = it.total || it.strong ? ' class="rob-total-col"' : '';
+      const inner = m.present ? `<strong>${val}</strong>` : val;
+      return `<td${colCls}>${inner}</td>`;
+    }).join('');
+    return `<tr${presentCls}><td class="row-lbl">${escPrint(m.label)}</td>${cells}</tr>`;
+  }).join('');
+  return `<table class="pr-table pr-table-rob">${head}${body}</table>`;
+}
+
+function printRobBalanceTableHtml(rows){
+  return printTransposedRobTableHtml(rows, [
+    { label: 'Previous', get: r => fmtRob(r.prevVal, r.cat) },
+    { label: 'Consumption', get: r => r.consVal===null||r.consVal===undefined ? '—' : fmtRob(r.consVal, r.cat) },
+    { label: 'Present R.O.B.', present: true, get: r => fmtRob(r.nowVal, r.cat) }
+  ]);
+}
+
+function printDepArrRobTableHtml(rows){
+  const fmtU = (v, r) => r.unit==='MT' ? fmtFuel(v) : (r.cat==='fw' ? fmtRob(v, 'fw') : fmtLube(v));
+  return printTransposedRobTableHtml(rows.map(r=>({
+    ...r,
+    strong: !!r.total
+  })), [
+    { label: 'Opening', get: r => fmtU(r.open, r) },
+    { label: 'Received', get: r => fmtU(r.received, r) },
+    { label: 'Consumed', get: r => fmtU(r.consumed, r) },
+    { label: 'Present', present: true, get: r => fmtU(r.present, r) }
+  ]);
 }
 
 function printRow(label, value, cls){
@@ -13588,8 +13683,6 @@ document.getElementById('btnCloseRobSnapshot').addEventListener('click', ()=>{
 function printRobSnapshot(entry, dt, rowsForPrint){
   const dateStr = dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
   const timeStr = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  const tableRows = rowsForPrint.map(r=>`
-    <tr${r.strong?' class="rob-total"':''}><td class="row-lbl">${r.strong?`<strong>${r.label}</strong>`:r.label}</td><td>${fmtRob(r.prevVal,r.cat)}</td><td>${r.consVal===null||r.consVal===undefined?'—':fmtRob(r.consVal,r.cat)}</td><td>${fmtRob(r.nowVal,r.cat)}</td></tr>`).join('');
   const sheetHtml = `<div class="pr-sheet">
     ${printDocHeader({ title: 'Remaining On Board', subtitle: 'Fuel, Lube & Fresh Water Inventory Snapshot', badge: entry.operation })}
     ${printMetaGrid([
@@ -13597,11 +13690,7 @@ function printRobSnapshot(entry, dt, rowsForPrint){
       {label:'Time', value:timeStr},
       {label:'Operation', value:entry.operation}
     ], 3)}
-    ${printSection('Stock Balance', `
-      <table class="pr-table">
-        <tr><th>Item</th><th>Previous</th><th>Consumption</th><th>Present R.O.B.</th></tr>
-        ${tableRows}
-      </table>`)}
+    ${printSection('Stock Balance', printRobBalanceTableHtml(rowsForPrint))}
     ${printSignatory(entry)}
   </div>`;
   printSinglePage(sheetHtml);
@@ -14686,7 +14775,7 @@ function buildVoyageNoonSheetHTML(entry){
   const row = getComputedRow(entryId);
   if (!entry || !row) return '';
 
-  const {perf} = computeDerived();
+  const {perf, rows: derivedRows} = computeDerived();
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
@@ -14724,12 +14813,12 @@ function buildVoyageNoonSheetHTML(entry){
     {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)}
   ];
 
+  /* Slip % stays under M/E Performance only — not repeated here. */
   const voyageSection = meRunningEarly ? printSection('Voyage Progress', [
     printRow('Engine Distance', `${fmt(row.distEngine,2)} nm`),
     printRow('Distance To Go', distanceToGo!=null?`${fmt(distanceToGo, 2)} nm`:'—'),
     printRow('Days To Go', daysToGoVal!=null?fmt(daysToGoVal,2):'—'),
     printRow('ETA', etaStr),
-    printRow('Slip %', fmt(row.slip,2)),
     printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
     /* The counter reading the daily figure was taken from, so the sheet carries the
        evidence as well as the difference. */
@@ -14874,23 +14963,15 @@ function buildVoyageNoonSheetHTML(entry){
   }
   const voyageAvgSection = printSection('Voyage Time Averages', voyageAvgRows.join(''));
 
-  const robTable = printSection('Remaining On Board', `
-    <table class="pr-table">
-      <tr><th>Item</th><th>Previous</th><th>Consumption</th><th>Present R.O.B.</th></tr>
-      ${robBalanceRows(row, prevRobData, asOf).map(r=>{
-        return `<tr${r.strong?' class="rob-total"':''}><td class="row-lbl">${r.strong?`<strong>${r.label}</strong>`:r.label}</td><td>${fmtRob(r.prevVal,r.cat)}</td><td>${r.consVal===null||r.consVal===undefined?'—':fmtRob(r.consVal,r.cat)}</td><td>${fmtRob(r.nowVal,r.cat)}</td></tr>`;
-      }).join('')}
-    </table>`);
+  const robTable = printSection('Remaining On Board', printRobBalanceTableHtml(robBalanceRows(row, prevRobData, asOf)));
 
   const report = entry.report || {};
-  const noonOp = isNoonReportOp(entry.operation);
-  const isSea = SEA_TYPE_OPS.has(entry.operation);
   const meRunning = mainEngineInUse(entry, row);
   /* Prefer showing M/E cyl detail whenever the open form (or saved report) has readings. */
   const hasCylData = !!(report.pumpRack?.some(v=>v!=null&&v!=='') || report.exhaustTemp?.some(v=>v!=null&&v!==''));
   const showMeDetail = (canShowMeDetailOp(entry.operation) && meRunning) || hasCylData;
-  const weatherHtml = printWeatherSection(entry);
-  const weatherSection = (noonOp || isSea || weatherHtml) ? weatherHtml : '';
+  /* Weather / sea state is omitted on the noon sheet; voyage averages take that slot. */
+  const voyageAveragesSection = printNoonVoyageAveragesSection(perf, derivedRows);
   const cylSection = showMeDetail ? printMeCylinderSection(report) : '';
   const turboOthersSection = printTurboOthersSection(report, { includeMeAux: showMeDetail, entry });
   /* Engine stopped: omit M/E performance entirely — voyage progress and M/E KPIs
@@ -14901,7 +14982,7 @@ function buildVoyageNoonSheetHTML(entry){
   const soundingsSection = printSoundingsSection(report);
   /* Three column stacks — shorter page height so remarks/signatory are not clipped. */
   const col1 = [
-    weatherSection,
+    voyageAveragesSection,
     `<div class="pr-noon-pair">${fuelSection}${fwSection}</div>`,
     blrIncSection
   ].filter(Boolean).join('');
@@ -17749,6 +17830,29 @@ document.getElementById('btnRefreshVoyageLibrary')?.addEventListener('click', as
   await renderVoyageLibrary();
 });
 
+document.getElementById('voyageLibraryBody')?.addEventListener('click', async (ev)=>{
+  const btn = ev.target.closest('.voyage-leg-load');
+  if (!btn) return;
+  const vn = (btn.dataset.voyage || '').trim();
+  const cond = normalizeCondition(btn.dataset.cond);
+  if (!vn) return;
+  try {
+    const scopeVid = libraryScopeVesselId();
+    if (scopeVid && scopeVid !== state.activeVesselId){
+      await switchVessel(scopeVid);
+    }
+    await activateVoyageLeg(state.activeVesselId, vn, cond);
+    render();
+    applyEntryDefaults();
+    prefillFromLastEntry();
+    renderSyncUi();
+    await renderVoyageLibrary();
+    switchTab('summary');
+  } catch (e){
+    alert('Load failed: ' + e.message);
+  }
+});
+
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
   try {
     if (!navigator.storage || !navigator.storage.persist){
@@ -17817,7 +17921,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v170';
+let androidInstallCacheName = 'noon-report-v173';
 
 /*
  * What the program is called.
@@ -18602,6 +18706,51 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
 });
 
 document.getElementById('btnImportVessel')?.addEventListener('click', ()=> document.getElementById('fileImportVessel')?.click());
+
+window.addEventListener('message', async (ev)=>{
+  const msg = ev.data || {};
+  if (msg.type !== 'chengaio-voyage-backup') return;
+  const reply = (extra) => {
+    try {
+      ev.source.postMessage({ type: 'chengaio-voyage-backup-result', requestId: msg.requestId, ...extra }, ev.origin || '*');
+    } catch (_) {}
+  };
+  try {
+    if (msg.action === 'export-db') {
+      const payload = await buildFullDatabaseBackup();
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+      reply({ payload, filename: `voyage-chief-db-backup_${stamp}.json` });
+    } else if (msg.action === 'restore-db') {
+      await restoreFullDatabase(msg.payload);
+      reply({ message: 'Voyage database restored on this device.' });
+    } else if (msg.action === 'merge-db') {
+      await mergeFullDatabase(msg.payload);
+      reply({ message: 'Voyage database merged on this device.' });
+    } else if (msg.action === 'export-vessel') {
+      let vesselId = state.activeVesselId;
+      if (msg.vesselId) {
+        const v = (state.vessels || []).find(x => x.slug === msg.vesselId || x.id === msg.vesselId);
+        if (v) vesselId = v.id;
+      }
+      if (!vesselId) throw new Error('No vessel selected in Voyage Chief');
+      const payload = await buildVesselExport(vesselId);
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+      reply({
+        payload,
+        filename: `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`,
+      });
+    } else if (msg.action === 'import-vessel') {
+      if (!msg.payload) throw new Error('No vessel payload');
+      const res = await importVesselExport(msg.payload);
+      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records).` });
+    } else {
+      reply({ error: 'Unknown backup action: ' + msg.action });
+    }
+  } catch (e) {
+    reply({ error: e.message || String(e) });
+  }
+});
+
 document.getElementById('fileImportVessel')?.addEventListener('change', async (ev)=>{
   const file = ev.target.files && ev.target.files[0];
   ev.target.value = '';
@@ -21589,8 +21738,14 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     document.getElementById('dbStatus').textContent = '● local database ready';
     try {
       applyEorbLicenseVisibility();
-      const wantOrb = /[?&]page=orb\b/.test(location.search);
+      const qsPage = new URLSearchParams(location.search).get('page');
+      const wantOrb = qsPage === 'orb' || /[?&]page=orb\b/.test(location.search);
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
+      else if (qsPage === 'data') switchTab('data');
+      else if (qsPage === 'setup') switchTab('setup');
+      if (isChengAioEmbedded()) {
+        try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
+      }
     } catch (_) {}
   } catch(e){
     console.error('Startup error:', e);
