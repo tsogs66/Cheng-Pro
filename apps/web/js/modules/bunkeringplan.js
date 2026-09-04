@@ -19,9 +19,14 @@ function bunkeringBindNav(root) {
   });
 }
 
+/* Bunkering Plan is its own program on the key — a Tank Chief tick alone
+   no longer carries it, so an office can sell the tank book without it. */
 function bunkeringProgramAllowed() {
   if (!window.ChengLicense) return true;
-  return ChengLicense.moduleAllowed('tanks') || ChengLicense.moduleAllowed('bunkeringplan');
+  if (typeof ChengLicense.bunkerPlanLicensed === 'function') {
+    return !!ChengLicense.bunkerPlanLicensed();
+  }
+  return ChengLicense.moduleAllowed('bunkeringplan');
 }
 
 /**
@@ -33,7 +38,7 @@ window.ChengProModules.bunkeringplan = {
     if (!bunkeringProgramAllowed()) {
       root.innerHTML = bunkeringLicenseNeededPanel(
         'Bunkering Plan',
-        'Bunkering Plan requires <strong>Tank Chief</strong> on your license. Open <strong>License</strong> to activate, or ask the office to include Tank Chief on your ChEng AIO key.'
+        'Bunkering Plan is not on this license. Ask your office to include the <strong>Bunkering Plan</strong> program when they issue or renew the key, then open <strong>License</strong> to re-check.'
       );
       bunkeringBindNav(root);
       return;

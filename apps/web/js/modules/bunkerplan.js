@@ -19,9 +19,14 @@ function bpBindNav(root) {
   });
 }
 
+/* Consumption Plan is a program of its own on the key, not something a
+   Voyage or Tank tick implies — the office decides whether it is sold. */
 function bpProgramAllowed() {
   if (!window.ChengLicense) return true;
-  return ChengLicense.moduleAllowed('voyage') || ChengLicense.moduleAllowed('tanks');
+  if (typeof ChengLicense.consumptionPlanLicensed === 'function') {
+    return !!ChengLicense.consumptionPlanLicensed();
+  }
+  return ChengLicense.moduleAllowed('bunkerplan');
 }
 
 window.ChengProModules.bunkerplan = {
@@ -30,7 +35,7 @@ window.ChengProModules.bunkerplan = {
     if (!bpProgramAllowed()) {
       root.innerHTML = bpLicenseNeededPanel(
         'Consumption Plan',
-        'Consumption Plan requires Voyage Chief or Tank Chief on your license. Open <strong>License</strong> to activate.'
+        'Consumption Plan is not on this license. Ask your office to include the <strong>Consumption Plan</strong> program when they issue or renew the key, then open <strong>License</strong> to re-check.'
       );
       bpBindNav(root);
       return;

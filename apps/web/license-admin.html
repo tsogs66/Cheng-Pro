@@ -113,8 +113,14 @@
             <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
               <input id="issueAddonEorb" type="checkbox" checked style="width:auto"> e-ORB
             </label>
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
+              <input id="issueAddonConsumption" type="checkbox" checked style="width:auto"> Consumption Plan
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text);margin:0">
+              <input id="issueAddonBunker" type="checkbox" checked style="width:auto"> Bunkering Plan
+            </label>
           </div>
-          <p class="muted" style="margin:6px 0 0;font-size:.78rem">For <code>cheng-aio</code>, tick the programs this key may open. Standalone Voyage/Tank SKUs ignore Voyage/Tank ticks; e-ORB still applies to Voyage keys.</p>
+          <p class="muted" style="margin:6px 0 0;font-size:.78rem">For <code>cheng-aio</code>, tick the programs this key may open. Standalone Voyage/Tank SKUs ignore Voyage/Tank ticks; e-ORB still applies to Voyage keys. Consumption Plan applies to Voyage and Tank keys, Bunkering Plan to Tank keys. Untick one and the screen stays hidden in every program on that key.</p>
         </div>
       </div>
       <div class="actions">
@@ -228,6 +234,8 @@
         if ($('issueAddonVoyage').checked) addons.push('voyage-chief');
         if ($('issueAddonTank').checked) addons.push('tank-chief');
         if ($('issueAddonEorb').checked) addons.push('eorb');
+        if ($('issueAddonConsumption').checked) addons.push('consumption-plan');
+        if ($('issueAddonBunker').checked) addons.push('bunker-plan');
         const data = await api('/issue', {
           method: 'POST',
           body: JSON.stringify({

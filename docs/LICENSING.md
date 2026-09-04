@@ -20,15 +20,19 @@ Client-side DRM cannot stop a determined cracker. This system makes unpaid shari
 |-----|------------|-------|--------|
 | `voyage-chief` | `VC-` | 1 Android + 1 Windows | Standalone Voyage; in AIO unlocks Voyage (+ Performance) only |
 | `tank-chief` | `TC-` | 1 Android + 1 Windows | Standalone Tank; in AIO unlocks Tanks only |
-| `cheng-aio` | `CA-` | 1 Android + 1 Windows | AIO shell + Performance + Vessel. **Programs** Voyage Chief, Tank Chief, and e-ORB are selected as add-ons at issue time |
+| `cheng-aio` | `CA-` | 1 Android + 1 Windows | AIO shell + Performance + Vessel. **Programs** Voyage Chief, Tank Chief, e-ORB, Consumption Plan and Bunkering Plan are selected as add-ons at issue time |
 
 **Add-ons (tick in `/license-admin`):**
 - `voyage-chief` — opens Voyage Chief from AIO (and is the standalone Voyage SKU)
 - `tank-chief` — opens Tank Chief from AIO (and is the standalone Tank SKU)
 - `eorb` — Electronic ORB (AIO embeds the full book; standalone Voyage shows the e-ORB tab only with this add-on)
+- `consumption-plan` — the voyage fuel consumption calculation. AIO → **Consumption Plan**; standalone it is Voyage Chief's *Consumption Plan* tab and Tank Chief's *Bunker Consumption* page, both hidden without it
+- `bunker-plan` — the bunkering fill sequence and monitoring sheet. AIO → **Bunkering Plan**; standalone it is Tank Chief's *Bunker Plan* page, hidden without it
 - `master` — same unlock as `cheng-admin`
 
-Existing ChEng AIO keys that were issued with an empty add-on list are migrated on the server to include Voyage + Tank + e-ORB.
+Existing keys issued with an empty add-on list keep everything their SKU covers — an AIO key gets Voyage + Tank + e-ORB + both plans, a `voyage-chief` key gets Consumption Plan, a `tank-chief` key gets both plans. Only a key whose add-on list the office actually filled in is read literally, so a renewal check cannot take a screen away from a ship that already had it.
+
+**One screen, one place:** the two plan screens live in Voyage Chief and Tank Chief, and ChEng AIO opens those same pages in an iframe. Inside AIO the parent program hides its own menu entry for them — Voyage's Consumption Plan tab, Tank's Bunker Plan and Bunker Consumption entries — so a sheet never appears twice in one window.
 
 AIO holds the seat: Voyage/Tank opened from AIO with `?chengaio=1` do **not** ask for license again.
 
