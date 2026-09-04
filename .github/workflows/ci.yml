@@ -30,13 +30,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
 
       # The voyage sync server is Python; the gateway spawns it.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # Nothing here launches Electron — the checks are node scripts, the
+      # Express gateway and the Python sync server — but its postinstall
+      # fetches a ~100MB binary and sat for minutes on every pull request.
       - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       # apps/web and the two module trees are hand-edited and loaded straight by
       # the page, so a parse error would otherwise reach a tag unnoticed.
