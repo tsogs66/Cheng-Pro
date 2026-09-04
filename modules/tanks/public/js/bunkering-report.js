@@ -51,7 +51,7 @@ const BunkerReports = (() => {
   }
 
   /** Save a form part, keeping the offline cache and queue in step. */
-  async function saveChainPart(path, part, form, { snapshot = false, extra = {}, deferServer = false } = {}) {
+  async function saveChainPart(path, part, form, { snapshot = false, extra = {}, deferServer = false, quiet = false } = {}) {
     const b = bundle();
     const body = { form, snapshot, ...extra };
     b[part] = form;
@@ -67,11 +67,11 @@ const BunkerReports = (() => {
           b.bunkerHistory = h;
         }
         await OfflineDB.idbSet('vessel:' + STATE.activeVesselId, b);
-        showToast(snapshot ? 'Saved' : 'Draft saved');
+        if (!quiet) showToast(snapshot ? 'Saved' : 'Draft saved');
         return res;
       } catch {
         await Api.mutate(`/api/vessels/${STATE.activeVesselId}/${path}`, { method: 'PUT', body });
-        showToast('Saved offline — will sync when online');
+        if (!quiet) showToast('Saved offline — will sync when online');
         return null;
       }
     };
@@ -241,7 +241,7 @@ const BunkerReports = (() => {
     if (persistClockTimer) clearTimeout(persistClockTimer);
     const push = () => {
       persistClockTimer = null;
-      saveChainPart('bunker-plan', 'bunkerPlan', form, { snapshot: false }).catch(() => {});
+      saveChainPart('bunker-plan', 'bunkerPlan', form, { snapshot: false, quiet: true }).catch(() => {});
     };
     if (deferServer) persistClockTimer = setTimeout(push, 400);
     else push();
@@ -491,14 +491,16 @@ const BunkerReports = (() => {
           </table>
         </div>
         <div class="bp-monitor">
-          <div class="bp-monitor-box">
-            <span>QUANTITY REMAINING</span><b data-bp-mon="quantityRemainingMT"></b></div>
-          <div class="bp-monitor-box">
-            <span>TIME REMAINING</span><b data-bp-mon="timeRemainingLabel"></b></div>
-          <div class="bp-monitor-box bp-monitor-received">
-            <span data-bp-mon="receivedLabel">RECEIVED</span><b data-bp-mon="receivedMT"></b></div>
-          <div class="bp-progress"><div data-bp-mon="progressFill"></div></div>
-          <div class="hint" data-bp-mon="progressText"></div>
+          <div class="bp-monitor-stats">
+            <div class="bp-monitor-box">
+              <span>QUANTITY REMAINING</span><b data-bp-mon="quantityRemainingMT"></b></div>
+            <div class="bp-monitor-box">
+              <span>TIME REMAINING</span><b data-bp-mon="timeRemainingLabel"></b></div>
+            <div class="bp-monitor-box bp-monitor-received">
+              <span data-bp-mon="receivedLabel">RECEIVED</span><b data-bp-mon="receivedMT"></b></div>
+            <div class="bp-progress"><div data-bp-mon="progressFill"></div></div>
+            <div class="hint bp-monitor-progress-text" data-bp-mon="progressText"></div>
+          </div>
 
           <div class="bp-clock">
             <div class="bp-clock-row"><span>PUMP START</span>
@@ -507,11 +509,11 @@ const BunkerReports = (() => {
             <div class="bp-clock-row"><span>RATE</span><b data-bp-mon="rateLabel">—</b></div>
             <div class="bp-clock-row"><span>EXPECTED AT RATE</span><b data-bp-mon="expectedMT">—</b></div>
             <div class="bp-clock-row"><span>MEASURED − EXPECTED</span><b data-bp-mon="varianceMT">—</b></div>
-            <div class="btn-row">
+            <div class="btn-row bp-clock-actions">
               <button class="btn small primary" id="bp-clock-toggle">Start pumping</button>
               <button class="btn small" id="bp-clock-reset">Reset</button>
             </div>
-            <div class="btn-row">
+            <div class="btn-row bp-clock-actions">
               <button class="btn small" id="bp-finish">Finish bunkering</button>
             </div>
           </div>
