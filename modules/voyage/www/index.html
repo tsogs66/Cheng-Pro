@@ -1340,9 +1340,17 @@
   .pr-copy{
     position:relative;
     width:100%; height:210mm; max-height:210mm;
-    padding:3mm; background:#fff;
+    /* @page has no margin — two copies share the sheet and the fold must land
+       on its centre — so this padding is the whole margin. 3mm of it sat
+       inside the unprintable border of most office printers. Outer edges now
+       match Tank Chief's 10mm; the fold side stays narrow because folded it is
+       the spine, not an edge. Kept in step with the copy in
+       buildPrintDocumentHtml(). */
+    padding:10mm; background:#fff;
     box-sizing:border-box; overflow:hidden;
   }
+  .pr-page > .pr-copy:first-child{ padding-right:6mm; }
+  .pr-page > .pr-copy:last-child{ padding-left:6mm; }
   .pr-copy:first-child{
     border-right:0.2mm dashed #c5cdd8; /* fold guide */
   }
@@ -12378,10 +12386,23 @@ html, body{
 }
 .pr-copy{
   width:100% !important; height:210mm !important; max-height:210mm !important;
-  padding:3mm !important; /* equal outer + fold-side margins when folded at center */
+  /* The page box is the whole sheet (margin:0 above), because two copies sit
+     side by side on it and the fold has to land exactly at the centre. That
+     makes this padding the only thing standing between the ink and the paper's
+     edge, and 3mm of it sat inside the unprintable border of most office
+     printers — the outer column of a noon sheet came back shaved.
+
+     Top, bottom and outer now match Tank Chief's 10mm page margin, so a noon
+     report and a sounding sheet have the same border in the same folder. The
+     fold side keeps a narrower gutter: once folded it is the spine, not an
+     edge, and spending 10mm there would only squeeze the columns. */
+  padding:10mm 10mm 10mm 10mm !important;
   overflow:hidden !important; box-sizing:border-box !important;
   position:relative !important; background:#fff !important;
 }
+/* Left copy: its right edge is the fold. Right copy: its left edge is. */
+.pr-page > .pr-copy:first-child{ padding-right:6mm !important; }
+.pr-page > .pr-copy:last-child{ padding-left:6mm !important; }
 .pr-copy:first-child{ border-right:0.2mm dashed #c5cdd8 !important; }
 .pr-page-inner{ transform-origin:top left; width:100%; box-sizing:border-box; }
 .pr-section, .pr-box{ break-inside:auto !important; page-break-inside:auto !important; }
