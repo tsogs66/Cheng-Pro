@@ -66,17 +66,32 @@
 
   function printHtmlDocument(html, title, source) {
     const job = title || 'ChEng AIO';
+    const text = String(html || '');
     try {
-      if (window.ChengAndroidPrint && typeof window.ChengAndroidPrint.printHtml === 'function') {
-        window.ChengAndroidPrint.printHtml(String(html || ''), String(job));
-        /* PrintManager has no afterprint — release the embed's sync hold shortly. */
-        setTimeout(() => notifyDone(source), 1500);
-        return;
+      if (window.ChengAndroidPrint) {
+        const bridge = window.ChengAndroidPrint;
+        if (typeof bridge.beginPrintJob === 'function'
+          && typeof bridge.appendPrintChunk === 'function'
+          && typeof bridge.finishPrintJob === 'function') {
+          const CHUNK = 200000;
+          bridge.beginPrintJob(String(job), text.length);
+          for (let i = 0; i < text.length; i += CHUNK) {
+            bridge.appendPrintChunk(text.slice(i, i + CHUNK));
+          }
+          bridge.finishPrintJob();
+          setTimeout(() => notifyDone(source), 1500);
+          return;
+        }
+        if (typeof bridge.printHtml === 'function') {
+          bridge.printHtml(text, String(job));
+          setTimeout(() => notifyDone(source), 1500);
+          return;
+        }
       }
     } catch (err) {
       console.warn('Android PrintManager bridge failed', err);
     }
-    printViaHiddenIframe(html, job, source);
+    printViaHiddenIframe(text, job, source);
   }
 
   window.ChengAioPrint = {
