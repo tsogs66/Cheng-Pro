@@ -65,10 +65,11 @@ jobs:
           node modules/tanks/scripts/copy-embedded.js
           git diff --exit-code -- modules/tanks/public/embedded
 
+      # No SYNC_* here on purpose. smoke-test.js sets SYNC_ADMIN_PASSWORD
+      # itself and deliberately leaves SYNC_API_TOKEN unset, because it asserts
+      # that the tank sync export answers 200 at the gateway root — configuring
+      # a token closes that endpoint and the test gets a 401.
       - name: Seed and run the suite tests
         run: |
           npm run seed
           npm test
-        env:
-          SYNC_ADMIN_PASSWORD: ci-test-password
-          SYNC_API_TOKEN: ci-test-token
