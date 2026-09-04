@@ -150,7 +150,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private String safeName(String raw) {
-      String name = raw == null ? "" : raw.trim().replaceAll("[\\\\/:*?\"<>|]+", "-");
+      String name = raw == null ? "" : raw.trim().replaceAll("[\\\\/:*?<>|]+", "-");
       if (name.isEmpty()) name = "cheng-aio-backup.json";
       return name;
     }
