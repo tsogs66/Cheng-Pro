@@ -17,7 +17,9 @@ window.ChengProModules.vessel = {
     }
     const v = shared?.vessel || {
       name: '', imo: '', callSign: '', flag: '', company: '', type: '', dwt: '', notes: '', owner: '',
+      chiefEngineer: '',
     };
+    const assets = normalizeAssets(shared?.assets);
 
     root.innerHTML = `
       <section class="panel">
@@ -41,6 +43,8 @@ window.ChengProModules.vessel = {
             <div class="field"><label>Company</label><input name="company" value="${esc(v.company || v.owner || '')}"></div>
             <div class="field"><label>Type</label><input name="type" value="${esc(v.type || '')}"></div>
             <div class="field"><label>DWT</label><input name="dwt" value="${esc(v.dwt || '')}"></div>
+            <div class="field"><label>Chief Engineer</label><input name="chiefEngineer" id="vesselChEng" value="${esc(v.chiefEngineer || '')}">
+              <span class="hint">Printed on Tank Chief / bunkering sheets. Signatures are stored under this name.</span></div>
             <div class="field" style="grid-column:1/-1"><label>Notes</label><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></div>
           </div>
 
@@ -63,6 +67,9 @@ window.ChengProModules.vessel = {
             <div class="field"><label>Actual bunker LCV (kJ/kg)</label><input name="lcvActual" type="number" step="1" placeholder="for ISO SFOC" value="${escNum(v.lcvActual)}"></div>
           </div>
         </form>
+
+        <div id="printIdentityHost"></div>
+
         <div class="form-actions">
           <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
           ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
@@ -100,6 +107,21 @@ window.ChengProModules.vessel = {
       };
       flagSel.addEventListener('change', refreshFlagHint);
       refreshFlagHint();
+    }
+
+    const identityHost = root.querySelector('#printIdentityHost');
+    if (active && identityHost) {
+      identityHost.appendChild(buildPrintIdentityPanel({
+        vesselId: active.id,
+        assets,
+        getChEngName: () => {
+          const field = root.querySelector('#vesselChEng');
+          return (field && field.value.trim()) || String(v.chiefEngineer || '').trim();
+        },
+      }));
+    } else if (identityHost) {
+      identityHost.innerHTML = `<h3 class="subhead">Printed document identity</h3>
+        <p class="hint">Create and save the vessel first, then upload the Chief Engineer signature and vessel stamp here — the same assets Tank Chief printouts use.</p>`;
     }
 
     root.querySelector('#openTanks').addEventListener('click', () => ChengPro.openTanks());
@@ -141,6 +163,7 @@ window.ChengProModules.vessel = {
         type: raw.type,
         dwt: raw.dwt,
         notes: raw.notes,
+        chiefEngineer: String(raw.chiefEngineer || '').trim(),
       };
       for (const key of ENGINE_FIELDS) {
         data[key] = parseOptionalNumber(raw[key]);
@@ -192,6 +215,251 @@ window.ChengProModules.vessel = {
     });
   },
 };
+
+function normalizeAssets(raw) {
+  const assets = (raw && typeof raw === 'object') ? { ...raw } : {};
+  if (!assets.chEngSignatures || typeof assets.chEngSignatures !== 'object') {
+    assets.chEngSignatures = {};
+  }
+  if (assets.vesselLogo === undefined) assets.vesselLogo = null;
+  return assets;
+}
+
+function signatureKeyFor(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+/**
+ * Same stamp + signature upload panel Tank Chief / Voyage Chief use: photograph
+ * on white paper (background lifted) or sign on the device screen.
+ */
+function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName }) {
+  const panel = document.createElement('div');
+  panel.style.marginTop = '8px';
+  let assets = normalizeAssets(initialAssets);
+
+  panel.innerHTML = `
+    <h3 class="subhead">Printed document identity</h3>
+    <p class="hint">Used on Tank Chief printouts inside ChEng AIO: the signature sits on the signature line,
+      the vessel stamp just after it (same layout as Voyage Chief). Photograph a signature on white paper —
+      the paper is made transparent and the image trimmed to the ink. Stored with this vessel and shared with
+      the embedded Tank module.</p>
+    <div id="identity-progress-host"></div>
+
+    <h3 class="subhead">Chief Engineer signature</h3>
+    <div class="stamp-row">
+      <div class="stamp-preview" id="sig-preview"></div>
+      <div class="stamp-controls">
+        <div class="field"><label>Signature image (PNG or JPG)</label>
+          <input type="file" accept="image/*" id="sig-file"></div>
+        <label class="stamp-check"><input type="checkbox" id="sig-cutout" checked>
+          Remove background and trim to the signature</label>
+        <div class="hint" id="sig-for"></div>
+        <div class="btn-row">
+          <button type="button" class="btn small" id="sig-draw">Sign on screen</button>
+          <button type="button" class="btn small" id="sig-recut" style="display:none">Remove background now</button>
+          <button type="button" class="btn small danger" id="sig-remove" style="display:none">Remove signature</button>
+        </div>
+        <p class="hint" style="margin:0">Signing on screen needs no photograph: the strokes are already ink on a
+          transparent background.</p>
+      </div>
+    </div>
+
+    <h3 class="subhead">Vessel stamp</h3>
+    <div class="stamp-row">
+      <div class="stamp-preview" id="logo-preview"></div>
+      <div class="stamp-controls">
+        <div class="field"><label>Stamp image (PNG or JPG)</label>
+          <input type="file" accept="image/*" id="logo-file"></div>
+        <label class="stamp-check"><input type="checkbox" id="logo-cutout">
+          Remove background and trim to the mark</label>
+        <p class="hint" style="margin:0">Leave the box unticked for a stamp that already has a transparent background.</p>
+        <div class="btn-row">
+          <button type="button" class="btn small" id="logo-recut" style="display:none">Remove background now</button>
+          <button type="button" class="btn small danger" id="logo-remove" style="display:none">Remove stamp</button>
+        </div>
+      </div>
+    </div>`;
+
+  async function saveAssets() {
+    const saved = await ChengPro.api.fetch(
+      '/api/shell/vessels/' + encodeURIComponent(vesselId) + '/assets',
+      { method: 'PUT', body: JSON.stringify(assets) },
+    );
+    assets = normalizeAssets(saved);
+    return assets;
+  }
+
+  const progressHost = () => panel.querySelector('#identity-progress-host');
+
+  const renderPreviews = () => {
+    const name = getChEngName();
+    const sig = assets.chEngSignatures[signatureKeyFor(name)] || null;
+    const sigBox = panel.querySelector('#sig-preview');
+    sigBox.innerHTML = sig
+      ? `<img src="${sig}" alt="Chief Engineer signature">`
+      : `<span class="stamp-empty">${name
+        ? 'No signature stored for ' + esc(name) + '.'
+        : 'Enter the Chief Engineer name above, save the vessel, then upload their signature.'}</span>`;
+    panel.querySelector('#sig-for').textContent = name ? `Signature on file for: ${name}` : '';
+    panel.querySelector('#sig-recut').style.display = sig ? '' : 'none';
+    panel.querySelector('#sig-remove').style.display = sig ? '' : 'none';
+
+    const logoBox = panel.querySelector('#logo-preview');
+    logoBox.innerHTML = assets.vesselLogo
+      ? `<img src="${assets.vesselLogo}" alt="Vessel stamp">`
+      : '<span class="stamp-empty">No stamp uploaded — printouts show the signature block only.</span>';
+    panel.querySelector('#logo-recut').style.display = assets.vesselLogo ? '' : 'none';
+    panel.querySelector('#logo-remove').style.display = assets.vesselLogo ? '' : 'none';
+  };
+
+  panel.querySelector('#sig-file').onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const name = getChEngName();
+    if (!name) {
+      toast('Enter the Chief Engineer name first — signatures are filed under it');
+      return;
+    }
+    if (!window.ImageCutout) {
+      toast('Image tools not loaded — refresh the page');
+      return;
+    }
+    const track = window.Progress ? Progress.start(progressHost(), 'Reading signature…') : null;
+    try {
+      let url = await ImageCutout.toPngDataUrl(file, 900, (pct, msg) => Progress && Progress.set(pct, msg));
+      if (panel.querySelector('#sig-cutout').checked) {
+        url = await ImageCutout.removeBackground(url, {
+          onProgress: (pct, msg) => Progress && Progress.set(pct, msg),
+        });
+      }
+      if (Progress) Progress.set(null, 'Saving…');
+      assets.chEngSignatures[signatureKeyFor(name)] = url;
+      await saveAssets();
+      renderPreviews();
+      if (Progress) Progress.done('Signature saved');
+      toast('Signature saved for ' + name);
+    } catch (err) {
+      console.warn(err);
+      if (Progress) Progress.done();
+      toast('Could not read that image — use a PNG or JPG');
+    }
+    if (track) track.scrollIntoView({ block: 'nearest' });
+  };
+
+  panel.querySelector('#sig-draw').onclick = async () => {
+    const name = getChEngName();
+    if (!name) {
+      toast('Enter the Chief Engineer name first — signatures are filed under it');
+      return;
+    }
+    if (!window.SignaturePad || !SignaturePad.isSupported()) {
+      toast('This device cannot capture a drawn signature — upload a photo instead');
+      return;
+    }
+    const url = await SignaturePad.open({ signerName: name });
+    if (!url) return;
+    if (Progress) Progress.start(progressHost(), 'Saving signature…');
+    try {
+      assets.chEngSignatures[signatureKeyFor(name)] = url;
+      await saveAssets();
+      renderPreviews();
+      if (Progress) Progress.done('Signature saved');
+      toast('Signature saved for ' + name);
+    } catch (err) {
+      console.warn(err);
+      if (Progress) Progress.done();
+      toast('Could not save that signature');
+    }
+  };
+
+  panel.querySelector('#sig-recut').onclick = async () => {
+    const key = signatureKeyFor(getChEngName());
+    const cur = assets.chEngSignatures[key];
+    if (!cur || !window.ImageCutout) return;
+    if (Progress) Progress.start(progressHost(), 'Removing background…');
+    try {
+      assets.chEngSignatures[key] = await ImageCutout.removeBackground(cur, {
+        onProgress: (pct, msg) => Progress && Progress.set(pct, msg),
+      });
+      if (Progress) Progress.set(null, 'Saving…');
+      await saveAssets();
+      renderPreviews();
+      if (Progress) Progress.done('Background removed');
+    } catch (err) {
+      console.warn(err);
+      if (Progress) Progress.done();
+      toast('Could not process that image');
+    }
+  };
+
+  panel.querySelector('#sig-remove').onclick = async () => {
+    delete assets.chEngSignatures[signatureKeyFor(getChEngName())];
+    await saveAssets();
+    renderPreviews();
+  };
+
+  panel.querySelector('#logo-file').onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!window.ImageCutout) {
+      toast('Image tools not loaded — refresh the page');
+      return;
+    }
+    const track = Progress ? Progress.start(progressHost(), 'Reading stamp…') : null;
+    try {
+      let url = await ImageCutout.toPngDataUrl(file, 900, (pct, msg) => Progress && Progress.set(pct, msg));
+      if (panel.querySelector('#logo-cutout').checked) {
+        url = await ImageCutout.removeBackground(url, {
+          onProgress: (pct, msg) => Progress && Progress.set(pct, msg),
+        });
+      }
+      if (Progress) Progress.set(null, 'Saving…');
+      assets.vesselLogo = url;
+      await saveAssets();
+      renderPreviews();
+      if (Progress) Progress.done('Stamp saved');
+      toast('Vessel stamp saved');
+    } catch (err) {
+      console.warn(err);
+      if (Progress) Progress.done();
+      toast('Could not read that image — use a PNG or JPG');
+    }
+    if (track) track.scrollIntoView({ block: 'nearest' });
+  };
+
+  panel.querySelector('#logo-recut').onclick = async () => {
+    const cur = assets.vesselLogo;
+    if (!cur || !window.ImageCutout) return;
+    if (Progress) Progress.start(progressHost(), 'Removing background…');
+    try {
+      assets.vesselLogo = await ImageCutout.removeBackground(cur, {
+        onProgress: (pct, msg) => Progress && Progress.set(pct, msg),
+      });
+      if (Progress) Progress.set(null, 'Saving…');
+      await saveAssets();
+      renderPreviews();
+      if (Progress) Progress.done('Background removed');
+    } catch (err) {
+      console.warn(err);
+      if (Progress) Progress.done();
+      toast('Could not process that image');
+    }
+  };
+
+  panel.querySelector('#logo-remove').onclick = async () => {
+    assets.vesselLogo = null;
+    await saveAssets();
+    renderPreviews();
+  };
+
+  const chEngField = document.getElementById('vesselChEng');
+  if (chEngField) chEngField.addEventListener('input', renderPreviews);
+  renderPreviews();
+  return panel;
+}
 
 async function renderFleet(tbody) {
   let vessels = [];
