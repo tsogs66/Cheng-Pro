@@ -146,12 +146,19 @@ function keyPrefixForSku(sku) {
 
 /**
  * Create a sellable license (admin / purchase webhook).
- * addons: optional string[] — 'eorb', 'voyage-chief', 'tank-chief', 'master'.
- * On cheng-aio, voyage-chief / tank-chief / eorb are selected programs (like add-ons).
+ * addons: optional string[] — 'eorb', 'voyage-chief', 'tank-chief',
+ * 'consumption-plan', 'bunker-plan', 'master'.
+ * On cheng-aio, voyage-chief / tank-chief / eorb / consumption-plan /
+ * bunker-plan are selected programs (like add-ons).
  * SKU `cheng-admin` is the master license (unlocks everything; entitlement.master = true).
  */
 function normalizeAddons(addons) {
-  const allow = new Set(['eorb', 'master', 'voyage-chief', 'tank-chief']);
+  const allow = new Set([
+    'eorb', 'master', 'voyage-chief', 'tank-chief',
+    /* Planning screens sold on their own: the voyage fuel consumption
+       calculation, and the bunkering fill sequence / monitoring sheet. */
+    'consumption-plan', 'bunker-plan',
+  ]);
   const list = Array.isArray(addons) ? addons : (typeof addons === 'string' ? addons.split(',') : []);
   return [...new Set(list.map((a) => String(a || '').trim().toLowerCase()).filter((a) => allow.has(a)))];
 }

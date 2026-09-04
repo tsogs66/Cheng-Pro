@@ -102,6 +102,7 @@
   } catch (_e) {}
 </script>
 <script src="license.js"></script>
+<script src="save-file.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -18270,7 +18271,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v180';
+let androidInstallCacheName = 'noon-report-v181';
 
 /*
  * What the program is called.
@@ -18401,6 +18402,7 @@ let androidInstallAssets = [
   './theme.js',
   './license-config.js',
   './license.js',
+  './save-file.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',
@@ -18700,76 +18702,61 @@ const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHis
 
 async function downloadJsonFile(filename, obj){
   const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-  const blob = new Blob([text], {type:'application/json'});
   const safeName = filename || `voyage-chief-backup_${Date.now()}.json`;
 
-  /* Order: Save-file picker (desktop) → Share sheet (Android) → <a download>.
-     Never revoke the blob URL immediately — WebView needs time to start. */
-  try {
-    if (typeof window.showSaveFilePicker === 'function'){
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: safeName,
-          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        try {
-          dbPut('meta', {
-            key: 'lastDbBackup',
-            value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'picker' }
-          });
-        } catch (_) {}
-        return { method: 'picker', filename: safeName };
-      } catch (e){
-        if (e && e.name === 'AbortError') throw e;
-      }
-    }
-  } catch (e){
-    if (e && e.name === 'AbortError') throw e;
+  /* Where the file goes, and in what order the ways of putting it there are
+     tried, is ChengSaveFile's business — shared with Tank Chief and the ChEng
+     AIO shell so a backup taken from any of the three lands in the same place.
+     The note below is what the Setup tab shows afterwards. */
+  let saved;
+  if (window.ChengSaveFile){
+    saved = await ChengSaveFile.saveJson(safeName, text);
+  } else {
+    const blob = new Blob([text], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{
+      try{ a.remove(); }catch(_){}
+      try{ URL.revokeObjectURL(url); }catch(_){}
+    }, 4000);
+    saved = { method: 'anchor', filename: safeName };
   }
-
-  try {
-    const file = new File([blob], safeName, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({
-        files: [file],
-        title: safeName,
-        text: 'Voyage Chief backup — use Save to Files / Drive / USB so you can find it later.'
-      });
-      try {
-        dbPut('meta', {
-          key: 'lastDbBackup',
-          value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'share' }
-        });
-      } catch (_) {}
-      return { method: 'share', filename: safeName };
-    }
-  } catch (e){
-    if (e && e.name === 'AbortError') throw e;
-  }
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = safeName;
-  a.rel = 'noopener';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(()=>{
-    try{ a.remove(); }catch(_){}
-    try{ URL.revokeObjectURL(url); }catch(_){}
-  }, 4000);
 
   try {
     dbPut('meta', {
       key: 'lastDbBackup',
-      value: { filename: safeName, exportedAt: new Date().toISOString(), bytes: text.length, method: 'anchor' }
+      value: {
+        filename: saved.filename || safeName,
+        exportedAt: new Date().toISOString(),
+        bytes: text.length,
+        method: saved.method,
+        where: saved.where || ''
+      }
     });
   } catch (_) {}
-  return { method: 'anchor', filename: safeName };
+  return saved;
+}
+
+/** A save the user backed out of, however the platform reported it. */
+function isSaveCancelled(err){
+  if (!err) return false;
+  if (err.name === 'AbortError') return true;
+  return /cancell?ed/i.test(String(err.message || ''));
+}
+
+/** Where the file went, in the words the user needs to find it. */
+function downloadWhereLabel(saved){
+  if (window.ChengSaveFile) return ChengSaveFile.whereLabel(saved);
+  if (!saved) return 'saved';
+  if (saved.method === 'picker') return 'saved to the folder you chose';
+  if (saved.method === 'share') return 'shared — use Save to Files / Drive / USB';
+  return `started — check Downloads for ${saved.filename}`;
 }
 
 function setDbBackupStatus(msg){
@@ -19108,20 +19095,12 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
     const saved = await downloadJsonFile(name, payload);
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
     const summary = vesselExportCountSummary(payload.counts);
-    const where = saved.method === 'picker'
-      ? 'saved to the folder you chose'
-      : saved.method === 'share'
-        ? 'shared — use Save to Files / Drive / USB'
-        : 'check your Downloads folder';
+    const where = downloadWhereLabel(saved);
     setVesselExportStatus(`Exported ${payload.vessel.name}: ${saved.filename} — ${total} record(s) (${summary}). Sync API token excluded. (${where})`);
-    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${saved.filename}\nRecords: ${total}\n${summary}\n\n${
-      saved.method === 'picker' ? 'Saved to the folder you chose.'
-      : saved.method === 'share' ? 'On the share sheet: Save to Files / Drive / USB.'
-      : 'Check your Downloads folder.'
-    }\nThe sync API token is not written to the file.`);
+    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${saved.filename}\nRecords: ${total}\n${summary}\n\nThe file was ${where}.\nThe sync API token is not written to the file.`);
   }catch(e){
     console.error(e);
-    if (e && e.name === 'AbortError'){
+    if (isSaveCancelled(e)){
       setVesselExportStatus('Export cancelled — nothing was saved.');
       return;
     }
@@ -19218,24 +19197,16 @@ document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
     const name = `voyage-chief-db-backup_${stamp}.json`;
     const saved = await downloadJsonFile(name, payload);
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
-    const where = saved.method === 'picker'
-      ? 'saved to the folder you chose'
-      : saved.method === 'share'
-        ? 'shared — use Save to Files / Drive / USB'
-        : 'check your Downloads folder';
+    const where = downloadWhereLabel(saved);
     setDbBackupStatus(`Backup ${where}: ${saved.filename} — ${payload.vessels.length} vessel(s), ${total} store record(s).`);
     alert(
       'Full database backup ready.\n\n' +
       'File: ' + saved.filename + '\nVessels: ' + payload.vessels.length + '\nRecords: ' + total + '\n\n' +
-      (saved.method === 'picker'
-        ? 'Saved to the folder you chose.'
-        : saved.method === 'share'
-          ? 'On the share sheet: choose Save to Files, Drive, or USB.'
-          : 'Check your Downloads folder for the JSON file.')
+      'The file was ' + where + '.'
     );
   }catch(e){
     console.error(e);
-    if (e && e.name === 'AbortError'){
+    if (isSaveCancelled(e)){
       setDbBackupStatus('Backup cancelled — nothing was saved.');
       return;
     }
@@ -19304,13 +19275,9 @@ document.getElementById('btnExportJSON').addEventListener('click', async ()=>{
   try{
     const payload = { setup: state.setup, entries: state.entries, receipts: state.receipts, documents: state.documents, exportedAt: new Date().toISOString() };
     const saved = await downloadJsonFile(`voyage-chief-${(state.setup.voyageNumber||'voyage')}.json`, payload);
-    alert(saved.method === 'picker'
-      ? `Saved to the folder you chose:\n${saved.filename}`
-      : saved.method === 'share'
-        ? `Shared — use Save to Files / Drive / USB:\n${saved.filename}`
-        : `Download started — check Downloads for:\n${saved.filename}`);
+    alert(`${saved.filename}\n\nThe file was ${downloadWhereLabel(saved)}.`);
   }catch(e){
-    if (e && e.name === 'AbortError') return;
+    if (isSaveCancelled(e)) return;
     alert('Export failed: ' + (e.message || e));
   }
 });
@@ -19319,13 +19286,9 @@ document.getElementById('btnExportSetupJSON').addEventListener('click', async ()
   try{
     const payload = { setup: state.setup, entries: [], receipts: [], exportedAt: new Date().toISOString(), setupOnly: true };
     const saved = await downloadJsonFile(`voyage-chief-setup-${(state.setup.voyageNumber||'template')}.json`, payload);
-    alert(saved.method === 'picker'
-      ? `Saved to the folder you chose:\n${saved.filename}`
-      : saved.method === 'share'
-        ? `Shared — use Save to Files / Drive / USB:\n${saved.filename}`
-        : `Download started — check Downloads for:\n${saved.filename}`);
+    alert(`${saved.filename}\n\nThe file was ${downloadWhereLabel(saved)}.`);
   }catch(e){
-    if (e && e.name === 'AbortError') return;
+    if (isSaveCancelled(e)) return;
     alert('Export failed: ' + (e.message || e));
   }
 });
@@ -21210,6 +21173,45 @@ function voyageEorbAllowed(){
   return false;
 }
 
+/**
+ * Consumption Plan tab.
+ *
+ * Inside ChEng AIO it is always off: the shell carries its own Consumption
+ * Plan entry that opens this very page in an iframe, so showing the tab as
+ * well would put one calculation in two places in the same window. The
+ * ?page=bunkerplan embed is that iframe, and keeps its page.
+ *
+ * Standalone, it is a licensed program of its own — hidden unless the key the
+ * office issued includes it.
+ */
+function consumptionPlanAllowed(){
+  try {
+    if (isChengAioEmbedded()) return false;
+    if (window.ChengLicense && typeof ChengLicense.consumptionPlanLicensed === 'function'){
+      return !!ChengLicense.consumptionPlanLicensed();
+    }
+  } catch (_) { /* ignore */ }
+  return !window.ChengLicense;
+}
+
+function applyConsumptionPlanVisibility(){
+  const embedded = isChengAioEmbedded();
+  const isPlanEmbed = /[?&]page=bunkerplan\b/.test(location.search || '');
+  if (embedded && isPlanEmbed) return;
+  const ok = consumptionPlanAllowed();
+  document.querySelectorAll('#tabs .tab[data-page="bunkerplan"], .bn-item[data-page="bunkerplan"], #bnMoreSheet [data-page="bunkerplan"]').forEach((el) => {
+    el.hidden = !ok;
+    el.style.display = ok ? '' : 'none';
+  });
+  if (!ok){
+    const page = document.getElementById('page-bunkerplan');
+    if (page && page.classList.contains('active')){
+      page.classList.remove('active');
+      try { switchTab('summary'); } catch (_) { /* ignore */ }
+    }
+  }
+}
+
 function applyEorbLicenseVisibility(){
   const embedded = isChengAioEmbedded();
   const ok = voyageEorbAllowed();
@@ -22129,6 +22131,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       if (window.ChengLicense) await ChengLicense.ensureLicensed();
     } catch (licErr) { console.warn('License gate', licErr); }
     try { applyEorbLicenseVisibility(); } catch (_) {}
+    try { applyConsumptionPlanVisibility(); } catch (_) {}
     try { applyArchivedFeatureVisibility(); } catch (_) {}
 
     beginActivity('boot', 'Opening the local database…', { source: 'program' });
@@ -22202,6 +22205,11 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     document.getElementById('dbStatus').textContent = '● local database ready';
     try {
       applyEorbLicenseVisibility();
+      /* A key entered after boot unlocks tabs without a reload. */
+      window.addEventListener('chengpro:license-changed', () => {
+        try { applyEorbLicenseVisibility(); } catch (_) {}
+        try { applyConsumptionPlanVisibility(); } catch (_) {}
+      });
       const qsPage = new URLSearchParams(location.search).get('page');
       const wantOrb = qsPage === 'orb' || /[?&]page=orb\b/.test(location.search);
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
@@ -22214,14 +22222,12 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
           document.body.style.paddingBottom = '0';
         }
       }
-      /* Hide bunker plan tab from Voyage when inside AIO (AIO has its own menu entry) */
-      if (isChengAioEmbedded() && qsPage !== 'bunkerplan'){
-        document.querySelectorAll('.tab[data-page="bunkerplan"], .bn-item[data-page="bunkerplan"]').forEach(el=>{
-          if (el) el.style.display = 'none';
-        });
-      }
       else if (qsPage === 'data') switchTab('data');
       else if (qsPage === 'setup') switchTab('setup');
+      /* Hiding the tab is not one of the navigation choices. Chained onto them
+         with else-if it swallowed ?page=data and ?page=setup inside the shell —
+         and ?page=data is exactly how the AIO Backup screen opens this app. */
+      applyConsumptionPlanVisibility();
       if (isChengAioEmbedded()) {
         try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
       }
