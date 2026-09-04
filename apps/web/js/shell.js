@@ -37,19 +37,24 @@
       }).join('');
   }
 
-  async function navigate(module) {
+  function isSoftEmbedModule(id) {
+    return id === 'voyage' || id === 'tanks' || id === 'eorb' || id === 'bunkerplan' || id === 'bunkeringplan';
+  }
+
+  async function navigate(module, opts) {
     let next = module || 'home';
+    const force = !!(opts && opts.force);
     if (window.ChengLicense && next !== 'license') {
       try {
         const ent = ChengLicense.loadEntitlement();
         if (ChengLicense.enforceEnabled() && !ChengLicense.isValid(ent) && !ChengLicense.isEmbeddedInAio()) {
           /* Soft program tabs still open so they can show Open License (like e-ORB). */
-          if (next !== 'voyage' && next !== 'tanks' && next !== 'eorb' && next !== 'bunkerplan' && next !== 'bunkeringplan') {
+          if (!isSoftEmbedModule(next)) {
             next = 'license';
             showToast('Activate a license to use the suite');
           }
         } else if (ChengLicense.isValid(ent) && !ChengLicense.moduleAllowed(next, ent)) {
-          const soft = next === 'voyage' || next === 'tanks' || next === 'eorb' || next === 'bunkerplan' || next === 'bunkeringplan';
+          const soft = isSoftEmbedModule(next);
           if (soft) {
             /* Stay on the module so it can show the missing-program warning. */
             showToast('Not included on this license — see details');
@@ -59,6 +64,22 @@
           }
         }
       } catch { /* ignore */ }
+    }
+    /* Re-entering the same embed module must not tear down the iframe — that
+       stopped the bunkering pump clock and bounced operators back through a
+       remount that felt like returning to the main menu. Vessel switches pass
+       force:true so the embed can reload for the new ship. */
+    if (
+      !force &&
+      next === current &&
+      isSoftEmbedModule(next) &&
+      main.querySelector('.aio-embed-wrap iframe.aio-embed-frame')
+    ) {
+      setNavActive(current);
+      closeSidebar();
+      const embedded = !!main.querySelector('.aio-embed-wrap');
+      setFullscreenEmbed(embedded);
+      return;
     }
     current = next;
     setNavActive(current);
@@ -73,14 +94,13 @@
     try {
       await mod.render(main);
       const embedded = !!main.querySelector('.aio-embed-wrap');
-      setFullscreenEmbed(embedded && (current === 'voyage' || current === 'tanks' || current === 'eorb' || current === 'bunkerplan' || current === 'bunkeringplan'));
+      setFullscreenEmbed(embedded && isSoftEmbedModule(current));
       /* Re-apply after rotate: Android stays fullscreen; Windows stays with chrome. */
       if (!window.__aioFsOrientBound) {
         window.__aioFsOrientBound = true;
         const reapply = () => {
           if (!document.querySelector('.aio-embed-wrap')) return;
-          const modId = current;
-          if (modId === 'voyage' || modId === 'tanks' || modId === 'eorb' || modId === 'bunkerplan' || modId === 'bunkeringplan') {
+          if (isSoftEmbedModule(current)) {
             setFullscreenEmbed(true);
           }
         };
@@ -204,7 +224,7 @@
     try {
       await ChengPro.vessel.setActive(activeSelect.value || null);
       showToast(activeSelect.value ? 'Active vessel updated' : 'No active vessel');
-      await navigate(current);
+      await navigate(current, { force: true });
     } catch (e) {
       showToast(e.message);
       await fillVesselSelect();
@@ -216,6 +236,14 @@
   });
 
   window.addEventListener('chengpro:navigate', (e) => navigate(e.detail));
+  /* Tank / Voyage embeds postMessage when MAIN MENU (etc.) needs the AIO shell. */
+  window.addEventListener('message', (e) => {
+    const d = e && e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'chengpro-navigate' && d.module) {
+      navigate(String(d.module));
+    }
+  });
   window.addEventListener('chengpro:toast', (e) => showToast(e.detail));
   window.addEventListener('chengpro:license-changed', async () => {
     applyLicenseNav();
