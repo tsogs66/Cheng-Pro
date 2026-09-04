@@ -43,6 +43,11 @@ window.ChengProModules.bunkeringplan = {
       bunkeringBindNav(root);
       return;
     }
+    /* Keep an existing bunkering iframe — remounting reset Start pumping. */
+    const existing = root.querySelector('#bunkeringEmbedWrap iframe.aio-embed-frame');
+    if (existing && existing.getAttribute('src')) {
+      return;
+    }
     const src = ChengPro.tankEmbedUrl({ page: 'bunker-plan', bunkerEmbed: '1' });
     root.innerHTML = `
       <div class="aio-embed-wrap" id="bunkeringEmbedWrap">
