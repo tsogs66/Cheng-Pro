@@ -1,0 +1,74 @@
+name: CI
+
+# release.yml only fires on a v* tag, so until now nothing checked a pull
+# request. These are the checks a contributor runs before pushing: the gateway
+# smoke test boots the Express gateway and the Python voyage sync server
+# together and walks the auth handshake, which is where the two halves of the
+# suite most often drift apart.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    name: Suite (gateway smoke + license + perf)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The voyage sync server is Python; the gateway spawns it.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: npm ci
+
+      # apps/web and the two module trees are hand-edited and loaded straight by
+      # the page, so a parse error would otherwise reach a tag unnoticed.
+      - name: Check every shell script parses
+        run: |
+          set -e
+          for f in apps/web/js/*.js apps/web/js/modules/*.js server/*.js server/routes/*.js server/license/*.js scripts/*.js; do
+            node --check "$f"
+          done
+
+      - name: Check the embedded programs parse
+        run: |
+          set -e
+          for f in modules/tanks/public/js/*.js modules/tanks/server/*.js; do
+            node --check "$f"
+          done
+          node --check modules/voyage/www/eorb.js
+          node --check modules/voyage/www/license.js
+          node --check modules/voyage/www/save-file.js
+
+      # modules/tanks/public/embedded is generated from modules/tanks/server.
+      # If it drifts, the on-device database stops matching the server.
+      - name: Rebuild the on-device route copy and check it is committed
+        run: |
+          set -e
+          node modules/tanks/scripts/copy-embedded.js
+          git diff --exit-code -- modules/tanks/public/embedded
+
+      - name: Seed and run the suite tests
+        run: |
+          npm run seed
+          npm test
+        env:
+          SYNC_ADMIN_PASSWORD: ci-test-password
+          SYNC_API_TOKEN: ci-test-token
