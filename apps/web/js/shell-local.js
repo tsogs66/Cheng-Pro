@@ -65,6 +65,12 @@
       if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
       return res.body;
     }
+    const assetsPut = path.match(/^\/api\/shell\/vessels\/([^/]+)\/assets$/);
+    if (method === 'PUT' && assetsPut) {
+      const res = await LocalApi.handle('PUT', '/api/vessels/' + assetsPut[1] + '/assets', body);
+      if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');
+      return res.body;
+    }
     if (method === 'DELETE' && vesselMut) {
       const res = await LocalApi.handle('DELETE', '/api/vessels/' + vesselMut[1]);
       if (res.status >= 400) throw new Error((res.body && res.body.error) || 'Request failed');

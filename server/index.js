@@ -174,6 +174,15 @@ app.put('/api/shell/vessels/:id', express.json(), (req, res) => {
   }
 });
 
+app.put('/api/shell/vessels/:id/assets', (req, res) => {
+  try {
+    const store = require('../modules/tanks/server/store');
+    res.json(store.saveVesselPart(req.params.id, 'assets', req.body || {}));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
 app.delete('/api/shell/vessels/:id', (req, res) => {
   try {
     const store = require('../modules/tanks/server/store');
