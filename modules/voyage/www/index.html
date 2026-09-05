@@ -1515,29 +1515,42 @@
   /* Transposed ROB stock tables: tanks as columns, metric rows taller, larger type.
      Present R.O.B. row stays bold so the handover figure reads first. */
   .pr-table.pr-table-rob{
-    table-layout:auto; font-size:12px;
+    table-layout:auto; font-size:11px;
   }
   .pr-table.pr-table-rob th{
-    font-size:11px; padding:1.3mm 1.1mm; vertical-align:bottom; line-height:1.25;
+    font-size:10px; padding:1.3mm 1.1mm; vertical-align:bottom; line-height:1.25;
   }
   .pr-table.pr-table-rob td{
-    font-size:12px; padding:1.6mm 1.1mm; line-height:1.3;
+    font-size:11px; padding:1.6mm 1.1mm; line-height:1.3;
   }
   .pr-table.pr-table-rob td.row-lbl{
-    font-size:11.5px; font-weight:600; white-space:nowrap;
+    font-size:10.5px; font-weight:600; white-space:nowrap;
   }
   .pr-table.pr-table-rob .pr-rob-unit{
-    display:block; margin-top:0.3mm; font-size:9px; font-weight:400;
+    display:block; margin-top:0.3mm; font-size:8px; font-weight:400;
     text-transform:none; letter-spacing:0; opacity:0.88;
     font-family:'Inter',sans-serif;
   }
-  .pr-table.pr-table-rob th.rob-total-col,
-  .pr-table.pr-table-rob td.rob-total-col{ background:#eef2f8; }
+  .pr-table.pr-table-rob th.rob-total-col{
+    /* Match other grade headers: navy fill, white type. */
+    background:#122238 !important; color:#fff !important;
+  }
+  .pr-table.pr-table-rob th.rob-total-col .pr-rob-unit{
+    color:#fff !important; opacity:0.9;
+  }
+  .pr-table.pr-table-rob td.rob-total-col,
+  .pr-table.pr-table-rob td.rob-total-col *{
+    /* Light total fill must never inherit the white header type. */
+    background:#eef2f8 !important; color:#0a1420 !important;
+  }
   .pr-table.pr-table-rob tr.rob-present-row td{
-    font-weight:700; background:#f3f6fb;
+    font-weight:700; background:#f3f6fb; color:#0a1420;
   }
   .pr-table.pr-table-rob tr.rob-present-row td.row-lbl{ font-weight:700; }
-  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col{ background:#e4eaf3; }
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col,
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col *{
+    background:#dce3ee !important; color:#0a1420 !important;
+  }
   /* Says the list under it was cut, so a short list is never mistaken for the range. */
   .pr-note{ font-size:8.5px; color:#5a6578; font-style:italic; margin-top:0.8mm; }
   .pr-remarks{
@@ -1781,7 +1794,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Voyage Specifics</h2>
       <div class="form-grid cols3">
         <div class="field"><label>Voyage No.</label><input id="s_voyageNumber"></div>
-        <div class="field"><label>Ships Condition</label><select id="s_shipCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Ships Condition</label><select id="s_shipCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field"><label>Date &amp; Time (initial)</label><input type="datetime-local" id="s_initDateTime"></div>
         <div class="field"><label>Time zone</label><select id="s_initTzOffset"></select></div>
         <div class="field"><label>Departure</label><input id="s_departPort"></div>
@@ -1979,7 +1992,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint" style="margin-bottom:8px;">Lists voyage numbers for the <strong>selected vessel only</strong> (Fleet selector above). Other ships’ legs stay hidden.</div>
       <div class="form-grid cols3">
         <div class="field"><label>Voyage No. (library)</label><select id="s_voyageSelect"></select></div>
-        <div class="field"><label>Condition leg</label><select id="s_legCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Condition leg</label><select id="s_legCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field" style="display:flex; align-items:flex-end; gap:8px;">
           <button class="primary" id="btnLoadVoyageLeg" style="width:100%;">Load Selected Leg</button>
         </div>
@@ -2178,13 +2191,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <input type="hidden" id="in_rpm" value="">
 
       <div class="form-grid">
-        <div class="field span2"><label>Date &amp; Time (ship's clock)</label><input type="datetime-local" id="in_datetime"></div>
+        <div class="field span2"><label>Date &amp; Time (ship's clock)</label><input type="datetime-local" id="in_datetime"><div class="hint">Set the correct date/time first when inserting a missed report — meters and calculations use the previous entry before that stamp.</div></div>
         <div class="field span2"><label>Time zone</label><select id="in_tzOffset"></select></div>
         <div class="field span2"><label>Operation</label>
           <!-- Options are built from OPERATION_GROUPS so the list has one definition. -->
           <select id="in_operation"></select>
         </div>
-        <div class="field"><label>Condition</label><select id="in_condition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
       </div>
       <input type="hidden" id="in_clockChangeMin" value="0">
       <div class="tz-clock-row">
@@ -3262,7 +3275,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="form-grid cols3" style="margin-top:10px;">
         <div class="field"><label>Pull voyage no.</label><select id="sync_pullVoyage"></select></div>
-        <div class="field"><label>Pull condition</label><select id="sync_pullCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Pull condition</label><select id="sync_pullCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field" style="display:flex; align-items:flex-end;">
           <button class="ghost small" id="btnPullVoyageLeg" style="width:100%;">Pull Selected Voyage Leg</button>
         </div>
@@ -5995,7 +6008,8 @@ function normalizeCondition(condition){
 }
 
 function conditionLabel(condition){
-  return normalizeCondition(condition) === 'L' ? 'L — Laden' : 'B — Ballast';
+  /* Print / badge wording: spell out the condition (not just L/B). */
+  return normalizeCondition(condition) === 'L' ? 'Laden' : 'Ballasted';
 }
 
 function captureActiveLegPack(){
@@ -11266,7 +11280,8 @@ function printTurboOthersSection(report, { includeMeAux = true, entry = null } =
     const turbos = report.turbos || [report.turbo1, report.turbo2].filter(Boolean);
     const turboRows = Array.from({length:turboCount()}, (_,i)=>{
       const t = turbos[i] || {};
-      return printRow(`T/C #${i+1} In / Out / RPM`, `${fmtP(t.in, 2)} / ${fmtP(t.out, 2)} / ${fmtP(t.rpm, 2)}`);
+      return printRow(`T/C #${i+1} In / Out`, `${fmtP(t.in, 2)} / ${fmtP(t.out, 2)}`)
+        + printRow(`T/C #${i+1} RPM`, fmtP(t.rpm, 2));
     }).join('');
     parts.push(turboRows);
     parts.push(printRow('Scav. Temperature', `${fmtP(report.scavTemp, 2)} °C`));
@@ -15149,28 +15164,25 @@ function buildVoyageNoonSheetHTML(entry){
   /* With the engine stopped a stored RPM is stale — do not fall back to it. */
   const printRpm = row.meStopped ? null : (row.rpmEff!=null ? row.rpmEff : entry.rpm);
   const meRunningEarly = mainEngineInUse(entry, row);
+  /* Slip % sits between RPM and Speed on the KPI strip. Ship Dist is omitted when
+     the main engine is not running — that figure is always zero on those reports. */
   const kpiItems = meRunningEarly ? [
     {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)},
     {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)},
     {label:'RPM', value:fmt(printRpm, 2)},
+    {label:'Slip %', value:fmt(row.slip,2)},
     {label:'Speed (kn)', value:fmt(row.speedShip,2)},
     {label:'% MCR', value:fmt(row.mcrPct, 2)},
     {label:'Est. kW', value:fmt(row.kwEst, 2)}
   ] : [
-    {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)},
-    {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)}
+    {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)}
   ];
 
-  /* Slip % stays under M/E Performance only — not repeated here. */
   const voyageSection = meRunningEarly ? printSection('Voyage Progress', [
     printRow('Engine Distance', `${fmt(row.distEngine,2)} nm`),
     printRow('Distance To Go', distanceToGo!=null?`${fmt(distanceToGo, 2)} nm`:'—'),
     printRow('Days To Go', daysToGoVal!=null?fmt(daysToGoVal,2):'—'),
-    printRow('ETA', etaStr),
-    printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
-    /* The counter reading the daily figure was taken from, so the sheet carries the
-       evidence as well as the difference. */
-    printRow('Rev. Counter', entry.revCounter==null?'—':fmt(entry.revCounter, 0))
+    printRow('ETA', etaStr)
   ].join('')) : '';
 
   /* Fuel consumption by unit AND by grade. Each unit can be burning a different
@@ -15231,13 +15243,12 @@ function buildVoyageNoonSheetHTML(entry){
 
   const deltaCls = sfocDeltaClass(row.sfocDelta);
   const deltaStr = row.sfocDelta==null ? '—' : `${row.sfocDelta>0?'+':''}${fmt(row.sfocDelta, 2)}%`;
+  /* RPM / %MCR / Est. kW / ship speed / slip live on the KPI strip. Rev counter and
+     daily revs move here from Voyage Progress so the evidence sits with SFOC. */
   const meSection = printSection('M/E Performance', [
-    printRow('RPM', fmt(printRpm, 2)),
-    printRow('% MCR', fmt(row.mcrPct, 2)),
-    printRow('Est. kW', fmt(row.kwEst, 2)),
+    printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
+    printRow('Rev. Counter', entry.revCounter==null?'—':fmt(entry.revCounter, 0)),
     printRow('Engine Speed', row.speedEngine==null?'—':`${fmt(row.speedEngine,2)} kn`),
-    printRow('Ship Speed', row.speedShip==null?'—':`${fmt(row.speedShip,2)} kn`),
-    printRow('Slip %', fmt(row.slip,2)),
     printRow('SFOC @ 100% MCR', state.setup.sfoc100==null?'—':`${fmt(state.setup.sfoc100, 2)} g/kWh`),
     printRow('Ref. SFOC', `${fmt(row.sfocRef, 2)} g/kWh`),
     printRow('Actual SFOC', `${fmt(row.sfocActual, 2)} g/kWh`),
@@ -15354,12 +15365,12 @@ function buildVoyageNoonSheetHTML(entry){
   const titles = noonSheetTitles(entry.operation);
   const flagName = flagRegistryName(vesselFlagCode());
   return `<div class="pr-sheet pr-sheet-noon">
-    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: entry.condition })}
+    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: conditionLabel(entry.condition) })}
     ${printMetaGrid([
       {label:'Date & Time', value:dtStr},
-      {label:'Last Report', value:prevReportStr},
-      {label:'Condition', value:entry.condition},
       {label:'Route', value:`${state.setup.departPort||'—'} → ${state.setup.arrivePort||'—'}`},
+      {label:'Condition', value:conditionLabel(entry.condition)},
+      {label:'Last Report', value:prevReportStr},
       {label:'IMO No.', value:state.setup.imoNo||'—'},
       {label:'Flag', value:flagName||'—'}
     ], 6)}
@@ -15780,6 +15791,12 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
 /* 'input' as well as 'change': mobile/tablet date pickers commit via 'input'. */
 ['change','input'].forEach(evt=>{
   document.getElementById('in_datetime').addEventListener(evt, ()=>{
+    /* New (unsaved) entry: when the date/time moves, re-seed meters from the
+       chronologically previous report so a missed watch can be filled in order. */
+    if (!editingId && evt === 'change'){
+      prefillFromLastEntry();
+      return;
+    }
     /* Runtime must follow the selected date/time before anything derived from it. */
     syncMeRuntimeFromPeriod();
     if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
@@ -16649,7 +16666,12 @@ function applyEntryDefaults(){
 
 /** Prefill a new log entry from the last saved entry (meters, types, condition) — not consumption. */
 function prefillFromLastEntry(){
-  const last = sortedEntries().slice(-1)[0] || state.setup.carryover;
+  /* Prefer the chronologically previous entry for the form date/time so a missed
+     watch can be inserted mid-voyage: meters and types seed from that reference,
+     and live calcs (via getPrevReferenceFor) use the same baseline. */
+  const dtVal = document.getElementById('in_datetime')?.value || '';
+  const byTime = dtVal ? getPrevReferenceFor(dtVal, editingId) : null;
+  const last = byTime || sortedEntries().slice(-1)[0] || state.setup.carryover;
   /* Fresh form → the runtime counter goes back to tracking the selected date/time. */
   clearMeRuntimeUserEdit();
   applyEntryDefaults();
@@ -16665,10 +16687,9 @@ function prefillFromLastEntry(){
 
   const set = (id, val) => { const el = document.getElementById(id); if (el && val!=null && val!==undefined) el.value = val; };
   /* A watch almost always repeats the operation before it — a sea passage is a run of
-     NOON REPORTs — so open on the last one rather than on the list's default, which
-     the engineer had to re-pick every single time. setOperationSelectValue adds the
-     option back if the operation is one no longer offered, so an old log's wording
-     survives instead of silently blanking the field. */
+     NOON REPORTs — so open on the previous reference (by date/time) rather than the
+     list default. setOperationSelectValue adds the option back if the operation is
+     one no longer offered, so an old log's wording survives instead of blanking. */
   setOperationSelectValue(document.getElementById('in_operation'), last.operation);
   set('in_condition', last.condition || state.setup.shipCondition);
   set('in_tbn', last.tbn);
