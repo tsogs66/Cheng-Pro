@@ -17844,6 +17844,9 @@ function buildSyncPayload(){
   const sync = ensureSyncConfig();
   const voyage = voyageSyncKey();
   const condition = voyageConditionKey();
+  /* Collapse same-watch duplicates before upload so peers do not re-download them. */
+  if (!sync.deletedIds) sync.deletedIds = { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] };
+  state.entries = dedupeEntriesByContent(state.entries, sync.deletedIds);
   return {
     vesselId: vesselSyncSlug(),
     voyageNumber: voyage,
@@ -17880,6 +17883,62 @@ function mergeListsById(serverItems, clientItems){
   return [...byId.values()];
 }
 
+/**
+ * Same watch (voyage + condition + datetime + operation) created offline on two
+ * devices gets two random ids. Id-only merge keeps both; collapse to the newest
+ * and tombstone the losers so the next push drops them server-side too.
+ */
+function entryContentKey(e){
+  if (!e) return null;
+  const dt = String(e.datetime || '').trim();
+  if (!dt) return null;
+  const vid = e.vesselId || (typeof state !== 'undefined' && state.activeVesselId) || '';
+  const vn = String(e.voyageNumber || '').trim() || '_';
+  const cond = typeof normalizeCondition === 'function'
+    ? normalizeCondition(e.condition != null && e.condition !== '' ? e.condition : 'B')
+    : String(e.condition || 'B').toUpperCase();
+  const op = typeof canonicalOperation === 'function'
+    ? (canonicalOperation(e.operation || '') || '_')
+    : String(e.operation || '_').trim().toUpperCase();
+  return `${vid}|${vn}|${cond}|${dt}|${op}`;
+}
+
+function dedupeEntriesByContent(entries, deletedMap){
+  const list = entries || [];
+  const bestByKey = new Map();
+  const passthrough = [];
+  for (const e of list){
+    const key = entryContentKey(e);
+    if (!key || !e?.id){ passthrough.push(e); continue; }
+    const prev = bestByKey.get(key);
+    if (!prev){ bestByKey.set(key, e); continue; }
+    const preferNew = recordTs(e) >= recordTs(prev);
+    const keep = preferNew ? e : prev;
+    const drop = preferNew ? prev : e;
+    bestByKey.set(key, keep);
+    if (drop?.id && drop.id !== keep.id){
+      if (deletedMap){
+        if (!deletedMap.entries) deletedMap.entries = [];
+        if (!deletedMap.entries.includes(drop.id)) deletedMap.entries.push(drop.id);
+      } else if (typeof rememberDeleted === 'function'){
+        rememberDeleted('entries', drop.id);
+      }
+    }
+  }
+  return passthrough.concat([...bestByKey.values()]);
+}
+
+async function purgeTombstonedFromDb(){
+  const sync = typeof ensureSyncConfig === 'function' ? ensureSyncConfig() : null;
+  const deleted = sync?.deletedIds || {};
+  const stores = ['entries','receipts','documents','abstracts','printHistory'];
+  for (const store of stores){
+    for (const id of (deleted[store] || [])){
+      try{ await dbDelete(store, id); }catch(_){}
+    }
+  }
+}
+
 function applyRemoteSnapshot(remote, policy){
   const localSync = localSyncCredentialSnapshot();
   const remoteData = remote.data || remote;
@@ -17906,14 +17965,21 @@ function applyRemoteSnapshot(remote, policy){
   /* Keep local sync credentials; merge other setup fields by newest edit. */
   const chosen = remoteTs > localTs ? remoteSetup : localSetup;
   state.setup = preserveLocalSyncOnSetup(chosen, localSync);
-  state.entries = filterDeleted(mergeListsById(remoteData.entries, state.entries), remoteData.deletedIds?.entries).map(normalizeEntry);
-  state.receipts = filterDeleted(mergeListsById(remoteData.receipts, state.receipts), remoteData.deletedIds?.receipts);
-  state.documents = filterDeleted(mergeListsById(remoteData.documents, state.documents), remoteData.deletedIds?.documents);
-  state.abstracts = filterDeleted(mergeListsById(remoteData.abstracts, state.abstracts), remoteData.deletedIds?.abstracts);
-  state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), remoteData.deletedIds?.printHistory);
+  /* Honour local + remote tombstones (same as the sync server). Filtering by
+     remote-only deletedIds left locally-deleted rows alive when a peer still
+     had them — and a recreate-with-new-id then looked like a duplicate. */
+  const deleted = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
+  state.entries = dedupeEntriesByContent(
+    filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
+    deleted
+  );
+  state.receipts = filterDeleted(mergeListsById(remoteData.receipts, state.receipts), deleted.receipts);
+  state.documents = filterDeleted(mergeListsById(remoteData.documents, state.documents), deleted.documents);
+  state.abstracts = filterDeleted(mergeListsById(remoteData.abstracts, state.abstracts), deleted.abstracts);
+  state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), deleted.printHistory);
   state.orbEntries = mergeListsById(remoteData.orbEntries, state.orbEntries).map(o => tagVesselId({...o}));
   const live = ensureSyncConfig();
-  live.deletedIds = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
+  live.deletedIds = deleted;
   live.pendingChanges = true;
 }
 
@@ -18139,6 +18205,9 @@ async function persistAllToDb(){
         await dbPut(store, tagVesselId(rec));
       }
     }
+    /* Drop tombstoned rows from IndexedDB so a later loadVesselFromDb cannot
+       resurrect ids that merge already filtered out of state. */
+    await purgeTombstonedFromDb();
   } finally {
     if (own) endActivity('persist');
   }

@@ -1312,6 +1312,12 @@ def merge_snapshots(server: dict | None, client: dict) -> dict:
         gone = set(deleted.get(key) or [])
         if gone:
             items = [i for i in items if i.get("id") not in gone]
+        if key == "entries":
+            entry_deleted = deleted.setdefault("entries", [])
+            items = dedupe_entries_by_content(items, entry_deleted)
+            gone = set(entry_deleted)
+            if gone:
+                items = [i for i in items if i.get("id") not in gone]
         merged["data"][key] = items
 
     merged["data"]["deletedIds"] = deleted
@@ -1354,6 +1360,53 @@ def merge_lists_by_id(server_items: list, client_items: list) -> list:
         if not prev or record_ts(item) >= record_ts(prev):
             by_id[item["id"]] = item
     return list(by_id.values())
+
+
+def entry_content_key(item: dict) -> str | None:
+    """Voyage + condition + datetime + operation — same watch, different offline ids."""
+    if not isinstance(item, dict):
+        return None
+    dt = str(item.get("datetime") or "").strip()
+    if not dt:
+        return None
+    vid = str(item.get("vesselId") or "")
+    vn = str(item.get("voyageNumber") or "").strip() or "_"
+    cond = str(item.get("condition") or "B").strip().upper()
+    if cond in ("BALLAST",):
+        cond = "B"
+    elif cond in ("LADEN", "LOADED"):
+        cond = "L"
+    op = str(item.get("operation") or "_").strip().upper() or "_"
+    return f"{vid}|{vn}|{cond}|{dt}|{op}"
+
+
+def dedupe_entries_by_content(items: list, deleted_entries: list | None = None) -> list:
+    """Keep the newest row per content key; append loser ids onto deleted_entries."""
+    best: dict[str, dict] = {}
+    passthrough: list = []
+    losers: list[str] = []
+    for item in items or []:
+        if not isinstance(item, dict) or not item.get("id"):
+            passthrough.append(item)
+            continue
+        key = entry_content_key(item)
+        if not key:
+            passthrough.append(item)
+            continue
+        prev = best.get(key)
+        if not prev:
+            best[key] = item
+            continue
+        prefer_new = record_ts(item) >= record_ts(prev)
+        keep, drop = (item, prev) if prefer_new else (prev, item)
+        best[key] = keep
+        if drop.get("id") and drop["id"] != keep.get("id"):
+            losers.append(drop["id"])
+    if deleted_entries is not None:
+        for lid in losers:
+            if lid not in deleted_entries:
+                deleted_entries.append(lid)
+    return passthrough + list(best.values())
 
 
 def record_ts(item: dict) -> str:
