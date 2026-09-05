@@ -1532,13 +1532,26 @@
     text-transform:none; letter-spacing:0; opacity:0.88;
     font-family:'Inter',sans-serif;
   }
-  .pr-table.pr-table-rob th.rob-total-col,
-  .pr-table.pr-table-rob td.rob-total-col{ background:#eef2f8; }
+  .pr-table.pr-table-rob th.rob-total-col{
+    /* Match other grade headers: navy fill, white type. */
+    background:#122238 !important; color:#fff !important;
+  }
+  .pr-table.pr-table-rob th.rob-total-col .pr-rob-unit{
+    color:#fff !important; opacity:0.9;
+  }
+  .pr-table.pr-table-rob td.rob-total-col,
+  .pr-table.pr-table-rob td.rob-total-col *{
+    /* Light total fill must never inherit the white header type. */
+    background:#eef2f8 !important; color:#0a1420 !important;
+  }
   .pr-table.pr-table-rob tr.rob-present-row td{
-    font-weight:700; background:#f3f6fb;
+    font-weight:700; background:#f3f6fb; color:#0a1420;
   }
   .pr-table.pr-table-rob tr.rob-present-row td.row-lbl{ font-weight:700; }
-  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col{ background:#e4eaf3; }
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col,
+  .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col *{
+    background:#dce3ee !important; color:#0a1420 !important;
+  }
   /* Says the list under it was cut, so a short list is never mistaken for the range. */
   .pr-note{ font-size:8.5px; color:#5a6578; font-style:italic; margin-top:0.8mm; }
   .pr-remarks{
