@@ -7383,7 +7383,14 @@ function entryMatchesActiveLeg(e){
   const eVn = (e.voyageNumber || '').trim();
   const eCond = normalizeCondition(e.condition != null && e.condition !== '' ? e.condition : cond);
   if (eVn) return eVn === vn && eCond === cond;
-  /* Untagged legacy rows stay with the active condition until they are saved under a voyage. */
+  /* Untagged legacy rows stay with the active condition only until this voyage has
+     any tagged entries. Once the leg is tagged, untagged foreign rows must not
+     inflate voyage totals or averages when entries are added, edited, or deleted. */
+  const hasTaggedForActive = (state.entries || []).some(x=>{
+    if (!x) return false;
+    return (x.voyageNumber || '').trim() === vn;
+  });
+  if (hasTaggedForActive) return false;
   return eCond === cond;
 }
 
@@ -7793,8 +7800,17 @@ function effectiveRpm(rpmEntered, dailyRevs, hrs){
 }
 
 /* ---------------- derived calculations ---------------- */
-function computeDerived(){
-  const list = sortedEntries();
+function computeDerived(opts){
+  /* Always recalculate from currently existing (non-deleted) entries — never
+     accumulate against a previous pass. Optional upToEntryId limits summary /
+     noon averages to that report and earlier ones so later watches cannot inflate figures. */
+  const all = sortedEntries();
+  let list = all;
+  const upToId = opts && opts.upToEntryId != null ? String(opts.upToEntryId) : '';
+  if (upToId){
+    const cut = all.findIndex(e => String(e.id) === upToId);
+    list = cut >= 0 ? all.slice(0, cut + 1) : all;
+  }
   const rolls = meterRollovers();
   const pitch = state.setup.pitch || 0;
   const mcrRpm = state.setup.mcrRpm || 1;
@@ -7939,9 +7955,9 @@ function computeDerived(){
       if (hrs>0) speedShip = e.distanceShip / hrs;
       if (distEngine!=null && distEngine>0 && e.distanceShip!==null){
         slip = ((distEngine - e.distanceShip)/distEngine)*100;
-        sumSlip += slip; cntSlip++;
+        if (hrs>0){ sumSlip += slip*hrs; cntSlip += hrs; }
       }
-      if (speedShip!==null && !isNaN(speedShip)){ sumSpeedShip+=speedShip; cntSpeedShip++; }
+      if (speedShip!==null && !isNaN(speedShip) && hrs>0){ sumSpeedShip+=speedShip*hrs; cntSpeedShip+=hrs; }
 
       if (rpmEff!=null && !isNaN(rpmEff)){
         /* Engine speed from distance/hours when Δrevs known — matches pitch×Δrevs/1852 */
@@ -7952,9 +7968,12 @@ function computeDerived(){
         kwEst = Math.pow(rpmEff/mcrRpm, 3) * mcrKw;
         const shaftKw = e.shaftKw != null ? e.shaftKw : e.report?.shaftKw;
         if (shaftKw != null && !isNaN(shaftKw) && shaftKw > 0) kwEst = shaftKw;
-        sumRpm += rpmEff; cntRpm++;
-        sumMcr += mcrPct; cntMcr++;
-        sumKw += kwEst; cntKw++;
+        const wHrs = (meHrs != null && meHrs > 0) ? meHrs : hrs;
+        if (wHrs > 0){
+          sumRpm += rpmEff * wHrs; cntRpm += wHrs;
+          sumMcr += mcrPct * wHrs; cntMcr += wHrs;
+          sumKw += kwEst * wHrs; cntKw += wHrs;
+        }
       }
 
       sfocRef = mcrPct!=null ? referenceSfocAtLoad(mcrPct) : null;
@@ -8023,9 +8042,7 @@ function computeDerived(){
         kwEst = Math.pow(rpmEff/mcrRpm, 3) * mcrKw;
         const shaftKw2 = e.shaftKw != null ? e.shaftKw : e.report?.shaftKw;
         if (shaftKw2 != null && !isNaN(shaftKw2) && shaftKw2 > 0) kwEst = shaftKw2;
-        sumRpm += rpmEff; cntRpm++;
-        sumMcr += mcrPct; cntMcr++;
-        sumKw += kwEst; cntKw++;
+        /* No prior entry ⇒ no elapsed period — leave voyage averages untouched. */
       }
     }
 
@@ -8051,11 +8068,12 @@ function computeDerived(){
   }
 
   const perf = {
+    /* RPM / kW / slip / speed are hour-weighted over currently existing periods only. */
     avgRpm: cntRpm? sumRpm/cntRpm : null,
     avgMcr: cntMcr? sumMcr/cntMcr : null,
     avgMcrTimeWeighted: totalHrs>0 ? sumMcrHrs/totalHrs : null,
     avgKw: cntKw? sumKw/cntKw : null,
-    avgSpeedShip: cntSpeedShip? sumSpeedShip/cntSpeedShip : null,
+    avgSpeedShip: totalHrs>0 ? totalDistShip/totalHrs : (cntSpeedShip? sumSpeedShip/cntSpeedShip : null),
     avgSlip: cntSlip? sumSlip/cntSlip : null,
     avgSfocActual: sumSfocHrs>0 ? sumSfocWeighted/sumSfocHrs : null,
     avgSfocRef: sumSfocRefHrs>0 ? sumSfocRefWeighted/sumSfocRefHrs : null,
@@ -14107,7 +14125,7 @@ function openVoyageSummary(entryId){
   if (currentVsEntryId !== entryId) vsForceShowMePanels = false;
   currentVsEntryId = entryId;
 
-  const {perf} = computeDerived();
+  const {perf} = computeDerived({ upToEntryId: entryId });
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
@@ -15178,7 +15196,7 @@ function buildVoyageNoonSheetHTML(entry){
   const row = getComputedRow(entryId);
   if (!entry || !row) return '';
 
-  const {perf, rows: derivedRows} = computeDerived();
+  const {perf, rows: derivedRows} = computeDerived({ upToEntryId: entryId });
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
@@ -17953,6 +17971,9 @@ function applyRemoteSnapshot(remote, policy){
     state.orbEntries = (remoteData.orbEntries || []).map(o=> tagVesselId({...o}));
     const live = ensureSyncConfig();
     live.deletedIds = remoteData.deletedIds || localSync.deletedIds || live.deletedIds || {};
+    if (typeof entryMatchesActiveLeg === 'function'){
+      state.entries = (state.entries || []).filter(entryMatchesActiveLeg);
+    }
     return;
   }
   if (policy === 'local'){
@@ -17981,6 +18002,11 @@ function applyRemoteSnapshot(remote, policy){
   const live = ensureSyncConfig();
   live.deletedIds = deleted;
   live.pendingChanges = true;
+  /* Sync payloads are per leg, but a merge can still leave off-leg rows in memory.
+     Voyage averages must only see the active leg's currently existing entries. */
+  if (typeof entryMatchesActiveLeg === 'function'){
+    state.entries = (state.entries || []).filter(entryMatchesActiveLeg);
+  }
 }
 
 function filterDeleted(items, deleted){
