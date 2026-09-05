@@ -1795,7 +1795,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Voyage Specifics</h2>
       <div class="form-grid cols3">
         <div class="field"><label>Voyage No.</label><input id="s_voyageNumber"></div>
-        <div class="field"><label>Ships Condition</label><select id="s_shipCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Ships Condition</label><select id="s_shipCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field"><label>Date &amp; Time (initial)</label><input type="datetime-local" id="s_initDateTime"></div>
         <div class="field"><label>Time zone</label><select id="s_initTzOffset"></select></div>
         <div class="field"><label>Departure</label><input id="s_departPort"></div>
@@ -1993,7 +1993,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint" style="margin-bottom:8px;">Lists voyage numbers for the <strong>selected vessel only</strong> (Fleet selector above). Other ships’ legs stay hidden.</div>
       <div class="form-grid cols3">
         <div class="field"><label>Voyage No. (library)</label><select id="s_voyageSelect"></select></div>
-        <div class="field"><label>Condition leg</label><select id="s_legCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Condition leg</label><select id="s_legCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field" style="display:flex; align-items:flex-end; gap:8px;">
           <button class="primary" id="btnLoadVoyageLeg" style="width:100%;">Load Selected Leg</button>
         </div>
@@ -2192,13 +2192,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <input type="hidden" id="in_rpm" value="">
 
       <div class="form-grid">
-        <div class="field span2"><label>Date &amp; Time (ship's clock)</label><input type="datetime-local" id="in_datetime"></div>
+        <div class="field span2"><label>Date &amp; Time (ship's clock)</label><input type="datetime-local" id="in_datetime"><div class="hint">Set the correct date/time first when inserting a missed report — meters and calculations use the previous entry before that stamp.</div></div>
         <div class="field span2"><label>Time zone</label><select id="in_tzOffset"></select></div>
         <div class="field span2"><label>Operation</label>
           <!-- Options are built from OPERATION_GROUPS so the list has one definition. -->
           <select id="in_operation"></select>
         </div>
-        <div class="field"><label>Condition</label><select id="in_condition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
       </div>
       <input type="hidden" id="in_clockChangeMin" value="0">
       <div class="tz-clock-row">
@@ -2629,7 +2629,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Saved Voyage Abstracts</h2>
-      <div class="hint">A snapshot of the Voyage Abstract table is saved here automatically every time "Create New Voyage" runs, alongside the downloaded backup file. Browsers can't write to a folder on disk directly, so this list is this browser's local equivalent of a "root/abstract" folder — select one below to view it, or download a copy.</div>
+      <div class="hint">A snapshot of the Voyage Abstract table is saved here automatically every time "Create New Voyage" runs, alongside the downloaded backup file. Browsers can't write to a folder on disk directly, so this list is this browser's local equivalent of a "root/abstract" folder — select one below to view it, or download a copy. Deleted abstracts are kept under <strong>Data → Deleted Entry Backup</strong> so they can be restored on this device.</div>
       <div class="table-scroll" style="margin-top:10px;">
         <table>
           <thead><tr><th>Saved</th><th>Voyage No.</th><th>Condition</th><th>Filename</th><th></th></tr></thead>
@@ -3276,7 +3276,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="form-grid cols3" style="margin-top:10px;">
         <div class="field"><label>Pull voyage no.</label><select id="sync_pullVoyage"></select></div>
-        <div class="field"><label>Pull condition</label><select id="sync_pullCondition"><option value="B">B — Ballast</option><option value="L">L — Laden</option></select></div>
+        <div class="field"><label>Pull condition</label><select id="sync_pullCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
         <div class="field" style="display:flex; align-items:flex-end;">
           <button class="ghost small" id="btnPullVoyageLeg" style="width:100%;">Pull Selected Voyage Leg</button>
         </div>
@@ -3339,6 +3339,32 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <input type="file" id="fileDbMerge" accept="application/json,.json" style="display:none;">
       </div>
       <div class="hint" id="dbBackupStatus">No full-database action yet this session.</div>
+    </div>
+    <div class="panel" id="deletedBackupPanel">
+      <h2>Deleted Entry Backup</h2>
+      <p class="hint">When a log entry or saved voyage abstract is deleted, a copy is kept <strong>on this device only</strong> so an accidental delete can be restored. Restoring puts the record back into the active voyage and clears its sync tombstone so the server can receive it again — the trash itself is never pushed as a separate sync store.</p>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnRefreshDeletedBackup">Refresh List</button>
+        <button class="ghost small" type="button" id="btnPurgeDeletedBackup">Clear Old Backups…</button>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Deleted</th>
+              <th>Kind</th>
+              <th>Voyage</th>
+              <th>Stamp / Name</th>
+              <th>Source</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="deletedBackupBody">
+            <tr class="empty-row"><td colspan="6">No deleted backups yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="hint" id="deletedBackupStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
     </div>
     <div class="panel">
       <h2>Local Database (active voyage)</h2>
@@ -4334,7 +4360,7 @@ let dbOpenPromise = null;
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 6);
+    const req = indexedDB.open('noonReportDB', 7);
     req.onupgradeneeded = (e)=>{
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
@@ -4347,6 +4373,8 @@ function openDB(){
       if (!d.objectStoreNames.contains('voyageLegs')) d.createObjectStore('voyageLegs', {keyPath:'id'});
       /* Vessel-lifetime Oil Record Book entries (not voyage-leg scoped). */
       if (!d.objectStoreNames.contains('orbEntries')) d.createObjectStore('orbEntries', {keyPath:'id'});
+      /* Local-only trash for accidental deletes — not synced as its own store. */
+      if (!d.objectStoreNames.contains('deletedBackup')) d.createObjectStore('deletedBackup', {keyPath:'trashId'});
     };
     req.onsuccess = (e)=>{ db = e.target.result; db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; }; resolve(db); };
     req.onerror = (e)=>{ dbOpenPromise = null; reject(req.error || new Error('IndexedDB failed to open')); };
@@ -6009,7 +6037,8 @@ function normalizeCondition(condition){
 }
 
 function conditionLabel(condition){
-  return normalizeCondition(condition) === 'L' ? 'L — Laden' : 'B — Ballast';
+  /* Print / badge wording: spell out the condition (not just L/B). */
+  return normalizeCondition(condition) === 'L' ? 'Laden' : 'Ballasted';
 }
 
 function captureActiveLegPack(){
@@ -7164,17 +7193,23 @@ async function restoreLaterSnapshots(snapshots){
   }
 }
 
-async function deleteEntryById(id, { confirmMsg } = {}){
+async function deleteEntryById(id, { confirmMsg, source } = {}){
   const entry = state.entries.find(e=>e.id===id);
   if (!entry) return false;
   if (confirmMsg !== false){
-    const msg = confirmMsg || 'Delete this log entry? Later entries will recalculate from the previous remaining entry. You can Undo Last Save to restore.';
+    const msg = confirmMsg || 'Delete this log entry? A local backup is kept on this device (Data → Deleted Entry Backup). Later entries will recalculate from the previous remaining entry.';
     if (!confirm(msg)) return false;
   }
   const laterSnapshots = snapshotLaterEntries(entry.datetime, entry.id);
   const sorted = sortedEntries();
   const delIdx = sorted.findIndex(e=>e.id===id);
   pushEntryUndo({ type:'delete', entry: cloneEntry(entry), laterSnapshots });
+  await backupDeletedRecord({
+    kind: 'entry',
+    source: source || 'log-entry',
+    record: entry,
+    laterSnapshots
+  });
   state.entries = state.entries.filter(e=>e.id!==id);
   await dbDelete('entries', id);
   rememberDeleted('entries', id);
@@ -7199,7 +7234,9 @@ async function undoLastEntryAction(){
     // Restore deleted entry, then restore later entries to pre-cascade state
     state.entries.push(cloneEntry(action.entry));
     await dbPut('entries', action.entry);
+    forgetDeleted('entries', action.entry.id);
     await restoreLaterSnapshots(action.laterSnapshots);
+    await saveSetup();
   } else if (action.type === 'update'){
     const idx = state.entries.findIndex(e=>e.id===action.entry.id);
     if (idx>-1) state.entries[idx] = cloneEntry(action.entry);
@@ -9993,7 +10030,7 @@ function render(){
   const vlBody = document.getElementById('voyageAbstractBody');
   if (vlBody && rows.length){
     vlBody.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click', async ()=>{
-      await deleteEntryById(b.dataset.del);
+      await deleteEntryById(b.dataset.del, { source:'voyage-abstract' });
     }));
     vlBody.querySelectorAll('[data-view]').forEach(b=> b.addEventListener('click', ()=>{
       loadEntryIntoForm(b.dataset.view);
@@ -10862,6 +10899,9 @@ function switchTab(pageName){
   if (pageName === 'summary' && prev !== 'summary'){
     renderVoyageProgress(true);
   }
+  if (pageName === 'data'){
+    renderDeletedBackupList();
+  }
   if (pageName === 'reference'){
     updateRefNoxCalc();
     updateRefSfocCalc();
@@ -11280,7 +11320,8 @@ function printTurboOthersSection(report, { includeMeAux = true, entry = null } =
     const turbos = report.turbos || [report.turbo1, report.turbo2].filter(Boolean);
     const turboRows = Array.from({length:turboCount()}, (_,i)=>{
       const t = turbos[i] || {};
-      return printRow(`T/C #${i+1} In / Out / RPM`, `${fmtP(t.in, 2)} / ${fmtP(t.out, 2)} / ${fmtP(t.rpm, 2)}`);
+      return printRow(`T/C #${i+1} In / Out`, `${fmtP(t.in, 2)} / ${fmtP(t.out, 2)}`)
+        + printRow(`T/C #${i+1} RPM`, fmtP(t.rpm, 2));
     }).join('');
     parts.push(turboRows);
     parts.push(printRow('Scav. Temperature', `${fmtP(report.scavTemp, 2)} °C`));
@@ -15163,28 +15204,25 @@ function buildVoyageNoonSheetHTML(entry){
   /* With the engine stopped a stored RPM is stale — do not fall back to it. */
   const printRpm = row.meStopped ? null : (row.rpmEff!=null ? row.rpmEff : entry.rpm);
   const meRunningEarly = mainEngineInUse(entry, row);
+  /* Slip % sits between RPM and Speed on the KPI strip. Ship Dist is omitted when
+     the main engine is not running — that figure is always zero on those reports. */
   const kpiItems = meRunningEarly ? [
     {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)},
     {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)},
     {label:'RPM', value:fmt(printRpm, 2)},
+    {label:'Slip %', value:fmt(row.slip,2)},
     {label:'Speed (kn)', value:fmt(row.speedShip,2)},
     {label:'% MCR', value:fmt(row.mcrPct, 2)},
     {label:'Est. kW', value:fmt(row.kwEst, 2)}
   ] : [
-    {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)},
-    {label:'Ship Dist (nm)', value:fmt(entry.distanceShip, 2)}
+    {label:'Run Hrs (This Report)', value:fmt(periodHrs, 2)}
   ];
 
-  /* Slip % stays under M/E Performance only — not repeated here. */
   const voyageSection = meRunningEarly ? printSection('Voyage Progress', [
     printRow('Engine Distance', `${fmt(row.distEngine,2)} nm`),
     printRow('Distance To Go', distanceToGo!=null?`${fmt(distanceToGo, 2)} nm`:'—'),
     printRow('Days To Go', daysToGoVal!=null?fmt(daysToGoVal,2):'—'),
-    printRow('ETA', etaStr),
-    printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
-    /* The counter reading the daily figure was taken from, so the sheet carries the
-       evidence as well as the difference. */
-    printRow('Rev. Counter', entry.revCounter==null?'—':fmt(entry.revCounter, 0))
+    printRow('ETA', etaStr)
   ].join('')) : '';
 
   /* Fuel consumption by unit AND by grade. Each unit can be burning a different
@@ -15245,13 +15283,12 @@ function buildVoyageNoonSheetHTML(entry){
 
   const deltaCls = sfocDeltaClass(row.sfocDelta);
   const deltaStr = row.sfocDelta==null ? '—' : `${row.sfocDelta>0?'+':''}${fmt(row.sfocDelta, 2)}%`;
+  /* RPM / %MCR / Est. kW / ship speed / slip live on the KPI strip. Rev counter and
+     daily revs move here from Voyage Progress so the evidence sits with SFOC. */
   const meSection = printSection('M/E Performance', [
-    printRow('RPM', fmt(printRpm, 2)),
-    printRow('% MCR', fmt(row.mcrPct, 2)),
-    printRow('Est. kW', fmt(row.kwEst, 2)),
+    printRow('Daily Revs.', fmt(row.dailyRevs, 2)),
+    printRow('Rev. Counter', entry.revCounter==null?'—':fmt(entry.revCounter, 0)),
     printRow('Engine Speed', row.speedEngine==null?'—':`${fmt(row.speedEngine,2)} kn`),
-    printRow('Ship Speed', row.speedShip==null?'—':`${fmt(row.speedShip,2)} kn`),
-    printRow('Slip %', fmt(row.slip,2)),
     printRow('SFOC @ 100% MCR', state.setup.sfoc100==null?'—':`${fmt(state.setup.sfoc100, 2)} g/kWh`),
     printRow('Ref. SFOC', `${fmt(row.sfocRef, 2)} g/kWh`),
     printRow('Actual SFOC', `${fmt(row.sfocActual, 2)} g/kWh`),
@@ -15368,12 +15405,12 @@ function buildVoyageNoonSheetHTML(entry){
   const titles = noonSheetTitles(entry.operation);
   const flagName = flagRegistryName(vesselFlagCode());
   return `<div class="pr-sheet pr-sheet-noon">
-    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: entry.condition })}
+    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: conditionLabel(entry.condition) })}
     ${printMetaGrid([
       {label:'Date & Time', value:dtStr},
-      {label:'Last Report', value:prevReportStr},
-      {label:'Condition', value:entry.condition},
       {label:'Route', value:`${state.setup.departPort||'—'} → ${state.setup.arrivePort||'—'}`},
+      {label:'Condition', value:conditionLabel(entry.condition)},
+      {label:'Last Report', value:prevReportStr},
       {label:'IMO No.', value:state.setup.imoNo||'—'},
       {label:'Flag', value:flagName||'—'}
     ], 6)}
@@ -15794,6 +15831,12 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
 /* 'input' as well as 'change': mobile/tablet date pickers commit via 'input'. */
 ['change','input'].forEach(evt=>{
   document.getElementById('in_datetime').addEventListener(evt, ()=>{
+    /* New (unsaved) entry: when the date/time moves, re-seed meters from the
+       chronologically previous report so a missed watch can be filled in order. */
+    if (!editingId && evt === 'change'){
+      prefillFromLastEntry();
+      return;
+    }
     /* Runtime must follow the selected date/time before anything derived from it. */
     syncMeRuntimeFromPeriod();
     if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
@@ -16663,7 +16706,12 @@ function applyEntryDefaults(){
 
 /** Prefill a new log entry from the last saved entry (meters, types, condition) — not consumption. */
 function prefillFromLastEntry(){
-  const last = sortedEntries().slice(-1)[0] || state.setup.carryover;
+  /* Prefer the chronologically previous entry for the form date/time so a missed
+     watch can be inserted mid-voyage: meters and types seed from that reference,
+     and live calcs (via getPrevReferenceFor) use the same baseline. */
+  const dtVal = document.getElementById('in_datetime')?.value || '';
+  const byTime = dtVal ? getPrevReferenceFor(dtVal, editingId) : null;
+  const last = byTime || sortedEntries().slice(-1)[0] || state.setup.carryover;
   /* Fresh form → the runtime counter goes back to tracking the selected date/time. */
   clearMeRuntimeUserEdit();
   applyEntryDefaults();
@@ -16679,10 +16727,9 @@ function prefillFromLastEntry(){
 
   const set = (id, val) => { const el = document.getElementById(id); if (el && val!=null && val!==undefined) el.value = val; };
   /* A watch almost always repeats the operation before it — a sea passage is a run of
-     NOON REPORTs — so open on the last one rather than on the list's default, which
-     the engineer had to re-pick every single time. setOperationSelectValue adds the
-     option back if the operation is one no longer offered, so an old log's wording
-     survives instead of silently blanking the field. */
+     NOON REPORTs — so open on the previous reference (by date/time) rather than the
+     list default. setOperationSelectValue adds the option back if the operation is
+     one no longer offered, so an old log's wording survives instead of blanking. */
   setOperationSelectValue(document.getElementById('in_operation'), last.operation);
   set('in_condition', last.condition || state.setup.shipCondition);
   set('in_tbn', last.tbn);
@@ -16780,10 +16827,15 @@ function renderAbstractList(){
   });
   body.querySelectorAll('[data-del-abstract]').forEach(b=>{
     b.addEventListener('click', async ()=>{
-      if (!confirm('Delete this saved abstract permanently?')) return;
+      if (!confirm('Delete this saved abstract? A local backup is kept on this device (Data → Deleted Entry Backup).')) return;
+      const abs = state.abstracts.find(a=>a.id===b.dataset.delAbstract);
+      if (abs){
+        await backupDeletedRecord({ kind:'abstract', source:'saved-abstract', record: abs });
+      }
       state.abstracts = state.abstracts.filter(a=>a.id!==b.dataset.delAbstract);
       await dbDelete('abstracts', b.dataset.delAbstract);
       renderAbstractList();
+      if (typeof renderDeletedBackupList === 'function') renderDeletedBackupList();
     });
   });
 }
@@ -17888,6 +17940,177 @@ function rememberDeleted(store, id){
   if (sync.deletedIds[store].length > 500) sync.deletedIds[store] = sync.deletedIds[store].slice(-500);
 }
 
+const DELETED_BACKUP_MAX = 100;
+const DELETED_BACKUP_DAYS = 90;
+
+function forgetDeleted(store, id){
+  const sync = ensureSyncConfig();
+  if (!sync.deletedIds || !sync.deletedIds[store]) return;
+  sync.deletedIds[store] = sync.deletedIds[store].filter(x => x !== id);
+}
+
+function deletedBackupLabel(rec){
+  if (!rec) return '—';
+  if (rec.kind === 'abstract'){
+    return rec.record?.filename || rec.record?.id || 'Saved abstract';
+  }
+  const e = rec.record || {};
+  const when = e.datetime ? new Date(e.datetime).toLocaleString() : '—';
+  const op = e.operation || 'Log entry';
+  return `${when} · ${op}`;
+}
+
+async function pruneDeletedBackups(){
+  let rows = [];
+  try{ rows = await dbGetAll('deletedBackup'); }
+  catch(_){ return; }
+  const cutoff = Date.now() - DELETED_BACKUP_DAYS * 24 * 3600 * 1000;
+  const sorted = (rows || []).slice().sort((a,b)=> String(a.deletedAt||'').localeCompare(String(b.deletedAt||'')));
+  const drop = [];
+  sorted.forEach(r=>{
+    const t = r.deletedAt ? Date.parse(r.deletedAt) : NaN;
+    if (Number.isFinite(t) && t < cutoff) drop.push(r.trashId);
+  });
+  const keep = sorted.filter(r => !drop.includes(r.trashId));
+  if (keep.length > DELETED_BACKUP_MAX){
+    keep.slice(0, keep.length - DELETED_BACKUP_MAX).forEach(r => drop.push(r.trashId));
+  }
+  for (const id of drop){
+    try{ await dbDelete('deletedBackup', id); }catch(_){}
+  }
+}
+
+async function backupDeletedRecord({ kind, source, record, laterSnapshots = null }){
+  if (!record || !kind) return null;
+  const trash = {
+    trashId: uid(),
+    kind,
+    source: source || kind,
+    deletedAt: new Date().toISOString(),
+    vesselId: record.vesselId || state.activeVesselId || null,
+    voyageNumber: record.voyageNumber || state.setup?.voyageNumber || '',
+    condition: record.condition || record.shipCondition || state.setup?.shipCondition || '',
+    record: cloneEntry(record),
+    laterSnapshots: laterSnapshots ? cloneEntry(laterSnapshots) : null,
+    syncedTombstone: kind === 'entry'
+  };
+  try{
+    await dbPut('deletedBackup', trash);
+    await pruneDeletedBackups();
+  }catch(err){
+    console.warn('Deleted backup could not be saved', err);
+  }
+  return trash;
+}
+
+async function listDeletedBackups(){
+  let rows = [];
+  try{ rows = await dbGetAll('deletedBackup'); }
+  catch(_){ rows = []; }
+  const keys = typeof vesselIdentityKeys === 'function'
+    ? vesselIdentityKeys(state.activeVesselId || LEGACY_VESSEL_ID)
+    : new Set([state.activeVesselId || LEGACY_VESSEL_ID]);
+  return (rows || [])
+    .filter(r=>{
+      if (!r) return false;
+      if (!r.vesselId) return true;
+      return keys.has(r.vesselId);
+    })
+    .sort((a,b)=> String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
+}
+
+async function renderDeletedBackupList(){
+  const body = document.getElementById('deletedBackupBody');
+  const status = document.getElementById('deletedBackupStatus');
+  if (!body) return;
+  const rows = await listDeletedBackups();
+  if (!rows.length){
+    body.innerHTML = `<tr class="empty-row"><td colspan="6">No deleted backups yet.</td></tr>`;
+    if (status) status.textContent = 'Trash is empty on this device.';
+    return;
+  }
+  body.innerHTML = rows.map(r=>{
+    const kind = r.kind === 'abstract' ? 'Saved abstract' : 'Log entry';
+    const when = r.deletedAt ? new Date(r.deletedAt).toLocaleString() : '—';
+    const voy = r.voyageNumber || '—';
+    const stamp = deletedBackupLabel(r);
+    const src = r.source || '—';
+    return `<tr>
+      <td>${when}</td>
+      <td>${kind}</td>
+      <td>${voy}</td>
+      <td>${stamp}</td>
+      <td>${src}</td>
+      <td style="display:flex; gap:4px; flex-wrap:wrap;">
+        <button type="button" class="small primary" data-restore-trash="${r.trashId}">Restore</button>
+        <button type="button" class="small danger" data-purge-trash="${r.trashId}">Discard</button>
+      </td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('[data-restore-trash]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.restoreTrash;
+      if (!confirm('Restore this deleted record into the active voyage?')) return;
+      try{
+        await restoreDeletedBackup(id);
+        const st = document.getElementById('deletedBackupStatus');
+        if (st) st.textContent = 'Restored on this device. Sync when online to update the server.';
+      }catch(err){
+        alert('Restore failed: ' + (err.message || err));
+      }
+      await renderDeletedBackupList();
+    });
+  });
+  body.querySelectorAll('[data-purge-trash]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if (!confirm('Permanently discard this local backup? This cannot be undone.')) return;
+      await dbDelete('deletedBackup', btn.dataset.purgeTrash);
+      await renderDeletedBackupList();
+    });
+  });
+  if (status) status.textContent = rows.length + ' backup(s) kept on this device (not a sync store).';
+}
+
+async function restoreDeletedBackup(trashId){
+  const trash = await dbGet('deletedBackup', trashId);
+  if (!trash || !trash.record) throw new Error('Backup not found.');
+  if (trash.kind === 'abstract'){
+    const abs = cloneEntry(trash.record);
+    if (state.abstracts.some(a=>a.id===abs.id)){
+      if (!confirm('A saved abstract with this id already exists. Replace it with the backup?')) return;
+      state.abstracts = state.abstracts.filter(a=>a.id!==abs.id);
+    }
+    state.abstracts.push(abs);
+    await dbPut('abstracts', typeof tagVesselId === 'function' ? tagVesselId(abs) : abs);
+    await dbDelete('deletedBackup', trashId);
+    renderAbstractList();
+    markPendingSync();
+    await saveSetup();
+    return;
+  }
+  const entry = typeof normalizeEntry === 'function' ? normalizeEntry(cloneEntry(trash.record)) : cloneEntry(trash.record);
+  if (state.entries.some(e=>e.id===entry.id)){
+    if (!confirm('A log entry with this id already exists. Replace it with the backup?')) return;
+    state.entries = state.entries.filter(e=>e.id!==entry.id);
+  }
+  state.entries.push(entry);
+  await dbPut('entries', typeof tagVesselId === 'function' ? tagVesselId(entry) : entry);
+  forgetDeleted('entries', entry.id);
+  if (trash.laterSnapshots && trash.laterSnapshots.length){
+    await restoreLaterSnapshots(trash.laterSnapshots);
+  } else {
+    const sorted = sortedEntries();
+    const idx = sorted.findIndex(e=>e.id===entry.id);
+    await cascadeSucceedingEntries(idx, { clearOverrides: true });
+  }
+  await dbDelete('deletedBackup', trashId);
+  markPendingSync();
+  await saveSetup();
+  render();
+  updateEntryActionButtons();
+}
+
+
 async function persistAllToDb(){
   const groups = [
     ['entries', state.entries],
@@ -18733,7 +18956,7 @@ document.getElementById('btnCopyPcInstall')?.addEventListener('click', async ()=
 
 /* ---------------- full database backup / restore / merge ---------------- */
 const DB_BACKUP_FORMAT = 'noon-report-db-v1';
-const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','orbEntries'];
+const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','orbEntries','deletedBackup'];
 
 async function downloadJsonFile(filename, obj){
   const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
@@ -19222,6 +19445,13 @@ document.getElementById('fileImportVessel')?.addEventListener('change', async (e
   }
 });
 
+
+document.getElementById('btnRefreshDeletedBackup')?.addEventListener('click', ()=>{ renderDeletedBackupList(); });
+document.getElementById('btnPurgeDeletedBackup')?.addEventListener('click', async ()=>{
+  if (!confirm('Discard deleted backups older than ' + DELETED_BACKUP_DAYS + ' days (or over the ' + DELETED_BACKUP_MAX + ' cap)?')) return;
+  await pruneDeletedBackups();
+  await renderDeletedBackupList();
+});
 document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
   const btn = document.getElementById('btnDbBackup');
   if (btn) btn.disabled = true;
