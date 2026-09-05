@@ -3261,7 +3261,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>API Token</label><input id="sync_apiToken" type="password" placeholder="Bearer token"></div>
         <div class="field"><label>Vessel ID (slug)</label><input id="sync_vesselId" placeholder="e.g. captain-veniamis"></div>
         <div class="field"><label>Device name</label><input id="sync_deviceName" placeholder="e.g. ER tablet / Chief PC"></div>
-        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="true">On save &amp; when online</option><option value="false">Manual only</option></select></div>
+        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="true">After 3 min idle</option><option value="false">Manual only</option></select></div>
         <div class="field"><label>Conflict policy</label><select id="sync_conflict"><option value="merge">Merge by record (recommended)</option><option value="local">Prefer this device</option><option value="remote">Prefer server</option></select></div>
       </div>
       <div class="sync-save-status" id="syncSaveStatus" role="status" aria-live="polite"></div>
@@ -18218,6 +18218,10 @@ async function syncNow(options = {}){
   if (printHoldActive() && !options.force){
     throw new Error('Print dialog is open — sync will run after printing finishes.');
   }
+  /* Manual or forced runs cancel the idle timer so we do not double-fire. */
+  idleSyncWaiting = false;
+  try{ clearTimeout(syncTimer); }catch(_e){}
+  syncTimer = null;
   const pullOnly = !!options.pullOnly;
   const forcePolicy = options.policy;
   try{ await flushSyncSettingsFromForm(); }catch(_){}
@@ -18306,13 +18310,58 @@ async function syncNow(options = {}){
 }
 
 let syncTimer = null;
+/* Auto-sync waits until the operator has been idle for 3 minutes so
+   pull/push cannot stall the UI mid-entry. Manual Sync Now is unchanged. */
+const AUTO_SYNC_IDLE_MS = 3 * 60 * 1000;
+let lastUserActivityAt = Date.now();
+let idleSyncWaiting = false;
+
+function noteUserActivity(){
+  lastUserActivityAt = Date.now();
+  if (!idleSyncWaiting) return;
+  /* Keep postponing until a full idle window elapses. */
+  queueBackgroundSync();
+}
+
+function bindSyncIdleTracking(){
+  if (window.__syncIdleBound) return;
+  window.__syncIdleBound = true;
+  let throttleAt = 0;
+  const onAct = ()=>{
+    const now = Date.now();
+    if (now - throttleAt < 400) return;
+    throttleAt = now;
+    noteUserActivity();
+  };
+  ['pointerdown','keydown','touchstart','click','input','change','scroll','wheel'].forEach((ev)=>{
+    window.addEventListener(ev, onAct, { capture:true, passive:true });
+  });
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState === 'visible') noteUserActivity();
+  });
+}
+
 function queueBackgroundSync(){
   if (printHoldActive()) return;
+  idleSyncWaiting = true;
   clearTimeout(syncTimer);
+  const elapsed = Date.now() - lastUserActivityAt;
+  const wait = Math.max(1000, AUTO_SYNC_IDLE_MS - elapsed);
   syncTimer = setTimeout(()=>{
-    if (printHoldActive()) return;
+    if (printHoldActive()){
+      queueBackgroundSync();
+      return;
+    }
+    if (Date.now() - lastUserActivityAt < AUTO_SYNC_IDLE_MS){
+      queueBackgroundSync();
+      return;
+    }
+    idleSyncWaiting = false;
+    syncTimer = null;
+    const sync = ensureSyncConfig();
+    if (!sync.autoSync || !sync.pendingChanges || !navigator.onLine) return;
     syncNow().catch(()=>{});
-  }, 1200);
+  }, wait);
 }
 
 (function bindSaveSyncSettingsButton(){
@@ -18546,6 +18595,8 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
     alert('Could not request persistence: ' + e.message);
   }
 });
+
+bindSyncIdleTracking();
 
 window.addEventListener('online', ()=>{
   renderSyncUi();
