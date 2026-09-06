@@ -2539,8 +2539,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
         </div>
         <div class="hint" id="vsSurveyStatus"></div>
-        <div class="hint">Use it either way: after bunkering, to check the delivery against the tanks — the Received column shows what landed that day, so a negative difference is a short delivery; or on its own, as a plain survey of the tanks with no bunkering involved.</div>
-        <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. The calculated figure and the difference are kept with the report as the record of what was corrected.</div>
+        <div class="hint">Use it either way: after bunkering, to check the delivery against the tanks — type what was received in the Received column (or leave what Receipts already logged); a negative difference is a short delivery. Or use it alone as a plain tank survey with Received left blank.</div>
+        <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. Applying the survey also records any Received figures you typed as bunker receipts for that day. The calculated figure and the difference are kept with the report as the record of what was corrected.</div>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
@@ -8313,14 +8313,138 @@ async function recordRobSurvey(entryId, { measured = {}, measuredLube = {}, plac
   return entry.robSurvey;
 }
 
+/** Remove receipts created from a prior Apply on this survey (not hand-logged Receipts). */
+async function removeRobSurveyReceipts(entryId){
+  const doomed = (state.receipts || []).filter(r => r.source === 'rob-survey' && r.surveyEntryId === entryId);
+  for (const r of doomed){
+    state.receipts = state.receipts.filter(x => x.id !== r.id);
+    await dbDelete('receipts', r.id);
+  }
+  return doomed.length;
+}
+
+/** Read Received inputs from the survey table (fuel/lube MT, FW as m³ on the form). */
+function readVsSurveyReceivedInputs(){
+  const rows = [];
+  document.querySelectorAll('[data-survey-recv]').forEach(el=>{
+    if (el.value === '') return;
+    const cat = el.dataset.surveyRecvCat || el.dataset.surveyCat || 'fuel';
+    let qty = parseFloat(el.value);
+    if (!Number.isFinite(qty) || qty < 0) return;
+    if (cat === 'fw'){
+      const litres = typeof parseFwM3Field === 'function' ? parseFwM3Field(el.value) : null;
+      if (litres == null) return;
+      qty = litres;
+    }
+    rows.push({
+      tankId: el.dataset.surveyRecv,
+      cat,
+      store: el.dataset.surveyRecvStore || (cat === 'fuel' ? 'rob' : 'robLube'),
+      qty
+    });
+  });
+  return rows;
+}
+
+/**
+ * Upsert bunker/lube/FW receipts from the survey Received column so bunkering
+ * entered on the correction panel is reflected in the ROB book before re-base.
+ */
+async function syncRobSurveyReceivedReceipts(entryId, receivedRows){
+  const entry = state.entries.find(e=>e.id===entryId);
+  if (!entry) return;
+  await removeRobSurveyReceipts(entryId);
+  const day = String(entry.datetime || '').slice(0, 10);
+  const place = document.getElementById('vs_surveyPlace')?.value || entry.robSurvey?.place || '';
+  const tanks = {
+    fuel: fuelTankList(),
+    lube: lubeTankList(),
+    fw: fwTankList()
+  };
+  for (const row of receivedRows){
+    if (!(row.qty > 0)) continue;
+    const list = tanks[row.cat] || [];
+    const tank = list.find(t => t.id === row.tankId);
+    if (!tank) continue;
+    const receipt = {
+      id: uid(),
+      date: day,
+      category: row.cat,
+      type: tank.name || tank.grade || tank.id,
+      tankId: tank.id,
+      qty: row.qty,
+      vesselId: state.activeVesselId,
+      bdnNo: '',
+      company: '',
+      location: place,
+      source: 'rob-survey',
+      surveyEntryId: entryId
+    };
+    state.receipts.push(receipt);
+    await dbPut('receipts', tagVesselId(receipt));
+  }
+  markPendingSync();
+}
+
 /** Remove a survey, putting the ROB chain back on the book figures. */
 async function clearRobSurvey(entryId){
   const entry = state.entries.find(e=>e.id===entryId);
   if (!entry || !entry.robSurvey) return;
+  await removeRobSurveyReceipts(entryId);
   entry.robSurvey = null;
   await dbPut('entries', tagVesselId(entry));
   markPendingSync();
   render();
+}
+
+/** Live Difference (and book) while typing Received / Measured before Apply. */
+function refreshVsSurveyLiveDiffs(){
+  document.querySelectorAll('#vsSurveyBody tr').forEach(tr=>{
+    const recvEl = tr.querySelector('[data-survey-recv]');
+    const measEl = tr.querySelector('[data-survey-tank]');
+    const bookCell = tr.querySelector('[data-survey-book]');
+    const diffCell = tr.querySelector('[data-survey-diff]');
+    if (!bookCell || !diffCell || !measEl) return;
+    const cat = measEl.dataset.surveyCat || 'fuel';
+    const bookBase = parseFloat(bookCell.dataset.bookBase);
+    const recvBase = parseFloat(recvEl?.dataset.recvBase || '0') || 0;
+    let typedRecv = recvBase;
+    if (recvEl && recvEl.value !== ''){
+      if (cat === 'fw'){
+        const litres = typeof parseFwM3Field === 'function' ? parseFwM3Field(recvEl.value) : parseFloat(recvEl.value);
+        typedRecv = litres != null && !isNaN(litres) ? litres : recvBase;
+      } else {
+        const v = parseFloat(recvEl.value);
+        typedRecv = Number.isFinite(v) ? v : recvBase;
+      }
+    } else if (recvEl && recvEl.value === ''){
+      typedRecv = 0;
+    }
+    const book = (Number.isFinite(bookBase) ? bookBase : 0) - recvBase + typedRecv;
+    if (!document.activeElement || document.activeElement !== bookCell){
+      bookCell.textContent = fmtRob(book, cat);
+    }
+    if (measEl.value === ''){
+      diffCell.textContent = '—';
+      diffCell.removeAttribute('style');
+      return;
+    }
+    let meas;
+    if (cat === 'fw'){
+      meas = typeof parseFwM3Field === 'function' ? parseFwM3Field(measEl.value) : parseFloat(measEl.value);
+    } else {
+      meas = parseFloat(measEl.value);
+    }
+    if (meas == null || isNaN(meas)){
+      diffCell.textContent = '—';
+      diffCell.removeAttribute('style');
+      return;
+    }
+    const diff = meas - book;
+    diffCell.textContent = (diff > 0 ? '+' : '') + fmtRob(diff, cat);
+    if (Math.abs(diff) < 1e-9) diffCell.removeAttribute('style');
+    else diffCell.style.color = diff < 0 ? 'var(--danger,#c66)' : 'var(--teal)';
+  });
 }
 
 
@@ -8338,11 +8462,15 @@ function renderVsSurvey(){
     ...fwTankList().map(t=>({t, cat:'fw', store:'robLube'}))
   ];
   /* Bunkers landed on the day being surveyed — the delivery this survey checks.
-     A plain tank survey with no bunkering simply shows nothing here. */
+     Prefill Received from Receipts; the engineer can type/adjust for bunkering. */
   const surveyDay = String((sv ? sv.date : entry.datetime) || '').slice(0,10);
-  const receivedOnDay = (tank, category) => state.receipts
-    .filter(r=> receiptMatchesTank(r, tank, category) && String(r.date||'').slice(0,10) === surveyDay)
-    .reduce((a,r)=> a + (Number(r.qty)||0), 0);
+  const receivedOnDay = (tank, category) => {
+    if (sv?.received?.[tank.id] != null) return Number(sv.received[tank.id]) || 0;
+    if (sv?.receivedLube?.[tank.id] != null) return Number(sv.receivedLube[tank.id]) || 0;
+    return state.receipts
+      .filter(r=> receiptMatchesTank(r, tank, category) && String(r.date||'').slice(0,10) === surveyDay)
+      .reduce((a,r)=> a + (Number(r.qty)||0), 0);
+  };
 
   body.innerHTML = rows.map(({t, cat, store})=>{
     /* With a survey applied the calculated column would echo the measurement, which
@@ -8351,21 +8479,28 @@ function renderVsSurvey(){
       ? (store==='rob' ? sv.calculated?.[t.id] : sv.calculatedLube?.[t.id])
       : (store==='rob' ? calc.rob?.[t.id] : calc.robLube?.[t.id]);
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
-    const diff = (meas!=null && book!=null) ? meas - book : null;
+    const recvRaw = receivedOnDay(t, cat==='fuel' ? 'fuel' : (cat==='lube' ? 'lube' : 'fw'));
+    const recvDisp = cat === 'fw' && recvRaw ? (typeof fwInputValue === 'function' ? fwInputValue(recvRaw) : recvRaw) : (recvRaw || '');
+    const bookNum = book == null ? null : Number(book);
+    const recvNum = Number(recvRaw) || 0;
+    const diff = (meas!=null && bookNum!=null) ? meas - bookNum : null;
     const cls = diff==null ? '' : (Math.abs(diff) < 1e-9 ? '' : (diff < 0 ? ' style="color:var(--danger,#c66)"' : ' style="color:var(--teal)"'));
-    const recv = receivedOnDay(t, cat==='fuel' ? 'fuel' : (cat==='lube' ? 'lube' : 'fw'));
     return `<tr><td class="row-lbl">${t.name}</td>`
-      + `<td>${recv ? fmtRob(recv, cat) : '—'}</td>`
-      + `<td>${fmtRob(book, cat)}</td>`
+      + `<td><input type="number" step="any" min="0" data-survey-recv="${t.id}" data-survey-recv-cat="${cat}" data-survey-recv-store="${store}" data-recv-base="${recvNum}" value="${recvDisp !== '' && recvDisp != null ? recvDisp : ''}" placeholder="0"></td>`
+      + `<td data-survey-book data-book-base="${bookNum!=null?bookNum:''}">${fmtRob(book, cat)}</td>`
       + `<td><input type="number" step="any" data-survey-tank="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${meas!=null?(cat==='fw'?fwInputValue(meas):meas):''}" placeholder="${book!=null?fmtRob(book,cat):''}"></td>`
-      + `<td${cls}>${diff==null?'—':(diff>0?'+':'')+fmtRob(diff, cat)}</td></tr>`;
+      + `<td data-survey-diff${cls}>${diff==null?'—':(diff>0?'+':'')+fmtRob(diff, cat)}</td></tr>`;
   }).join('');
+
+  body.querySelectorAll('[data-survey-recv], [data-survey-tank]').forEach(el=>{
+    el.addEventListener('input', refreshVsSurveyLiveDiffs);
+  });
 
   const status = document.getElementById('vsSurveyStatus');
   if (status){
     status.textContent = sv
       ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : 'No survey on this report. R.O.B. is the calculated figure.';
+      : 'No survey on this report. R.O.B. is the calculated figure. Type Received when bunkering on this report.';
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -8394,17 +8529,30 @@ function bindRobSurveyUi(){
     if (!Object.keys(measured).length && !Object.keys(measuredLube).length){
       alert('Enter at least one measured figure.'); return;
     }
+    /* Record bunkering from Received first so the book figure includes it. */
+    const receivedRows = readVsSurveyReceivedInputs();
+    await syncRobSurveyReceivedReceipts(currentVsEntryId, receivedRows);
+    const received = {}, receivedLube = {};
+    receivedRows.forEach(r=>{
+      (r.store === 'rob' ? received : receivedLube)[r.tankId] = r.qty;
+    });
     await recordRobSurvey(currentVsEntryId, {
       measured, measuredLube,
       place: document.getElementById('vs_surveyPlace')?.value || '',
       surveyor: document.getElementById('vs_surveyor')?.value || '',
       remark: document.getElementById('vs_surveyRemark')?.value || ''
     });
+    const entry = state.entries.find(e=>e.id===currentVsEntryId);
+    if (entry?.robSurvey){
+      entry.robSurvey.received = received;
+      entry.robSurvey.receivedLube = receivedLube;
+      await dbPut('entries', tagVesselId(entry));
+    }
     renderVsSurvey();
   });
   if (clear) clear.addEventListener('click', async ()=>{
     if (!currentVsEntryId) return;
-    if (!confirm('Remove the survey? R.O.B. goes back to the calculated figures.')) return;
+    if (!confirm('Remove the survey? R.O.B. goes back to the calculated figures, and Received amounts logged from this survey are removed.')) return;
     await clearRobSurvey(currentVsEntryId);
     renderVsSurvey();
   });
@@ -14574,6 +14722,13 @@ function computeVsLiveConsByType(entry){
   if (blrCons!=null && blrType) consByType[blrType] = (consByType[blrType]||0) + blrCons;
   consByType['MDO/MGO'] = (consByType['MDO/MGO']||0) + (num('vs_misc_mdomgo')||0);
   consByType['LSMGO'] = (consByType['LSMGO']||0) + (num('vs_misc_lsmgo')||0);
+  /* Boiler pilot / incinerator D.O. is hand-booked the same way as misc — include
+     it in the live R.O.B. table as soon as it is typed, not only after Save. */
+  EXTRA_DO_GRADES.forEach(t=>{
+    const blr = num(t === 'MDO/MGO' ? 'vs_blrExtra_mdomgo' : 'vs_blrExtra_lsmgo') || 0;
+    const inc = num(t === 'MDO/MGO' ? 'vs_incExtra_mdomgo' : 'vs_incExtra_lsmgo') || 0;
+    consByType[t] = (consByType[t]||0) + blr + inc;
+  });
 
   const prev = previousEntryFor(entry.id) || effectiveCarryover();
   const rolls = meterRollovers();
@@ -16523,6 +16678,11 @@ function computeLiveConsByType(){
   const miscLs = parseFloat(document.getElementById('vs_misc_lsmgo')?.value) || 0;
   rawFuel['MDO/MGO'] += miscMdo;
   rawFuel['LSMGO'] += miscLs;
+  EXTRA_DO_GRADES.forEach(t=>{
+    const blr = parseFloat(document.getElementById(t === 'MDO/MGO' ? 'vs_blrExtra_mdomgo' : 'vs_blrExtra_lsmgo')?.value) || 0;
+    const inc = parseFloat(document.getElementById(t === 'MDO/MGO' ? 'vs_incExtra_mdomgo' : 'vs_incExtra_lsmgo')?.value) || 0;
+    rawFuel[t] += blr + inc;
+  });
   FUEL_TYPES.forEach(t=> consByType[t] = rawFuel[t]);
 
   const cylD = meterDelta(curEntry.cylMeter, prevRef.cylMeter, rolls.cyl);
@@ -16579,7 +16739,9 @@ document.getElementById('btnVsResetConsOverride')?.addEventListener('click', ()=
   openVoyageSummary(currentVsEntryId);
 });
 
-['vs_misc_mdomgo','vs_misc_lsmgo'].forEach(id=>{
+['vs_misc_mdomgo','vs_misc_lsmgo',
+ 'vs_blrExtra_mdomgo','vs_blrExtra_lsmgo',
+ 'vs_incExtra_mdomgo','vs_incExtra_lsmgo'].forEach(id=>{
   document.getElementById(id)?.addEventListener('input', updateVsRobLiveFromCons);
 });
 ['vs_fwProdMeter','vs_fwRob','in_fwProd','in_fwRob','vs_fwProdTank','vs_fwConsTank','in_fwProdTank','in_fwConsTank'].forEach(id=>{
@@ -18705,7 +18867,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v191';
+let androidInstallCacheName = 'noon-report-v192';
 
 /*
  * What the program is called.
