@@ -2588,9 +2588,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="btn-row">
         <button class="primary" id="btnSaveVoyageSummary">Save Report</button>
         <button class="ghost" id="btnPrintVoyageSummary">Print &amp; Save (A4 Portrait)</button>
+        <button class="ghost" id="btnRecalcVoyageSummary" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
         <button class="ghost" id="btnCloseVoyageSummary">Close</button>
       </div>
-      <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures.</div>
+      <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures. Use <strong>Recalculate Averages</strong> if voyage totals still show figures from an older calculation — that rebuilds averages from the entries that exist now.</div>
     </div>
 
     <div class="panel">
@@ -3381,7 +3382,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <input type="file" id="fileImportSetup" accept="application/json" style="display:none;">
       </div>
       <div class="hint">"Export Setup Only" saves just the Vessel Data tab configuration without log entries. "Replace Active Leg from Backup" replaces this vessel’s current working entries/receipts/documents from a leg JSON file.</div>
-      <div class="hint">"Recalculate All Data" re-derives M/E average RPM from rev-counter deltas (so engine distance &amp; slip % match Pitch × Δrevs ÷ 1852), rebuilds performance tables, and refreshes every saved voyage leg. Manual consumption overrides are kept.</div>
+      <div class="hint">"Recalculate All Data" re-derives M/E average RPM from rev-counter deltas (so engine distance &amp; slip % match Pitch × Δrevs ÷ 1852), rebuilds performance tables, and refreshes every saved voyage leg. Manual consumption overrides are kept. For the open report only, Voyage Summary also has <strong>Recalculate Averages</strong> (can clear frozen unit overrides).</div>
       <div class="hint" id="entryCount"></div>
     </div>
   </div>
@@ -6999,7 +7000,7 @@ function applyShipTzChange(toOffsetMin){
 }
 
 /** Formula/data rebuild stamp — bump when stored RPM / perf must be rewritten for existing voyages. */
-const DATA_RECALC_VERSION = 57;
+const DATA_RECALC_VERSION = 58;
 
 /** Re-derive stored RPM from rev-counter Δrevs and rebuild period performance fields for current state.entries. */
 async function recalculateCurrentEntries({ persist = true, clearOverrides = false } = {}){
@@ -19741,6 +19742,56 @@ document.getElementById('btnRecalculateAllData')?.addEventListener('click', asyn
     alert('Recalculation failed: ' + (err?.message || err));
   } finally {
     if (btn) btn.disabled = false;
+  }
+});
+
+/**
+ * Rebuild voyage averages / totals for the active leg from currently existing
+ * entries, then reopen Voyage Summary so the strips show the fresh figures.
+ * Optional clearOverrides drops frozen ME/GE/BLR unit cons that were saved from
+ * an earlier calculation and can keep averages looking "stuck".
+ */
+async function recalculateVoyageSummaryFigures(entryId){
+  if (!confirm(
+    'Recalculate voyage averages and totals from the log entries that exist now?\n\n' +
+    'RPM, engine distance, slip, voyage hours, and averages are rebuilt for this voyage.'
+  )) return null;
+
+  const clearOverrides = confirm(
+    'Clear manual ME / GE / Boiler consumption overrides so meter readings drive the figures?\n\n' +
+    'Choose OK if totals still look like old (frozen) values.\n' +
+    'Choose Cancel to keep typed overrides and only rebuild averages/distances.'
+  );
+
+  const btn = document.getElementById('btnRecalcVoyageSummary');
+  if (btn) btn.disabled = true;
+  try{
+    const stats = await recalculateCurrentEntries({ persist: true, clearOverrides });
+    if ((state.setup.voyageNumber || '').trim() && state.activeVesselId){
+      await archiveActiveVoyageLeg();
+    }
+    markPendingSync();
+    render();
+    const still = entryId && state.entries.find(e=>e.id===entryId);
+    if (still) openVoyageSummary(entryId);
+    alert(
+      `Voyage figures recalculated.\n\n` +
+      `Entries: ${stats.entryCount}\n` +
+      `RPM corrected from rev counters: ${stats.rpmFixed}` +
+      (clearOverrides ? '\nManual unit consumption overrides were cleared.' : '')
+    );
+    return stats;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('btnRecalcVoyageSummary')?.addEventListener('click', async ()=>{
+  try{
+    await recalculateVoyageSummaryFigures(currentVsEntryId);
+  } catch(err){
+    console.error(err);
+    alert('Recalculation failed: ' + (err?.message || err));
   }
 });
 
