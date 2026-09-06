@@ -3282,13 +3282,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
     <div class="panel">
       <h2>Server Sync</h2>
-      <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally and upload on reconnect.</div>
+      <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally until you press Sync Now.</div>
       <div class="form-grid cols2">
         <div class="field span2"><label>Sync Server URL</label><input id="sync_serverUrl" placeholder="http://192.168.x.x:8080 or https://sync.yourdomain.com (not voyage_manager.html)"></div>
         <div class="field"><label>API Token</label><input id="sync_apiToken" type="password" placeholder="Bearer token"></div>
         <div class="field"><label>Vessel ID (slug)</label><input id="sync_vesselId" placeholder="e.g. captain-veniamis"></div>
         <div class="field"><label>Device name</label><input id="sync_deviceName" placeholder="e.g. ER tablet / Chief PC"></div>
-        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="true">On save &amp; when online</option><option value="false">Manual only</option></select></div>
+        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="false" selected>Manual only</option><option value="true">On save &amp; when online</option></select></div>
         <div class="field"><label>Conflict policy</label><select id="sync_conflict"><option value="merge">Merge by record (recommended)</option><option value="local">Prefer this device</option><option value="remote">Prefer server</option></select></div>
       </div>
       <div class="sync-save-status" id="syncSaveStatus" role="status" aria-live="polite"></div>
@@ -4777,7 +4777,7 @@ const state = {
     capacityLube:{ cylhigh:15000, cyllow:15000, mesysoil:8000, gesysoil:4000, freshwater:150000 },
     carryover: null,
     sync: {
-      serverUrl:'', apiToken:'', vesselId:'', deviceName:'', autoSync:true, conflictPolicy:'merge',
+      serverUrl:'', apiToken:'', vesselId:'', deviceName:'', autoSync:false, conflictPolicy:'merge',
       deviceId:null, lastSyncedAt:null, lastSyncError:null, pendingChanges:false
     }
   },
@@ -4829,7 +4829,7 @@ function defaultSetupTemplate(overrides){
     capacity:{ hfo:1200, lsfo:400, mdomgo:300, lsmgo:150 },
     capacityLube:{ cylhigh:15000, cyllow:15000, mesysoil:8000, gesysoil:4000, freshwater:150000 },
     carryover: null,
-    sync: { serverUrl:'', apiToken:'', vesselId:'', autoSync:true, conflictPolicy:'merge', deviceId:null, lastSyncedAt:null, lastSyncError:null, pendingChanges:false }
+    sync: { serverUrl:'', apiToken:'', vesselId:'', autoSync:false, conflictPolicy:'merge', deviceId:null, lastSyncedAt:null, lastSyncError:null, pendingChanges:false }
   };
   return migrateSetup(Object.assign(base, overrides || {}));
 }
@@ -6518,7 +6518,7 @@ async function createNewVessel(name){
       serverUrl: creds.serverUrl || '',
       apiToken: creds.apiToken || '',
       deviceName: creds.deviceName || '',
-      autoSync: typeof creds.autoSync === 'boolean' ? creds.autoSync : true,
+      autoSync: typeof creds.autoSync === 'boolean' ? creds.autoSync : false,
       conflictPolicy: creds.conflictPolicy || 'merge',
       deviceId: creds.deviceId || null
     }
@@ -17409,7 +17409,9 @@ function ensureSyncConfig(){
       localStorage.setItem('noonReportDeviceId', s.deviceId);
     }
   }
-  if (s.autoSync==null) s.autoSync = true;
+  /* Manual sync is the default — do not push on every local change. */
+  if (!s._manualSyncV1){ s.autoSync = false; s._manualSyncV1 = true; }
+  if (s.autoSync==null) s.autoSync = false;
   if (!s.conflictPolicy) s.conflictPolicy = 'merge';
   if (s.deviceName==null) s.deviceName = '';
   return s;
@@ -20307,7 +20309,7 @@ function migrateSetup(setup){
 
   delete setup.rollover;
   if (!setup.sync){
-    setup.sync = { serverUrl:'', apiToken:'', vesselId:'', deviceName:'', autoSync:true, conflictPolicy:'merge', pendingChanges:false, deletedIds:{ entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] } };
+    setup.sync = { serverUrl:'', apiToken:'', vesselId:'', deviceName:'', autoSync:false, conflictPolicy:'merge', pendingChanges:false, deletedIds:{ entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] } };
   }
   if (!setup.sync.deletedIds){
     setup.sync.deletedIds = { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] };
