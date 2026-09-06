@@ -7020,7 +7020,7 @@ function applyShipTzChange(toOffsetMin){
 }
 
 /** Formula/data rebuild stamp — bump when stored RPM / perf must be rewritten for existing voyages. */
-const DATA_RECALC_VERSION = 58;
+const DATA_RECALC_VERSION = 59;
 
 /** Re-derive stored RPM from rev-counter Δrevs and rebuild period performance fields for current state.entries. */
 async function recalculateCurrentEntries({ persist = true, clearOverrides = false } = {}){
@@ -7035,7 +7035,15 @@ async function recalculateCurrentEntries({ persist = true, clearOverrides = fals
       e.clockChangeMin = sanitizedClk;
       changed = true;
     }
-    if (prev && e.revCounter!=null && prev.revCounter!=null && e.datetime && prev.datetime){
+    /* Departure / anchorage / port watches do not record steaming RPM. The rev
+       counter may still be adjusted; never invent average RPM from that Δrevs. */
+    if (!operationNeedsMeData(e.operation)){
+      if (e.rpm != null){
+        e.rpm = null;
+        changed = true;
+        rpmFixed++;
+      }
+    } else if (prev && e.revCounter!=null && prev.revCounter!=null && e.datetime && prev.datetime){
       const hrs = elapsedShipHours(prev.datetime, e.datetime, e.clockChangeMin);
       const dailyRevs = meterDelta(e.revCounter, prev.revCounter, rolls.rc);
       if (dailyRevs != null && hrs > 0){
@@ -7820,6 +7828,18 @@ function effectiveRpm(rpmEntered, dailyRevs, hrs){
   return null;
 }
 
+/**
+ * Whether this period should feed ME RPM / engine-distance / voyage averages from
+ * its Δrevs. Sea and manoeuvring watches always may. Departure, anchorage, port
+ * and bunkering watches may move the revolution counter for adjustments without
+ * a steaming RPM — only include them when RPM was actually recorded on the report.
+ */
+function shouldDeriveMePerfFromRevs(operation, rpmEntered){
+  if (operationNeedsMeData(operation)) return true;
+  const rpm = Number(rpmEntered);
+  return isFinite(rpm) && rpm > 0;
+}
+
 /* ---------------- derived calculations ---------------- */
 function computeDerived(opts){
   /* Always recalculate from currently existing (non-deleted) entries — never
@@ -7961,16 +7981,27 @@ function computeDerived(opts){
       if (fwConsD!=null) consByLube["FRESH WATER"] += fwConsD;
 
       // performance — prefer rev-counter distance (pitch × Δrevs / 1852); RPM from Δrevs when available
+      const rpmEntered = rpmEff;
       if (meStopped){
         /* No revolutions: RPM, engine distance/speed, load and SFOC do not exist.
            Leaving rpmEff null also keeps this period out of the voyage averages,
            which zeros would otherwise drag down. */
         rpmEff = null;
+      } else if (!shouldDeriveMePerfFromRevs(e.operation, rpmEntered)){
+        /* Departure / anchorage / port: rev-counter Δ may be an adjustment only.
+           Do not invent average RPM; leave ME perf out of voyage averages. */
+        rpmEff = null;
       } else {
         /* Average RPM is revolutions over the hours the shaft was turning, not over
-           the watch. Engine distance is Δrevs × pitch either way. */
+           the watch. Engine distance is Δrevs × pitch either way. Each ME-running
+           report contributes its own period revolutions to the averages. */
         meHrs = entryMeRunHours(e, hrs);
-        rpmEff = effectiveRpm(rpmEff, dailyRevs, meHrs);
+        if (operationNeedsMeData(e.operation)){
+          rpmEff = effectiveRpm(rpmEntered, dailyRevs, meHrs);
+        } else {
+          /* Optional RPM on a non-ME watch: trust the entered figure, not Δrevs/hrs. */
+          rpmEff = rpmEntered;
+        }
         distEngine = engineDistanceNm(pitch, dailyRevs, rpmEff, meHrs);
       }
       if (hrs>0) speedShip = e.distanceShip / hrs;
@@ -8076,7 +8107,10 @@ function computeDerived(opts){
                 the printout carries an explicit "M/E stopped" note so the empty M/E
                 block reads as deliberate rather than as missing data. */
              distEngine, speedEngine, speedShip, slip, mcrPct, kwEst,
-             dailyRevs: meStopped ? null : dailyRevs, rpmEff, meHrs,
+             /* Period revolutions only count toward averages when this report
+                contributes ME RPM (sea/manoeuvring, or an explicit RPM on a
+                non-ME watch). Counter adjustments alone are omitted. */
+             dailyRevs: (meStopped || rpmEff == null) ? null : dailyRevs, rpmEff, meHrs,
              sfocRef, sfocActual, sfocDelta, meFuelMtDay, meFuelExpected, gePeriod,
              cumFuel: {...consByFuel}, cumLube: {...consByLube}, cumDistShip: totalDistShip};
   });
@@ -15773,6 +15807,7 @@ function syncRpmRevCounter(sourceId){
   rpmSyncGuard = true;
   const src = (sourceId === 'vs_rpm' || sourceId === 'in_rpm') ? 'rpm' : 'rev';
   const rolls = meterRollovers();
+  const op = document.getElementById('in_operation')?.value;
   if (src === 'rpm'){
     const rpmEl = document.getElementById(sourceId === 'vs_rpm' ? 'vs_rpm' : 'in_rpm') || document.getElementById('vs_rpm');
     const rpm = parseFloat(rpmEl?.value);
@@ -15784,9 +15819,20 @@ function syncRpmRevCounter(sourceId){
     const rcEl = document.getElementById(sourceId === 'vs_revCounter' ? 'vs_revCounter' : 'in_revCounter');
     const rc = parseFloat(rcEl?.value);
     if (!isNaN(rc)){
-      const dRevs = meterDelta(rc, prevRef.revCounter, rolls.rc);
-      const rpm = (dRevs != null) ? dRevs / (runHours * 60) : null;
-      setLinkedRpmFields(rpm, rc);
+      /* Departure / anchorage: keep the counter reading, do not invent RPM from Δrevs. */
+      if (!operationNeedsMeData(op)){
+        const rcStr = Number(rc).toFixed(2);
+        const set = (id, val)=>{ const el = document.getElementById(id); if (el && document.activeElement!==el) el.value = val; };
+        set('in_revCounter', rcStr);
+        set('vs_revCounter', rcStr);
+        set('in_rpm', '');
+        set('vs_rpm', '');
+        set('in_rpm_display', '—');
+      } else {
+        const dRevs = meterDelta(rc, prevRef.revCounter, rolls.rc);
+        const rpm = (dRevs != null) ? dRevs / (runHours * 60) : null;
+        setLinkedRpmFields(rpm, rc);
+      }
     }
   }
   rpmSyncGuard = false;
@@ -15819,12 +15865,18 @@ function updateVsRunCalcDisplays(){
   }
   /* Rev counter unchanged → engine stopped; leave the M/E figures blank. */
   const meStopped = (dailyRevs === 0);
-  const rpmEff = meStopped ? null : effectiveRpm(curEntry.rpm, dailyRevs, hrs);
-  if (!meStopped){
+  const rpmEntered = curEntry.rpm;
+  let rpmEff = null;
+  if (!meStopped && shouldDeriveMePerfFromRevs(curEntry.operation, rpmEntered)){
+    rpmEff = operationNeedsMeData(curEntry.operation)
+      ? effectiveRpm(rpmEntered, dailyRevs, hrs)
+      : rpmEntered;
+  }
+  if (!meStopped && rpmEff != null){
     if (rpmEff!=null) speedEngine = rpmEff * propConstant;
     distEngine = engineDistanceNm(pitch, dailyRevs, rpmEff, hrs);
     /* Keep speed consistent with distance when Δrevs drove the distance */
-    if (distEngine!=null && hrs>0 && dailyRevs!=null) speedEngine = distEngine / hrs;
+    if (distEngine!=null && hrs>0 && dailyRevs!=null && operationNeedsMeData(curEntry.operation)) speedEngine = distEngine / hrs;
   }
   if (hrs>0 && curEntry.distanceShip!=null) shipSpeed = curEntry.distanceShip / hrs;
   if (distEngine!=null && distEngine>0 && curEntry.distanceShip!=null){
@@ -15960,9 +16012,17 @@ function updateLivePreview(){
     if (curEntry.revCounter!=null && prevRef.revCounter!=null){
       dailyRevs = meterDelta(curEntry.revCounter, prevRef.revCounter, rolls.rc);
     }
-    /* Rev counter unchanged → engine stopped; M/E stats stay blank. */
+    /* Rev counter unchanged → engine stopped; M/E stats stay blank.
+       Departure / anchorage may adjust the counter without inventing RPM. */
     meStopped = (dailyRevs === 0);
-    rpmEff = meStopped ? null : effectiveRpm(rpmEff, dailyRevs, hrs);
+    const rpmEntered = rpmEff;
+    if (meStopped || !shouldDeriveMePerfFromRevs(curEntry.operation, rpmEntered)){
+      rpmEff = null;
+    } else if (operationNeedsMeData(curEntry.operation)){
+      rpmEff = effectiveRpm(rpmEntered, dailyRevs, hrs);
+    } else {
+      rpmEff = rpmEntered;
+    }
     if (hrs>0){
       const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
       const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
@@ -15977,9 +16037,9 @@ function updateLivePreview(){
       if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
       if (meStopped){
         if (!(meCons > 0)) meCons = null;
-      } else {
+      } else if (rpmEff != null){
         distEngine = engineDistanceNm(pitch, dailyRevs, rpmEff, hrs);
-        if (distEngine!=null && dailyRevs!=null) speedEngine = distEngine / hrs;
+        if (distEngine!=null && dailyRevs!=null && operationNeedsMeData(curEntry.operation)) speedEngine = distEngine / hrs;
         if (distEngine!=null && distEngine>0 && curEntry.distanceShip!=null){
           slip = ((distEngine - curEntry.distanceShip)/distEngine)*100;
         }
@@ -18645,7 +18705,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v190';
+let androidInstallCacheName = 'noon-report-v191';
 
 /*
  * What the program is called.
