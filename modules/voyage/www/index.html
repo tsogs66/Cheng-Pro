@@ -2133,6 +2133,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
               <tr id="fmBoilerRow"><td>Boiler</td><td><input type="number" id="s_fm_boiler_reading"></td><td><input type="number" min="1" max="15" id="s_fm_boiler_digits" value="8"></td></tr>
               <tr id="fmCylRow"><td>Cylinder Oil</td><td><input type="number" id="s_fm_cyl_reading"></td><td><input type="number" min="1" max="15" id="s_fm_cyl_digits" value="8"></td></tr>
               <tr id="fmRcRow"><td>Rev. Counter</td><td><input type="number" id="s_fm_rc_reading"></td><td><input type="number" min="1" max="15" id="s_fm_rc_digits" value="8"></td></tr>
+              <tr id="fmFwRow"><td>Fresh Water Generator</td><td><input type="number" step="0.01" id="s_fm_fw_reading"></td><td><input type="number" min="1" max="15" id="s_fm_fw_digits" value="8"></td></tr>
             </tbody>
           </table>
         </div>
@@ -4765,7 +4766,8 @@ const state = {
       main:{ reading:null, digits:8 }, mainOut:{ reading:null, digits:8 },
       aux:{ reading:null, digits:8 }, auxOut:{ reading:null, digits:8 },
       boiler:{ reading:null, digits:8 },
-      cyl:{ reading:null, digits:8 }, rc:{ reading:null, digits:8 }
+      cyl:{ reading:null, digits:8 }, rc:{ reading:null, digits:8 },
+      fw:{ reading:null, digits:8 }
     },
     defaults:{ cylTbn:'HIGH', meType:'HFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.980, geSg:0.870, blrSg:0.870 },
     voyageDistance: null,
@@ -4817,7 +4819,8 @@ function defaultSetupTemplate(overrides){
       main:{ reading:null, digits:8 }, mainOut:{ reading:null, digits:8 },
       aux:{ reading:null, digits:8 }, auxOut:{ reading:null, digits:8 },
       boiler:{ reading:null, digits:8 },
-      cyl:{ reading:null, digits:8 }, rc:{ reading:null, digits:8 }
+      cyl:{ reading:null, digits:8 }, rc:{ reading:null, digits:8 },
+      fw:{ reading:null, digits:8 }
     },
     defaults:{ cylTbn:'HIGH', meType:'HFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.980, geSg:0.870, blrSg:0.870 },
     voyageDistance: null,
@@ -5006,7 +5009,8 @@ function buildDemoPackHarbourKey(){
     defaults:{ cylTbn:'HIGH', meType:'HFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.980, geSg:0.870, blrSg:0.870 },
     flowmeters:{
       main:{ reading:980000, digits:8 }, aux:{ reading:410000, digits:8 },
-      boiler:{ reading:18500, digits:8 }, cyl:{ reading:275000, digits:8 }, rc:{ reading:168000, digits:8 }
+      boiler:{ reading:18500, digits:8 }, cyl:{ reading:275000, digits:8 }, rc:{ reading:168000, digits:8 },
+      fw:{ reading:8200, digits:8 }
     },
     rob:{ hfo:420, lsfo:95, mdomgo:110, lsmgo:48 },
     robLube:{ cylhigh:7100, cyllow:1200, mesysoil:4500, gesysoil:2100, freshwater:62000 },
@@ -5199,7 +5203,8 @@ function buildDemoPackRoadstead(){
     defaults:{ cylTbn:'LOW', meType:'LSFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.965, geSg:0.870, blrSg:0.870 },
     flowmeters:{
       main:{ reading:712500, digits:8 }, aux:{ reading:288400, digits:8 },
-      boiler:{ reading:14200, digits:8 }, cyl:{ reading:198200, digits:8 }, rc:{ reading:94200, digits:8 }
+      boiler:{ reading:14200, digits:8 }, cyl:{ reading:198200, digits:8 }, rc:{ reading:94200, digits:8 },
+      fw:{ reading:6400, digits:8 }
     },
     rob:{ hfo:0, lsfo:610, mdomgo:95, lsmgo:72 },
     robLube:{ cylhigh:3200, cyllow:4800, mesysoil:3900, gesysoil:1750, freshwater:41000 },
@@ -5399,7 +5404,8 @@ function buildDemoPackCircumnav(){
     defaults:{ cylTbn:'HIGH', meType:'HFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.980, geSg:0.870, blrSg:0.870 },
     flowmeters:{
       main:{ reading:1500000, digits:8 }, aux:{ reading:620000, digits:8 },
-      boiler:{ reading:28000, digits:8 }, cyl:{ reading:410000, digits:8 }, rc:{ reading:210000, digits:8 }
+      boiler:{ reading:28000, digits:8 }, cyl:{ reading:410000, digits:8 }, rc:{ reading:210000, digits:8 },
+      fw:{ reading:12000, digits:8 }
     },
     rob:{ hfo:1450, lsfo:180, mdomgo:130, lsmgo:95 },
     robLube:{ cylhigh:10500, cyllow:800, mesysoil:6800, gesysoil:2600, freshwater:72000 },
@@ -5727,7 +5733,8 @@ function buildDemoPackPacificTrader(){
     defaults:{ cylTbn:'HIGH', meType:'HFO', geType:'MDO/MGO', blrType:'MDO/MGO', meSg:0.980, geSg:0.870, blrSg:0.870 },
     flowmeters:{
       main:{ reading:2100000, digits:8 }, aux:{ reading:860000, digits:8 },
-      boiler:{ reading:41000, digits:8 }, cyl:{ reading:520000, digits:8 }, rc:{ reading:295000, digits:8 }
+      boiler:{ reading:41000, digits:8 }, cyl:{ reading:520000, digits:8 }, rc:{ reading:295000, digits:8 },
+      fw:{ reading:15000, digits:8 }
     },
     rob:{ hfo:610, lsfo:0, mdomgo:140, lsmgo:35 },
     robLube:{ cylhigh:6200, cyllow:0, mesysoil:4200, gesysoil:1900, freshwater:58000 },
@@ -5894,10 +5901,11 @@ function buildDemoPackPacificTrader(){
   /* The opening entry of each leg is diffed against setup.flowmeters (the "carryover"
      reference) — it must equal the meter position at THAT leg's start, not the pack's
      initial reading, or the app computes a huge phantom consumption on leg boundaries. */
-  const legFlow = (main, aux, boiler, cyl, rc) => ({
+  const legFlow = (main, aux, boiler, cyl, rc, fw) => ({
     main:{ reading:main, digits:8 }, mainOut:{ reading:null, digits:8 },
     aux:{ reading:aux, digits:8 }, auxOut:{ reading:null, digits:8 },
-    boiler:{ reading:boiler, digits:8 }, cyl:{ reading:cyl, digits:8 }, rc:{ reading:rc, digits:8 }
+    boiler:{ reading:boiler, digits:8 }, cyl:{ reading:cyl, digits:8 }, rc:{ reading:rc, digits:8 },
+    fw:{ reading:fw ?? null, digits:8 }
   });
 
   return {
@@ -5906,27 +5914,27 @@ function buildDemoPackPacificTrader(){
     legs: [
       { voyageNumber:'40', condition:'B', entries:v40B.map(normalizeEntry), receipts:[], documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'B', departPort:'FUJAIRAH, UAE', arrivePort:'RAS TANURA, SAUDI ARABIA', voyageDistance:392, initDateTime:'2026-04-01T06:00',
-          flowmeters: legFlow(2100000, 860000, 41000, 520000, 295000),
+          flowmeters: legFlow(2100000, 860000, 41000, 520000, 295000, 15000),
           rob:{ hfo:610, lsfo:0, mdomgo:140, lsmgo:35 }, robLube:{ cylhigh:6200, cyllow:0, mesysoil:4200, gesysoil:1900, freshwater:58000 } }) },
       { voyageNumber:'40', condition:'L', entries:v40L.map(normalizeEntry), receipts:bunkerReceipts('40', '2026-04-02'), documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'L', departPort:'RAS TANURA, SAUDI ARABIA', arrivePort:'CHENNAI, INDIA', voyageDistance:2280, initDateTime:'2026-04-03T12:00',
-          flowmeters: legFlow(2130800, 861820, 41420, 520126, 446200),
+          flowmeters: legFlow(2130800, 861820, 41420, 520126, 446200, 34600),
           rob:{ hfo:578.6, lsfo:0, mdomgo:137.4, lsmgo:35 }, robLube:{ cylhigh:6074, cyllow:0, mesysoil:4192, gesysoil:1894, freshwater:70600 } }) },
       { voyageNumber:'41', condition:'B', entries:v41B.map(normalizeEntry), receipts:[], documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'B', departPort:'CHENNAI, INDIA', arrivePort:'RAS TANURA, SAUDI ARABIA', voyageDistance:2282, initDateTime:'2026-04-11T14:00',
-          flowmeters: legFlow(2300800, 872870, 43970, 520891, 1343800),
+          flowmeters: legFlow(2300800, 872870, 43970, 520891, 1343800, 153600),
           rob:{ hfo:805.1, lsfo:0, mdomgo:191.8, lsmgo:35 }, robLube:{ cylhigh:7109, cyllow:0, mesysoil:4141, gesysoil:1876, freshwater:60200 } }) },
       { voyageNumber:'41', condition:'L', entries:v41L.map(normalizeEntry), receipts:bunkerReceipts('41', '2026-04-18'), documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'L', departPort:'RAS TANURA, SAUDI ARABIA', arrivePort:'CHENNAI, INDIA', voyageDistance:2280, initDateTime:'2026-04-19T12:00',
-          flowmeters: legFlow(2480100, 883465, 46415, 521625, 2224000),
+          flowmeters: legFlow(2480100, 883465, 46415, 521625, 2224000, 267700),
           rob:{ hfo:622.1, lsfo:0, mdomgo:176.8, lsmgo:35 }, robLube:{ cylhigh:6375, cyllow:0, mesysoil:4091, gesysoil:1835, freshwater:79600 } }) },
       { voyageNumber:'42', condition:'B', entries:v42B.map(normalizeEntry), receipts:[], documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'B', departPort:'CHENNAI, INDIA', arrivePort:'RAS TANURA, SAUDI ARABIA', voyageDistance:2282, initDateTime:'2026-04-27T14:00',
-          flowmeters: legFlow(2650100, 894515, 48965, 522390, 3121600),
+          flowmeters: legFlow(2650100, 894515, 48965, 522390, 3121600, 386700),
           rob:{ hfo:848.7, lsfo:0, mdomgo:231.2, lsmgo:35 }, robLube:{ cylhigh:7410, cyllow:0, mesysoil:4040, gesysoil:1817, freshwater:69200 } }) },
       { voyageNumber:'42', condition:'L', entries:v42L.map(normalizeEntry), receipts:bunkerReceipts('42', '2026-05-04'), documents:[], abstracts:[], printHistory:[],
         setup: legSetup({ shipCondition:'L', departPort:'RAS TANURA, SAUDI ARABIA', arrivePort:'CHENNAI, INDIA', voyageDistance:2280, initDateTime:'2026-05-05T12:00',
-          flowmeters: legFlow(2829400, 905110, 51410, 523124, 4001800),
+          flowmeters: legFlow(2829400, 905110, 51410, 523124, 4001800, 500800),
           rob:{ hfo:665.74, lsfo:0, mdomgo:216.2, lsmgo:35 }, robLube:{ cylhigh:6676, cyllow:0, mesysoil:3989, gesysoil:1776, freshwater:88900 } }) }
     ]
   };
@@ -6796,7 +6804,7 @@ function effectiveCarryover(){
     blr:{ meter: fm.boiler?.reading ?? null, type: d.blrType, sg: d.blrSg },
     cylMeter: fm.cyl?.reading ?? null,
     revCounter: fm.rc?.reading ?? null,
-    meLo: null, geLo: null, fwProd: null,
+    meLo: null, geLo: null, fwProd: fm.fw?.reading ?? null,
     fwRob: state.setup.robLube ? fwTankList().reduce((s,t)=>s+(tankRobValue(state.setup.robLube, t)||0),0) : null,
     fwRobByTank: Object.fromEntries(fwTankList().map(t=>[t.id, tankRobValue(state.setup.robLube, t)])),
     fwProdTankId: fwTankList()[0]?.id || null,
@@ -7639,7 +7647,7 @@ function meterRollovers(){
   const dig = (m, d=8) => Math.pow(10, (fm[m] && fm[m].digits) || d);
   return {
     main: dig('main'), mainOut: dig('mainOut'), aux: dig('aux'), auxOut: dig('auxOut'),
-    boiler: dig('boiler'), cyl: dig('cyl'), rc: dig('rc'), generic: 100000000
+    boiler: dig('boiler'), cyl: dig('cyl'), rc: dig('rc'), fw: dig('fw'), generic: 100000000
   };
 }
 
@@ -7955,7 +7963,7 @@ function computeDerived(opts){
 
       // Fresh water: production flowmeter is m³; ROB balance stays in litres.
       // Produced (display) = meter delta in m³; balance uses litres (×1000).
-      const fwProdD_m3 = meterDelta(e.fwProd, prev.fwProd, rolls.generic) || 0;
+      const fwProdD_m3 = meterDelta(e.fwProd, prev.fwProd, rolls.fw) || 0;
       fwProdD = fwProdDeltaLitres(fwProdD_m3);
       const fwIds = fwTankList().map(t=>t.id);
       const fwBal = fwPeriodBalance({
@@ -8901,7 +8909,7 @@ function updateFwPreview(prefix){
   const fw = readFwForm(prefix);
   const rolls = meterRollovers();
   /* Production flowmeter reads m³; ROB tanks stay in litres. */
-  const prodDeltaM3 = (prev && fw.fwProd != null) ? (meterDelta(fw.fwProd, prev.fwProd, rolls.generic) || 0) : null;
+  const prodDeltaM3 = (prev && fw.fwProd != null) ? (meterDelta(fw.fwProd, prev.fwProd, rolls.fw) || 0) : null;
   const prodDeltaL = fwProdDeltaLitres(prodDeltaM3);
   const tanks = fwTankList();
   const bal = fwPeriodBalance({
@@ -9067,7 +9075,7 @@ function stampFwOnEntry(entry, fw, prev){
   const tanks = fwTankList();
   const ids = tanks.map(t=>t.id);
   const prodMeter = fw.fwProd != null ? fw.fwProd : entry.fwProd;
-  const prodDeltaM3 = prev ? (meterDelta(prodMeter, prev.fwProd, meterRollovers().generic) || 0) : 0;
+  const prodDeltaM3 = prev ? (meterDelta(prodMeter, prev.fwProd, meterRollovers().fw) || 0) : 0;
   const prodDelta = fwProdDeltaLitres(prodDeltaM3);
   const hasPresent = fw.fwRob != null || (fw.fwRobByTank && Object.keys(fw.fwRobByTank).length);
   const bal = fwPeriodBalance({
@@ -10235,6 +10243,8 @@ function render(){
   document.getElementById('s_fm_cyl_digits').value = fm.cyl.digits;
   document.getElementById('s_fm_rc_reading').value = fm.rc.reading ?? '';
   document.getElementById('s_fm_rc_digits').value = fm.rc.digits;
+  document.getElementById('s_fm_fw_reading').value = fm.fw?.reading ?? '';
+  document.getElementById('s_fm_fw_digits').value = fm.fw?.digits ?? 8;
 
   const d = state.setup.defaults;
   document.getElementById('s_def_cylTbn').value = d.cylTbn;
@@ -13316,7 +13326,8 @@ async function snapshotMetersAsNextReportReference(){
     auxOut: { reading: last.ge?.meterOut ?? fm.auxOut?.reading ?? null, digits: dig('auxOut') },
     boiler: { reading: last.blr?.meter ?? null, digits: dig('boiler') },
     cyl: { reading: last.cylMeter ?? null, digits: dig('cyl') },
-    rc: { reading: last.revCounter ?? null, digits: dig('rc') }
+    rc: { reading: last.revCounter ?? null, digits: dig('rc') },
+    fw: { reading: last.fwProd ?? null, digits: dig('fw') }
   };
   state.setup.carryover = JSON.parse(JSON.stringify(last));
   state.setup.rob = { ...(rob || {}) };
@@ -13328,6 +13339,7 @@ async function snapshotMetersAsNextReportReference(){
     setNum('s_fm_boiler_reading', state.setup.flowmeters.boiler.reading);
     setNum('s_fm_cyl_reading', state.setup.flowmeters.cyl.reading);
     setNum('s_fm_rc_reading', state.setup.flowmeters.rc.reading);
+    setNum('s_fm_fw_reading', state.setup.flowmeters.fw?.reading);
   } catch (_) {}
   render();
   prefillFromLastEntry();
@@ -13614,7 +13626,8 @@ async function saveSetupFromForm(){
     auxOut: geDualNow ? { reading: numOrNull('s_fm_auxOut_reading'), digits: intOr8('s_fm_auxOut_digits') } : (state.setup.flowmeters.auxOut||{reading:null,digits:8}),
     boiler: { reading: numOrNull('s_fm_boiler_reading'), digits: intOr8('s_fm_boiler_digits') },
     cyl: { reading: numOrNull('s_fm_cyl_reading'), digits: intOr8('s_fm_cyl_digits') },
-    rc: { reading: numOrNull('s_fm_rc_reading'), digits: intOr8('s_fm_rc_digits') }
+    rc: { reading: numOrNull('s_fm_rc_reading'), digits: intOr8('s_fm_rc_digits') },
+    fw: { reading: numOrNull('s_fm_fw_reading'), digits: intOr8('s_fm_fw_digits') }
   };
 
   state.setup.defaults = {
@@ -14882,7 +14895,7 @@ function computeVsLiveConsByType(entry){
     const fw = readFwForm('vs');
     const fwProd = fw.fwProd ?? entry.fwProd;
     const fwRob = fw.fwRob ?? entry.fwRob;
-    const fwProdD = fwProdDeltaLitres(meterDelta(fwProd, prev.fwProd, rolls.generic) || 0);
+    const fwProdD = fwProdDeltaLitres(meterDelta(fwProd, prev.fwProd, rolls.fw) || 0);
     const fwBal = fwPeriodBalance({
       tankIds: fwTankList().map(t=>t.id),
       prevByTank: fwPrevByTank(prev),
@@ -16839,7 +16852,7 @@ function computeLiveConsByType(){
   if (geLoD) rawLube["GE SYS OIL"] += geLoD;
   ['CYL HIGH','CYL LOW','ME SYS OIL','GE SYS OIL'].forEach(t=> lubeByType[t] = rawLube[t]);
 
-  const fwProdD = fwProdDeltaLitres(meterDelta(curEntry.fwProd, prevRef.fwProd, rolls.generic) || 0);
+  const fwProdD = fwProdDeltaLitres(meterDelta(curEntry.fwProd, prevRef.fwProd, rolls.fw) || 0);
   const fwBal = fwPeriodBalance({
     tankIds: fwTankList().map(t=>t.id),
     prevByTank: fwPrevByTank(prevRef),
@@ -20213,13 +20226,13 @@ function migrateSetup(setup){
     const digits = Math.max(1, Math.round(Math.log10(setup.rollover)));
     setup.flowmeters = {
       main:{reading:null,digits}, mainOut:{reading:null,digits}, aux:{reading:null,digits}, auxOut:{reading:null,digits},
-      boiler:{reading:null,digits}, cyl:{reading:null,digits}, rc:{reading:null,digits}
+      boiler:{reading:null,digits}, cyl:{reading:null,digits}, rc:{reading:null,digits}, fw:{reading:null,digits}
     };
   }
   if (!setup.flowmeters){
-    setup.flowmeters = { main:{reading:null,digits:8}, mainOut:{reading:null,digits:8}, aux:{reading:null,digits:8}, auxOut:{reading:null,digits:8}, boiler:{reading:null,digits:8}, cyl:{reading:null,digits:8}, rc:{reading:null,digits:8} };
+    setup.flowmeters = { main:{reading:null,digits:8}, mainOut:{reading:null,digits:8}, aux:{reading:null,digits:8}, auxOut:{reading:null,digits:8}, boiler:{reading:null,digits:8}, cyl:{reading:null,digits:8}, rc:{reading:null,digits:8}, fw:{reading:null,digits:8} };
   }
-  ['main','mainOut','aux','auxOut','boiler','cyl','rc'].forEach(k=>{
+  ['main','mainOut','aux','auxOut','boiler','cyl','rc','fw'].forEach(k=>{
     if (!setup.flowmeters[k]) setup.flowmeters[k] = {reading:null,digits:8};
     if (setup.flowmeters[k].digits==null) setup.flowmeters[k].digits = 8;
   });
