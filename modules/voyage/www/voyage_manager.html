@@ -411,6 +411,15 @@
   .unit-box .field{margin-bottom:8px;}
 
   .btn-row{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  #vsTopActions, #page-summary .panel-head .btn-row{flex-wrap:wrap;}
+  #btnRecalcSummaryPage, #btnRecalcVoyageSummary, #btnRecalcVoyageSummaryTop{
+    white-space:nowrap;
+  }
+  @media (orientation: landscape) and (max-height:560px){
+    /* Keep recalc controls visible even when .hint is hidden in short landscape. */
+    #btnRecalcSummaryPage, #vsTopActions{display:inline-flex !important;}
+    #summaryRecalcHint{display:none;}
+  }
   button{font-family:'Oswald',sans-serif; letter-spacing:0.06em; text-transform:uppercase; font-size:12px; padding:10px 18px; border-radius:3px; border:1px solid var(--brass-dim); cursor:pointer; background:transparent; color:var(--brass); transition:all .15s ease;}
   button.primary{background:var(--brass); color:var(--ink); font-weight:600;}
   button.primary:hover{background:#dcae6c;}
@@ -2294,7 +2303,14 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
 
     <div class="panel" id="voyageSummaryPanel" style="display:none;">
-      <h2>Voyage Summary — Reference &amp; Consumption Review</h2>
+      <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Voyage Summary — Reference &amp; Consumption Review</h2>
+        <div class="btn-row" style="margin:0;" id="vsTopActions">
+          <button class="ghost small" id="btnRecalcVoyageSummaryTop" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
+          <button class="primary small" id="btnSaveVoyageSummaryTop" type="button">Save Report</button>
+          <button class="ghost small" id="btnCloseVoyageSummaryTop" type="button">Close</button>
+        </div>
+      </div>
       <div class="vs-entry-context" id="vsEntryContext"></div>
       <div class="field-legend">
         <span><i class="edit"></i> Editable — enter your reading</span>
@@ -2856,8 +2872,12 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
     </div>
     <div class="panel">
-      <h2>Performance Averages</h2>
+      <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <h2 style="margin:0;">Performance Averages</h2>
+        <button class="primary small" id="btnRecalcSummaryPage" type="button" title="Rebuild voyage averages and totals from the log entries that exist now">Recalculate Averages</button>
+      </div>
       <div class="stat-strip cols5" id="perfTotalsStrip"></div>
+      <div class="hint" id="summaryRecalcHint">If these figures still look like an older voyage, tap Recalculate Averages. That rebuilds totals from the entries on file now (you can also clear frozen ME/GE/boiler overrides when prompted).</div>
     </div>
     <div class="panel">
       <h2>Fuel Efficiency (SFOC)</h2>
@@ -18625,7 +18645,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v189';
+let androidInstallCacheName = 'noon-report-v190';
 
 /*
  * What the program is called.
@@ -19763,8 +19783,9 @@ async function recalculateVoyageSummaryFigures(entryId){
     'Choose Cancel to keep typed overrides and only rebuild averages/distances.'
   );
 
-  const btn = document.getElementById('btnRecalcVoyageSummary');
-  if (btn) btn.disabled = true;
+  const btns = ['btnRecalcVoyageSummary','btnRecalcVoyageSummaryTop','btnRecalcSummaryPage']
+    .map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; });
   try{
     const stats = await recalculateCurrentEntries({ persist: true, clearOverrides });
     if ((state.setup.voyageNumber || '').trim() && state.activeVesselId){
@@ -19772,8 +19793,10 @@ async function recalculateVoyageSummaryFigures(entryId){
     }
     markPendingSync();
     render();
+    /* Re-open entry Voyage Summary only when that panel was the source. */
     const still = entryId && state.entries.find(e=>e.id===entryId);
-    if (still) openVoyageSummary(entryId);
+    const vsOpen = document.getElementById('voyageSummaryPanel')?.style.display !== 'none';
+    if (still && vsOpen) openVoyageSummary(entryId);
     alert(
       `Voyage figures recalculated.\n\n` +
       `Entries: ${stats.entryCount}\n` +
@@ -19782,17 +19805,34 @@ async function recalculateVoyageSummaryFigures(entryId){
     );
     return stats;
   } finally {
-    if (btn) btn.disabled = false;
+    btns.forEach(b => { b.disabled = false; });
   }
 }
 
-document.getElementById('btnRecalcVoyageSummary')?.addEventListener('click', async ()=>{
+async function runVoyageRecalculateFromUi(entryId){
   try{
-    await recalculateVoyageSummaryFigures(currentVsEntryId);
+    await recalculateVoyageSummaryFigures(entryId);
   } catch(err){
     console.error(err);
     alert('Recalculation failed: ' + (err?.message || err));
   }
+}
+
+document.getElementById('btnRecalcVoyageSummary')?.addEventListener('click', ()=>{
+  runVoyageRecalculateFromUi(currentVsEntryId);
+});
+document.getElementById('btnRecalcVoyageSummaryTop')?.addEventListener('click', ()=>{
+  runVoyageRecalculateFromUi(currentVsEntryId);
+});
+document.getElementById('btnRecalcSummaryPage')?.addEventListener('click', ()=>{
+  /* Summary tab: rebuild active voyage averages shown on this page. */
+  runVoyageRecalculateFromUi(currentVsEntryId || sortedEntries().slice(-1)[0]?.id || null);
+});
+document.getElementById('btnSaveVoyageSummaryTop')?.addEventListener('click', ()=>{
+  document.getElementById('btnSaveVoyageSummary')?.click();
+});
+document.getElementById('btnCloseVoyageSummaryTop')?.addEventListener('click', ()=>{
+  document.getElementById('btnCloseVoyageSummary')?.click();
 });
 
 function migrateSetup(setup){
