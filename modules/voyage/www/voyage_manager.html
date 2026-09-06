@@ -4073,15 +4073,20 @@ function sumRobCons(row, cat){
   const vals = getRobRows().filter(r=>r.cat===cat).map(r=>robRowCons(row, r)).filter(v=>v!=null && !isNaN(v));
   return vals.length ? vals.reduce((a,b)=>a+b, 0) : null;
 }
-function robBalanceRows(row, prevRobData, asOf){
+function robBalanceRows(row, prevRobData, asOf, entryHint){
+  const entry = entryHint || (typeof currentVsEntryId !== 'undefined' && currentVsEntryId
+    ? (state.entries || []).find(e=>e.id===currentVsEntryId)
+    : null);
   const out = [];
   const addTank = (r) => {
     const prevVal = r.cat==='fuel' ? prevRobData.rob?.[r.key] : prevRobData.robLube?.[r.key];
     const nowVal = r.cat==='fuel' ? asOf.rob?.[r.key] : asOf.robLube?.[r.key];
     const consVal = robRowCons(row, r);
-    const recvVal = (prevVal == null || nowVal == null || consVal == null)
+    const derivedRecv = (prevVal == null || nowVal == null || consVal == null)
       ? null
       : (Number(nowVal) || 0) - (Number(prevVal) || 0) + (Number(consVal) || 0);
+    const storedRecv = entryRobReceivedQty(entry, r.key, r.cat);
+    const recvVal = storedRecv != null ? storedRecv : derivedRecv;
     out.push({
       key: r.key, label: r.label, cat: r.cat, kind: r.kind, grade: r.grade,
       prevVal, recvVal, consVal, nowVal,
@@ -5001,6 +5006,8 @@ function entryFromSnap(id, datetime, operation, condition, snap, extra){
     blrExtraCons: extraDoMap(e.blrExtraCons),
     incExtraCons: extraDoMap(e.incExtraCons),
     robSurvey: e.robSurvey || null,
+    robReceived: e.robReceived || null,
+    robReceivedLube: e.robReceivedLube || null,
     consOverride: e.consOverride || null,
     unitOverride: e.unitOverride || { ME:null, GE:null, BLR:null },
     weather: e.weather || weather(),
@@ -8377,6 +8384,50 @@ function readVsRobReceivedInputs(){
 function readVsSurveyReceivedInputs(){
   return readVsRobReceivedInputs();
 }
+
+/**
+ * Read Received from the open summary ROB table into fuel/lube maps.
+ * Empty inputs are omitted (so a blank field falls back to the balance-derived
+ * figure on the next open). Type 0 to persist an explicit zero.
+ */
+function vsRobReceivedMapsFromInputs(){
+  const received = {}, receivedLube = {};
+  document.querySelectorAll('[data-rob-recv]').forEach(el=>{
+    if (el.value === '') return;
+    const tankId = el.dataset.robRecv;
+    const cat = el.dataset.robRecvCat || 'fuel';
+    const store = el.dataset.robRecvStore || (cat === 'fuel' ? 'rob' : 'robLube');
+    let qty = parseFloat(el.value);
+    if (!Number.isFinite(qty) || qty < 0) return;
+    if (cat === 'fw'){
+      const litres = typeof parseFwM3Field === 'function' ? parseFwM3Field(el.value) : null;
+      if (litres == null) return;
+      qty = litres;
+    }
+    (store === 'rob' ? received : receivedLube)[tankId] = qty;
+  });
+  return { received, receivedLube };
+}
+
+/** Persist Received on the entry itself (not only as receipts). */
+function stampRobReceivedOnEntry(entry){
+  if (!entry) return;
+  const { received, receivedLube } = vsRobReceivedMapsFromInputs();
+  entry.robReceived = received;
+  entry.robReceivedLube = receivedLube;
+}
+
+/** Stored Received for a tank on an entry, if any. */
+function entryRobReceivedQty(entry, tankId, cat){
+  if (!entry) return null;
+  if (cat === 'fuel'){
+    if (entry.robReceived && entry.robReceived[tankId] != null) return Number(entry.robReceived[tankId]) || 0;
+  } else {
+    if (entry.robReceivedLube && entry.robReceivedLube[tankId] != null) return Number(entry.robReceivedLube[tankId]) || 0;
+  }
+  return null;
+}
+
 
 /**
  * Upsert bunker/lube/FW receipts from the ROB Received column so bunkering
@@ -13509,6 +13560,8 @@ function normalizeEntry(e){
   e.blr = e.blr || { meter:null, type:'MDO/MGO', sg:0.87 };
   e.miscCons = e.miscCons || {"MDO/MGO":0,"LSMGO":0};
   e.consOverride = e.consOverride || null;
+  if (e.robReceived===undefined) e.robReceived = null;
+  if (e.robReceivedLube===undefined) e.robReceivedLube = null;
   e.unitOverride = e.unitOverride || {ME:null,GE:null,BLR:null};
   e.weather = e.weather || { windDir:'', windBft:null, seaState:null, swellDir:'', airTemp:null, seaTemp:null };
   if (e.cylMeter===undefined) e.cylMeter = null;
@@ -15321,6 +15374,7 @@ function applyVoyageSummaryFormToEntry(entry){
     if (el) lubePairs[r.key] = parseFloat(el.value)||0;
   });
   entry.consOverride = mergeLubeConsOverride(entry.consOverride, lubePairs);
+  stampRobReceivedOnEntry(entry);
 
   // Persist full supplementary-report machinery fields from voyage summary
   const prev = previousEntryFor(entry.id);
@@ -15449,6 +15503,7 @@ function applyVoyageSummaryFormToEntry(entry){
 async function saveOpenVoyageSummary({ close = true } = {}){
   const entry = state.entries.find(e=>e.id===currentVsEntryId);
   if (!entry) return null;
+  stampRobReceivedOnEntry(entry);
   /* Persist Received from the consumption/ROB table as bunker receipts for the day. */
   try {
     await syncRobSurveyReceivedReceipts(currentVsEntryId, readVsRobReceivedInputs());
@@ -17050,6 +17105,8 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
     incExtraCons: extraDoMap(existing?.incExtraCons),
     shaftKw: existing?.shaftKw ?? null,
     robSurvey: existing?.robSurvey || null,
+    robReceived: existing?.robReceived || null,
+    robReceivedLube: existing?.robReceivedLube || null,
     /* Keep a typed override when the engineer only opened/updated the old log.
        Clearing it on every Update Entry made ROB fall back to the flowmeter and
        deduct again. Meter edits still drop the override so the new readings win. */
@@ -19058,7 +19115,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v197';
+let androidInstallCacheName = 'noon-report-v198';
 
 /*
  * What the program is called.
