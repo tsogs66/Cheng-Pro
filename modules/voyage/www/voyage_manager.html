@@ -2218,7 +2218,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button type="button" class="ghost small" data-tz-step="60">+1 hour</button>
       </div>
       <div class="orb-date-note" id="in_clockChangeNote">No clock change this period.</div>
-      <div class="hint">The time-zone list only labels ship's clock. Use Change clocks when the watch actually advances or retards time — picking UTC+8 does not take 8 hours off the period.</div>
+      <div class="hint">The time-zone list only labels ship's clock. Use Change clocks when the watch actually advances or retards time — that adjusts period hours (noon-to-noon after +1 h is 23 h) without moving the date/time stamp. Picking UTC+8 alone does not take 8 hours off the period.</div>
       <div class="hint">Distance run, M/E avg RPM, slip, engine distance/speed, and consumption review are on the Voyage Summary after you save or open an entry.</div>
 
       <h3 class="sub">Main Engine — Runtime &amp; Revolutions</h3>
@@ -2926,12 +2926,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
     <div class="panel">
       <h2>Average Consumption Per Day</h2>
-      <h3 class="sub">Fuel (MT/day)</h3>
+      <h3 class="sub">By consumer (MT/day — on that consumer's running hours)</h3>
+      <div class="stat-strip" id="consumerPerDayStrip"></div>
+      <h3 class="sub">Fuel at sea / at port &amp; anchorage (MT/day — total fuel on those hours)</h3>
+      <div class="stat-strip" id="seaPortFuelStrip"></div>
+      <h3 class="sub">Fuel by grade (MT/day — elapsed voyage hours)</h3>
       <div class="stat-strip" id="fuelPerDayStrip"></div>
-      <h3 class="sub">Lube Oil (L/day)</h3>
+      <h3 class="sub">Lube Oil (L/day — cylinder oil on M/E running hours)</h3>
       <div class="stat-strip cols4" id="lubePerDayStrip"></div>
-      <h3 class="sub">Fresh Water (m³/day)</h3>
+      <h3 class="sub">Fresh Water (m³/day — elapsed voyage hours)</h3>
       <div class="stat-strip cols3" id="fwPerDayStrip"></div>
+      <div class="hint">M/E, G/E and boiler daily rates use each consumer's own running hours. Cylinder oil uses M/E running hours. Grade totals and fresh water use elapsed voyage hours. Sea vs port/anchorage splits total fuel by operation (port noon, anchorage noon, departure sequence and bunkering count as port/anchorage).</div>
     </div>
     <div class="panel">
       <h2>CONSUMPTION VS ROB</h2>
@@ -9811,9 +9816,34 @@ function rangeAggregate(ids){
     'Other':       sum(r => mt(extraTotal(r.incExtraCons))
                           + FUEL_TYPES.reduce((a, t) => a + mt(r.miscCons?.[t]), 0))
   };
-  const perDay = (v) => hrs > 0 ? (v / hrs) * 24 : null;
-  const byConsumerPerDay = {};
-  Object.keys(byConsumer).forEach(k => { byConsumerPerDay[k] = perDay(byConsumer[k]); });
+  /* Daily rates for ME/GE/boiler use that consumer's own running hours, not the
+     watch length — a boiler that ran 6 h of a 24 h noon must not be diluted to a
+     quarter of its true burn rate. Other still uses period hours. */
+  let geRunHrs = 0, blrRunHrs = 0;
+  inRange.forEach((r, i) => {
+    const e = state.entries.find(x => x.id === r.id) || r;
+    const prev = i > 0
+      ? (state.entries.find(x => x.id === inRange[i - 1].id) || inRange[i - 1])
+      : effectiveCarryover();
+    if (Array.isArray(r.gePeriod)){
+      r.gePeriod.forEach(p => { if (p && p.hrs > 0) geRunHrs += Number(p.hrs) || 0; });
+    } else {
+      const geN = geUnitCount();
+      for (let n = 1; n <= geN; n++){
+        const gh = entryGeRunHours(e, n, prev);
+        if (gh != null && gh > 0) geRunHrs += gh;
+      }
+    }
+    const blrH = entryBlrRunHours(e, prev);
+    if (blrH != null && blrH > 0) blrRunHrs += blrH;
+  });
+  const perDayOn = (v, runHrs) => (runHrs > 0 ? (v / runHrs) * 24 : null);
+  const byConsumerPerDay = {
+    'Main Engine': perDayOn(byConsumer['Main Engine'], meHrs),
+    'Generator':   perDayOn(byConsumer['Generator'], geRunHrs),
+    'Boiler':      perDayOn(byConsumer['Boiler'], blrRunHrs),
+    'Other':       perDayOn(byConsumer['Other'], hrs)
+  };
   return {
     reports: inRange.length,
     hrs, meHrs, revs,
@@ -10268,14 +10298,78 @@ function render(){
   const totalCons = Object.values(consByFuel).reduce((a,b)=>a+b,0);
   const daysAtSea = perf.totalHrs / 24;
 
-  // Average consumption per day
+  // Average consumption per day — consumer rates use that consumer's running hours;
+  // grade / FW rates use elapsed voyage hours; sea vs port splits total fuel by op.
+  const mtPerDay = (cons, hrs) => (hrs > 0 ? (cons / hrs) * 24 : null);
+  const statCell = (num, lbl) => `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+  const extraDoTotal = (src) => EXTRA_DO_GRADES.reduce((a, t) => a + ((extraDoMap(src)[t]) || 0), 0);
+  let meRunHrs = 0, geRunHrs = 0, blrRunHrs = 0;
+  let meFuelTot = 0, geFuelTot = 0, blrFuelTot = 0;
+  let seaFuelTot = 0, portFuelTot = 0, seaHrsTot = 0, portHrsTot = 0;
+  rows.forEach((r, i) => {
+    const e = state.entries.find(x => x.id === r.id) || r;
+    const prev = i > 0
+      ? (state.entries.find(x => x.id === rows[i - 1].id) || rows[i - 1])
+      : effectiveCarryover();
+    const periodHrs = Number(r.hrs) || 0;
+    const meH = Number(r.meHrs != null ? r.meHrs : 0) || 0;
+    if (meH > 0) meRunHrs += meH;
+    meFuelTot += Number(r.meCons) || 0;
+    geFuelTot += Number(r.geCons) || 0;
+    blrFuelTot += (Number(r.blrCons) || 0) + extraDoTotal(r.blrExtraCons);
+    if (Array.isArray(r.gePeriod)){
+      r.gePeriod.forEach(p => { if (p && p.hrs > 0) geRunHrs += Number(p.hrs) || 0; });
+    } else {
+      const geN = geUnitCount();
+      for (let n = 1; n <= geN; n++){
+        const gh = entryGeRunHours(e, n, prev);
+        if (gh != null && gh > 0) geRunHrs += gh;
+      }
+    }
+    const blrH = entryBlrRunHours(e, prev);
+    if (blrH != null && blrH > 0) blrRunHrs += blrH;
+    const periodFuel = Number(r.total) || 0;
+    if (periodHrs > 0){
+      if (NO_ME_DATA_OPS.has(canonicalOperation(e.operation))){
+        portFuelTot += periodFuel;
+        portHrsTot += periodHrs;
+      } else {
+        seaFuelTot += periodFuel;
+        seaHrsTot += periodHrs;
+      }
+    }
+  });
+  const consumerStrip = document.getElementById('consumerPerDayStrip');
+  if (consumerStrip){
+    const fmtMt = (v) => v == null ? '—' : fmtFuel(v);
+    consumerStrip.innerHTML =
+      statCell(fmtMt(mtPerDay(meFuelTot, meRunHrs)), 'M/E MT/day') +
+      statCell(fmtMt(mtPerDay(geFuelTot, geRunHrs)), 'G/E MT/day') +
+      statCell(fmtMt(mtPerDay(blrFuelTot, blrRunHrs)), 'Boiler MT/day');
+  }
+  const seaPortStrip = document.getElementById('seaPortFuelStrip');
+  if (seaPortStrip){
+    const fmtMt = (v) => v == null ? '—' : fmtFuel(v);
+    seaPortStrip.innerHTML =
+      statCell(fmtMt(mtPerDay(seaFuelTot, seaHrsTot)), 'At sea MT/day') +
+      statCell(fmtMt(mtPerDay(portFuelTot, portHrsTot)), 'Port / anch. MT/day') +
+      statCell(seaHrsTot > 0 ? fmtFuel(seaFuelTot) : '—', 'At sea total MT') +
+      statCell(portHrsTot > 0 ? fmtFuel(portFuelTot) : '—', 'Port / anch. total MT');
+  }
   document.getElementById('fuelPerDayStrip').innerHTML = FUEL_TYPES.map(t=>`
     <div class="stat"><div class="num">${daysAtSea>0 ? fmtFuel(consByFuel[t]/daysAtSea) : '—'}</div><div class="lbl">${t} /day</div></div>`).join('');
-  document.getElementById('lubePerDayStrip').innerHTML = ["CYL HIGH","CYL LOW","ME SYS OIL","GE SYS OIL"].map(t=>`
-    <div class="stat"><div class="num">${daysAtSea>0 ? fmtLube(consByLube[t]/daysAtSea) : '—'}</div><div class="lbl">${t} /day</div></div>`).join('');
+  const meRunDays = meRunHrs / 24;
+  document.getElementById('lubePerDayStrip').innerHTML = ["CYL HIGH","CYL LOW","ME SYS OIL","GE SYS OIL"].map(t=>{
+    const cyl = (t === 'CYL HIGH' || t === 'CYL LOW');
+    const days = cyl ? meRunDays : daysAtSea;
+    return `<div class="stat"><div class="num">${days>0 ? fmtLube((consByLube[t]||0)/days) : '—'}</div><div class="lbl">${t} /day</div></div>`;
+  }).join('');
   const fwPerDay = document.getElementById('fwPerDayStrip');
   if (fwPerDay){
-    fwPerDay.innerHTML = `<div class="stat"><div class="num">${daysAtSea>0 ? fmtFw(consByLube['FRESH WATER']/daysAtSea) : '—'}</div><div class="lbl">Fresh Water m³/day</div></div>`;
+    /* FW stocks are litres; daily rate must convert once to m³ — never treat litres as m³. */
+    const fwLitres = Number(consByLube['FRESH WATER']) || 0;
+    const fwM3Day = daysAtSea > 0 ? litresToM3(fwLitres) / daysAtSea : null;
+    fwPerDay.innerHTML = `<div class="stat"><div class="num">${fwM3Day==null || !isFinite(fwM3Day) ? '—' : fwM3Day.toFixed(2)}</div><div class="lbl">Fresh Water m³/day</div></div>`;
   }
 
   // Voyage Progress strip: merges former Voyage Summary + ETA stats
@@ -14819,21 +14913,29 @@ function refreshVsRobTotalRows(){
     }
   });
   setTotal('totallubes', 'lube', lubePrev - (lubeAny ? lubeCons : 0), lubeAny ? lubeCons : null);
-  let fwNow = 0, fwCons = 0, fwAny = false, fwRobAny = false;
+  /* FW cons/ROB inputs already show m³ — sum those display figures and print
+     with fmtFwM3 so we do not litres→m³ convert a value that is already m³. */
+  let fwNowM3 = 0, fwConsM3 = 0, fwAny = false, fwRobAny = false;
   getRobRows().filter(r=>r.cat==='fw').forEach(r=>{
     const consEl = document.getElementById('vs_cons_' + slugKey(r.key));
     const robEl = document.getElementById('vs_rob_' + slugKey(r.key));
     if (consEl && consEl.value!==''){
-      fwCons += parseFloat(consEl.value)||0;
+      fwConsM3 += parseFloat(consEl.value)||0;
       fwAny = true;
     }
     const n = parseFloat(robEl?.textContent);
     if (robEl && robEl.textContent!=='—' && !isNaN(n)){
-      fwNow += n;
+      fwNowM3 += n;
       fwRobAny = true;
     }
   });
-  setTotal('totalwater', 'fw', fwRobAny ? fwNow : null, fwAny ? fwCons : null);
+  const robElTot = document.getElementById('vs_rob_totalwater');
+  if (robElTot) robElTot.textContent = fwRobAny ? fmtFwM3(fwNowM3) : '—';
+  const rowTot = robElTot?.closest('tr');
+  if (rowTot){
+    const consCell = rowTot.children[2];
+    if (consCell) consCell.textContent = fwAny ? fmtFwM3(fwConsM3) : '—';
+  }
 }
 
 function readVsGeGeneratorsDraft(){
