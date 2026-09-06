@@ -2518,18 +2518,19 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <div class="field"><label>Consumed (calc, m³)</label><input type="text" id="vs_fwConsumed" readonly></div>
           </div>
         </div>
-        <h3 class="sub">Fuel, Lube &amp; Water ROB — Previous / Consumption / R.O.B.</h3>
+        <h3 class="sub">Fuel, Lube &amp; Water ROB — Previous / Received / Consumption / R.O.B.</h3>
         <div class="table-scroll">
           <table>
-            <thead><tr><th></th><th>Previous</th><th>Consumption</th><th>R.O.B.</th></tr></thead>
+            <thead><tr><th></th><th>Previous</th><th>Received</th><th>Consumption</th><th>R.O.B.</th></tr></thead>
             <tbody id="vsRobBody"></tbody>
           </table>
         </div>
+        <div class="hint">Received is calculated from this balance (R.O.B. − Previous + Consumption). Edit it when bunkering; R.O.B. then follows as Previous + Received − Consumption. Save Report writes those Received figures as bunker receipts for the day.</div>
         <button class="ghost small" id="btnVsResetConsOverride" type="button" style="margin-top:8px;">Reset Lube ROB Cons. to Calculated</button>
         <h3 class="sub">Bunker Survey / R.O.B. Correction</h3>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Tank</th><th>Received</th><th>Calculated</th><th>Measured (survey)</th><th>Difference</th></tr></thead>
+            <thead><tr><th>Tank</th><th>Calculated</th><th>Measured (survey)</th><th>Difference</th></tr></thead>
             <tbody id="vsSurveyBody"></tbody>
           </table>
         </div>
@@ -2543,8 +2544,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
         </div>
         <div class="hint" id="vsSurveyStatus"></div>
-        <div class="hint">Use it either way: after bunkering, type what was received in the Received column (or leave what Receipts already logged) — Measured fills in as current R.O.B. + Received, so you only override Measured when the tank sounding differs; a negative difference is a short delivery. Or use it alone as a plain tank survey with Received left blank.</div>
-        <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. Applying the survey also records any Received figures you typed as bunker receipts for that day. The calculated figure and the difference are kept with the report as the record of what was corrected.</div>
+        <div class="hint">Sounding correction only: enter the measured tank figure. Difference is Measured − Calculated. Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
+        <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. The calculated figure and the difference are kept with the report as the record of the sounding correction.</div>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
@@ -4077,9 +4078,13 @@ function robBalanceRows(row, prevRobData, asOf){
   const addTank = (r) => {
     const prevVal = r.cat==='fuel' ? prevRobData.rob?.[r.key] : prevRobData.robLube?.[r.key];
     const nowVal = r.cat==='fuel' ? asOf.rob?.[r.key] : asOf.robLube?.[r.key];
+    const consVal = robRowCons(row, r);
+    const recvVal = (prevVal == null || nowVal == null || consVal == null)
+      ? null
+      : (Number(nowVal) || 0) - (Number(prevVal) || 0) + (Number(consVal) || 0);
     out.push({
       key: r.key, label: r.label, cat: r.cat, kind: r.kind, grade: r.grade,
-      prevVal, consVal: robRowCons(row, r), nowVal,
+      prevVal, recvVal, consVal, nowVal,
       dec: robDec(r.cat), consDec: robDec(r.cat), total: false, strong: false
     });
   };
@@ -4087,9 +4092,11 @@ function robBalanceRows(row, prevRobData, asOf){
   const lube = getRobRows().filter(r=>r.cat==='lube');
   lube.forEach(addTank);
   if (lube.length){
+    const tanks = out.filter(x=>x.cat==='lube' && !x.total);
     out.push({
       key: 'totallubes', label: 'TOTAL LUBES', cat: 'lube', total: true, strong: true,
       prevVal: totalLubeRob(prevRobData.robLube || {}),
+      recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
       consVal: sumRobCons(row, 'lube'),
       nowVal: totalLubeRob(asOf.robLube || {}),
       dec: robDec('lube'), consDec: robDec('lube')
@@ -4098,9 +4105,11 @@ function robBalanceRows(row, prevRobData, asOf){
   const fw = getRobRows().filter(r=>r.cat==='fw');
   fw.forEach(addTank);
   if (fw.length > 1){
+    const tanks = out.filter(x=>x.cat==='fw' && !x.total);
     out.push({
       key: 'totalwater', label: 'TOTAL WATER', cat: 'fw', total: true, strong: true,
       prevVal: totalFwRob(prevRobData.robLube || {}),
+      recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
       consVal: sumRobCons(row, 'fw'),
       nowVal: totalFwRob(asOf.robLube || {}),
       dec: robDec('fw'), consDec: robDec('fw')
@@ -8341,12 +8350,12 @@ async function removeRobSurveyReceipts(entryId){
   return doomed.length;
 }
 
-/** Read Received inputs from the survey table (fuel/lube MT, FW as m³ on the form). */
-function readVsSurveyReceivedInputs(){
+/** Read Received inputs from the consumption/ROB table (fuel/lube MT, FW as m³ on the form). */
+function readVsRobReceivedInputs(){
   const rows = [];
-  document.querySelectorAll('[data-survey-recv]').forEach(el=>{
+  document.querySelectorAll('[data-rob-recv]').forEach(el=>{
     if (el.value === '') return;
-    const cat = el.dataset.surveyRecvCat || el.dataset.surveyCat || 'fuel';
+    const cat = el.dataset.robRecvCat || 'fuel';
     let qty = parseFloat(el.value);
     if (!Number.isFinite(qty) || qty < 0) return;
     if (cat === 'fw'){
@@ -8355,18 +8364,23 @@ function readVsSurveyReceivedInputs(){
       qty = litres;
     }
     rows.push({
-      tankId: el.dataset.surveyRecv,
+      tankId: el.dataset.robRecv,
       cat,
-      store: el.dataset.surveyRecvStore || (cat === 'fuel' ? 'rob' : 'robLube'),
+      store: el.dataset.robRecvStore || (cat === 'fuel' ? 'rob' : 'robLube'),
       qty
     });
   });
   return rows;
 }
 
+/** @deprecated alias — Received moved to the ROB balance table. */
+function readVsSurveyReceivedInputs(){
+  return readVsRobReceivedInputs();
+}
+
 /**
- * Upsert bunker/lube/FW receipts from the survey Received column so bunkering
- * entered on the correction panel is reflected in the ROB book before re-base.
+ * Upsert bunker/lube/FW receipts from the ROB Received column so bunkering
+ * entered on Previous/Received/Consumption/R.O.B. is reflected in the book.
  */
 async function syncRobSurveyReceivedReceipts(entryId, receivedRows){
   const entry = state.entries.find(e=>e.id===entryId);
@@ -8408,7 +8422,8 @@ async function syncRobSurveyReceivedReceipts(entryId, receivedRows){
 async function clearRobSurvey(entryId){
   const entry = state.entries.find(e=>e.id===entryId);
   if (!entry || !entry.robSurvey) return;
-  await removeRobSurveyReceipts(entryId);
+  /* Received/receipts now live on the consumption/ROB table — clearing the
+     sounding survey must not wipe bunkers logged there. */
   entry.robSurvey = null;
   await dbPut('entries', tagVesselId(entry));
   markPendingSync();
@@ -8436,45 +8451,18 @@ function formatSurveyMeasuredInput(qty, cat){
 /** Live Difference (and book) while typing Received / Measured before Apply.
  *  Typing Received auto-fills Measured as current ROB + Received so bunkering
  *  does not need a second manual sounding entry unless the tank differs. */
-function refreshVsSurveyLiveDiffs(ev){
-  const fromRecv = !!(ev && ev.target && ev.target.hasAttribute && ev.target.hasAttribute('data-survey-recv'));
-  const autoFillAll = !!(ev && ev.autoFillFromReceived);
+/** Live Difference while typing Measured — sounding correction only (Measured − book). */
+function refreshVsSurveyLiveDiffs(){
   document.querySelectorAll('#vsSurveyBody tr').forEach(tr=>{
-    const recvEl = tr.querySelector('[data-survey-recv]');
     const measEl = tr.querySelector('[data-survey-tank]');
     const bookCell = tr.querySelector('[data-survey-book]');
     const diffCell = tr.querySelector('[data-survey-diff]');
     if (!bookCell || !diffCell || !measEl) return;
     const cat = measEl.dataset.surveyCat || 'fuel';
     const bookBase = parseFloat(bookCell.dataset.bookBase);
-    const recvBase = parseFloat(recvEl?.dataset.recvBase || '0') || 0;
-    let typedRecv = recvBase;
-    if (recvEl && recvEl.value !== ''){
-      if (cat === 'fw'){
-        const litres = typeof parseFwM3Field === 'function' ? parseFwM3Field(recvEl.value) : parseFloat(recvEl.value);
-        typedRecv = litres != null && !isNaN(litres) ? litres : recvBase;
-      } else {
-        const v = parseFloat(recvEl.value);
-        typedRecv = Number.isFinite(v) ? v : recvBase;
-      }
-    } else if (recvEl && recvEl.value === ''){
-      typedRecv = 0;
-    }
-    const book = surveyBookWithReceived(bookBase, recvBase, typedRecv);
-    if (!document.activeElement || document.activeElement !== bookCell){
+    const book = Number.isFinite(bookBase) ? bookBase : null;
+    if (book != null && (!document.activeElement || document.activeElement !== bookCell)){
       bookCell.textContent = fmtRob(book, cat);
-    }
-    /* Received typed (or prefilled) → Measured = current ROB + that addition. */
-    if ((fromRecv || autoFillAll) && recvEl){
-      if (recvEl.value !== '' && typedRecv > 0){
-        if (fromRecv || measEl.value === '' || measEl.dataset.measAuto === '1'){
-          measEl.value = formatSurveyMeasuredInput(book, cat);
-          measEl.dataset.measAuto = '1';
-        }
-      } else if (fromRecv && recvEl.value === '' && measEl.dataset.measAuto === '1'){
-        measEl.value = '';
-        delete measEl.dataset.measAuto;
-      }
     }
     if (measEl.value === ''){
       diffCell.textContent = '—';
@@ -8487,7 +8475,7 @@ function refreshVsSurveyLiveDiffs(ev){
     } else {
       meas = parseFloat(measEl.value);
     }
-    if (meas == null || isNaN(meas)){
+    if (meas == null || isNaN(meas) || book == null){
       diffCell.textContent = '—';
       diffCell.removeAttribute('style');
       return;
@@ -8501,6 +8489,7 @@ function refreshVsSurveyLiveDiffs(ev){
 
 
 /** Bunker survey panel: book figure beside the measured one, with the difference. */
+/** Bunker survey panel: sounding correction only (Calculated / Measured / Difference). */
 function renderVsSurvey(){
   const body = document.getElementById('vsSurveyBody');
   if (!body || !currentVsEntryId) return;
@@ -8513,16 +8502,6 @@ function renderVsSurvey(){
     ...lubeTankList().map(t=>({t, cat:'lube', store:'robLube'})),
     ...fwTankList().map(t=>({t, cat:'fw', store:'robLube'}))
   ];
-  /* Bunkers landed on the day being surveyed — the delivery this survey checks.
-     Prefill Received from Receipts; the engineer can type/adjust for bunkering. */
-  const surveyDay = String((sv ? sv.date : entry.datetime) || '').slice(0,10);
-  const receivedOnDay = (tank, category) => {
-    if (sv?.received?.[tank.id] != null) return Number(sv.received[tank.id]) || 0;
-    if (sv?.receivedLube?.[tank.id] != null) return Number(sv.receivedLube[tank.id]) || 0;
-    return state.receipts
-      .filter(r=> receiptMatchesTank(r, tank, category) && String(r.date||'').slice(0,10) === surveyDay)
-      .reduce((a,r)=> a + (Number(r.qty)||0), 0);
-  };
 
   body.innerHTML = rows.map(({t, cat, store})=>{
     /* With a survey applied the calculated column would echo the measurement, which
@@ -8531,37 +8510,24 @@ function renderVsSurvey(){
       ? (store==='rob' ? sv.calculated?.[t.id] : sv.calculatedLube?.[t.id])
       : (store==='rob' ? calc.rob?.[t.id] : calc.robLube?.[t.id]);
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
-    const recvRaw = receivedOnDay(t, cat==='fuel' ? 'fuel' : (cat==='lube' ? 'lube' : 'fw'));
-    const recvDisp = cat === 'fw' && recvRaw ? (typeof fwInputValue === 'function' ? fwInputValue(recvRaw) : recvRaw) : (recvRaw || '');
     const bookNum = book == null ? null : Number(book);
-    const recvNum = Number(recvRaw) || 0;
     const diff = (meas!=null && bookNum!=null) ? meas - bookNum : null;
     const cls = diff==null ? '' : (Math.abs(diff) < 1e-9 ? '' : (diff < 0 ? ' style="color:var(--danger,#c66)"' : ' style="color:var(--teal)"'));
     return `<tr><td class="row-lbl">${t.name}</td>`
-      + `<td><input type="number" step="any" min="0" data-survey-recv="${t.id}" data-survey-recv-cat="${cat}" data-survey-recv-store="${store}" data-recv-base="${recvNum}" value="${recvDisp !== '' && recvDisp != null ? recvDisp : ''}" placeholder="0"></td>`
       + `<td data-survey-book data-book-base="${bookNum!=null?bookNum:''}">${fmtRob(book, cat)}</td>`
       + `<td><input type="number" step="any" data-survey-tank="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${meas!=null?(cat==='fw'?fwInputValue(meas):meas):''}" placeholder="${book!=null?fmtRob(book,cat):''}"></td>`
       + `<td data-survey-diff${cls}>${diff==null?'—':(diff>0?'+':'')+fmtRob(diff, cat)}</td></tr>`;
   }).join('');
 
-  body.querySelectorAll('[data-survey-recv]').forEach(el=>{
+  body.querySelectorAll('[data-survey-tank]').forEach(el=>{
     el.addEventListener('input', refreshVsSurveyLiveDiffs);
   });
-  body.querySelectorAll('[data-survey-tank]').forEach(el=>{
-    el.addEventListener('input', (ev)=>{
-      delete ev.target.dataset.measAuto;
-      refreshVsSurveyLiveDiffs(ev);
-    });
-  });
-  /* Prefill Measured from ROB + Received when Received is already populated and
-     Measured is still blank (e.g. receipts for this day). */
-  refreshVsSurveyLiveDiffs({ autoFillFromReceived: true });
 
   const status = document.getElementById('vsSurveyStatus');
   if (status){
     status.textContent = sv
       ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : 'No survey on this report. R.O.B. is the calculated figure. Type Received when bunkering on this report.';
+      : 'No survey on this report. R.O.B. is the calculated figure. Use Measured for a sounding correction only — bunkers received are on the ROB table above.';
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -8590,30 +8556,21 @@ function bindRobSurveyUi(){
     if (!Object.keys(measured).length && !Object.keys(measuredLube).length){
       alert('Enter at least one measured figure.'); return;
     }
-    /* Record bunkering from Received first so the book figure includes it. */
-    const receivedRows = readVsSurveyReceivedInputs();
+    /* Sync bunkers from the ROB Received column first so the book includes them. */
+    const receivedRows = readVsRobReceivedInputs();
     await syncRobSurveyReceivedReceipts(currentVsEntryId, receivedRows);
-    const received = {}, receivedLube = {};
-    receivedRows.forEach(r=>{
-      (r.store === 'rob' ? received : receivedLube)[r.tankId] = r.qty;
-    });
     await recordRobSurvey(currentVsEntryId, {
       measured, measuredLube,
       place: document.getElementById('vs_surveyPlace')?.value || '',
       surveyor: document.getElementById('vs_surveyor')?.value || '',
       remark: document.getElementById('vs_surveyRemark')?.value || ''
     });
-    const entry = state.entries.find(e=>e.id===currentVsEntryId);
-    if (entry?.robSurvey){
-      entry.robSurvey.received = received;
-      entry.robSurvey.receivedLube = receivedLube;
-      await dbPut('entries', tagVesselId(entry));
-    }
     renderVsSurvey();
+    updateVsRobLiveFromCons();
   });
   if (clear) clear.addEventListener('click', async ()=>{
     if (!currentVsEntryId) return;
-    if (!confirm('Remove the survey? R.O.B. goes back to the calculated figures, and Received amounts logged from this survey are removed.')) return;
+    if (!confirm('Remove the survey? R.O.B. goes back to the calculated figures. Bunkers received on the ROB table are kept.')) return;
     await clearRobSurvey(currentVsEntryId);
     renderVsSurvey();
   });
@@ -13123,6 +13080,7 @@ function printTransposedRobTableHtml(items, metrics){
 function printRobBalanceTableHtml(rows){
   return printTransposedRobTableHtml(rows, [
     { label: 'Previous', get: r => fmtRob(r.prevVal, r.cat) },
+    { label: 'Received', get: r => r.recvVal===null||r.recvVal===undefined ? '—' : fmtRob(r.recvVal, r.cat) },
     { label: 'Consumption', get: r => r.consVal===null||r.consVal===undefined ? '—' : fmtRob(r.consVal, r.cat) },
     { label: 'Present R.O.B.', present: true, get: r => fmtRob(r.nowVal, r.cat) }
   ]);
@@ -14821,26 +14779,60 @@ function openVoyageSummary(entryId){
       return `<tr class="rob-total">
       <td><strong>${r.label}</strong></td>
       <td>${fmtRob(r.prevVal, r.cat)}</td>
+      <td id="vs_recv_${slugKey(r.key)}">${r.recvVal==null?'—':fmtRob(r.recvVal, r.cat)}</td>
       <td>${r.consVal==null?'—':fmtRob(r.consVal, r.cat)}</td>
       <td id="vs_rob_${slugKey(r.key)}">${fmtRob(r.nowVal, r.cat)}</td>
     </tr>`;
     }
     const lubeEditable = r.cat==='lube';
+    const recvDisp = r.cat === 'fw' && r.recvVal
+      ? (typeof fwInputValue === 'function' ? fwInputValue(r.recvVal) : r.recvVal)
+      : (r.recvVal != null ? r.recvVal : '');
+    const store = r.cat === 'fuel' ? 'rob' : 'robLube';
     return `<tr>
       <td>${r.label}</td>
       <td>${fmtRob(r.prevVal, r.cat)}</td>
+      <td><input class="pf-input" style="width:80px;" type="number" step="${robConsStep(r.cat)}" id="vs_recv_${slugKey(r.key)}" data-rob-recv="${r.key}" data-rob-recv-cat="${r.cat}" data-rob-recv-store="${store}" value="${recvDisp !== '' && recvDisp != null ? fmtRobInput(r.recvVal, r.cat) : ''}" placeholder="0"></td>
       <td><input class="pf-input" style="width:80px;" type="number" step="${robConsStep(r.cat)}" id="vs_cons_${slugKey(r.key)}" value="${fmtRobInput(r.consVal, r.cat)}" data-prev="${r.prevVal||0}" data-cat="${r.cat}" data-key="${r.key}"${lubeEditable?'':' readonly'}></td>
       <td id="vs_rob_${slugKey(r.key)}">${fmtRob(r.nowVal, r.cat)}</td>
     </tr>`;
   }).join('');
 
+  const recalcRobFromRecvCons = (key, cat, prevVal) => {
+    const recvEl = document.getElementById('vs_recv_' + slugKey(key));
+    const consEl = document.getElementById('vs_cons_' + slugKey(key));
+    const robEl = document.getElementById('vs_rob_' + slugKey(key));
+    if (!robEl || !consEl) return;
+    if (cat === 'fw'){
+      const tankEl = document.getElementById(fwTankRobId('vs', key));
+      const tankVal = tankEl && tankEl.value !== '' ? parseFwM3Field(tankEl.value) : null;
+      const fwRob = tankVal != null ? tankVal : parseFwM3Field(document.getElementById('vs_fwRob')?.value);
+      robEl.textContent = fwRob==null ? '—' : fmtRob(fwRob, 'fw');
+      return;
+    }
+    let recvVal = 0;
+    if (recvEl && recvEl.value !== ''){
+      const v = parseFloat(recvEl.value);
+      recvVal = Number.isFinite(v) ? v : 0;
+    }
+    const consVal = parseFloat(consEl.value)||0;
+    robEl.textContent = fmtRob(prevVal + recvVal - consVal, cat);
+  };
+
+  robBody.querySelectorAll('[data-rob-recv]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const consEl = document.getElementById('vs_cons_' + slugKey(inp.dataset.robRecv));
+      const prevVal = parseFloat(consEl?.dataset.prev)||0;
+      recalcRobFromRecvCons(inp.dataset.robRecv, inp.dataset.robRecvCat || 'fuel', prevVal);
+      refreshVsRobTotalRows();
+    });
+  });
+
   // Only lube oil cons is editable; fuel grades and fresh water are calculated.
-  robBody.querySelectorAll('.pf-input:not([readonly])').forEach(inp=>{
+  robBody.querySelectorAll('#vsRobBody input[id^="vs_cons_"]:not([readonly])').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const prevVal = parseFloat(inp.dataset.prev)||0;
-      const consVal = parseFloat(inp.value)||0;
-      const robEl = document.getElementById(`vs_rob_${slugKey(inp.dataset.key)}`);
-      if (robEl) robEl.textContent = fmtRob(prevVal - consVal, inp.dataset.cat || 'lube');
+      recalcRobFromRecvCons(inp.dataset.key, inp.dataset.cat || 'lube', prevVal);
       refreshVsRobTotalRows();
     });
   });
@@ -14926,6 +14918,7 @@ function updateVsRobLiveFromCons(){
   const live = computeVsLiveConsByType(entry);
   getRobRows().forEach(r=>{
     const consEl = document.getElementById('vs_cons_' + slugKey(r.key));
+    const recvEl = document.getElementById('vs_recv_' + slugKey(r.key));
     const robEl = document.getElementById('vs_rob_' + slugKey(r.key));
     if (!consEl) return;
     // Fuel grades + FW are calculated (not editable); leave lube oil cons as the user set it.
@@ -14939,6 +14932,16 @@ function updateVsRobLiveFromCons(){
     }
     const prevVal = parseFloat(consEl.dataset.prev)||0;
     const consVal = parseFloat(consEl.value)||0;
+    let recvVal = 0;
+    if (recvEl && recvEl.value !== ''){
+      if (r.cat === 'fw'){
+        const litres = typeof parseFwM3Field === 'function' ? parseFwM3Field(recvEl.value) : parseFloat(recvEl.value);
+        recvVal = litres != null && !isNaN(litres) ? litres : 0;
+      } else {
+        const v = parseFloat(recvEl.value);
+        recvVal = Number.isFinite(v) ? v : 0;
+      }
+    }
     if (!robEl) return;
     if (r.cat==='fw'){
       const tankEl = document.getElementById(fwTankRobId('vs', r.key));
@@ -14946,42 +14949,62 @@ function updateVsRobLiveFromCons(){
       const mapped = live.fwByTank && live.fwByTank[r.key];
       const fwRob = tankVal != null ? tankVal : (mapped != null ? mapped : parseFwM3Field(document.getElementById('vs_fwRob')?.value));
       robEl.textContent = fwRob==null ? '—' : fmtRob(fwRob, 'fw');
+      /* Keep Received = R.O.B. − Previous + Consumption when FW ROB is known. */
+      if (recvEl && document.activeElement !== recvEl && fwRob != null){
+        const calcRecv = (Number(fwRob)||0) - prevVal + consVal;
+        recvEl.value = fmtRobInput(calcRecv, 'fw');
+      }
     } else {
-      robEl.textContent = fmtRob(prevVal - consVal, r.cat);
+      robEl.textContent = fmtRob(prevVal + recvVal - consVal, r.cat);
     }
   });
   refreshVsRobTotalRows();
 }
 
 function refreshVsRobTotalRows(){
-  const setTotal = (id, cat, nowVal, consVal) => {
+  const setTotal = (id, cat, nowVal, consVal, recvVal) => {
     const robEl = document.getElementById('vs_rob_' + id);
     if (robEl) robEl.textContent = fmtRob(nowVal, cat);
     const row = robEl?.closest('tr');
     if (!row) return;
-    const consCell = row.children[2];
+    const recvCell = row.children[2];
+    const consCell = row.children[3];
+    if (recvCell) recvCell.textContent = recvVal==null ? '—' : fmtRob(recvVal, cat);
     if (consCell) consCell.textContent = consVal==null ? '—' : fmtRob(consVal, cat);
   };
-  let lubePrev = 0, lubeCons = 0, lubeAny = false;
+  let lubePrev = 0, lubeCons = 0, lubeRecv = 0, lubeAny = false, lubeRecvAny = false;
   getRobRows().filter(r=>r.cat==='lube').forEach(r=>{
     const consEl = document.getElementById('vs_cons_' + slugKey(r.key));
+    const recvEl = document.getElementById('vs_recv_' + slugKey(r.key));
     if (!consEl) return;
     lubePrev += parseFloat(consEl.dataset.prev)||0;
     if (consEl.value!==''){
       lubeCons += parseFloat(consEl.value)||0;
       lubeAny = true;
     }
+    if (recvEl && recvEl.value!==''){
+      lubeRecv += parseFloat(recvEl.value)||0;
+      lubeRecvAny = true;
+    }
   });
-  setTotal('totallubes', 'lube', lubePrev - (lubeAny ? lubeCons : 0), lubeAny ? lubeCons : null);
+  setTotal('totallubes', 'lube',
+    lubePrev + (lubeRecvAny ? lubeRecv : 0) - (lubeAny ? lubeCons : 0),
+    lubeAny ? lubeCons : null,
+    lubeRecvAny ? lubeRecv : null);
   /* FW cons/ROB inputs already show m³ — sum those display figures and print
      with fmtFwM3 so we do not litres→m³ convert a value that is already m³. */
-  let fwNowM3 = 0, fwConsM3 = 0, fwAny = false, fwRobAny = false;
+  let fwNowM3 = 0, fwConsM3 = 0, fwRecvM3 = 0, fwAny = false, fwRobAny = false, fwRecvAny = false;
   getRobRows().filter(r=>r.cat==='fw').forEach(r=>{
     const consEl = document.getElementById('vs_cons_' + slugKey(r.key));
+    const recvEl = document.getElementById('vs_recv_' + slugKey(r.key));
     const robEl = document.getElementById('vs_rob_' + slugKey(r.key));
     if (consEl && consEl.value!==''){
       fwConsM3 += parseFloat(consEl.value)||0;
       fwAny = true;
+    }
+    if (recvEl && recvEl.value!==''){
+      fwRecvM3 += parseFloat(recvEl.value)||0;
+      fwRecvAny = true;
     }
     const n = parseFloat(robEl?.textContent);
     if (robEl && robEl.textContent!=='—' && !isNaN(n)){
@@ -14993,7 +15016,9 @@ function refreshVsRobTotalRows(){
   if (robElTot) robElTot.textContent = fwRobAny ? fmtFwM3(fwNowM3) : '—';
   const rowTot = robElTot?.closest('tr');
   if (rowTot){
-    const consCell = rowTot.children[2];
+    const recvCell = rowTot.children[2];
+    const consCell = rowTot.children[3];
+    if (recvCell) recvCell.textContent = fwRecvAny ? fmtFwM3(fwRecvM3) : '—';
     if (consCell) consCell.textContent = fwAny ? fmtFwM3(fwConsM3) : '—';
   }
 }
@@ -15424,6 +15449,12 @@ function applyVoyageSummaryFormToEntry(entry){
 async function saveOpenVoyageSummary({ close = true } = {}){
   const entry = state.entries.find(e=>e.id===currentVsEntryId);
   if (!entry) return null;
+  /* Persist Received from the consumption/ROB table as bunker receipts for the day. */
+  try {
+    await syncRobSurveyReceivedReceipts(currentVsEntryId, readVsRobReceivedInputs());
+  } catch (err) {
+    console.warn('ROB received sync failed', err);
+  }
   /* Captured before the form is applied: the cascade below needs to know whether
      the engineer's typed unit consumption actually changed the override. */
   const priorUnitOverride = Object.assign({ ME:null, GE:null, BLR:null }, entry.unitOverride || {});
@@ -19027,7 +19058,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v196';
+let androidInstallCacheName = 'noon-report-v197';
 
 /*
  * What the program is called.
