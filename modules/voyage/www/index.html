@@ -2539,7 +2539,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
         </div>
         <div class="hint" id="vsSurveyStatus"></div>
-        <div class="hint">Use it either way: after bunkering, to check the delivery against the tanks — type what was received in the Received column (or leave what Receipts already logged); a negative difference is a short delivery. Or use it alone as a plain tank survey with Received left blank.</div>
+        <div class="hint">Use it either way: after bunkering, type what was received in the Received column (or leave what Receipts already logged) — Measured fills in as current R.O.B. + Received, so you only override Measured when the tank sounding differs; a negative difference is a short delivery. Or use it alone as a plain tank survey with Received left blank.</div>
         <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. Applying the survey also records any Received figures you typed as bunker receipts for that day. The calculated figure and the difference are kept with the report as the record of what was corrected.</div>
       </div>
 
@@ -8402,8 +8402,30 @@ async function clearRobSurvey(entryId){
   render();
 }
 
-/** Live Difference (and book) while typing Received / Measured before Apply. */
-function refreshVsSurveyLiveDiffs(){
+/** Book ROB after applying the typed Received amount (replacing any prefilled receipt). */
+function surveyBookWithReceived(bookBase, recvBase, typedRecv){
+  const base = Number.isFinite(Number(bookBase)) ? Number(bookBase) : 0;
+  const rb = Number(recvBase) || 0;
+  const tr = Number(typedRecv);
+  if (!Number.isFinite(tr)) return base - rb;
+  return base - rb + tr;
+}
+
+/** Format a measured quantity for the survey input (FW fields are m³ on screen). */
+function formatSurveyMeasuredInput(qty, cat){
+  if (qty == null || !Number.isFinite(Number(qty))) return '';
+  const n = Number(qty);
+  if (cat === 'fw') return typeof fwInputValue === 'function' ? fwInputValue(n) : String(n);
+  const rounded = Math.round(n * 1000) / 1000;
+  return String(rounded);
+}
+
+/** Live Difference (and book) while typing Received / Measured before Apply.
+ *  Typing Received auto-fills Measured as current ROB + Received so bunkering
+ *  does not need a second manual sounding entry unless the tank differs. */
+function refreshVsSurveyLiveDiffs(ev){
+  const fromRecv = !!(ev && ev.target && ev.target.hasAttribute && ev.target.hasAttribute('data-survey-recv'));
+  const autoFillAll = !!(ev && ev.autoFillFromReceived);
   document.querySelectorAll('#vsSurveyBody tr').forEach(tr=>{
     const recvEl = tr.querySelector('[data-survey-recv]');
     const measEl = tr.querySelector('[data-survey-tank]');
@@ -8425,9 +8447,21 @@ function refreshVsSurveyLiveDiffs(){
     } else if (recvEl && recvEl.value === ''){
       typedRecv = 0;
     }
-    const book = (Number.isFinite(bookBase) ? bookBase : 0) - recvBase + typedRecv;
+    const book = surveyBookWithReceived(bookBase, recvBase, typedRecv);
     if (!document.activeElement || document.activeElement !== bookCell){
       bookCell.textContent = fmtRob(book, cat);
+    }
+    /* Received typed (or prefilled) → Measured = current ROB + that addition. */
+    if ((fromRecv || autoFillAll) && recvEl){
+      if (recvEl.value !== '' && typedRecv > 0){
+        if (fromRecv || measEl.value === '' || measEl.dataset.measAuto === '1'){
+          measEl.value = formatSurveyMeasuredInput(book, cat);
+          measEl.dataset.measAuto = '1';
+        }
+      } else if (fromRecv && recvEl.value === '' && measEl.dataset.measAuto === '1'){
+        measEl.value = '';
+        delete measEl.dataset.measAuto;
+      }
     }
     if (measEl.value === ''){
       diffCell.textContent = '—';
@@ -8497,9 +8531,18 @@ function renderVsSurvey(){
       + `<td data-survey-diff${cls}>${diff==null?'—':(diff>0?'+':'')+fmtRob(diff, cat)}</td></tr>`;
   }).join('');
 
-  body.querySelectorAll('[data-survey-recv], [data-survey-tank]').forEach(el=>{
+  body.querySelectorAll('[data-survey-recv]').forEach(el=>{
     el.addEventListener('input', refreshVsSurveyLiveDiffs);
   });
+  body.querySelectorAll('[data-survey-tank]').forEach(el=>{
+    el.addEventListener('input', (ev)=>{
+      delete ev.target.dataset.measAuto;
+      refreshVsSurveyLiveDiffs(ev);
+    });
+  });
+  /* Prefill Measured from ROB + Received when Received is already populated and
+     Measured is still blank (e.g. receipts for this day). */
+  refreshVsSurveyLiveDiffs({ autoFillFromReceived: true });
 
   const status = document.getElementById('vsSurveyStatus');
   if (status){
