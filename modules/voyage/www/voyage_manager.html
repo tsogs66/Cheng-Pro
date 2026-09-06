@@ -8437,7 +8437,9 @@ async function syncRobSurveyReceivedReceipts(entryId, receivedRows){
   const entry = state.entries.find(e=>e.id===entryId);
   if (!entry) return;
   await removeRobSurveyReceipts(entryId);
-  const day = String(entry.datetime || '').slice(0, 10);
+  /* Use the entry datetime (not date-only) so this report's Received always
+     counts in robAsOf for this entry and carries into the next report's Previous. */
+  const day = entry.datetime || String(entry.datetime || '').slice(0, 10);
   const place = document.getElementById('vs_surveyPlace')?.value || entry.robSurvey?.place || '';
   const tanks = {
     fuel: fuelTankList(),
@@ -8628,6 +8630,37 @@ function bindRobSurveyUi(){
 }
 
 /* ROB as it stood at the time of a specific entry (not the voyage's final/current ROB) */
+/** True when an entry has a stamped Received qty for this tank. */
+function entryHasStampedReceived(entryId, tankId, cat){
+  const e = (state.entries || []).find(x => x.id === entryId);
+  if (!e) return false;
+  const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
+  return !!(map && map[tankId] != null);
+}
+
+/**
+ * Bunkers stamped on voyage-summary entries (robReceived / robReceivedLube).
+ * These are the chief-log Received figures and must carry into later reports'
+ * opening R.O.B. After a sounding survey, only entries AFTER the survey day
+ * count — the survey measured figure already includes bunkers on that day.
+ */
+function stampedReceivedAsOf(tankId, cat, cutoff, survey){
+  let sum = 0;
+  const limit = cutoff.getTime();
+  for (const e of (state.entries || [])){
+    if (!e || !e.datetime) continue;
+    const t = new Date(e.datetime).getTime();
+    if (!Number.isFinite(t) || t > limit) continue;
+    if (survey){
+      /* Survey day and earlier are inside / before the measured re-base. */
+      if (!receiptDayAfter(e.datetime, survey.date)) continue;
+    }
+    const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
+    if (map && map[tankId] != null) sum += Number(map[tankId]) || 0;
+  }
+  return sum;
+}
+
 function robAsOfEntry(entryId){
   const {rows} = computeDerived();
   return robAsOfComputedRow(rows.find(r=>r.id===entryId) || null, rows);
@@ -8641,6 +8674,7 @@ function robAsOfEntry(entryId){
 function robAsOfComputedRow(row, rowsHint){
   if (!row) return null;
   const cutoff = new Date(row.datetime);
+  const cutoffDay = String(row.datetime || '').slice(0, 10);
 
   /* A bunker survey re-bases the ROB chain. Everything before it is history; from
      the survey onward ROB counts from the MEASURED figure, plus anything bunkered
@@ -8664,16 +8698,25 @@ function robAsOfComputedRow(row, rowsHint){
     if (calculated?.[t.id] != null) return Number(calculated[t.id]);
     return tankRobValue(store, t);
   };
+  /* Include bunkers by calendar day so a date-only receipt on this report's day
+     is never dropped by timezone when comparing to the entry datetime. */
   const countReceipt = (r) => {
-    if (new Date(r.date) > cutoff) return false;
+    const rDay = String(r.date || '').slice(0, 10);
+    if (!rDay || rDay > cutoffDay) return false;
     /* Bunkers delivered up to the survey are already inside the measured figure —
        counting them again would double the delivery. */
     return !survey || receiptDayAfter(r.date, survey.date);
   };
+  const receiptQty = (t, cat) => state.receipts
+    .filter(r => receiptMatchesTank(r, t, cat) && countReceipt(r))
+    /* Prefer stamped entry Received over the rob-survey receipt mirror to avoid
+       double-counting when both exist for the same summary save. */
+    .filter(r => !(r.source === 'rob-survey' && entryHasStampedReceived(r.surveyEntryId, t.id, cat)))
+    .reduce((s,r)=> s + (Number(r.qty)||0), 0);
 
   const rob = {};
   fuelTankList().forEach(t=>{
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'fuel') && countReceipt(r)).reduce((s,r)=>s+r.qty,0);
+    const received = receiptQty(t, 'fuel') + stampedReceivedAsOf(t.id, 'fuel', cutoff, survey);
     rob[t.id] = base(state.setup.rob, t, survey?.measured, survey?.calculated) + received;
   });
   FUEL_TYPES.forEach(g=> deductGradeConsumption(rob, fuelTankList(), g, 'grade',
@@ -8681,13 +8724,18 @@ function robAsOfComputedRow(row, rowsHint){
 
   const robLube = {};
   lubeTankList().forEach(t=>{
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'lube') && countReceipt(r)).reduce((s,r)=>s+r.qty,0);
+    const received = receiptQty(t, 'lube') + stampedReceivedAsOf(t.id, 'lube', cutoff, survey);
     robLube[t.id] = base(state.setup.robLube, t, survey?.measuredLube, survey?.calculatedLube) + received;
   });
   deductLubeConsumption(robLube, 'cylHigh', Math.max(0, (row.cumLube?.['CYL HIGH']||0) - (survey ? (sRow?.cumLube?.['CYL HIGH']||0) : 0)));
   deductLubeConsumption(robLube, 'cylLow', Math.max(0, (row.cumLube?.['CYL LOW']||0) - (survey ? (sRow?.cumLube?.['CYL LOW']||0) : 0)));
   deductLubeConsumption(robLube, 'meSys', Math.max(0, (row.cumLube?.['ME SYS OIL']||0) - (survey ? (sRow?.cumLube?.['ME SYS OIL']||0) : 0)));
   deductLubeConsumption(robLube, 'geSys', Math.max(0, (row.cumLube?.['GE SYS OIL']||0) - (survey ? (sRow?.cumLube?.['GE SYS OIL']||0) : 0)));
+  /* FW Received stamped on entries (and manual FW receipts) also carry forward. */
+  fwTankList().forEach(t=>{
+    const received = receiptQty(t, 'fw') + stampedReceivedAsOf(t.id, 'fw', cutoff, survey);
+    if (received) robLube[t.id] = (Number(robLube[t.id])||0) + received;
+  });
   const fwTanks = fwTankList();
   if (row.fwByTank){
     fwTanks.forEach(t=>{
@@ -8695,7 +8743,8 @@ function robAsOfComputedRow(row, rowsHint){
     });
   } else {
     const primaryFw = fwTanks[0];
-    if (primaryFw) robLube[primaryFw.id] = row.fwRob!=null ? row.fwRob : latestFwRob(cutoff);
+    if (primaryFw && row.fwRob!=null) robLube[primaryFw.id] = row.fwRob;
+    else if (primaryFw && robLube[primaryFw.id]==null) robLube[primaryFw.id] = latestFwRob(cutoff);
   }
   return {rob, robLube};
 }
@@ -19115,7 +19164,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v198';
+let androidInstallCacheName = 'noon-report-v199';
 
 /*
  * What the program is called.
