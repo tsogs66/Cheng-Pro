@@ -141,15 +141,16 @@
   }
 
   /**
-   * Changing ship's zone adjusts the displayed ship's clock by the same
-   * minutes and accumulates that on the period's clock-change log.
+   * Changing ship's zone records clocks advanced/retarded on the period log.
+   * The log stamp itself stays put (noon stays noon) so period hours shrink
+   * or grow: noon-to-noon after clocks +1 h is 23 h, not 24 h.
    */
   function applyTimezoneChange(datetime, fromOffsetMin, toOffsetMin, prevClockChangeMin) {
     const from = clampTzOffsetMin(fromOffsetMin);
     const to = clampTzOffsetMin(toOffsetMin);
     const deltaMin = to - from;
     return {
-      datetime: addMinutesToDatetimeLocal(datetime, deltaMin),
+      datetime: datetime || '',
       tzOffsetMin: to,
       clockChangeMin: sanitizeClockChangeMin(prevClockChangeMin) + deltaMin,
       deltaMin: deltaMin
