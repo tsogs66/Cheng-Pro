@@ -2140,8 +2140,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="hint">Max Digits sets each meter's rollover point (rollover = 10^digits) — used for rollover-safe consumption calc if a flowmeter counter resets. Setup Type is the same Flowmeter Arrangement used on the Log Entry form. Changing meters on a saved log entry and saving again recalculates that watch and every later watch.</div>
         <div class="btn-row" style="margin-top:10px;">
           <button type="button" class="primary small" id="btnLoadMetersFromLastEntry">Use last log entry as next-report reference</button>
+          <button type="button" class="ghost small" id="btnRecalcFromOpeningMeters" title="Rebuild every log entry from Vessel Data opening flowmeters and Opening ROB">Recalculate from opening meters &amp; ROB</button>
         </div>
         <div class="hint">Copies the latest log entry’s flowmeters, rev counter, and ROB into these Setup fields and the carryover reference used for the next watch — without clearing the voyage log. Use this after restoring data or when the opening meters no longer match what is on the counters.</div>
+        <div class="hint"><strong>Recalculate from opening meters &amp; ROB</strong> re-derives consumption for every watch from the Vessel Data opening flowmeters / counters and Opening ROB (same baseline the voyage started from). Manual consumption overrides are cleared. Sync is not started — use Sync Now if you want to upload afterward.</div>
       </div>
 
       <div class="grid">
@@ -2308,6 +2310,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <h2 style="margin:0;">Voyage Summary — Reference &amp; Consumption Review</h2>
         <div class="btn-row" style="margin:0;" id="vsTopActions">
           <button class="ghost small" id="btnRecalcVoyageSummaryTop" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
+          <button class="ghost small" id="btnUndoVoyageRecalcTop" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
           <button class="primary small" id="btnSaveVoyageSummaryTop" type="button">Save Report</button>
           <button class="ghost small" id="btnCloseVoyageSummaryTop" type="button">Close</button>
         </div>
@@ -2606,6 +2609,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="primary" id="btnSaveVoyageSummary">Save Report</button>
         <button class="ghost" id="btnPrintVoyageSummary">Print &amp; Save (A4 Portrait)</button>
         <button class="ghost" id="btnRecalcVoyageSummary" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
+        <button class="ghost" id="btnUndoVoyageRecalc" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
         <button class="ghost" id="btnCloseVoyageSummary">Close</button>
       </div>
       <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures. Use <strong>Recalculate Averages</strong> if voyage totals still show figures from an older calculation — that rebuilds averages from the entries that exist now.</div>
@@ -2876,9 +2880,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
         <h2 style="margin:0;">Performance Averages</h2>
         <button class="primary small" id="btnRecalcSummaryPage" type="button" title="Rebuild voyage averages and totals from the log entries that exist now">Recalculate Averages</button>
+        <button class="ghost small" id="btnUndoSummaryRecalc" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
       </div>
       <div class="stat-strip cols5" id="perfTotalsStrip"></div>
-      <div class="hint" id="summaryRecalcHint">If these figures still look like an older voyage, tap Recalculate Averages. That rebuilds totals from the entries on file now (you can also clear frozen ME/GE/boiler overrides when prompted).</div>
+      <div class="hint" id="summaryRecalcHint">If these figures still look like an older voyage, tap Recalculate Averages. That rebuilds totals from the entries on file now (you can also clear frozen ME/GE/boiler overrides when prompted). <strong>Undo Recalculate</strong> restores the previous figures if that was a mistake.</div>
     </div>
     <div class="panel">
       <h2>Fuel Efficiency (SFOC)</h2>
@@ -3288,7 +3293,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>API Token</label><input id="sync_apiToken" type="password" placeholder="Bearer token"></div>
         <div class="field"><label>Vessel ID (slug)</label><input id="sync_vesselId" placeholder="e.g. captain-veniamis"></div>
         <div class="field"><label>Device name</label><input id="sync_deviceName" placeholder="e.g. ER tablet / Chief PC"></div>
-        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="false" selected>Manual only</option><option value="true">On save &amp; when online</option></select></div>
+        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="false" selected>Manual only</option><option value="true" disabled>On save &amp; when online (disabled)</option></select></div>
         <div class="field"><label>Conflict policy</label><select id="sync_conflict"><option value="merge">Merge by record (recommended)</option><option value="local">Prefer this device</option><option value="remote">Prefer server</option></select></div>
       </div>
       <div class="sync-save-status" id="syncSaveStatus" role="status" aria-live="polite"></div>
@@ -12663,10 +12668,7 @@ function beginPrintHold(){
 function endPrintHold(){
   _printHoldSync = Math.max(0, _printHoldSync - 1);
   if (_printHoldSync > 0) return;
-  try{
-    const sync = ensureSyncConfig();
-    if (sync.autoSync && sync.pendingChanges && navigator.onLine) queueBackgroundSync();
-  }catch(_e){}
+  /* Manual sync only — print hold release does not start a sync. */
 }
 function printHoldActive(){ return _printHoldSync > 0; }
 
@@ -13577,7 +13579,9 @@ function normalizeEntry(e){
   return e;
 }
 
-async function saveSetupFromForm(){
+async function saveSetupFromForm(opts){
+  const silent = !!(opts && opts.silent);
+
   /* Vessel identity lives on the Vessel Data tab (voyage fields are on Voyage Setup). */
   state.setup.vesselName = document.getElementById('s_vesselName').value;
   state.setup.chEng = document.getElementById('s_chEng').value;
@@ -13648,9 +13652,9 @@ async function saveSetupFromForm(){
   applyEntryDefaults();
   render();
   if (prevArr !== state.setup.flowArr){
-    alert('Ship Details saved. Flowmeter Arrangement changed — the Log Entry fuel meter fields have been updated to match.');
+    if (!silent) alert('Ship Details saved. Flowmeter Arrangement changed — the Log Entry fuel meter fields have been updated to match.');
   } else {
-    alert('Ship Details saved.');
+    if (!silent) alert('Ship Details saved.');
   }
 }
 document.getElementById('btnSaveSetup').addEventListener('click', saveSetupFromForm);
@@ -17409,9 +17413,9 @@ function ensureSyncConfig(){
       localStorage.setItem('noonReportDeviceId', s.deviceId);
     }
   }
-  /* Manual sync is the default — do not push on every local change. */
-  if (!s._manualSyncV1){ s.autoSync = false; s._manualSyncV1 = true; }
-  if (s.autoSync==null) s.autoSync = false;
+  /* Manual sync only — never auto push/pull after local edits. */
+  s.autoSync = false;
+  s._manualSyncV1 = true;
   if (!s.conflictPolicy) s.conflictPolicy = 'merge';
   if (s.deviceName==null) s.deviceName = '';
   return s;
@@ -17655,8 +17659,8 @@ function markPendingSync(){
   const sync = ensureSyncConfig();
   sync.pendingChanges = true;
   sync.lastModifiedAt = new Date().toISOString();
+  /* Never auto-sync here — operator presses Sync Now / Pull. */
   renderSyncUi();
-  if (sync.autoSync && navigator.onLine) queueBackgroundSync();
 }
 
 const SYNC_FORM_IDS = ['sync_serverUrl','sync_apiToken','sync_vesselId','sync_deviceName','sync_auto','sync_conflict'];
@@ -17738,7 +17742,7 @@ function readSyncSettingsFromForm(sync){
   s.apiToken = formToken || (s.apiToken || '') || (creds.apiToken || '');
   s.vesselId = (vesselEl.value || '').trim();
   s.deviceName = formName || (s.deviceName || '') || (creds.deviceName || '');
-  s.autoSync = autoEl.value === 'true';
+  s.autoSync = false; /* product policy: sync is always operator-initiated */
   s.conflictPolicy = conflictEl.value || 'merge';
   s.lastModifiedAt = new Date().toISOString();
   /* Never rewrite the box mid-typing: "http://" normalises to "http:", which would
@@ -17999,7 +18003,8 @@ async function applyMirroredSyncCredentials(){
       else if (creds.vesselId) sync.vesselId = creds.vesselId;
     }
     if (creds.deviceName != null) sync.deviceName = creds.deviceName || '';
-    if (typeof creds.autoSync === 'boolean') sync.autoSync = creds.autoSync;
+    /* Keep sync manual — ignore a stored autoSync:true from older builds. */
+    sync.autoSync = false;
     if (creds.conflictPolicy) sync.conflictPolicy = creds.conflictPolicy;
     if (creds.deviceId) sync.deviceId = creds.deviceId;
     return true;
@@ -18736,12 +18741,9 @@ async function syncNow(options = {}){
 
 let syncTimer = null;
 function queueBackgroundSync(){
-  if (printHoldActive()) return;
+  /* Manual sync only — background auto-push/pull is permanently disabled. */
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(()=>{
-    if (printHoldActive()) return;
-    syncNow().catch(()=>{});
-  }, 1200);
+  syncTimer = null;
 }
 
 (function bindSaveSyncSettingsButton(){
@@ -18978,7 +18980,7 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
 
 window.addEventListener('online', ()=>{
   renderSyncUi();
-  if (ensureSyncConfig().autoSync && ensureSyncConfig().pendingChanges) queueBackgroundSync();
+  /* Manual sync only — do not push/pull on reconnect. */
 });
 
 window.addEventListener('offline', renderSyncUi);
@@ -19004,9 +19006,7 @@ function registerServiceWorker(){
   navigator.serviceWorker.addEventListener('message', (event)=>{
     const data = event.data || {};
     if (data.type === 'SYNC_REQUESTED'){
-      if (ensureSyncConfig().autoSync && ensureSyncConfig().pendingChanges && navigator.onLine){
-        queueBackgroundSync();
-      }
+      /* Manual sync only — ignore SW background sync requests. */
     }
     if (data.type === 'INSTALL_PROGRESS'){
       applyAndroidInstallProgress(data.pct || 0, data.phase === 'done'
@@ -20153,6 +20153,117 @@ document.getElementById('btnRecalculateAllData')?.addEventListener('click', asyn
  * Optional clearOverrides drops frozen ME/GE/BLR unit cons that were saved from
  * an earlier calculation and can keep averages looking "stuck".
  */
+
+/* ---- Voyage recalculate undo (summary + opening-meters rebuild) ---- */
+const VOYAGE_RECALC_UNDO_MAX = 5;
+/** @type {{entries:object[], setupRob?:object, setupRobLube?:object, label:string, at:string}[]} */
+let voyageRecalcUndoStack = [];
+
+function snapshotEntriesForRecalcUndo(label){
+  return {
+    label: label || 'Recalculate',
+    at: new Date().toISOString(),
+    entries: (state.entries || []).map(e => cloneEntry(e)),
+    setupRob: state.setup?.rob ? JSON.parse(JSON.stringify(state.setup.rob)) : null,
+    setupRobLube: state.setup?.robLube ? JSON.parse(JSON.stringify(state.setup.robLube)) : null,
+    carryover: state.setup?.carryover ? JSON.parse(JSON.stringify(state.setup.carryover)) : null
+  };
+}
+
+function updateVoyageRecalcUndoButtons(){
+  const show = voyageRecalcUndoStack.length > 0;
+  const label = show
+    ? `Undo Recalculate${voyageRecalcUndoStack.length>1 ? ` (${voyageRecalcUndoStack.length})` : ''}`
+    : 'Undo Recalculate';
+  ['btnUndoVoyageRecalc','btnUndoVoyageRecalcTop','btnUndoSummaryRecalc'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = show ? '' : 'none';
+    el.disabled = !show;
+    el.textContent = label;
+  });
+}
+
+function pushVoyageRecalcUndo(label){
+  voyageRecalcUndoStack.push(snapshotEntriesForRecalcUndo(label));
+  if (voyageRecalcUndoStack.length > VOYAGE_RECALC_UNDO_MAX) voyageRecalcUndoStack.shift();
+  updateVoyageRecalcUndoButtons();
+}
+
+async function undoVoyageRecalculate(){
+  if (!voyageRecalcUndoStack.length){
+    alert('Nothing to undo.');
+    return;
+  }
+  const snap = voyageRecalcUndoStack.pop();
+  updateVoyageRecalcUndoButtons();
+  if (!confirm(
+    'Undo the last recalculate and restore the previous log entries?\n\n' +
+    `Snapshot: ${snap.label}\nTaken: ${snap.at}`
+  )){
+    voyageRecalcUndoStack.push(snap);
+    updateVoyageRecalcUndoButtons();
+    return;
+  }
+  state.entries = (snap.entries || []).map(e => cloneEntry(e));
+  if (snap.setupRob) state.setup.rob = JSON.parse(JSON.stringify(snap.setupRob));
+  if (snap.setupRobLube) state.setup.robLube = JSON.parse(JSON.stringify(snap.setupRobLube));
+  if (snap.carryover !== undefined) state.setup.carryover = snap.carryover ? JSON.parse(JSON.stringify(snap.carryover)) : null;
+  for (const e of state.entries) await dbPut('entries', typeof tagVesselId === 'function' ? tagVesselId(e) : e);
+  try{ await saveSetup(); }catch(_){}
+  markPendingSync();
+  render();
+  const vsOpen = document.getElementById('voyageSummaryPanel')?.style.display !== 'none';
+  if (vsOpen && currentVsEntryId) openVoyageSummary(currentVsEntryId);
+  alert('Recalculate undone — previous entry figures restored.');
+}
+
+/**
+ * Rebuild every watch from Vessel Data opening flowmeters / counters and Opening ROB.
+ * Clears manual consumption overrides so meter deltas drive cons again.
+ */
+async function recalculateFromOpeningMetersAndRob(){
+  if (!state.entries.length){
+    alert('No log entries to recalculate.');
+    return;
+  }
+  if (!confirm(
+    'Recalculate ALL log entries from Vessel Data opening flowmeters and Opening ROB?\n\n' +
+    'Consumption is re-derived from meter deltas against the voyage-start baseline.\n' +
+    'Manual consumption overrides will be cleared.\n\n' +
+    'An Undo Recalculate button will appear if this was a mistake.\n' +
+    'This does NOT sync to the server.'
+  )) return;
+
+  /* Commit current Vessel Data form first so opening meters/ROB on screen are used. */
+  try{
+    if (typeof saveSetupFromForm === 'function') await saveSetupFromForm({ silent: true });
+  }catch(err){
+    console.warn('saveSetupFromForm before opening-meter recalc:', err);
+  }
+
+  const btns = ['btnRecalcFromOpeningMeters'].map(id=>document.getElementById(id)).filter(Boolean);
+  btns.forEach(b=>{ b.disabled = true; });
+  try{
+    pushVoyageRecalcUndo('Opening meters & ROB');
+    /* Drop stale carryover so effectiveCarryover() uses setup.flowmeters + Opening ROB. */
+    state.setup.carryover = null;
+    const stats = await recalculateCurrentEntries({ persist: true, clearOverrides: true });
+    markPendingSync();
+    render();
+    updateVoyageRecalcUndoButtons();
+    alert(
+      'Recalculated from opening meters & ROB.\n\n' +
+      `Entries: ${stats.entryCount}\n` +
+      `RPM corrected: ${stats.rpmFixed ?? stats.rpmFixed ?? 0}\n\n` +
+      'Use Undo Recalculate on Voyage Summary / Summary if this was accidental.\n' +
+      'Press Sync Now only when you want to upload.'
+    );
+  } finally {
+    btns.forEach(b=>{ b.disabled = false; });
+  }
+}
+
 async function recalculateVoyageSummaryFigures(entryId){
   if (!confirm(
     'Recalculate voyage averages and totals from the log entries that exist now?\n\n' +
@@ -20169,6 +20280,7 @@ async function recalculateVoyageSummaryFigures(entryId){
     .map(id => document.getElementById(id)).filter(Boolean);
   btns.forEach(b => { b.disabled = true; });
   try{
+    pushVoyageRecalcUndo(clearOverrides ? 'Voyage averages (cleared overrides)' : 'Voyage averages');
     const stats = await recalculateCurrentEntries({ persist: true, clearOverrides });
     if ((state.setup.voyageNumber || '').trim() && state.activeVesselId){
       await archiveActiveVoyageLeg();
@@ -20182,9 +20294,11 @@ async function recalculateVoyageSummaryFigures(entryId){
     alert(
       `Voyage figures recalculated.\n\n` +
       `Entries: ${stats.entryCount}\n` +
-      `RPM corrected from rev counters: ${stats.rpmFixed}` +
-      (clearOverrides ? '\nManual unit consumption overrides were cleared.' : '')
+      `RPM corrected from rev counters: ${stats.rpmFixed ?? stats.rpmFixed ?? 0}` +
+      (clearOverrides ? '\nManual unit consumption overrides were cleared.' : '') +
+      '\n\nIf this was accidental, use Undo Recalculate.'
     );
+    updateVoyageRecalcUndoButtons();
     return stats;
   } finally {
     btns.forEach(b => { b.disabled = false; });
@@ -20209,6 +20323,12 @@ document.getElementById('btnRecalcVoyageSummaryTop')?.addEventListener('click', 
 document.getElementById('btnRecalcSummaryPage')?.addEventListener('click', ()=>{
   /* Summary tab: rebuild active voyage averages shown on this page. */
   runVoyageRecalculateFromUi(currentVsEntryId || sortedEntries().slice(-1)[0]?.id || null);
+});
+document.getElementById('btnUndoVoyageRecalc')?.addEventListener('click', ()=>{ undoVoyageRecalculate().catch(e=>alert(e.message||e)); });
+document.getElementById('btnUndoVoyageRecalcTop')?.addEventListener('click', ()=>{ undoVoyageRecalculate().catch(e=>alert(e.message||e)); });
+document.getElementById('btnUndoSummaryRecalc')?.addEventListener('click', ()=>{ undoVoyageRecalculate().catch(e=>alert(e.message||e)); });
+document.getElementById('btnRecalcFromOpeningMeters')?.addEventListener('click', ()=>{
+  recalculateFromOpeningMetersAndRob().catch(e=>alert(e.message||e));
 });
 document.getElementById('btnSaveVoyageSummaryTop')?.addEventListener('click', ()=>{
   document.getElementById('btnSaveVoyageSummary')?.click();
