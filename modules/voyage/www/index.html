@@ -2525,7 +2525,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <tbody id="vsRobBody"></tbody>
           </table>
         </div>
-        <div class="hint">Received is calculated from this balance (R.O.B. − Previous + Consumption). Edit it when bunkering; R.O.B. then follows as Previous + Received − Consumption. Save Report writes those Received figures as bunker receipts for the day.</div>
+        <div class="hint">Leave Received blank unless bunkers were taken. R.O.B. follows as Previous + Received − Consumption. Save Report stores typed Received on the entry and as bunker receipts for the day.</div>
         <button class="ghost small" id="btnVsResetConsOverride" type="button" style="margin-top:8px;">Reset Lube ROB Cons. to Calculated</button>
         <h3 class="sub">Bunker Survey / R.O.B. Correction</h3>
         <div class="table-scroll">
@@ -4082,11 +4082,11 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
     const prevVal = r.cat==='fuel' ? prevRobData.rob?.[r.key] : prevRobData.robLube?.[r.key];
     const nowVal = r.cat==='fuel' ? asOf.rob?.[r.key] : asOf.robLube?.[r.key];
     const consVal = robRowCons(row, r);
-    const derivedRecv = (prevVal == null || nowVal == null || consVal == null)
-      ? null
-      : (Number(nowVal) || 0) - (Number(prevVal) || 0) + (Number(consVal) || 0);
-    const storedRecv = entryRobReceivedQty(entry, r.key, r.cat);
-    const recvVal = storedRecv != null ? storedRecv : derivedRecv;
+    /* Received is user/stamped input only. Never back-solve from
+       now − previous + cons: grade-level cons on multi-tank grades (and FW
+       live fills) invented phantom bunkers that were then stamped on save and
+       inflated the next report's Previous. */
+    const recvVal = entryRobReceivedQty(entry, r.key, r.cat);
     out.push({
       key: r.key, label: r.label, cat: r.cat, kind: r.kind, grade: r.grade,
       prevVal, recvVal, consVal, nowVal,
@@ -6790,15 +6790,8 @@ function fillVoyageTzOffsetSelect(){
   fillTzOffsetSelect('s_initTzOffset', fromSetup);
 }
 
-/* Synthetic starting baseline built from Setup's initial readings, used only when no explicit
-   carryover (from Create New Voyage) and no log entries exist yet. */
-function effectiveCarryover(){
-  if (state.setup.carryover){
-    const c = state.setup.carryover;
-    if ((c.tzOffsetMin == null || !Number.isFinite(Number(c.tzOffsetMin))) && state.setup.tzOffsetMin != null)
-      c.tzOffsetMin = state.setup.tzOffsetMin;
-    return c;
-  }
+/** Build the opening-meter baseline from Vessel Setup flowmeters + ROB. */
+function carryoverFromSetup(){
   const init = voyageInitReference(state.setup);
   if (!init) return null;
   const fm = state.setup.flowmeters || {};
@@ -6832,6 +6825,24 @@ function effectiveCarryover(){
     fwConsTankId: fwTankList()[0]?.id || null,
     meRuntime: state.setup.initRuntime, tbn: d.cylTbn
   };
+}
+
+/* Opening baseline for the next watch: with an empty log, Vessel Setup meters
+   and Opening ROB win (stale Create-New-Voyage carryover must not fight them).
+   Once entries exist, an explicit carryover is preferred when present. */
+function effectiveCarryover(){
+  const logEmpty = !sortedEntries().length;
+  if (logEmpty){
+    const fromSetup = carryoverFromSetup();
+    if (fromSetup) return fromSetup;
+  }
+  if (state.setup.carryover){
+    const c = state.setup.carryover;
+    if ((c.tzOffsetMin == null || !Number.isFinite(Number(c.tzOffsetMin))) && state.setup.tzOffsetMin != null)
+      c.tzOffsetMin = state.setup.tzOffsetMin;
+    return c;
+  }
+  return carryoverFromSetup();
 }
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -8707,12 +8718,22 @@ function robAsOfComputedRow(row, rowsHint){
        counting them again would double the delivery. */
     return !survey || receiptDayAfter(r.date, survey.date);
   };
-  const receiptQty = (t, cat) => state.receipts
-    .filter(r => receiptMatchesTank(r, t, cat) && countReceipt(r))
-    /* Prefer stamped entry Received over the rob-survey receipt mirror to avoid
-       double-counting when both exist for the same summary save. */
-    .filter(r => !(r.source === 'rob-survey' && entryHasStampedReceived(r.surveyEntryId, t.id, cat)))
-    .reduce((s,r)=> s + (Number(r.qty)||0), 0);
+  /* Book bunkers = hand-logged receipts + stamped summary Received.
+     rob-survey receipt mirrors are ONLY a fallback when an old entry has no
+     stamp yet — never add mirror + stamp together (that inflated Previous). */
+  const receiptQty = (t, cat) => {
+    let hand = 0, surveyFallback = 0;
+    for (const r of (state.receipts || [])){
+      if (!receiptMatchesTank(r, t, cat) || !countReceipt(r)) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.source === 'rob-survey'){
+        if (!entryHasStampedReceived(r.surveyEntryId, t.id, cat)) surveyFallback += qty;
+      } else {
+        hand += qty;
+      }
+    }
+    return hand + surveyFallback;
+  };
 
   const rob = {};
   fuelTankList().forEach(t=>{
@@ -8871,7 +8892,7 @@ function renderLastEntryRef(){
   const list = sortedEntries();
   const box = document.getElementById('lastEntryRef');
   const title = document.getElementById('lastEntryPanelTitle');
-  const source = list.length ? list[list.length-1] : state.setup.carryover;
+  const source = list.length ? list[list.length-1] : effectiveCarryover();
   if (!source){
     const init = voyageInitReference(state.setup);
     if (init){
@@ -13707,6 +13728,13 @@ async function saveSetupFromForm(opts){
   readFuelTypeManagementFromDom();
   ensureTankStores();
 
+  /* Empty log: keep carryover aligned with Vessel Setup opening meters/ROB so
+     the first entry cannot still be baselined on a stale prior-leg carryover. */
+  if (!sortedEntries().length){
+    const rebuilt = typeof carryoverFromSetup === 'function' ? carryoverFromSetup() : null;
+    if (rebuilt) state.setup.carryover = rebuilt;
+  }
+
   await saveSetup();
   await saveVesselRegistry();
   applyEntryDefaults();
@@ -13806,6 +13834,25 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
   state.setup.carryover = JSON.parse(JSON.stringify(last));
   state.setup.rob = rob;
   state.setup.robLube = robLube;
+  /* Keep Vessel Setup flowmeters in step with the carryover baseline so the
+     first entry of the new leg diffs against the same opening meters the chief
+     sees under Vessel Setup — not the previous voyage's start-of-leg meters. */
+  {
+    const fm = state.setup.flowmeters || {};
+    const dig = (key, fallback=8) => (fm[key] && fm[key].digits != null) ? fm[key].digits : fallback;
+    const meIn = last.me?.meterIn != null ? last.me.meterIn : last.me?.meter;
+    const geIn = last.ge?.meterIn != null ? last.ge.meterIn : last.ge?.meter;
+    state.setup.flowmeters = {
+      main: { reading: meIn ?? null, digits: dig('main') },
+      mainOut: { reading: last.me?.meterOut ?? fm.mainOut?.reading ?? null, digits: dig('mainOut') },
+      aux: { reading: geIn ?? null, digits: dig('aux') },
+      auxOut: { reading: last.ge?.meterOut ?? fm.auxOut?.reading ?? null, digits: dig('auxOut') },
+      boiler: { reading: last.blr?.meter ?? null, digits: dig('boiler') },
+      cyl: { reading: last.cylMeter ?? null, digits: dig('cyl') },
+      rc: { reading: last.revCounter ?? null, digits: dig('rc') },
+      fw: { reading: last.fwProd ?? null, digits: dig('fw') }
+    };
+  }
   state.setup.departPort = state.setup.arrivePort;
   state.setup.arrivePort = '';
 
@@ -15051,11 +15098,8 @@ function updateVsRobLiveFromCons(){
       const mapped = live.fwByTank && live.fwByTank[r.key];
       const fwRob = tankVal != null ? tankVal : (mapped != null ? mapped : parseFwM3Field(document.getElementById('vs_fwRob')?.value));
       robEl.textContent = fwRob==null ? '—' : fmtRob(fwRob, 'fw');
-      /* Keep Received = R.O.B. − Previous + Consumption when FW ROB is known. */
-      if (recvEl && document.activeElement !== recvEl && fwRob != null){
-        const calcRecv = (Number(fwRob)||0) - prevVal + consVal;
-        recvEl.value = fmtRobInput(calcRecv, 'fw');
-      }
+      /* Do not auto-fill Received from the FW balance — blank means no bunker;
+         inventing a figure here used to stamp phantom FW on every save. */
     } else {
       robEl.textContent = fmtRob(prevVal + recvVal - consVal, r.cat);
     }
@@ -16419,7 +16463,7 @@ function readCurrentFormAsEntry(){
     : { meter: num('ge_meter'), type: txt('ge_type'), sg: num('ge_sg') };
   const last = (editingId && state.entries.find(e=>e.id===editingId))
     || sortedEntries().slice(-1)[0]
-    || state.setup.carryover;
+    || effectiveCarryover();
   const vsOpen = isVoyageSummaryOpen();
   const fw = readFwForm(vsOpen ? 'vs' : 'in');
   const vsFwProd = fw.fwProd ?? num('vs_fwProdMeter') ?? num('in_fwProd');
@@ -17102,10 +17146,10 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   if (isNaN(blrMeter)){ alert('Please enter the Boiler fuel meter reading.'); return; }
 
   const existing = editingId ? state.entries.find(x=>x.id===editingId) : null;
-  const lastRef = existing || sortedEntries().filter(e=>e.datetime < dtVal).slice(-1)[0] || state.setup.carryover;
+  const lastRef = existing || sortedEntries().filter(e=>e.datetime < dtVal).slice(-1)[0] || effectiveCarryover();
   const prevWatch = existing
     ? (previousEntryFor(existing.id) || effectiveCarryover())
-    : (sortedEntries().filter(e=>e.datetime < dtVal).slice(-1)[0] || state.setup.carryover);
+    : (sortedEntries().filter(e=>e.datetime < dtVal).slice(-1)[0] || effectiveCarryover());
   // Distance/RPM/FW/misc/boiler/inc/consumption overrides are set on Voyage Summary
   const report = Object.assign({}, existing?.report || {});
 
@@ -17271,7 +17315,7 @@ function prefillFromLastEntry(){
      and live calcs (via getPrevReferenceFor) use the same baseline. */
   const dtVal = document.getElementById('in_datetime')?.value || '';
   const byTime = dtVal ? getPrevReferenceFor(dtVal, editingId) : null;
-  const last = byTime || sortedEntries().slice(-1)[0] || state.setup.carryover;
+  const last = byTime || sortedEntries().slice(-1)[0] || effectiveCarryover();
   /* Fresh form → the runtime counter goes back to tracking the selected date/time. */
   clearMeRuntimeUserEdit();
   applyEntryDefaults();
@@ -19164,7 +19208,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v199';
+let androidInstallCacheName = 'noon-report-v200';
 
 /*
  * What the program is called.
