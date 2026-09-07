@@ -80,6 +80,15 @@ if (fs.existsSync(manifestPath)) {
       '<manifest$1>\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />'
     );
   }
+  if (!manifest.includes('android.permission.CAMERA')) {
+    manifest = manifest.replace(
+      '</manifest>',
+      '    <uses-permission android:name="android.permission.CAMERA" />\n'
+      + '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
+      + '    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n'
+      + '</manifest>'
+    );
+  }
   fs.writeFileSync(manifestPath, manifest);
 }
 
