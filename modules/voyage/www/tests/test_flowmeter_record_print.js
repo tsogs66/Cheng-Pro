@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Flowmeter Record printout — A4 ÷ 8 watchkeeper slips.
+ * Flowmeter Record + Log Entry Data handouts.
  * Run: node tests/test_flowmeter_record_print.js
  */
 'use strict';
@@ -36,6 +36,20 @@ check('DUAL_GE / DUAL_BOTH mark G/E dual', /DUAL_GE[\s\S]{0,80}DUAL_BOTH[\s\S]{0
 check('wired print all click', HTML.includes("printFlowmeterRecord('all')"));
 check('wired print fuel click', HTML.includes("printFlowmeterRecord('fuel')"));
 check('hint updates with flowArr change', HTML.includes('updateFlowmeterRecordArrHint'));
+
+console.log('\nLog Entry Data record (A4 landscape ÷2)');
+check('buildLogEntryDataHalfHtml helper', HTML.includes('function buildLogEntryDataHalfHtml'));
+check('buildLogEntryDataPageHtml helper', HTML.includes('function buildLogEntryDataPageHtml'));
+check('printLogEntryDataRecord helper', HTML.includes('function printLogEntryDataRecord'));
+check('preview log entry sample', HTML.includes('function previewLogEntryDataSample'));
+check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.includes('.pr-led-page'));
+check('two equal halves grid', /pr-led-page\{[\s\S]{0,200}grid-template-columns:1fr 1fr/.test(HTML));
+check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
+check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
+check('excludes flowmeters from title/sub', HTML.includes('not flowmeters or consumption'));
+check('includes cylinder rack/exhaust', HTML.includes('M/E cylinders — pump rack'));
+check('wired print click', HTML.includes('printLogEntryDataRecord()'));
+check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 
 console.log('');
 if (failures) {
