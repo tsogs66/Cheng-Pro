@@ -8334,7 +8334,9 @@ function receiptDayAfter(receiptDate, surveyDatetime){
 async function recordRobSurvey(entryId, { measured = {}, measuredLube = {}, place = '', remark = '', surveyor = '' } = {}){
   const entry = state.entries.find(e=>e.id===entryId);
   if (!entry) throw new Error('No such entry');
-  const before = robAsOfEntry(entryId) || { rob:{}, robLube:{} };
+  /* Calculated is burn-only — exclude this report's Received so the sounding
+     book does not jump with bunkers (those live on the ROB Received column). */
+  const before = surveyCalculatedBook(entryId) || { rob:{}, robLube:{} };
   const num = v => (v===''||v==null||isNaN(Number(v))) ? null : Number(v);
 
   const clean = {}, cleanLube = {};
@@ -8482,6 +8484,48 @@ async function syncRobSurveyReceivedReceipts(entryId, receivedRows){
   markPendingSync();
 }
 
+/**
+ * This report's bunker qty for a tank: stamped Received if present, otherwise the
+ * rob-survey receipt mirror (legacy entries that only have the mirror).
+ */
+function entryReceivedOrMirrorQty(entryId, tankId, cat){
+  const entry = (state.entries || []).find(e => e.id === entryId);
+  const stamped = entryRobReceivedQty(entry, tankId, cat);
+  if (stamped != null) return Number(stamped) || 0;
+  let mir = 0;
+  for (const r of (state.receipts || [])){
+    if (r.source !== 'rob-survey' || r.surveyEntryId !== entryId) continue;
+    if (!receiptMatchesTank(r, { id: tankId }, cat)) continue;
+    mir += Number(r.qty) || 0;
+  }
+  return mir;
+}
+
+/**
+ * Bunker Survey "Calculated" book figure: burn-only ROB for this report, excluding
+ * this entry's Received. robAsOf includes today's bunkers; putting that figure in
+ * Calculated made the correction column jump with Received and invited a second
+ * add (Measured ≈ Calculated+Received), which then raised every later Previous.
+ */
+function surveyCalculatedBook(entryId){
+  const asOf = robAsOfEntry(entryId) || { rob:{}, robLube:{} };
+  const rob = { ...(asOf.rob || {}) };
+  const robLube = { ...(asOf.robLube || {}) };
+  fuelTankList().forEach(t=>{
+    const q = entryReceivedOrMirrorQty(entryId, t.id, 'fuel');
+    if (q) rob[t.id] = (Number(rob[t.id]) || 0) - q;
+  });
+  lubeTankList().forEach(t=>{
+    const q = entryReceivedOrMirrorQty(entryId, t.id, 'lube');
+    if (q) robLube[t.id] = (Number(robLube[t.id]) || 0) - q;
+  });
+  fwTankList().forEach(t=>{
+    const q = entryReceivedOrMirrorQty(entryId, t.id, 'fw');
+    if (q) robLube[t.id] = (Number(robLube[t.id]) || 0) - q;
+  });
+  return { rob, robLube };
+}
+
 /** Remove a survey, putting the ROB chain back on the book figures. */
 async function clearRobSurvey(entryId){
   const entry = state.entries.find(e=>e.id===entryId);
@@ -8512,10 +8556,8 @@ function formatSurveyMeasuredInput(qty, cat){
   return String(rounded);
 }
 
-/** Live Difference (and book) while typing Received / Measured before Apply.
- *  Typing Received auto-fills Measured as current ROB + Received so bunkering
- *  does not need a second manual sounding entry unless the tank differs. */
-/** Live Difference while typing Measured — sounding correction only (Measured − book). */
+/** Live Difference while typing Measured — sounding correction only (Measured − book).
+ *  Calculated already excludes this report's Received (see surveyCalculatedBook). */
 function refreshVsSurveyLiveDiffs(){
   document.querySelectorAll('#vsSurveyBody tr').forEach(tr=>{
     const measEl = tr.querySelector('[data-survey-tank]');
@@ -8559,7 +8601,8 @@ function renderVsSurvey(){
   if (!body || !currentVsEntryId) return;
   const entry = state.entries.find(e=>e.id===currentVsEntryId);
   if (!entry) return;
-  const calc = robAsOfEntry(currentVsEntryId) || { rob:{}, robLube:{} };
+  /* Calculated excludes this report's Received — bunkers stay on the ROB table. */
+  const calc = surveyCalculatedBook(currentVsEntryId) || { rob:{}, robLube:{} };
   const sv = entry.robSurvey;
   const rows = [
     ...fuelTankList().map(t=>({t, cat:'fuel', store:'rob'})),
@@ -8591,7 +8634,7 @@ function renderVsSurvey(){
   if (status){
     status.textContent = sv
       ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : 'No survey on this report. R.O.B. is the calculated figure. Use Measured for a sounding correction only — bunkers received are on the ROB table above.';
+      : "No survey on this report. Calculated is the book before today's Received. Use Measured for a sounding correction only — bunkers received are on the ROB table above.";
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -8620,7 +8663,10 @@ function bindRobSurveyUi(){
     if (!Object.keys(measured).length && !Object.keys(measuredLube).length){
       alert('Enter at least one measured figure.'); return;
     }
-    /* Sync bunkers from the ROB Received column first so the book includes them. */
+    /* Stamp Received first so the burn-only book and receipt mirrors agree, then
+       sync mirrors and lock the sounding survey against that book. */
+    const entry = state.entries.find(e=>e.id===currentVsEntryId);
+    if (entry) stampRobReceivedOnEntry(entry);
     const receivedRows = readVsRobReceivedInputs();
     await syncRobSurveyReceivedReceipts(currentVsEntryId, receivedRows);
     await recordRobSurvey(currentVsEntryId, {
@@ -19208,7 +19254,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v202';
+let androidInstallCacheName = 'noon-report-v204';
 
 /*
  * What the program is called.
