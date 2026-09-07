@@ -17247,12 +17247,12 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   }
 
   markPendingSync();
-  exitEditMode();
   render();
-  // Prefill next-entry form first, then open summary for the saved watch
-  // (RPM/distance sync uses the summary entry datetime, not the next-entry form).
-  prefillFromLastEntry();
-  openVoyageSummary(entry.id);
+  /* Stay on the watch just saved. exitEditMode() + prefillFromLastEntry() used to
+     flip the selector to "— New Entry —" and leave Voyage Summary describing a
+     different (blank) watch than the one the engineer just added — so Received /
+     distance / report edits looked like they belonged to the next entry. */
+  loadEntryIntoForm(entry.id);
   updateEntryActionButtons();
 });
 
@@ -19208,7 +19208,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v201';
+let androidInstallCacheName = 'noon-report-v202';
 
 /*
  * What the program is called.
