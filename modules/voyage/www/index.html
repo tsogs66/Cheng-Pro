@@ -2995,7 +2995,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Log Entry Data Record</h2>
-      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Grouped by watch/operation (incl. E/R, S/T, S/W), main engine, auxiliaries, and tank ROB — not flowmeters or consumption. Two identical blank halves per page; cut on the centre dashed line.</div>
+      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. Two identical blank halves per page; cut on the centre dashed line.</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
         <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
@@ -12365,12 +12365,14 @@ function ledMini(label, opts = {}){
 /**
  * One half of the A4 landscape Log Entry Data record.
  * Blank write-in only, grouped by machinery / category for the watchkeeper.
+ * Flowmeters + rev counter follow Vessel Data Setup Type (Inlet/Outlet when dual).
  */
 function buildLogEntryDataHalfHtml(){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
   const cylN = meCylinderCount();
   const turboN = turboCount();
   const geN = typeof geUnitCount === 'function' ? geUnitCount() : Math.max(1, Math.min(3, state.setup.generatorCount || 1));
+  const fm = flowmeterRecordRows('all');
 
   const cylHead = Array.from({ length: cylN }, (_, i) => `<th>C${i + 1}</th>`).join('');
   const cylRack = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
@@ -12387,10 +12389,27 @@ function buildLogEntryDataHalfHtml(){
     + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
   ).join('');
 
+  const fmHead = fm.dualLayout
+    ? `<thead><tr><th>Meter / counter</th><th>Inlet</th><th>Outlet</th></tr></thead>`
+    : `<thead><tr><th>Meter / counter</th><th>Reading</th></tr></thead>`;
+  const fmBody = fm.rows.map(r => {
+    const unit = r.unit ? ` <span class="pr-led-unit">(${escPrint(r.unit)})</span>` : '';
+    if (fm.dualLayout){
+      if (r.dual){
+        return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+          + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`;
+      }
+      return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+        + `<td class="pr-led-write" colspan="2"></td></tr>`;
+    }
+    return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+      + `<td class="pr-led-write"></td></tr>`;
+  }).join('');
+
   return `<div class="pr-led-half">
     <div class="pr-led-inner">
       <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
-      <div class="pr-led-sub">Blank form — watchkeeper fills by hand → Chief Engineer enters Log Entry (not flowmeters / consumption)</div>
+      <div class="pr-led-sub">Blank form — watchkeeper fills by hand → Chief Engineer enters Log Entry (not consumption MT) · ${escPrint(flowmeterRecordArrLabel(fm.arr))}</div>
 
       <div class="pr-led-sec">Watch / operation</div>
       <div class="pr-led-grid3">
@@ -12403,6 +12422,12 @@ function buildLogEntryDataHalfHtml(){
         ${ledMini('S/T °C')}
         ${ledMini('S/W °C')}
       </div>
+
+      <div class="pr-led-sec">Flowmeters &amp; counters</div>
+      <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
+        ${fmHead}
+        <tbody>${fmBody}</tbody>
+      </table>
 
       <div class="pr-led-sec">Main engine — cylinders</div>
       <table class="pr-led-table">
@@ -12547,16 +12572,19 @@ html, body{
   width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.5pt; margin:0.4mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.45pt solid #222; padding:0.55mm 0.4mm; text-align:center; height:4.2mm;
+  border:0.45pt solid #222; padding:0.45mm 0.4mm; text-align:center; height:3.6mm;
 }
 .pr-led-table th{ background:#efefef; font-weight:600; font-size:6pt; }
-.pr-led-write{ height:4.2mm; }
-.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:14mm; }
+.pr-led-write{ height:3.6mm; }
+.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:22mm; }
+.pr-led-unit{ color:#555; font-weight:400; font-size:5.5pt; }
+.pr-led-fm-table .pr-led-rowlbl{ width:32mm; }
+.pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{ margin-top:1mm; }
 .pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.4mm; }
 .pr-led-remarks-box{
-  border:0.5pt solid #222; min-height:16mm; padding:0.6mm 0.8mm; font-size:7pt;
+  border:0.5pt solid #222; min-height:10mm; padding:0.6mm 0.8mm; font-size:7pt;
 }
 .pr-led-foot{
   text-align:center; margin-top:1.2mm; font-size:6pt; color:#555;
@@ -19834,7 +19862,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v210';
+let androidInstallCacheName = 'noon-report-v211';
 
 /*
  * What the program is called.

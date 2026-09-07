@@ -46,9 +46,13 @@ check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.incl
 check('two equal halves grid', /pr-led-page\{[\s\S]{0,200}grid-template-columns:1fr 1fr/.test(HTML));
 check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
 check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
-check('excludes flowmeters from title/sub', HTML.includes('not flowmeters / consumption') || HTML.includes('not flowmeters or consumption'));
+check('excludes consumption from title/sub', HTML.includes('not consumption MT') || HTML.includes('not flowmeters / consumption') || HTML.includes('not flowmeters or consumption'));
 check('blank watchkeeper handoff copy', HTML.includes('watchkeeper fills by hand'));
 check('includes cylinder rack/exhaust', HTML.includes('Main engine — cylinders'));
+check('includes flowmeters & counters section', HTML.includes('Flowmeters &amp; counters'));
+check('log entry form uses flowmeterRecordRows', /buildLogEntryDataHalfHtml[\s\S]{0,400}flowmeterRecordRows\('all'\)/.test(HTML));
+check('log entry dual Inlet/Outlet headers', HTML.includes('<th>Meter / counter</th><th>Inlet</th><th>Outlet</th>'));
+check('includes Rev. Counter on log entry form', /Flowmeters &amp; counters[\s\S]{0,800}Rev\. Counter/.test(HTML) || HTML.includes("'Rev. Counter'"));
 check('marked-only: has Date/Time + Distance', HTML.includes("ledField('Date / Time'") && HTML.includes("ledField('Distance ship (nm)')"));
 check('no weather & sea section', !HTML.includes('Weather &amp; sea'));
 check('E/R S/T S/W under operation', HTML.includes("ledMini('E/R °C')") && HTML.includes("ledMini('S/T °C')") && HTML.includes("ledMini('S/W °C')"));
