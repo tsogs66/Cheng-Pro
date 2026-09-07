@@ -46,8 +46,10 @@ check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.incl
 check('two equal halves grid', /pr-led-page\{[\s\S]{0,200}grid-template-columns:1fr 1fr/.test(HTML));
 check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
 check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
-check('excludes flowmeters from title/sub', HTML.includes('not flowmeters or consumption'));
+check('excludes flowmeters from title/sub', HTML.includes('not flowmeters / consumption') || HTML.includes('not flowmeters or consumption'));
+check('blank watchkeeper handoff copy', HTML.includes('watchkeeper fills by hand'));
 check('includes cylinder rack/exhaust', HTML.includes('M/E cylinders — pump rack'));
+check('no filled sample values in preview', !/previewLogEntryDataSample[\s\S]{0,800}sample: true/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 
