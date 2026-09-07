@@ -2995,7 +2995,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Log Entry Data Record</h2>
-      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer for Log Entry / Voyage Summary — no printed readings. Excludes consumption MT and flowmeters (use Flowmeter Record above). Two identical blank halves per page; cut on the centre dashed line. Cylinder / turbo / A/E rows follow Vessel Data counts.</div>
+      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Fields: date/time, operation, distance, selected weather, cylinders, turbos, scav/cooler/LO, auxiliaries, FW ROB, S/W temp, remarks — not flowmeters or consumption. Two identical blank halves per page; cut on the centre dashed line.</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
         <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
@@ -12362,33 +12362,31 @@ function ledMini(label, opts = {}){
 }
 
 /**
- * One half of the A4 landscape Log Entry Data record (no consumptions / flowmeters).
- * Always blank write-in lines — watchkeeper fills by hand for the C/E.
- * Cylinder, turbo and A/E counts follow Vessel Data.
+ * One half of the A4 landscape Log Entry Data record.
+ * Blank write-in only — fields limited to the watchkeeper handoff set
+ * (date/operation/distance, selected weather, cylinders, turbos, scav/LO,
+ * auxiliaries, FW ROB / S/W, remarks). No flowmeters or consumption.
  */
 function buildLogEntryDataHalfHtml(){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
   const cylN = meCylinderCount();
   const turboN = turboCount();
   const geN = typeof geUnitCount === 'function' ? geUnitCount() : Math.max(1, Math.min(3, state.setup.generatorCount || 1));
-  const blank = '';
 
   const cylHead = Array.from({ length: cylN }, (_, i) => `<th>C${i + 1}</th>`).join('');
-  const cylRack = Array.from({ length: cylN }, () => `<td class="pr-led-write">${blank}</td>`).join('');
-  const cylExh = Array.from({ length: cylN }, () => `<td class="pr-led-write">${blank}</td>`).join('');
+  const cylRack = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
+  const cylExh = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
 
-  const turboRows = Array.from({ length: turboN }, (_, i) => {
-    const n = i + 1;
-    return `<tr><td class="pr-led-rowlbl">T/C ${n}</td>`
-      + `<td class="pr-led-write"></td><td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`;
-  }).join('');
+  const turboRows = Array.from({ length: turboN }, (_, i) =>
+    `<tr><td class="pr-led-rowlbl">T/C ${i + 1}</td>`
+    + `<td class="pr-led-write"></td><td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+  ).join('');
 
-  const geRows = Array.from({ length: geN }, (_, i) => {
-    const n = i + 1;
-    return `<tr><td class="pr-led-rowlbl">A/E ${n}</td>`
-      + `<td class="pr-led-write pr-led-chk"></td>`
-      + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`;
-  }).join('');
+  const geRows = Array.from({ length: geN }, (_, i) =>
+    `<tr><td class="pr-led-rowlbl">A/E ${i + 1}</td>`
+    + `<td class="pr-led-write pr-led-chk"></td>`
+    + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+  ).join('');
 
   return `<div class="pr-led-half">
     <div class="pr-led-inner">
@@ -12399,36 +12397,14 @@ function buildLogEntryDataHalfHtml(){
       <div class="pr-led-grid3">
         ${ledField('Date / Time', { wide: true })}
         ${ledField('Operation')}
-        ${ledField('Condition B/L')}
-        ${ledField('Time zone')}
-        ${ledField('Clock change')}
         ${ledField('Distance ship (nm)')}
       </div>
 
-      <div class="pr-led-sec">M/E run &amp; fuel grade (not meters)</div>
-      <div class="pr-led-grid4">
-        ${ledMini('M/E run hrs')}
-        ${ledMini('M/E runtime cum')}
-        ${ledMini('Avg RPM')}
-        ${ledMini('Shaft kW')}
-        ${ledMini('M/E fuel type')}
-        ${ledMini('M/E SG')}
-        ${ledMini('G/E fuel type')}
-        ${ledMini('G/E SG')}
-        ${ledMini('Blr fuel type')}
-        ${ledMini('Blr SG')}
-        ${ledMini('Cyl oil TBN')}
-        ${ledMini('FO visc / dens')}
-      </div>
-
       <div class="pr-led-sec">Weather &amp; sea</div>
-      <div class="pr-led-grid4">
-        ${ledMini('Wind dir')}
+      <div class="pr-led-grid5">
         ${ledMini('Wind (BF)')}
         ${ledMini('Sea (Doug.)')}
-        ${ledMini('Swell dir')}
         ${ledMini('Air °C')}
-        ${ledMini('Sea °C')}
         ${ledMini('E/R °C')}
         ${ledMini('S/T °C')}
       </div>
@@ -12449,26 +12425,7 @@ function buildLogEntryDataHalfHtml(){
             <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
             <tbody>${turboRows}</tbody>
           </table>
-        </div>
-        <div>
-          <div class="pr-led-sec">Scav / cooler / L.O.</div>
-          <div class="pr-led-grid2">
-            ${ledMini('Scav temp')}
-            ${ledMini('Scav press')}
-            ${ledMini('AC in °C')}
-            ${ledMini('AC out °C')}
-            ${ledMini('Press diff')}
-            ${ledMini('Pump mark')}
-            ${ledMini('Fuel temp')}
-            ${ledMini('ME LO T/P')}
-            ${ledMini('GE LO temp')}
-            ${ledMini('LO purif. hrs')}
-          </div>
-        </div>
-      </div>
 
-      <div class="pr-led-two">
-        <div>
           <div class="pr-led-sec">Auxiliaries (hrs / load)</div>
           <table class="pr-led-table">
             <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
@@ -12482,16 +12439,22 @@ function buildLogEntryDataHalfHtml(){
           </table>
         </div>
         <div>
-          <div class="pr-led-sec">Tanks / ECA / remarks</div>
+          <div class="pr-led-sec">Scav / cooler / L.O.</div>
           <div class="pr-led-grid2">
-            ${ledMini('Bilge ROB m³')}
-            ${ledMini('Sludge ROB m³')}
+            ${ledMini('Scav temp')}
+            ${ledMini('Scav press')}
+            ${ledMini('AC in °C')}
+            ${ledMini('AC out °C')}
+            ${ledMini('Press diff')}
+            ${ledMini('Pump mark')}
+            ${ledMini('Fuel temp')}
+            ${ledMini('ME LO T/P')}
+          </div>
+
+          <div class="pr-led-sec">Tanks / remarks</div>
+          <div class="pr-led-grid2">
             ${ledMini('FW ROB m³')}
             ${ledMini('S/W °C')}
-            ${ledMini('ECA grade')}
-            ${ledMini('ECA start')}
-            ${ledMini('ECA complete')}
-            ${ledMini('Dist in ECA')}
           </div>
           <div class="pr-led-remarks">
             <span class="pr-led-lbl">Remarks</span>
@@ -12556,12 +12519,13 @@ html, body{
   font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
   color:#333; border-bottom:0.5pt solid #222; margin:1.4mm 0 0.8mm; padding-bottom:0.3mm;
 }
-.pr-led-grid2, .pr-led-grid3, .pr-led-grid4{
-  display:grid; gap:0.7mm 1.4mm;
+.pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
+  display:grid; gap:1mm 1.6mm;
 }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
-.pr-led-grid3{ grid-template-columns:1.4fr 1fr 0.9fr; }
+.pr-led-grid3{ grid-template-columns:1.5fr 1fr 1fr; }
 .pr-led-grid4{ grid-template-columns:repeat(4, 1fr); }
+.pr-led-grid5{ grid-template-columns:repeat(5, 1fr); }
 .pr-led-field, .pr-led-mini{
   display:flex; align-items:flex-end; gap:0.8mm; min-width:0;
 }
@@ -12572,10 +12536,10 @@ html, body{
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.55pt solid #222;
-  min-height:3.6mm;
+  min-height:4.2mm;
   min-width:8mm;
   padding:0 0.4mm 0.15mm;
-  font-size:7pt;
+  font-size:7.5pt;
 }
 .pr-led-two{
   display:grid; grid-template-columns:1fr 1fr; gap:2mm; align-items:start;
@@ -12593,7 +12557,7 @@ html, body{
 .pr-led-remarks{ margin-top:1mm; }
 .pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.4mm; }
 .pr-led-remarks-box{
-  border:0.5pt solid #222; min-height:10mm; padding:0.6mm 0.8mm; font-size:7pt;
+  border:0.5pt solid #222; min-height:16mm; padding:0.6mm 0.8mm; font-size:7pt;
 }
 .pr-led-foot{
   text-align:center; margin-top:1.2mm; font-size:6pt; color:#555;
@@ -19871,7 +19835,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v208';
+let androidInstallCacheName = 'noon-report-v209';
 
 /*
  * What the program is called.

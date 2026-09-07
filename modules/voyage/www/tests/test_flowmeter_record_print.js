@@ -49,6 +49,12 @@ check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'
 check('excludes flowmeters from title/sub', HTML.includes('not flowmeters / consumption') || HTML.includes('not flowmeters or consumption'));
 check('blank watchkeeper handoff copy', HTML.includes('watchkeeper fills by hand'));
 check('includes cylinder rack/exhaust', HTML.includes('M/E cylinders — pump rack'));
+check('marked-only: has Date/Time + Distance', HTML.includes("ledField('Date / Time'") && HTML.includes("ledField('Distance ship (nm)')"));
+check('marked-only: no fuel grade section', !HTML.includes('M/E run &amp; fuel grade'));
+check('marked-only: no Condition / Time zone / Clock', !/ledField\('Condition B\/L'\)/.test(HTML) && !/ledField\('Time zone'\)/.test(HTML));
+check('marked-only: no ECA fields', !HTML.includes("ledMini('ECA grade')"));
+check('marked-only: no Bilge/Sludge', !HTML.includes("ledMini('Bilge ROB") && !HTML.includes("ledMini('Sludge ROB"));
+check('marked-only: keeps FW ROB + remarks', HTML.includes("ledMini('FW ROB m³')") && HTML.includes('pr-led-remarks-box'));
 check('no filled sample values in preview', !/previewLogEntryDataSample[\s\S]{0,800}sample: true/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
