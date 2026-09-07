@@ -40,14 +40,14 @@ html.bright {
   --line: rgba(18, 34, 56, 0.12);
   --line-strong: rgba(18, 34, 56, 0.28);
   --text: #122238;
-  --muted: #4a5568;
+  --muted: #3d4a5c;
   --paper: #122238;
-  --paper-dim: #4a5568;
-  --accent: #1f7a72;
-  --accent-2: #8a5a1a;
-  --brass: #8a5a1a;
-  --brass-dim: #a67c3a;
-  --teal: #1f7a72;
+  --paper-dim: #3d4a5c;
+  --accent: #17665f;
+  --accent-2: #6e4814;
+  --brass: #6e4814;
+  --brass-dim: #8a5a1a;
+  --teal: #17665f;
   --danger: #b33a22;
   --ok: #2f7a45;
   --shadow: 0 12px 36px rgba(18, 34, 56, 0.12);
@@ -670,6 +670,7 @@ html.bright .calc-card { background: #fff; border-color: rgba(18,34,56,0.16); }
   display: block; font-size: 0.72rem; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px;
 }
+html.bright .calc-card .field label { color: #2a3544; }
 .calc-card .field input, .calc-card .field select {
   max-width: none; width: 100%;
 }
@@ -679,7 +680,10 @@ html.bright .calc-card { background: #fff; border-color: rgba(18,34,56,0.16); }
   display: grid; gap: 4px;
 }
 .calc-card .calc-result strong { color: var(--teal); }
-html.bright .calc-card .calc-result strong { color: var(--accent); }
+html.bright .calc-card .calc-result strong { color: #0f4f49; }
+html.bright .stat .label { color: #2a3544; }
+html.bright .stat .value { color: #122238; }
+html.bright .calc-column-title { color: #6e4814; }
 .calc-card .calc-error { color: var(--danger); font-size: 0.82rem; margin-top: 8px; }
 
 /* Bright-mode contrast fixes for shared chrome */
