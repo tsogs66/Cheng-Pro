@@ -607,3 +607,88 @@ html.aio-fullscreen-embed .aio-home-fab:not([hidden]) {
   .sigpad-baseline { left: 5%; right: 5%; }
   .stamp-preview { width: 100%; }
 }
+
+/* ---- Performance module layout (works in dark + bright) ---- */
+.grid-2 {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px;
+}
+.grid-3 {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px;
+}
+@media (max-width: 900px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+.basis-strip { margin-top: 12px; }
+.stat {
+  background: rgba(0,0,0,0.16); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; min-width: 0;
+}
+html.bright .stat { background: rgba(18,34,56,0.04); }
+.stat .label {
+  display: block; font-size: 0.68rem; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+}
+.stat .value {
+  display: block; font-family: var(--mono); font-size: 1.05rem;
+  color: var(--text); font-weight: 600; word-break: break-word;
+}
+.stat.iso .value { color: var(--teal); }
+.hint.warn { color: var(--danger); }
+.suggest-list, .perf-derived ul {
+  margin: 0; padding-left: 1.15rem; color: var(--muted); line-height: 1.5;
+}
+.perf-derived summary {
+  cursor: pointer; color: var(--brass); font-weight: 600;
+}
+.calc-board {
+  display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start;
+}
+@media (max-width: 960px) {
+  .calc-board { grid-template-columns: 1fr; }
+}
+.calc-column { display: flex; flex-direction: column; gap: 12px; }
+.calc-column-title {
+  font-family: var(--display); font-size: 0.85rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--brass); margin: 4px 0 0;
+}
+.calc-card {
+  border: 1px solid var(--line-strong); border-radius: 10px;
+  background: rgba(0,0,0,0.12); padding: 12px 14px;
+}
+html.bright .calc-card { background: #fff; border-color: rgba(18,34,56,0.16); }
+.calc-card h3 {
+  margin: 0 0 6px; font-size: 0.95rem; color: var(--text); font-weight: 700;
+}
+.calc-card p {
+  margin: 0 0 10px; font-size: 0.82rem; color: var(--muted); line-height: 1.4;
+}
+.calc-card .field { margin-bottom: 8px; }
+.calc-card .field label {
+  display: block; font-size: 0.72rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px;
+}
+.calc-card .field input, .calc-card .field select {
+  max-width: none; width: 100%;
+}
+.calc-card .calc-result {
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.85rem; color: var(--text);
+  display: grid; gap: 4px;
+}
+.calc-card .calc-result strong { color: var(--teal); }
+html.bright .calc-card .calc-result strong { color: var(--accent); }
+.calc-card .calc-error { color: var(--danger); font-size: 0.82rem; margin-top: 8px; }
+
+/* Bright-mode contrast fixes for shared chrome */
+html.bright #main:empty::before { color: #4a5568 !important; }
+html.bright .empty { color: var(--muted); }
+html.bright .panel p,
+html.bright .section-head p { color: var(--muted); }
+html.bright .section-head h2 { color: var(--text); }
+html.bright table th { color: var(--muted); }
+html.bright table td { color: var(--text); }
+html.bright .btn:not(.primary) { color: var(--text); border-color: var(--line-strong); }
+html.bright code { color: var(--accent-2); }

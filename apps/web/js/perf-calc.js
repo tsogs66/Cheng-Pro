@@ -363,12 +363,169 @@
     };
   }
 
+  /* ---- ASTM 54B / 56 helpers (Fuel by TCF) ---- */
+  function alpha54B(density15) {
+    const dens = density15;
+    const J = Math.round(1000 * dens * 100) / 100; /* kg/m³ */
+    const round7 = (v) => Math.round(v * 1e7) / 1e7;
+    const K = round7((186.9696 / (J * J)) + (0.4862 / J));
+    const L = round7((594.5418 / (J * J)) + (0 / J));
+    const M = round7(-0.00336312 + 2680.3206 / (J * J));
+    const N = round7((346.4228 / (J * J)) + (0.4388 / J));
+    const O = round7((330.301 / (J * J)) + (0 / J));
+    if (dens < 0.7705) return N;
+    if (dens < 0.7875) return M;
+    if (dens < 0.839) return L;
+    if (dens < 1.075) return K;
+    return O;
+  }
+  function normalizeDensity15(raw) {
+    const d = num(raw);
+    if (!has(d) || !(d > 0)) return null;
+    /* Accept kg/m³ (e.g. 991) or SG / g·cm⁻³ (e.g. 0.991). */
+    return d > 2 ? d / 1000 : d;
+  }
+  function vcf54B(density15, tempC) {
+    const dens = normalizeDensity15(density15);
+    const t = num(tempC);
+    if (!has(dens) || !has(t)) return null;
+    const alpha = alpha54B(dens);
+    const dT = Math.round((t - 15) * 100) / 100;
+    const round8 = (v) => Math.round(v * 1e8) / 1e8;
+    const round9 = (v) => Math.round(v * 1e9) / 1e9;
+    const R = round8(alpha * dT);
+    const T = round9(alpha * alpha * dT * dT * 0.8);
+    const U = round8(-R - T);
+    return Math.round(Math.exp(U) * 10000) / 10000;
+  }
+  function wcf56(density15) {
+    const dens = normalizeDensity15(density15);
+    if (!has(dens)) return null;
+    return dens - 0.0011;
+  }
+  function mtFromObservedKL(kl, density15, tempC) {
+    const vol = num(kl); /* 1 kL = 1 m³ */
+    const dens = normalizeDensity15(density15);
+    const t = num(tempC);
+    if (!has(vol) || vol < 0 || !has(dens) || !has(t)) return null;
+    const vcf = vcf54B(dens, t);
+    const wcf = wcf56(dens);
+    if (!has(vcf) || !has(wcf)) return null;
+    return {
+      volumeM3: vol,
+      density15: dens,
+      tempC: t,
+      vcf,
+      wcf,
+      mt: round(vol * vcf * wcf, 4),
+    };
+  }
+
+  function packResult(solved, extras) {
+    return Object.assign({ values: solved.values, derivedFrom: solved.derivedFrom, notes: solved.notes }, extras || {});
+  }
+
+  /** Photo calculators — thin named paths over solve() / TCF. */
+  function fuelByRpm(basis, { rpm, hours }) {
+    return packResult(solve(basis, { rpm, hours: hours, meRunHours: hours }));
+  }
+  function fuelByLoad(basis, { kw, hours }) {
+    return packResult(solve(basis, { kw, hours: hours, meRunHours: hours }));
+  }
+  function fuelByTcf(_basis, { kl, density15, tempC, fuelType }) {
+    const r = mtFromObservedKL(kl, density15, tempC);
+    if (!r) return { error: 'Need fuel volume (kL), specific gravity / density, and temperature (°C).' };
+    return {
+      values: {
+        fuelMt: r.mt,
+        volumeM3: r.volumeM3,
+        vcf: r.vcf,
+        wcf: r.wcf,
+        density15: r.density15,
+        tempC: r.tempC,
+        fuelType: fuelType || null,
+      },
+      notes: ['ASTM Table 54B VCF × Table 56 WCF: MT = kL × VCF × WCF'],
+    };
+  }
+  function cylOilByRpm(basis, { rpm, hours, cylOilSg, sloc }) {
+    const dens = normalizeDensity15(cylOilSg) || num(basis && basis.lubeDensity) || DEFAULT_LUBE_DENSITY;
+    return packResult(solve(Object.assign({}, basis, { lubeDensity: dens }), {
+      rpm, hours, meRunHours: hours, sloc,
+    }));
+  }
+  function cylOilByLoad(basis, { kw, hours, cylOilSg, sloc }) {
+    const dens = normalizeDensity15(cylOilSg) || num(basis && basis.lubeDensity) || DEFAULT_LUBE_DENSITY;
+    return packResult(solve(Object.assign({}, basis, { lubeDensity: dens }), {
+      kw, hours, meRunHours: hours, sloc,
+    }));
+  }
+  function performanceByFuel(basis, { fuelMt, hours }) {
+    const mt = num(fuelMt);
+    const h = num(hours);
+    if (!has(mt) || !has(h) || !(h > 0)) return { error: 'Need fuel consumption (MT) and runtime (h).' };
+    const fuelKgPeriod = mt * 1000;
+    return packResult(solve(basis, { fuelKgPeriod, hours: h, meRunHours: h }));
+  }
+  function performanceByRpm(basis, { rpm, hours, distanceNm }) {
+    return packResult(solve(basis, { rpm, hours, meRunHours: hours, distanceNm }));
+  }
+  function specificFuelOil(basis, { fuelMt, hours, kw }) {
+    const mt = num(fuelMt);
+    const h = num(hours);
+    const power = num(kw);
+    if (!has(mt) || !has(h) || !(h > 0) || !has(power) || !(power > 0)) {
+      return { error: 'Need fuel (MT), runtime (h), and M/E load (kW).' };
+    }
+    const fuelKgHr = (mt * 1000) / h;
+    const sfoc = (fuelKgHr * 1000) / power;
+    return {
+      values: { sfoc: round(sfoc, 2), fuelKgHr: round(fuelKgHr, 2), kw: power, hours: h, fuelMt: mt },
+      notes: ['SFOC (g/kWh) = (MT × 1 000 000) ÷ (hours × kW)'],
+    };
+  }
+  function specificCylOil(basis, { cylOilL, hours, kw, cylOilSg }) {
+    const litres = num(cylOilL);
+    const h = num(hours);
+    const power = num(kw);
+    const dens = normalizeDensity15(cylOilSg) || num(basis && basis.lubeDensity) || DEFAULT_LUBE_DENSITY;
+    if (!has(litres) || !has(h) || !(h > 0) || !has(power) || !(power > 0) || !has(dens)) {
+      return { error: 'Need cylinder oil (L), runtime (h), M/E load (kW), and specific gravity.' };
+    }
+    const lubeKgHr = (litres * dens) / h;
+    const sloc = (lubeKgHr * 1000) / power;
+    return {
+      values: {
+        sloc: round(sloc, 3),
+        lubeKgHr: round(lubeKgHr, 3),
+        lubeLhr: round(litres / h, 3),
+        kw: power,
+        hours: h,
+        density: dens,
+      },
+      notes: ['SLOC (g/kWh) = (L × SG × 1000) ÷ (hours × kW)'],
+    };
+  }
+
   const api = {
     solve,
     sfocCurveCoefficients,
     referenceSfocAtLoad,
     isoCorrectedSfoc,
     lcvCorrectionFactor,
+    normalizeDensity15,
+    vcf54B,
+    wcf56,
+    mtFromObservedKL,
+    fuelByRpm,
+    fuelByLoad,
+    fuelByTcf,
+    cylOilByRpm,
+    cylOilByLoad,
+    performanceByFuel,
+    performanceByRpm,
+    specificFuelOil,
+    specificCylOil,
     DEFAULT_LCV_REF,
     DEFAULT_MECH_EFF,
     DEFAULT_FUEL_DENSITY,

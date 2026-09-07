@@ -47,4 +47,15 @@ assert.ok(fromRpm.values.mcrPct > 0, 'mcr from rpm');
 assert.ok(fromRpm.values.fuelLhr > 0, 'fuel L/h');
 assert.ok(fromRpm.values.engineSpeedKn > 0, 'engine speed');
 
+// Named calculators (photo cards)
+const byRpm = calc.fuelByRpm(basis, { rpm: 78, hours: 24 });
+assert.ok(byRpm.values.fuelMtPeriod > 0, 'fuel by rpm MT');
+const tcf = calc.fuelByTcf(basis, { kl: 100, density15: 0.991, tempC: 40, fuelType: 'HFO' });
+assert.ok(tcf.values.fuelMt > 90 && tcf.values.fuelMt < 100, 'fuel by TCF MT');
+assert.ok(tcf.values.vcf > 0.9 && tcf.values.vcf < 1.05, 'VCF');
+const sfocNamed = calc.specificFuelOil(basis, { fuelMt: 40, hours: 24, kw: 12000 });
+assert.ok(Math.abs(sfocNamed.values.sfoc - 138.89) < 0.1, 'specific fuel');
+const slocNamed = calc.specificCylOil(basis, { cylOilL: 200, hours: 24, kw: 12000, cylOilSg: 0.89 });
+assert.ok(slocNamed.values.sloc > 0.5 && slocNamed.values.sloc < 0.8, 'specific cyl oil');
+
 console.log('perf-calc-test: ok');

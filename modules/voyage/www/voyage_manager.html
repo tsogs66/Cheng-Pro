@@ -2789,9 +2789,14 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Show R.O.B. As Of</h2>
       <div class="form-grid cols2">
         <div class="field"><label>Report</label><select id="robAsOfSelect"><option value="">Now — latest R.O.B.</option></select></div>
-        <div class="field" style="align-self:end;"><button class="ghost small" id="btnRobAsOfNow" type="button">Back to latest</button></div>
+        <div class="field" style="align-self:end;">
+          <div class="btn-row" style="margin:0; gap:8px;">
+            <button class="ghost small" id="btnRobAsOfNow" type="button">Back to latest</button>
+            <button class="primary small" id="btnPrintRobPage" type="button" title="Print the R.O.B. sheet for the selected report (or the latest)">Print ROB Sheet</button>
+          </div>
+        </div>
       </div>
-      <div class="hint" id="robAsOfHint">The gauges below show current R.O.B. Pick a report to see what was on board at that moment instead.</div>
+      <div class="hint" id="robAsOfHint">The gauges below show current R.O.B. Pick a report to see what was on board at that moment instead. Print uses the same Remaining On Board sheet as Reports.</div>
     </div>
     <div class="panel">
       <h2>Fuel — Remaining On Board</h2>
@@ -9937,6 +9942,36 @@ document.getElementById('btnRobAsOfNow')?.addEventListener('click', ()=>{
   resetRobGaugesToZero();
   requestAnimationFrame(()=> animateRobGauges());
 });
+/**
+ * Print the ROB sheet for whatever the gauges are showing: the selected report,
+ * or the latest entry when "Now — latest" is selected. Uses the same
+ * Remaining On Board printout as Reports → ROB.
+ */
+function printRobPageSheet(){
+  let entryId = robAsOfEntryId;
+  if (!entryId){
+    const list = sortedEntries();
+    if (!list.length){
+      alert('No log entries yet — open a report first, or print Dep / Arr ROB from Summary.');
+      return;
+    }
+    entryId = list[list.length - 1].id;
+  }
+  const entry = state.entries.find(e=>e.id===entryId);
+  const row = getComputedRow(entryId);
+  if (!entry || !row){
+    alert('Could not build the ROB sheet for that report.');
+    return;
+  }
+  const sorted = sortedEntries();
+  const idx = sorted.findIndex(x=>x.id===entryId);
+  const priorEntry = idx>0 ? sorted[idx-1] : null;
+  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const asOf = robAsOfEntry(entryId);
+  const rowsForPrint = robBalanceRows(row, prevRobData, asOf);
+  printRobSnapshot(entry, new Date(entry.datetime), rowsForPrint);
+}
+document.getElementById('btnPrintRobPage')?.addEventListener('click', ()=> printRobPageSheet());
 
 /* ---- Totals and averages over a range of reports --------------------------
    A report covers the period since the one before it, so a range that runs from
@@ -19254,7 +19289,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v204';
+let androidInstallCacheName = 'noon-report-v205';
 
 /*
  * What the program is called.

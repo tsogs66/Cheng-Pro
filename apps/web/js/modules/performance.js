@@ -55,6 +55,62 @@ window.ChengProModules.performance = {
       <section class="panel">
         <div class="section-head">
           <div>
+            <h2>Quick calculators</h2>
+            <p>Named paths matching the classic fuel / cylinder-oil / performance cards. Vessel MCR, SFOC and pitch fill in from Setup.</p>
+          </div>
+        </div>
+        <div class="calc-board" id="perfQuickBoard">
+          <div class="calc-column">
+            <div class="calc-column-title">Fuel oil / cylinder oil consumption</div>
+            ${calcCard('fuel-rpm', 'M/E Fuel by RPM', 'Calculate M/E fuel consumption from RPM and runtime.', 'Fuel by RPM', `
+              <div class="field"><label>M/E RPM</label><input name="rpm" type="number" step="0.1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>`)}
+            ${calcCard('fuel-load', 'M/E Fuel by Engine LOAD', 'Calculate M/E fuel consumption from engine load (kW) and runtime.', 'Fuel by LOAD', `
+              <div class="field"><label>Engine load (kW)</label><input name="kw" type="number" step="1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>`)}
+            ${calcCard('fuel-tcf', 'M/E Fuel by TCF', 'Convert observed fuel volume to MT using SG, fuel type and temperature (ASTM 54B / 56).', 'Fuel by TCF', `
+              <div class="field"><label>Fuel consumption (kL)</label><input name="kl" type="number" step="0.001" inputmode="decimal"></div>
+              <div class="field"><label>Specific gravity / dens. @15°C</label><input name="density15" type="number" step="0.0001" inputmode="decimal" placeholder="0.991 or 991"></div>
+              <div class="field"><label>Fuel type</label>
+                <select name="fuelType"><option value="">—</option><option>HFO</option><option>LSFO</option><option>VLSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
+              <div class="field"><label>Fuel temperature (°C)</label><input name="tempC" type="number" step="0.1" inputmode="decimal"></div>`)}
+            ${calcCard('cyl-rpm', 'M/E Cylinder Oil by RPM', 'Cylinder oil from RPM, runtime, SG and g/kW·h feed rate.', 'Cyl. Oil by RPM', `
+              <div class="field"><label>M/E RPM</label><input name="rpm" type="number" step="0.1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>
+              <div class="field"><label>Cyl. oil SG</label><input name="cylOilSg" type="number" step="0.001" inputmode="decimal" placeholder="0.89"></div>
+              <div class="field"><label>g/kW·h (SLOC)</label><input name="sloc" type="number" step="0.01" inputmode="decimal" placeholder="${esc(basis.slocRef != null ? String(basis.slocRef) : '')}"></div>`)}
+            ${calcCard('cyl-load', 'M/E Cylinder Oil by Load', 'Cylinder oil from load (kW), runtime, SG and g/kW·h feed rate.', 'Cyl. Oil by LOAD', `
+              <div class="field"><label>M/E load (kW)</label><input name="kw" type="number" step="1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>
+              <div class="field"><label>Cyl. oil SG</label><input name="cylOilSg" type="number" step="0.001" inputmode="decimal" placeholder="0.89"></div>
+              <div class="field"><label>g/kW·h (SLOC)</label><input name="sloc" type="number" step="0.01" inputmode="decimal" placeholder="${esc(basis.slocRef != null ? String(basis.slocRef) : '')}"></div>`)}
+          </div>
+          <div class="calc-column">
+            <div class="calc-column-title">M/E performance</div>
+            ${calcCard('perf-fuel', 'Performance by Fuel Consumption', 'RPM, M/E load (kW) and MCR % from fuel consumption (MT) and runtime.', 'by Fuel Consumption', `
+              <div class="field"><label>M/E fuel consumption (MT)</label><input name="fuelMt" type="number" step="0.001" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>`)}
+            ${calcCard('perf-rpm', 'Performance by RPM', 'Load, engine speed/distance, slip and fuel from RPM, runtime and ship distance.', 'by RPM', `
+              <div class="field"><label>M/E RPM</label><input name="rpm" type="number" step="0.1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>
+              <div class="field"><label>Ship distance (nm)</label><input name="distanceNm" type="number" step="0.1" inputmode="decimal"></div>`)}
+            <div class="calc-column-title">g/kW·h — power specifics</div>
+            ${calcCard('spec-fuel', 'Fuel Oil Consumption (Specific)', 'M/E fuel oil in g/kW·h from fuel (MT), runtime and load.', 'Fuel Consumption', `
+              <div class="field"><label>M/E fuel cons. (MT)</label><input name="fuelMt" type="number" step="0.001" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>
+              <div class="field"><label>M/E load (kW)</label><input name="kw" type="number" step="1" inputmode="decimal"></div>`)}
+            ${calcCard('spec-cyl', 'Cylinder Oil Consumption (Specific)', 'Cylinder oil in g/kW·h from litres, runtime, load and SG.', 'Cyl. Oil Consumption', `
+              <div class="field"><label>Cylinder oil cons. (L)</label><input name="cylOilL" type="number" step="0.1" inputmode="decimal"></div>
+              <div class="field"><label>Runtime (h)</label><input name="hours" type="number" step="0.01" inputmode="decimal"></div>
+              <div class="field"><label>M/E load (kW)</label><input name="kw" type="number" step="1" inputmode="decimal"></div>
+              <div class="field"><label>Cylinder oil SG</label><input name="cylOilSg" type="number" step="0.001" inputmode="decimal" placeholder="0.89"></div>`)}
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
             <h2>Period (time)</h2>
             <p>Set start/end (ship time) to derive watch hours. Optionally enter M/E run hours if different from the watch.</p>
           </div>
@@ -139,6 +195,8 @@ window.ChengProModules.performance = {
 
     root.querySelector('[data-go]').onclick = () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
+
+    wireQuickCalcs(root, basis);
 
     function syncHoursFromRange() {
       const td = Object.fromEntries(new FormData(timeForm).entries());
@@ -230,6 +288,135 @@ window.ChengProModules.performance = {
     }
   },
 };
+
+function calcCard(id, title, blurb, buttonLabel, fieldsHtml) {
+  return `<form class="calc-card" data-calc="${esc(id)}">
+    <h3>${esc(title)}</h3>
+    <p>${esc(blurb)}</p>
+    ${fieldsHtml}
+    <div class="form-actions" style="margin-top:8px">
+      <button type="submit" class="btn primary">${esc(buttonLabel)}</button>
+    </div>
+    <div class="calc-error" data-err hidden></div>
+    <div class="calc-result" data-out hidden></div>
+  </form>`;
+}
+
+function wireQuickCalcs(root, basis) {
+  const C = ChengProPerfCalc;
+  const runners = {
+    'fuel-rpm': (d) => C.fuelByRpm(basis, d),
+    'fuel-load': (d) => C.fuelByLoad(basis, d),
+    'fuel-tcf': (d) => C.fuelByTcf(basis, d),
+    'cyl-rpm': (d) => C.cylOilByRpm(basis, {
+      rpm: d.rpm, hours: d.hours, cylOilSg: d.cylOilSg,
+      sloc: d.sloc || basis.slocRef,
+    }),
+    'cyl-load': (d) => C.cylOilByLoad(basis, {
+      kw: d.kw, hours: d.hours, cylOilSg: d.cylOilSg,
+      sloc: d.sloc || basis.slocRef,
+    }),
+    'perf-fuel': (d) => C.performanceByFuel(basis, d),
+    'perf-rpm': (d) => C.performanceByRpm(basis, d),
+    'spec-fuel': (d) => C.specificFuelOil(basis, d),
+    'spec-cyl': (d) => C.specificCylOil(basis, d),
+  };
+  const formatters = {
+    'fuel-rpm': (v) => lines([
+      ['Fuel', fmt(v.fuelMtPeriod, 3), 'MT'],
+      ['Fuel rate', fmt(v.fuelKgHr, 1), 'kg/h'],
+      ['Load', fmt(v.shpKw ?? v.kw, 0), 'kW'],
+      ['MCR', fmt(v.mcrPct, 1), '%'],
+      ['SFOC', fmt(v.sfoc, 1), 'g/kWh'],
+    ]),
+    'fuel-load': (v) => lines([
+      ['Fuel', fmt(v.fuelMtPeriod, 3), 'MT'],
+      ['Fuel rate', fmt(v.fuelKgHr, 1), 'kg/h'],
+      ['RPM', fmt(v.rpm, 2), ''],
+      ['MCR', fmt(v.mcrPct, 1), '%'],
+      ['SFOC', fmt(v.sfoc, 1), 'g/kWh'],
+    ]),
+    'fuel-tcf': (v) => lines([
+      ['Mass', fmt(v.fuelMt, 3), 'MT'],
+      ['VCF (54B)', fmt(v.vcf, 4), ''],
+      ['WCF (56)', fmt(v.wcf, 4), ''],
+      ['Dens. @15°C', fmt(v.density15, 4), ''],
+      ...(v.fuelType ? [['Grade', v.fuelType, '']] : []),
+    ]),
+    'cyl-rpm': (v) => lines([
+      ['Cyl. oil', fmt(v.lubeLPeriod, 2), 'L'],
+      ['Rate', fmt(v.lubeLhr, 3), 'L/h'],
+      ['Load', fmt(v.shpKw ?? v.kw, 0), 'kW'],
+      ['SLOC', fmt(v.sloc, 3), 'g/kWh'],
+    ]),
+    'cyl-load': (v) => lines([
+      ['Cyl. oil', fmt(v.lubeLPeriod, 2), 'L'],
+      ['Rate', fmt(v.lubeLhr, 3), 'L/h'],
+      ['RPM', fmt(v.rpm, 2), ''],
+      ['SLOC', fmt(v.sloc, 3), 'g/kWh'],
+    ]),
+    'perf-fuel': (v) => lines([
+      ['RPM', fmt(v.rpm, 2), ''],
+      ['Load', fmt(v.shpKw ?? v.kw, 0), 'kW'],
+      ['MCR', fmt(v.mcrPct, 1), '%'],
+      ['SFOC', fmt(v.sfoc, 1), 'g/kWh'],
+    ]),
+    'perf-rpm': (v) => {
+      const hrs = v.meRunHours ?? v.watchHours ?? v.hours;
+      const engDist = (v.engineSpeedKn != null && hrs != null) ? v.engineSpeedKn * hrs : null;
+      return lines([
+        ['Load', fmt(v.shpKw ?? v.kw, 0), 'kW'],
+        ['MCR', fmt(v.mcrPct, 1), '%'],
+        ['Eng. speed', fmt(v.engineSpeedKn, 2), 'kn'],
+        ['Eng. distance', fmt(engDist, 1), 'nm'],
+        ['Slip', fmt(v.slipPct, 1), '%'],
+        ['Fuel', fmt(v.fuelMtPeriod, 3), 'MT'],
+      ]);
+    },
+    'spec-fuel': (v) => lines([
+      ['SFOC', fmt(v.sfoc, 2), 'g/kWh'],
+      ['Fuel rate', fmt(v.fuelKgHr, 1), 'kg/h'],
+    ]),
+    'spec-cyl': (v) => lines([
+      ['SLOC', fmt(v.sloc, 3), 'g/kWh'],
+      ['LO rate', fmt(v.lubeLhr, 3), 'L/h'],
+    ]),
+  };
+
+  root.querySelectorAll('[data-calc]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = form.getAttribute('data-calc');
+      const data = Object.fromEntries(new FormData(form).entries());
+      const errEl = form.querySelector('[data-err]');
+      const outEl = form.querySelector('[data-out]');
+      errEl.hidden = true;
+      outEl.hidden = true;
+      const run = runners[id];
+      if (!run) return;
+      const result = run(data);
+      if (result.error) {
+        errEl.hidden = false;
+        errEl.textContent = result.error;
+        return;
+      }
+      const html = (formatters[id] || (() => ''))(result.values || {});
+      if (!html || html.indexOf('—') >= 0 && !Object.values(result.values || {}).some((x) => x != null && x !== '')) {
+        /* still show whatever we have */
+      }
+      outEl.hidden = false;
+      outEl.innerHTML = html || '<span>Insufficient vessel basis — set MCR / SFOC in Vessel Setup.</span>';
+      if (result.notes && result.notes.length) {
+        outEl.innerHTML += `<div class="hint" style="margin-top:6px">${esc(result.notes.join(' · '))}</div>`;
+      }
+    });
+  });
+}
+
+function lines(rows) {
+  return rows.map(([k, v, u]) =>
+    `<div><span>${esc(k)}</span>: <strong>${esc(v)}${u ? ' ' + esc(u) : ''}</strong></div>`).join('');
+}
 
 function engineBasis(v) {
   return {
