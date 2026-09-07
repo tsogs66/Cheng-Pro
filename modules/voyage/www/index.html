@@ -1180,6 +1180,42 @@
   .lube-equiv .lube-body{padding:0 14px 12px;}
   .lube-equiv .lube-body .hint{margin-top:0; margin-bottom:8px;}
 
+  /* Optional Voyage Summary sections — collapsed until the user opens them */
+  details.vs-fold{
+    border:1px solid var(--line-strong); border-radius:6px;
+    background:rgba(0,0,0,0.12); overflow:hidden;
+  }
+  details.vs-fold.panel{
+    padding:0;
+  }
+  details.vs-fold > summary{
+    list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:14px 16px; font-family:'Oswald',sans-serif; font-size:13px;
+    letter-spacing:0.05em; text-transform:uppercase; color:var(--brass);
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  }
+  details.vs-fold.panel > summary{padding:16px 22px;}
+  details.vs-fold > summary::-webkit-details-marker{display:none;}
+  details.vs-fold > summary::after{
+    content:'▸'; color:var(--paper-dim); font-size:14px; transition:transform .15s ease; flex-shrink:0;
+  }
+  details.vs-fold[open] > summary::after{transform:rotate(90deg); color:var(--brass);}
+  details.vs-fold > summary .vs-fold-hint{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0;
+    text-transform:none; color:var(--paper-dim); font-weight:500; margin-left:auto;
+  }
+  details.vs-fold .vs-fold-body{padding:0 16px 16px;}
+  details.vs-fold.panel .vs-fold-body{padding:0 22px 20px;}
+  details.vs-fold.vs-fold-nested{
+    margin-top:12px; background:rgba(0,0,0,0.08);
+  }
+  details.vs-fold.vs-fold-nested > summary{padding:12px 14px; font-size:12px;}
+  details.vs-fold.vs-fold-nested .vs-fold-body{padding:0 14px 12px;}
+  @media (max-width:900px){
+    details.vs-fold.panel > summary{padding:12px 12px;}
+    details.vs-fold.panel .vs-fold-body{padding:0 12px 12px;}
+  }
+
   /* ---- Mobile bottom navigation (phones) ---- */
   .bottom-nav{
     display:none;
@@ -2340,11 +2376,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>M/E Rev. Counter (linked)</label><input type="number" step="1" id="vs_revCounter"></div>
           <div class="field"><label>Engine Speed (kn, calc)</label><input type="text" id="vs_engineSpeed" readonly></div>
           <div class="field"><label>Slip % (calc)</label><input type="text" id="vs_slip" readonly></div>
-          <div class="field"><label>Shaft kW (optional override)</label><input type="number" step="1" id="vs_shaftKw" placeholder="torque meter / shaft power"></div>
-          <div class="field"><label>FO Viscosity (cSt)</label><input type="number" step="0.1" id="vs_foVisc"></div>
-          <div class="field"><label>FO Dens. obs. (kg/m³)</label><input type="number" step="0.1" id="vs_foDens"></div>
         </div>
-        <div class="hint">RPM and Rev. Counter are linked: RPM = (Rev. Counter − previous) ÷ (Run Hours × 60). Engine distance = Pitch(m) × Δrevs ÷ 1852 when the rev counter is available (Δrevs = 0 → engine dist 0). Falls back to RPM × pitch × 60 ÷ 1852 × hours only if Δrevs is unknown. Slip % = (Engine Dist − Ship Dist) ÷ Engine Dist × 100. Shaft kW overrides propeller-law estimate for SFOC when entered.</div>
+        <div class="hint">RPM and Rev. Counter are linked: RPM = (Rev. Counter − previous) ÷ (Run Hours × 60). Engine distance = Pitch(m) × Δrevs ÷ 1852 when the rev counter is available (Δrevs = 0 → engine dist 0). Falls back to RPM × pitch × 60 ÷ 1852 × hours only if Δrevs is unknown. Slip % = (Engine Dist − Ship Dist) ÷ Engine Dist × 100.</div>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
@@ -2425,8 +2458,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
               <div class="field"><label>Fuel Temp (°C)</label><input type="number" step="0.1" id="vs_fuelTemp"></div>
               <div class="field"><label>M/E LO Temp (°C)</label><input type="number" step="0.1" id="vs_meLoTemp"></div>
               <div class="field"><label>M/E LO Press (bar)</label><input type="number" step="0.01" id="vs_meLoPress"></div>
-              <div class="field"><label>G/E LO Temp (°C)</label><input type="number" step="0.1" id="vs_geLoTemp"></div>
-              <div class="field"><label>LO Purifier Hrs</label><input type="number" step="0.1" id="vs_purifierHrs"></div>
             </div>
           </div>
           <div class="unit-box" id="vsErTankBox">
@@ -2527,25 +2558,29 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
         <div class="hint">Leave Received blank unless bunkers were taken. R.O.B. follows as Previous + Received − Consumption. Save Report stores typed Received on the entry and as bunker receipts for the day.</div>
         <button class="ghost small" id="btnVsResetConsOverride" type="button" style="margin-top:8px;">Reset Lube ROB Cons. to Calculated</button>
-        <h3 class="sub">Bunker Survey / R.O.B. Correction</h3>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Tank</th><th>Calculated</th><th>Measured (survey)</th><th>Difference</th></tr></thead>
-            <tbody id="vsSurveyBody"></tbody>
-          </table>
-        </div>
-        <div class="form-grid cols3" style="margin-top:10px;">
-          <div class="field"><label>Place / Port</label><input type="text" id="vs_surveyPlace"></div>
-          <div class="field"><label>Surveyor</label><input type="text" id="vs_surveyor"></div>
-          <div class="field"><label>Remark</label><input type="text" id="vs_surveyRemark"></div>
-        </div>
-        <div class="btn-row" style="margin-top:8px;">
-          <button class="ghost small" id="btnApplyRobSurvey" type="button">Apply Survey — Correct R.O.B.</button>
-          <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
-        </div>
-        <div class="hint" id="vsSurveyStatus"></div>
-        <div class="hint">Sounding correction only: enter the measured tank figure. Difference is Measured − Calculated. Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
-        <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. The calculated figure and the difference are kept with the report as the record of the sounding correction.</div>
+        <details class="vs-fold vs-fold-nested">
+          <summary>Bunker Survey / R.O.B. Correction <span class="vs-fold-hint">optional</span></summary>
+          <div class="vs-fold-body">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Tank</th><th>Calculated</th><th>Measured (survey)</th><th>Difference</th></tr></thead>
+                <tbody id="vsSurveyBody"></tbody>
+              </table>
+            </div>
+            <div class="form-grid cols3" style="margin-top:10px;">
+              <div class="field"><label>Place / Port</label><input type="text" id="vs_surveyPlace"></div>
+              <div class="field"><label>Surveyor</label><input type="text" id="vs_surveyor"></div>
+              <div class="field"><label>Remark</label><input type="text" id="vs_surveyRemark"></div>
+            </div>
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="ghost small" id="btnApplyRobSurvey" type="button">Apply Survey — Correct R.O.B.</button>
+              <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
+            </div>
+            <div class="hint" id="vsSurveyStatus"></div>
+            <div class="hint">Sounding correction only: enter the measured tank figure. Difference is Measured − Calculated. Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
+            <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. The calculated figure and the difference are kept with the report as the record of the sounding correction.</div>
+          </div>
+        </details>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
@@ -2560,36 +2595,42 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="hint">This is the officer printed on this entry's reports. It was stamped when the entry was made and is kept as-is, so a later crew change does not rewrite signatures already issued — correct it here only if the wrong name was recorded. To change who is aboard from now on, edit Chief Engineer on Vessel Data or Voyage Setup.</div>
       </div>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
-        <h3 class="sub" style="margin-top:0;">Performance — By Unit</h3>
-        <div class="table-scroll">
-          <table id="vsPerfTable">
-            <thead><tr><th></th><th>M/E</th><th>A/E #1</th><th>A/E #2</th><th>A/E #3</th><th>Boiler</th><th>Incinerator</th></tr></thead>
-            <tbody id="vsPerfBody"></tbody>
-          </table>
+      <details class="panel vs-fold" style="margin:0 0 16px;">
+        <summary>Performance — By Unit <span class="vs-fold-hint">optional</span></summary>
+        <div class="vs-fold-body">
+          <div class="table-scroll">
+            <table id="vsPerfTable">
+              <thead><tr><th></th><th>M/E</th><th>A/E #1</th><th>A/E #2</th><th>A/E #3</th><th>Boiler</th><th>Incinerator</th></tr></thead>
+              <tbody id="vsPerfBody"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </details>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsMeTotalsBlock">
-        <h3 class="sub" style="margin-top:0;">Main Engine Voyage Totals</h3>
-        <div class="stat-strip cols4" id="vsMeVoyageStrip"></div>
-      </div>
+      <details class="panel vs-fold" style="margin:0 0 16px;" id="vsMeTotalsBlock">
+        <summary>Main Engine Voyage Totals <span class="vs-fold-hint">optional</span></summary>
+        <div class="vs-fold-body">
+          <div class="stat-strip cols4" id="vsMeVoyageStrip"></div>
+        </div>
+      </details>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
-        <h3 class="sub" style="margin-top:0;">Generator Voyage Totals</h3>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Unit</th><th>Period Hrs</th><th>Avg kW</th><th>Load %</th><th>Fuel Cons (MT)</th><th>Voyage Hrs (total)</th><th>Voyage Avg kW (time-wtd)</th><th>Voyage Load %</th></tr></thead>
-            <tbody id="vsGeReportBody"></tbody>
-          </table>
+      <details class="panel vs-fold" style="margin:0 0 16px;">
+        <summary>Generator Voyage Totals <span class="vs-fold-hint">optional</span></summary>
+        <div class="vs-fold-body">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Unit</th><th>Period Hrs</th><th>Avg kW</th><th>Load %</th><th>Fuel Cons (MT)</th><th>Voyage Hrs (total)</th><th>Voyage Avg kW (time-wtd)</th><th>Voyage Load %</th></tr></thead>
+              <tbody id="vsGeReportBody"></tbody>
+            </table>
+          </div>
+          <div class="stat-strip cols3" id="vsVoyageAvgStrip" style="margin-top:12px;"></div>
+          <div class="form-grid cols3" style="margin-top:12px;">
+            <div class="field"><label>Boiler Voyage Hrs (total)</label><input type="text" id="vs_blrPeriod" readonly></div>
+            <div class="field"><label>Boiler Fuel Cons (MT)</label><input type="text" id="vs_blrCons" readonly></div>
+            <div class="field"><label>Arrangement</label><input type="text" id="vsGeArrLabel" readonly></div>
+          </div>
         </div>
-        <div class="stat-strip cols3" id="vsVoyageAvgStrip" style="margin-top:12px;"></div>
-        <div class="form-grid cols3" style="margin-top:12px;">
-          <div class="field"><label>Boiler Voyage Hrs (total)</label><input type="text" id="vs_blrPeriod" readonly></div>
-          <div class="field"><label>Boiler Fuel Cons (MT)</label><input type="text" id="vs_blrCons" readonly></div>
-          <div class="field"><label>Arrangement</label><input type="text" id="vsGeArrLabel" readonly></div>
-        </div>
-      </div>
+      </details>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Attached Photo</h3>
@@ -2616,16 +2657,18 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures. Use <strong>Recalculate Averages</strong> if voyage totals still show figures from an older calculation — that rebuilds averages from the entries that exist now.</div>
     </div>
 
-    <div class="panel">
-      <h2>Print History</h2>
-      <div class="hint">A copy is saved here automatically every time you print from Log Entry — this is this browser's local equivalent of a "reports" folder, since a web page can't write files directly to a folder on your computer. Click "Download" to save an actual file, or use your browser's "Print to PDF" from the Print button above to get a real PDF on disk.</div>
-      <div class="table-scroll" style="margin-top:10px;">
-        <table>
-          <thead><tr><th>Printed</th><th>Entry Date/Time</th><th>Operation</th><th></th></tr></thead>
-          <tbody id="printHistoryBody"><tr class="empty-row"><td colspan="4">No prints yet.</td></tr></tbody>
-        </table>
+    <details class="panel vs-fold">
+      <summary>Print History <span class="vs-fold-hint">optional</span></summary>
+      <div class="vs-fold-body">
+        <div class="hint">A copy is saved here automatically every time you print from Log Entry — this is this browser's local equivalent of a "reports" folder, since a web page can't write files directly to a folder on your computer. Click "Download" to save an actual file, or use your browser's "Print to PDF" from the Print button above to get a real PDF on disk.</div>
+        <div class="table-scroll" style="margin-top:10px;">
+          <table>
+            <thead><tr><th>Printed</th><th>Entry Date/Time</th><th>Operation</th><th></th></tr></thead>
+            <tbody id="printHistoryBody"><tr class="empty-row"><td colspan="4">No prints yet.</td></tr></tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </details>
   </div>
 
   <!-- VOYAGE LOG -->
@@ -2889,7 +2932,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="panel">
       <h2>Fuel Efficiency (SFOC)</h2>
       <div class="stat-strip cols5" id="sfocStrip"></div>
-      <div class="hint">Reference SFOC uses SFOC₁₀₀ from Setup and SFOC(L) = SFOC₁₀₀ × (a + b × (L/100)²). <strong>Estimated kW uses the propeller law (RPM/MCR RPM)³ × MCR kW — not a shaft torque meter</strong> unless Shaft kW is entered on Voyage Summary. When bunker LCV is set, ISO-corrected SFOC = measured × (LCV<sub>ref</sub> / LCV<sub>actual</sub>). A sustained +3% deviation from reference often warrants investigation.</div>
+      <div class="hint">Reference SFOC uses SFOC₁₀₀ from Setup and SFOC(L) = SFOC₁₀₀ × (a + b × (L/100)²). <strong>Estimated kW uses the propeller law (RPM/MCR RPM)³ × MCR kW</strong> (not a shaft torque meter). When bunker LCV is set, ISO-corrected SFOC = measured × (LCV<sub>ref</sub> / LCV<sub>actual</sub>). A sustained +3% deviation from reference often warrants investigation.</div>
     </div>
     <div class="panel">
       <h2>Machinery Running Hours (voyage)</h2>
@@ -14731,11 +14774,6 @@ function openVoyageSummary(entryId){
   document.getElementById('vs_fuelTemp').value = r.fuelTemp ?? '';
   document.getElementById('vs_meLoTemp').value = r.meLoTemp ?? '';
   document.getElementById('vs_meLoPress').value = r.meLoPress ?? '';
-  document.getElementById('vs_geLoTemp').value = r.geLoTemp ?? '';
-  document.getElementById('vs_purifierHrs').value = r.purifierHrs ?? '';
-  document.getElementById('vs_shaftKw').value = (entry.shaftKw ?? r.shaftKw) ?? '';
-  document.getElementById('vs_foVisc').value = r.foVisc ?? '';
-  document.getElementById('vs_foDens').value = r.foDens ?? '';
   const eca = r.eca || {};
   document.getElementById('vs_ecaGrade').value = eca.grade || '';
   document.getElementById('vs_ecaStart').value = eca.start || '';
@@ -15537,13 +15575,8 @@ function applyVoyageSummaryFormToEntry(entry){
   entry.chEng = entryCe ? entryCe : null;
   entry.report.meLoTemp = num('vs_meLoTemp');
   entry.report.meLoPress = num('vs_meLoPress');
-  entry.report.geLoTemp = num('vs_geLoTemp');
-  entry.report.purifierHrs = num('vs_purifierHrs');
-  entry.report.foVisc = num('vs_foVisc');
-  entry.report.foDens = num('vs_foDens');
-  const shaftKw = num('vs_shaftKw');
-  entry.report.shaftKw = shaftKw;
-  entry.shaftKw = shaftKw;
+  /* Shaft kW / FO visc·dens / G/E LO / purifier were removed from the summary form;
+     keep any previously stored values so a Save does not wipe historical data. */
   entry.report.eca = {
     grade: document.getElementById('vs_ecaGrade')?.value || '',
     start: document.getElementById('vs_ecaStart')?.value || '',
@@ -16159,7 +16192,7 @@ function updateVsTankRobDeltas(){
  * panels while these fields stayed hidden, which is not what it says it does.
  */
 const VS_ME_DETAIL_FIELDS = ['vs_scavTemp','vs_scavPress','vs_pumpMark','vs_fuelTemp',
-  'vs_meLoTemp','vs_meLoPress','vs_geLoTemp','vs_purifierHrs'];
+  'vs_meLoTemp','vs_meLoPress'];
 
 function setVsOthersVisible(show){
   VS_ME_DETAIL_FIELDS.forEach(id=>{
@@ -19254,7 +19287,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v204';
+let androidInstallCacheName = 'noon-report-v205';
 
 /*
  * What the program is called.
