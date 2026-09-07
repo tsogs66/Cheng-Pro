@@ -2983,6 +2983,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
 
     <div class="panel">
+      <h2>Flowmeter Record</h2>
+      <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Uses this vessel’s flowmeter arrangement (single / dual ME / dual GE).</div>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordAll">Print All Meters + Rev. Counter</button>
+        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordFuel">Print Fuel Meters Only</button>
+        <button class="ghost small" type="button" id="btnPreviewFlowmeterRecordSample">Show Sample</button>
+      </div>
+      <div class="hint">All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).</div>
+    </div>
+
+    <div class="panel">
       <h2>Select Report Category</h2>
       <div class="hint">Pick a category to list matching log entries — same as the report buttons in the original workbook's Voyage Report tab. Selecting an entry opens its supplementary report for additional data not captured on the main Log Entry form.</div>
       <div class="btn-row" id="reportCategoryButtons"></div>
@@ -12032,6 +12043,238 @@ function printDepArrRobSheet(){
   printPortraitSinglePage(sheet);
 }
 
+/**
+ * Blank flowmeter handout rows for the watchkeeper.
+ * mode 'all'  — M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator
+ * mode 'fuel' — M/E, G/E, Boiler only (no cyl oil / rev counter / FW gen)
+ * Dual arrangements add Inlet/Outlet lines for ME and/or GE.
+ */
+function flowmeterRecordRows(mode){
+  const arr = state.setup.flowArr || 'SINGLE';
+  const meDual = arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
+  const geDual = arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+  const rows = [];
+  if (meDual){
+    rows.push({ label: 'M/E Inlet Meter', unit: 'L' });
+    rows.push({ label: 'M/E Outlet Meter', unit: 'L' });
+  } else {
+    rows.push({ label: 'M/E Meter', unit: 'L' });
+  }
+  if (geDual){
+    rows.push({ label: 'G/E Inlet Meter', unit: 'L' });
+    rows.push({ label: 'G/E Outlet Meter', unit: 'L' });
+  } else {
+    rows.push({ label: 'G/E Meter', unit: 'L' });
+  }
+  rows.push({ label: 'Boiler Meter', unit: 'L' });
+  if (mode !== 'fuel'){
+    rows.push({ label: 'Cylinder Oil Meter', unit: 'L' });
+    rows.push({ label: 'Rev. Counter', unit: '' });
+    rows.push({ label: 'FW Generator', unit: 'm³' });
+  }
+  return rows;
+}
+
+/** One of eight identical slips on the A4 flowmeter record sheet. */
+function buildFlowmeterRecordSlipHtml(rows, opts = {}){
+  const vessel = escPrint(state.setup.vesselName || 'Vessel');
+  const variant = opts.variantLabel ? escPrint(opts.variantLabel) : '';
+  const sample = !!opts.sample;
+  const dateVal = sample ? escPrint(opts.sampleDate || '') : '';
+  const opVal = sample ? escPrint(opts.sampleOp || '') : '';
+  const meterRows = rows.map((r, i) => {
+    const reading = sample && opts.sampleReadings && opts.sampleReadings[i] != null
+      ? escPrint(String(opts.sampleReadings[i]))
+      : '';
+    const unit = r.unit ? ` <span class="pr-fm-unit">(${escPrint(r.unit)})</span>` : '';
+    return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td><td class="pr-fm-reading">${reading}</td></tr>`;
+  }).join('');
+  return `<div class="pr-fm-slip">
+    <div class="pr-fm-slip-inner">
+      <div class="pr-fm-title">FLOWMETER RECORD</div>
+      ${variant ? `<div class="pr-fm-variant">${variant}</div>` : ''}
+      <div class="pr-fm-fields">
+        <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
+        <div class="pr-fm-field"><span class="pr-fm-lbl">Operation</span><span class="pr-fm-line">${opVal}</span></div>
+      </div>
+      <table class="pr-fm-table">
+        <thead><tr><th>Flowmeter</th><th>Reading</th></tr></thead>
+        <tbody>${meterRows}</tbody>
+      </table>
+      <div class="pr-fm-foot">${vessel}</div>
+    </div>
+  </div>`;
+}
+
+/** Full A4 page: eight equal slips (2 columns × 4 rows), content centred in each. */
+function buildFlowmeterRecordPageHtml(mode, opts = {}){
+  const rows = flowmeterRecordRows(mode);
+  const variantLabel = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
+  const slips = Array.from({ length: 8 }, () =>
+    buildFlowmeterRecordSlipHtml(rows, { ...opts, variantLabel })
+  ).join('');
+  return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}">${slips}</div>`;
+}
+
+function buildFlowmeterRecordPrintDocument(pageHtml){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Flowmeter Record</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+@page{ size: A4 portrait; margin: 0; }
+html, body{
+  margin:0 !important; padding:0 !important; background:#fff !important;
+  width:210mm !important; height:297mm !important;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-fm-page{
+  box-sizing:border-box;
+  width:210mm; height:297mm;
+  margin:0; padding:0;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:repeat(4, 1fr);
+  background:#fff;
+}
+.pr-fm-slip{
+  box-sizing:border-box;
+  width:100%; height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:2.2mm 2.8mm;
+  border-right:0.35pt dashed #888;
+  border-bottom:0.35pt dashed #888;
+}
+.pr-fm-page .pr-fm-slip:nth-child(2n){ border-right:none; }
+.pr-fm-page .pr-fm-slip:nth-child(n+7){ border-bottom:none; }
+.pr-fm-slip-inner{
+  width:100%;
+  max-width:96mm;
+  text-align:center;
+  font-family: Calibri, 'Segoe UI', Candara, sans-serif;
+  color:#111;
+}
+.pr-fm-title{
+  font-size:11pt; font-weight:700; letter-spacing:0.04em;
+  line-height:1.15; margin:0 0 0.6mm;
+}
+.pr-fm-variant{
+  font-size:7pt; color:#444; margin:0 0 1.4mm; letter-spacing:0.02em;
+}
+.pr-fm-fields{
+  text-align:left; margin:0 0 1.6mm;
+}
+.pr-fm-field{
+  display:flex; align-items:flex-end; gap:1.5mm;
+  margin:0 0 1.2mm; font-size:8pt;
+}
+.pr-fm-lbl{
+  flex:0 0 18mm; font-weight:600; text-align:left;
+}
+.pr-fm-line{
+  flex:1 1 auto;
+  border-bottom:0.6pt solid #222;
+  min-height:3.2mm;
+  line-height:1.1;
+  padding:0 0.5mm 0.2mm;
+  text-align:left;
+  font-size:8pt;
+}
+.pr-fm-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:8pt;
+  margin:0 auto;
+}
+.pr-fm-table th, .pr-fm-table td{
+  border:0.5pt solid #222;
+  padding:0.9mm 1.1mm;
+  line-height:1.15;
+}
+.pr-fm-table th{
+  background:#efefef;
+  font-weight:600;
+  font-size:7.5pt;
+  text-align:center;
+}
+.pr-fm-meter{ text-align:left; width:68%; }
+.pr-fm-unit{ color:#555; font-weight:400; font-size:7pt; }
+.pr-fm-reading{
+  text-align:center; width:32%;
+  height:4.2mm;
+}
+.pr-fm-foot{
+  margin-top:1.4mm;
+  font-size:6.5pt;
+  color:#555;
+  letter-spacing:0.02em;
+}
+@media screen{
+  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
+  .pr-fm-page{
+    margin:0 auto;
+    box-shadow:0 2px 12px rgba(0,0,0,.18);
+  }
+}
+</style></head><body>${pageHtml}</body></html>`;
+}
+
+function printFlowmeterRecord(mode){
+  const pageHtml = buildFlowmeterRecordPageHtml(mode === 'fuel' ? 'fuel' : 'all');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildFlowmeterRecordPrintDocument(pageHtml));
+  doc.close();
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=> runSystemPrint(iframe.contentWindow, cleanup);
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+}
+
+/** On-screen sample window: one filled slip set so the cut layout is visible. */
+function previewFlowmeterRecordSample(){
+  const fillReadings = (mode) => {
+    const n = flowmeterRecordRows(mode).length;
+    return Array.from({ length: n }, (_, i) => {
+      if (mode !== 'fuel' && i === n - 1) return '1234.56'; // FW m³
+      if (mode !== 'fuel' && i === n - 2) return '98765432'; // rev counter
+      return String(10000000 + (i + 1) * 111111).slice(0, 8);
+    });
+  };
+  const sampleOpts = {
+    sample: true,
+    sampleDate: '07 Sep 2026',
+    sampleOp: 'NOON'
+  };
+  const allPage = buildFlowmeterRecordPageHtml('all', { ...sampleOpts, sampleReadings: fillReadings('all') });
+  const fuelPage = buildFlowmeterRecordPageHtml('fuel', { ...sampleOpts, sampleReadings: fillReadings('fuel') });
+  const html = buildFlowmeterRecordPrintDocument(
+    `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:0 0 10px;color:#222">Sample — All meters + rev. counter (8 slips / A4)</div>`
+    + allPage
+    + `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:18px 0 10px;color:#222">Sample — Fuel meters only (8 slips / A4)</div>`
+    + fuelPage
+  );
+  const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
+  if (!win){
+    alert('Allow pop-ups to show the sample.');
+    return;
+  }
+  win.document.open();
+  win.document.write(html.replace(
+    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }',
+    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; overflow:auto !important; }'
+  ));
+  win.document.close();
+}
+
 function exportWeeklyAbstractCsv(){
   const {rows} = computeDerived();
   const cutoff = Date.now() - 7*24*3600*1000;
@@ -13657,6 +13900,9 @@ async function persistCiiSetupFromForm(){
 });
 document.getElementById('btnPrintDepArrRob')?.addEventListener('click', ()=> printDepArrRobSheet());
 document.getElementById('btnPrintRangeTotals')?.addEventListener('click', ()=> printRangeTotalsSheet());
+document.getElementById('btnPrintFlowmeterRecordAll')?.addEventListener('click', ()=> printFlowmeterRecord('all'));
+document.getElementById('btnPrintFlowmeterRecordFuel')?.addEventListener('click', ()=> printFlowmeterRecord('fuel'));
+document.getElementById('btnPreviewFlowmeterRecordSample')?.addEventListener('click', ()=> previewFlowmeterRecordSample());
 document.getElementById('btnExportWeeklyAbstract')?.addEventListener('click', ()=> exportWeeklyAbstractCsv());
 
 document.getElementById('btnToggleShipDetails').addEventListener('click', ()=>{
@@ -19254,7 +19500,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v204';
+let androidInstallCacheName = 'noon-report-v205';
 
 /*
  * What the program is called.
