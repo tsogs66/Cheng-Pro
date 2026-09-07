@@ -7031,17 +7031,17 @@ function applyShipTzChange(toOffsetMin){
   if (to === from) return;
   const dt = document.getElementById('in_datetime');
   const prev = getPrevReferenceFor(dt?.value || '', editingId);
+  const formRt = parseFloat(document.getElementById('me_runtime')?.value);
+  const prevWall = periodRunHours(prev, dt?.value || null, isNaN(formRt) ? null : formRt, formClockChangeMin());
   const prevHadZone = !!(prev && prev.tzOffsetMin != null && Number.isFinite(Number(prev.tzOffsetMin)));
   const editing = editingId ? state.entries.find(x => x.id === editingId) : null;
   const entryHadZone = !!(editing && editing.tzOffsetMin != null && Number.isFinite(Number(editing.tzOffsetMin)));
   if (!shouldRecordShipClockChange(from, to, prevHadZone, entryHadZone)){
     setShipTzUi(to, formClockChangeMin());
     if (state.setup) state.setup.tzOffsetMin = to;
+    refreshMeRunHoursIfTrackingWall(prevWall);
     syncMeRuntimeFromPeriod();
-    if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
-      syncRpmRevCounter(document.getElementById('vs_rpm')?.value ? 'vs_rpm' : 'in_rpm');
-    else if (document.getElementById('in_revCounter')?.value)
-      syncRpmRevCounter('in_revCounter');
+    syncRpmFromPeriodChange();
     updateVsRunCalcDisplays();
     updateLivePreview();
     return;
@@ -7055,11 +7055,9 @@ function applyShipTzChange(toOffsetMin){
   if (dt && result.datetime) dt.value = result.datetime;
   setShipTzUi(result.tzOffsetMin, result.clockChangeMin);
   if (state.setup) state.setup.tzOffsetMin = result.tzOffsetMin;
+  refreshMeRunHoursIfTrackingWall(prevWall);
   syncMeRuntimeFromPeriod();
-  if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
-    syncRpmRevCounter(document.getElementById('vs_rpm')?.value ? 'vs_rpm' : 'in_rpm');
-  else if (document.getElementById('in_revCounter')?.value)
-    syncRpmRevCounter('in_revCounter');
+  syncRpmFromPeriodChange();
   updateVsRunCalcDisplays();
   updateLivePreview();
 }
@@ -13292,8 +13290,10 @@ function loadEntryIntoForm(id){
   document.getElementById('me_runtime').value = e.meRuntime ?? '';
   const meRunEl = document.getElementById('me_runtime_period');
   if (meRunEl){
-    meRunEl.value = e.meRunHours ?? '';
-    if (e.meRunHours != null) meRunEl.dataset.userEdited = '1'; else delete meRunEl.dataset.userEdited;
+    /* Do not lock as user-edited yet — syncMeRuntimeFromPeriod suggests wall hours
+       first; only lock when the stored override differs from that suggestion. */
+    delete meRunEl.dataset.userEdited;
+    meRunEl.value = '';
   }
   const rpmDisp = document.getElementById('in_rpm_display');
   if (rpmDisp) rpmDisp.value = e.rpm==null?'—':fmt(e.rpm,2);
@@ -13322,8 +13322,16 @@ function loadEntryIntoForm(id){
   document.getElementById('editingBadge').style.display = '';
   updateEntryActionButtons();
   switchTab('entry');
-  /* Editing an existing entry: show its period hrs, never overwrite the stored counter. */
+  /* Suggest period hours from the clock, then restore a true run-hours override. */
   syncMeRuntimeFromPeriod();
+  if (meRunEl && e.meRunHours != null){
+    const suggested = formMeRunHours();
+    meRunEl.value = String(e.meRunHours);
+    if (suggested == null || Math.abs(Number(e.meRunHours) - suggested) >= 0.051)
+      meRunEl.dataset.userEdited = '1';
+    else
+      delete meRunEl.dataset.userEdited;
+  }
   updateLivePreview();
   updateVsRunCalcDisplays();
   openVoyageSummary(id);
@@ -16170,14 +16178,27 @@ function renderVsEntryContext(entry){
   const zone = window.ShipTime ? ` ${ShipTime.formatTzOffset(entry.tzOffsetMin || 0)}` : '';
   ctx.textContent = `Summary for: ${dtStr}${zone}${clk} — ${entry.operation || '—'}`;
 }
-/** When Voyage Summary is open, period math must use that entry — not the next-entry form. */
+/** When Voyage Summary is open, period math must use that entry — not the next-entry form.
+ *  While that same entry is being edited, use the form's date/time and clock-change so a
+ *  TZ tweak or datetime edit recalculates RPM from the new period length. */
 function getActivePeriodContext(){
   if (isVoyageSummaryOpen()){
     const entry = state.entries.find(e=>e.id===currentVsEntryId);
     if (entry){
+      const editingThis = editingId === currentVsEntryId;
       const formRt = parseFloat(document.getElementById('me_runtime')?.value);
-      const meRuntime = (editingId === currentVsEntryId && !isNaN(formRt)) ? formRt : (entry.meRuntime ?? (isNaN(formRt)?null:formRt));
-      return { datetime: entry.datetime, clockChangeMin: sanitizeClockChangeMin(entry.clockChangeMin), excludeId: currentVsEntryId, meRuntime, entry };
+      const meRuntime = (editingThis && !isNaN(formRt)) ? formRt : (entry.meRuntime ?? (isNaN(formRt)?null:formRt));
+      return {
+        datetime: editingThis
+          ? (document.getElementById('in_datetime')?.value || entry.datetime)
+          : entry.datetime,
+        clockChangeMin: editingThis
+          ? formClockChangeMin()
+          : sanitizeClockChangeMin(entry.clockChangeMin),
+        excludeId: currentVsEntryId,
+        meRuntime,
+        entry
+      };
     }
   }
   const formRt = parseFloat(document.getElementById('me_runtime')?.value);
@@ -16271,6 +16292,9 @@ function clearMeRunHoursUserEdit(){
 }
 document.getElementById('me_runtime_period')?.addEventListener('input', (ev)=>{
   ev.target.dataset.userEdited = '1';
+  /* Run hours change the average RPM for a fixed Δrevs — recompute from the counter. */
+  syncRpmFromPeriodChange();
+  updateVsRunCalcDisplays();
   updateLivePreview();
 });
 /** Run hours as typed on the log entry form, or null to fall back to the watch. */
@@ -16279,6 +16303,38 @@ function formMeRunHours(){
   if (!el || el.value === '') return null;
   const v = parseFloat(el.value);
   return (isFinite(v) && v > 0) ? v : null;
+}
+
+/** Wall-clock period hours, then typed M/E run hours when set (same rule as computeDerived). */
+function liveMeRunHours(prevRef, ctx){
+  const wall = periodRunHours(prevRef, ctx.datetime, ctx.meRuntime, ctx.clockChangeMin);
+  return entryMeRunHours({ meRunHours: formMeRunHours() }, wall);
+}
+
+/**
+ * When the watch length changes (TZ, datetime, typed run hours), keep the revolution
+ * counter and recompute RPM. Preferring the RPM field would preserve a stale RPM and
+ * rewrite the counter — which is what made edits look frozen.
+ */
+function syncRpmFromPeriodChange(){
+  const vsRc = document.getElementById('vs_revCounter')?.value;
+  const inRc = document.getElementById('in_revCounter')?.value;
+  if (vsRc || inRc){
+    syncRpmRevCounter(vsRc ? 'vs_revCounter' : 'in_revCounter');
+    return;
+  }
+  if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
+    syncRpmRevCounter(document.getElementById('vs_rpm')?.value ? 'vs_rpm' : 'in_rpm');
+}
+
+/** If run hours still track the previous wall period, clear the lock so TZ/datetime can refresh them. */
+function refreshMeRunHoursIfTrackingWall(prevWallHrs){
+  const typed = formMeRunHours();
+  if (typed == null){
+    clearMeRunHoursUserEdit();
+    return;
+  }
+  if (prevWallHrs != null && Math.abs(typed - prevWallHrs) < 0.051) clearMeRunHoursUserEdit();
 }
 
 let rpmSyncGuard = false;
@@ -16298,7 +16354,7 @@ function syncRpmRevCounter(sourceId){
   if (!ctx.datetime) return;
   const prevRef = getPrevReferenceFor(ctx.datetime, ctx.excludeId);
   if (!prevRef || prevRef.revCounter==null) return;
-  const runHours = periodRunHours(prevRef, ctx.datetime, ctx.meRuntime, ctx.clockChangeMin);
+  const runHours = liveMeRunHours(prevRef, ctx);
   if (!(runHours>0)) return;
   rpmSyncGuard = true;
   const src = (sourceId === 'vs_rpm' || sourceId === 'in_rpm') ? 'rpm' : 'rev';
@@ -16353,7 +16409,8 @@ function updateVsRunCalcDisplays(){
   const prevRef = getPrevReferenceFor(ctx.datetime || curEntry.datetime, ctx.excludeId);
   const pitch = state.setup.pitch||0, propConstant = pitch*60/NM_METERS;
   let distEngine=null, speedEngine=null, shipSpeed=null, slip=null;
-  const hrs = periodRunHours(prevRef, ctx.datetime || curEntry.datetime, ctx.meRuntime, ctx.clockChangeMin);
+  const wallHrs = periodRunHours(prevRef, ctx.datetime || curEntry.datetime, ctx.meRuntime, ctx.clockChangeMin);
+  const hrs = entryMeRunHours({ meRunHours: formMeRunHours() }, wallHrs);
   let dailyRevs = null;
   if (prevRef && curEntry.revCounter!=null && prevRef.revCounter!=null){
     const rolls = meterRollovers();
@@ -16374,7 +16431,7 @@ function updateVsRunCalcDisplays(){
     /* Keep speed consistent with distance when Δrevs drove the distance */
     if (distEngine!=null && hrs>0 && dailyRevs!=null && operationNeedsMeData(curEntry.operation)) speedEngine = distEngine / hrs;
   }
-  if (hrs>0 && curEntry.distanceShip!=null) shipSpeed = curEntry.distanceShip / hrs;
+  if (wallHrs>0 && curEntry.distanceShip!=null) shipSpeed = curEntry.distanceShip / wallHrs;
   if (distEngine!=null && distEngine>0 && curEntry.distanceShip!=null){
     slip = ((distEngine - curEntry.distanceShip) / distEngine) * 100;
   }
@@ -16402,11 +16459,8 @@ function updateVsFwDisplays(){
 document.getElementById('me_runtime')?.addEventListener('input', (e)=>{
   /* Typing a real counter reading stops the date/time auto-tracking for this entry. */
   if (e.isTrusted) e.target.dataset.userEdited = '1';
-  if (document.getElementById('vs_rpm')?.value)
-    syncRpmRevCounter('vs_rpm');
-  else if (document.getElementById('in_revCounter')?.value)
-    syncRpmRevCounter('in_revCounter');
   syncMeRuntimeFromPeriod();
+  syncRpmFromPeriodChange();
   updateVsRunCalcDisplays();
   updateLivePreview();
 });
@@ -16426,10 +16480,7 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
     }
     /* Runtime must follow the selected date/time before anything derived from it. */
     syncMeRuntimeFromPeriod();
-    if (document.getElementById('vs_rpm')?.value || document.getElementById('in_rpm')?.value)
-      syncRpmRevCounter(document.getElementById('vs_rpm')?.value ? 'vs_rpm' : 'in_rpm');
-    else if (document.getElementById('in_revCounter')?.value)
-      syncRpmRevCounter('in_revCounter');
+    syncRpmFromPeriodChange();
     updateVsRunCalcDisplays();
     updateLivePreview();
   });
@@ -16504,7 +16555,8 @@ function updateLivePreview(){
 
   if (prevRef && curEntry.datetime){
     const formRt = parseFloat(document.getElementById('me_runtime')?.value);
-    hrs = periodRunHours(prevRef, curEntry.datetime, isNaN(formRt) ? curEntry.meRuntime : formRt, curEntry.clockChangeMin);
+    const wallHrs = periodRunHours(prevRef, curEntry.datetime, isNaN(formRt) ? curEntry.meRuntime : formRt, curEntry.clockChangeMin);
+    hrs = entryMeRunHours({ meRunHours: formMeRunHours() }, wallHrs);
     if (curEntry.revCounter!=null && prevRef.revCounter!=null){
       dailyRevs = meterDelta(curEntry.revCounter, prevRef.revCounter, rolls.rc);
     }
@@ -19208,7 +19260,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v202';
+let androidInstallCacheName = 'noon-report-v203';
 
 /*
  * What the program is called.
