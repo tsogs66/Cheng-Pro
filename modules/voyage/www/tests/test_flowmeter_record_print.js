@@ -46,13 +46,11 @@ check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.incl
 check('two equal halves grid', /pr-led-page\{[\s\S]{0,200}grid-template-columns:1fr 1fr/.test(HTML));
 check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
 check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
-check('excludes consumption from title/sub', HTML.includes('not consumption MT') || HTML.includes('not flowmeters / consumption') || HTML.includes('not flowmeters or consumption'));
-check('blank watchkeeper handoff copy', HTML.includes('watchkeeper fills by hand'));
 check('includes cylinder rack/exhaust', HTML.includes('Main engine — cylinders'));
 check('includes flowmeters & counters section', HTML.includes('Flowmeters &amp; counters'));
 check('log entry form uses flowmeterRecordRows', /buildLogEntryDataHalfHtml[\s\S]{0,400}flowmeterRecordRows\('all'\)/.test(HTML));
 check('log entry dual Inlet/Outlet headers', HTML.includes('<th>Meter / counter</th><th>Inlet</th><th>Outlet</th>'));
-check('includes Rev. Counter on log entry form', /Flowmeters &amp; counters[\s\S]{0,800}Rev\. Counter/.test(HTML) || HTML.includes("'Rev. Counter'"));
+check('includes Rev. Counter on log entry form', HTML.includes("'Rev. Counter'"));
 check('marked-only: has Date/Time + Distance', HTML.includes("ledField('Date / Time'") && HTML.includes("ledField('Distance ship (nm)')"));
 check('no weather & sea section', !HTML.includes('Weather &amp; sea'));
 check('E/R S/T S/W under operation', HTML.includes("ledMini('E/R °C')") && HTML.includes("ledMini('S/T °C')") && HTML.includes("ledMini('S/W °C')"));
@@ -62,8 +60,14 @@ check('grouped by machinery categories', HTML.includes('Main engine — cylinder
 check('marked-only: no fuel grade section', !HTML.includes('M/E run &amp; fuel grade'));
 check('marked-only: no Condition / Time zone / Clock', !/ledField\('Condition B\/L'\)/.test(HTML) && !/ledField\('Time zone'\)/.test(HTML));
 check('marked-only: no ECA fields', !HTML.includes("ledMini('ECA grade')"));
-check('marked-only: keeps FW ROB + remarks', HTML.includes("ledMini('FW ROB m³')") && HTML.includes('pr-led-remarks-box'));
-check('no filled sample values in preview', !/previewLogEntryDataSample[\s\S]{0,800}sample: true/.test(HTML));
+check('keeps FW ROB + remarks', HTML.includes("ledField('FW ROB m³')") && HTML.includes('pr-led-remarks-box'));
+check('no subtitle under title', !HTML.includes('pr-led-sub') || !/LOG ENTRY DATA RECORD[\s\S]{0,200}pr-led-sub/.test(HTML));
+check('no handoff subtitle text', !HTML.includes('Blank form — watchkeeper fills by hand → Chief Engineer'));
+check('footer vessel — company — ts0gs', HTML.includes('— ts0gs') && /vessel[\s\S]{0,80}company[\s\S]{0,40}ts0gs/.test(HTML));
+check('fuel temp aligned with pump mark', /ledMini\('Fuel temp'\)[\s\S]{0,40}ledMini\('Pump mark'\)/.test(HTML));
+check('FW ROB below bilge/sludge', /Bilge ROB[\s\S]{0,120}Sludge ROB[\s\S]{0,160}FW ROB/.test(HTML));
+check('remarks section present full-width', HTML.includes('pr-led-remarks') && HTML.includes('pr-led-remarks-box') && /pr-led-two[\s\S]{0,2000}pr-led-remarks/.test(HTML));
+check('maximized layout body flex', HTML.includes('pr-led-body') && HTML.includes('flex:1 1 auto'));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 

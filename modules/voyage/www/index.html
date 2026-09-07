@@ -12369,6 +12369,7 @@ function ledMini(label, opts = {}){
  */
 function buildLogEntryDataHalfHtml(){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
+  const company = escPrint(state.setup.company || 'Company');
   const cylN = meCylinderCount();
   const turboN = turboCount();
   const geN = typeof geUnitCount === 'function' ? geUnitCount() : Math.max(1, Math.min(3, state.setup.generatorCount || 1));
@@ -12409,85 +12410,88 @@ function buildLogEntryDataHalfHtml(){
   return `<div class="pr-led-half">
     <div class="pr-led-inner">
       <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
-      <div class="pr-led-sub">Blank form — watchkeeper fills by hand → Chief Engineer enters Log Entry (not consumption MT) · ${escPrint(flowmeterRecordArrLabel(fm.arr))}</div>
 
-      <div class="pr-led-sec">Watch / operation</div>
-      <div class="pr-led-grid3">
-        ${ledField('Date / Time', { wide: true })}
-        ${ledField('Operation')}
-        ${ledField('Distance ship (nm)')}
-      </div>
-      <div class="pr-led-grid3" style="margin-top:1mm">
-        ${ledMini('E/R °C')}
-        ${ledMini('S/T °C')}
-        ${ledMini('S/W °C')}
-      </div>
+      <div class="pr-led-body">
+        <div class="pr-led-sec">Watch / operation</div>
+        <div class="pr-led-grid3">
+          ${ledField('Date / Time', { wide: true })}
+          ${ledField('Operation')}
+          ${ledField('Distance ship (nm)')}
+        </div>
+        <div class="pr-led-grid3" style="margin-top:1.2mm">
+          ${ledMini('E/R °C')}
+          ${ledMini('S/T °C')}
+          ${ledMini('S/W °C')}
+        </div>
 
-      <div class="pr-led-sec">Flowmeters &amp; counters</div>
-      <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
-        ${fmHead}
-        <tbody>${fmBody}</tbody>
-      </table>
+        <div class="pr-led-sec">Flowmeters &amp; counters</div>
+        <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
+          ${fmHead}
+          <tbody>${fmBody}</tbody>
+        </table>
 
-      <div class="pr-led-sec">Main engine — cylinders</div>
-      <table class="pr-led-table">
-        <thead><tr><th></th>${cylHead}</tr></thead>
-        <tbody>
-          <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
-          <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
-        </tbody>
-      </table>
+        <div class="pr-led-sec">Main engine — cylinders</div>
+        <table class="pr-led-table">
+          <thead><tr><th></th>${cylHead}</tr></thead>
+          <tbody>
+            <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
+            <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
+          </tbody>
+        </table>
 
-      <div class="pr-led-two">
-        <div>
-          <div class="pr-led-sec">Main engine — turbocharger</div>
-          <table class="pr-led-table">
-            <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
-            <tbody>${turboRows}</tbody>
-          </table>
+        <div class="pr-led-two">
+          <div>
+            <div class="pr-led-sec">Main engine — turbocharger</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
+              <tbody>${turboRows}</tbody>
+            </table>
 
-          <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
-          <div class="pr-led-grid2">
-            ${ledMini('Scav temp')}
-            ${ledMini('Scav press')}
-            ${ledMini('AC in °C')}
-            ${ledMini('AC out °C')}
-            ${ledMini('Press diff')}
-            ${ledMini('Pump mark')}
-            ${ledMini('Fuel temp')}
-            ${ledMini('')}
-            ${ledMini('ME LO temp')}
-            ${ledMini('ME LO press')}
+            <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Scav temp')}
+              ${ledMini('Scav press')}
+              ${ledMini('AC in °C')}
+              ${ledMini('AC out °C')}
+              ${ledMini('Press diff')}
+              ${ledMini('')}
+              ${ledMini('Fuel temp')}
+              ${ledMini('Pump mark')}
+              ${ledMini('ME LO temp')}
+              ${ledMini('ME LO press')}
+            </div>
+          </div>
+          <div>
+            <div class="pr-led-sec">Auxiliaries — hrs / load</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
+              <tbody>
+                ${geRows}
+                <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+              </tbody>
+            </table>
+
+            <div class="pr-led-sec">Tanks — ROB</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Bilge ROB m³')}
+              ${ledMini('Sludge ROB m³')}
+            </div>
+            <div class="pr-led-grid1" style="margin-top:1.2mm">
+              ${ledField('FW ROB m³')}
+            </div>
           </div>
         </div>
-        <div>
-          <div class="pr-led-sec">Auxiliaries — hrs / load</div>
-          <table class="pr-led-table">
-            <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
-            <tbody>
-              ${geRows}
-              <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
-                <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-              <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
-                <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-            </tbody>
-          </table>
 
-          <div class="pr-led-sec">Tanks — ROB</div>
-          <div class="pr-led-grid3">
-            ${ledMini('FW ROB m³')}
-            ${ledMini('Bilge ROB m³')}
-            ${ledMini('Sludge ROB m³')}
-          </div>
-
-          <div class="pr-led-remarks">
-            <span class="pr-led-lbl">Remarks</span>
-            <div class="pr-led-remarks-box"></div>
-          </div>
+        <div class="pr-led-remarks">
+          <span class="pr-led-lbl">Remarks</span>
+          <div class="pr-led-remarks-box"></div>
         </div>
       </div>
 
-      <div class="pr-led-foot">${vessel} — ${escPrint(state.setup.voyageNumber || 'voyage')} — watchkeeper → C/E</div>
+      <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
     </div>
   </div>`;
 }
@@ -12519,75 +12523,98 @@ html, body{
   box-sizing:border-box;
   width:100%; height:100%;
   display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:4mm 5mm;
+  align-items:stretch;
+  justify-content:stretch;
+  padding:3.5mm 4.5mm 3mm;
   border-right:0.4pt dashed #888;
 }
 .pr-led-page .pr-led-half:last-child{ border-right:none; }
 .pr-led-inner{
   width:100%;
-  max-width:138mm;
+  height:100%;
+  max-width:none;
+  display:flex;
+  flex-direction:column;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
-  font-size:7pt;
-  line-height:1.15;
+  font-size:7.5pt;
+  line-height:1.2;
 }
 .pr-led-title{
-  text-align:center; font-size:11pt; font-weight:700; letter-spacing:0.04em; margin:0;
+  text-align:center; font-size:12pt; font-weight:700; letter-spacing:0.04em;
+  margin:0 0 1.5mm; flex:0 0 auto;
 }
-.pr-led-sub{
-  text-align:center; font-size:6pt; color:#555; margin:0.4mm 0 1.4mm;
+.pr-led-body{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
 }
 .pr-led-sec{
-  font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.4mm 0 0.8mm; padding-bottom:0.3mm;
+  font-size:7pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.8mm 0 1mm; padding-bottom:0.4mm;
+  flex:0 0 auto;
 }
-.pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:1mm 1.6mm;
+.pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
+  display:grid; gap:1.4mm 2mm;
 }
+.pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
 .pr-led-grid3{ grid-template-columns:1.5fr 1fr 1fr; }
 .pr-led-grid4{ grid-template-columns:repeat(4, 1fr); }
 .pr-led-grid5{ grid-template-columns:repeat(5, 1fr); }
 .pr-led-field, .pr-led-mini{
-  display:flex; align-items:flex-end; gap:0.8mm; min-width:0;
+  display:flex; align-items:flex-end; gap:1mm; min-width:0;
 }
 .pr-led-field.pr-led-wide{ grid-column: 1 / -1; }
 .pr-led-lbl{
-  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:6.5pt;
+  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:7pt;
 }
 .pr-led-line{
   flex:1 1 auto;
-  border-bottom:0.55pt solid #222;
-  min-height:4.2mm;
+  border-bottom:0.6pt solid #222;
+  min-height:5mm;
   min-width:8mm;
-  padding:0 0.4mm 0.15mm;
-  font-size:7.5pt;
+  padding:0 0.5mm 0.2mm;
+  font-size:8pt;
 }
 .pr-led-two{
-  display:grid; grid-template-columns:1fr 1fr; gap:2mm; align-items:start;
+  display:grid; grid-template-columns:1fr 1fr; gap:3mm; align-items:start;
+  flex:0 0 auto;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.5pt; margin:0.4mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:7pt; margin:0.6mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.45pt solid #222; padding:0.45mm 0.4mm; text-align:center; height:3.6mm;
+  border:0.5pt solid #222; padding:0.8mm 0.6mm; text-align:center; height:5mm;
 }
-.pr-led-table th{ background:#efefef; font-weight:600; font-size:6pt; }
-.pr-led-write{ height:3.6mm; }
+.pr-led-table th{ background:#efefef; font-weight:600; font-size:6.5pt; }
+.pr-led-write{ height:5mm; }
 .pr-led-rowlbl{ text-align:left !important; font-weight:600; width:22mm; }
-.pr-led-unit{ color:#555; font-weight:400; font-size:5.5pt; }
-.pr-led-fm-table .pr-led-rowlbl{ width:32mm; }
+.pr-led-unit{ color:#555; font-weight:400; font-size:6pt; }
+.pr-led-fm-table .pr-led-rowlbl{ width:34mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
-.pr-led-chk{ font-size:8pt; }
-.pr-led-remarks{ margin-top:1mm; }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.4mm; }
+.pr-led-chk{ font-size:9pt; }
+.pr-led-remarks{
+  margin-top:2mm;
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:18mm;
+}
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.6mm; flex:0 0 auto; }
 .pr-led-remarks-box{
-  border:0.5pt solid #222; min-height:10mm; padding:0.6mm 0.8mm; font-size:7pt;
+  border:0.55pt solid #222;
+  flex:1 1 auto;
+  min-height:16mm;
+  padding:1mm 1.2mm;
+  font-size:8pt;
+  width:100%;
+  box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:1.2mm; font-size:6pt; color:#555;
+  text-align:center; margin-top:2mm; font-size:7pt; color:#333;
+  flex:0 0 auto; letter-spacing:0.02em;
 }
 @media screen{
   body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
@@ -19862,7 +19889,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v211';
+let androidInstallCacheName = 'noon-report-v212';
 
 /*
  * What the program is called.
