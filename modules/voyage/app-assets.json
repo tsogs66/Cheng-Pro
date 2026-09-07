@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Every file the web app needs at runtime, in one place.",
+    "The PC portable package used to hand-list its files and had drifted: it shipped",
+    "voyage_manager.html without eorb.js or ship_time.js, so every download 404'd on",
+    "both and sailed without the e-ORB module or the ship-time logic. Each packaging",
+    "path \u2014 www/ for Android, the portable zip, the Windows installer \u2014 now reads this",
+    "list, and tests/check_assets.js asserts it covers every script the page loads."
+  ],
+  "files": [
+    "voyage_manager.html",
+    "eorb.js",
+    "ship_time.js",
+    "theme.js",
+    "license-config.js",
+    "license.js",
+    "save-file.js",
+    "camera-capture.js",
+    "sw.js",
+    "manifest.webmanifest"
+  ],
+  "dirs": [
+    "icons",
+    "fonts"
+  ]
+}

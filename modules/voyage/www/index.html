@@ -103,6 +103,7 @@
 </script>
 <script src="license.js"></script>
 <script src="save-file.js"></script>
+<script src="camera-capture.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -2597,13 +2598,16 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field span2">
             <label>Photo (optional)</label>
             <input type="file" id="vs_photoFile" accept="image/*">
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="ghost small" id="btnVsTakePhoto" type="button">Take Picture</button>
+            </div>
           </div>
           <div class="field" style="justify-content:flex-end;">
             <button class="ghost small" id="btnVsClearPhoto" type="button">Remove Photo</button>
           </div>
         </div>
         <div class="vs-photo-preview" id="vs_photoPreview"></div>
-        <div class="hint">Attach a photo to this voyage summary (stored with the entry).</div>
+        <div class="hint">Attach a photo to this voyage summary (stored with the entry). Use <strong>Take Picture</strong> for the device camera on Android or a webcam on Windows, or choose an existing image file.</div>
       </div>
 
       <div class="btn-row">
@@ -2842,15 +2846,16 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>BDN Documents</h2>
-      <div class="hint">PDF only. Files are stored in this browser's local database (not on disk) so they can be viewed anytime you reopen this app in the same browser — there's no way for a web page to save files directly into a folder on your computer, so use "Download" below to save a copy wherever you like.</div>
+      <div class="hint">PDF or photo of the BDN. Files are stored in this browser's local database (not on disk) so they can be viewed anytime you reopen this app in the same browser — there's no way for a web page to save files directly into a folder on your computer, so use "Download" below to save a copy wherever you like. <strong>Take Picture</strong> uses the camera on Android or a webcam on Windows.</div>
       <div class="form-grid cols3" style="margin-top:10px;">
         <div class="field"><label>BDN No.</label><input id="doc_bdn"></div>
         <div class="field"><label>Company</label><input id="doc_company"></div>
         <div class="field"><label>Location</label><input id="doc_location"></div>
       </div>
-      <div class="btn-row">
-        <input type="file" id="doc_file" accept="application/pdf,.pdf" style="max-width:280px;">
-        <button class="primary small" id="btnUploadDoc">Upload PDF</button>
+      <div class="btn-row" style="flex-wrap:wrap; align-items:center; gap:8px;">
+        <input type="file" id="doc_file" accept="application/pdf,.pdf,image/*" style="max-width:280px;">
+        <button class="ghost small" id="btnTakeBdnPhoto" type="button">Take Picture</button>
+        <button class="primary small" id="btnUploadDoc">Upload Document</button>
       </div>
       <div class="table-scroll" style="margin-top:12px;">
         <table>
@@ -2861,6 +2866,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="panel" id="docViewerPanel" style="display:none; margin-top:14px;">
         <h2 id="docViewerTitle">Document</h2>
         <embed id="docViewerEmbed" type="application/pdf" style="width:100%; height:600px; border:1px solid var(--line-strong); border-radius:4px;">
+        <img id="docViewerImage" alt="BDN document photo" style="display:none; width:100%; max-height:70vh; object-fit:contain; border:1px solid var(--line-strong); border-radius:4px; background:#000;">
         <div class="btn-row">
           <a id="docViewerDownload" class="ghost small" style="text-decoration:none; padding:10px 18px; border:1px solid var(--brass-dim); border-radius:3px; color:var(--brass); font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:0.06em; font-size:12px;" download>Download</a>
           <button class="ghost small" id="btnCloseDocViewer">Close</button>
@@ -14573,6 +14579,13 @@ document.getElementById('vs_photoFile')?.addEventListener('change', async (e)=>{
 document.getElementById('btnVsClearPhoto')?.addEventListener('click', ()=>{
   renderVsPhotoPreview(null);
 });
+if (typeof ChengCamera !== 'undefined') {
+  ChengCamera.wireTakePictureButton(document.getElementById('btnVsTakePhoto'), {
+    fileInput: document.getElementById('vs_photoFile'),
+    title: 'Attach Photo',
+    basename: 'voyage-photo'
+  });
+}
 
 /* ---------------- all-entries ROB snapshot (Reports tab) ---------------- */
 function openRobSnapshot(entryId){
@@ -17444,7 +17457,6 @@ document.getElementById('btnUndoEntry')?.addEventListener('click', async ()=>{
 });
 
 /* ---------------- receipts ---------------- */
-/* ---------------- BDN documents (PDF only, stored in-browser) ---------------- */
 /* ---------------- saved voyage abstracts ---------------- */
 function renderAbstractList(){
   const body = document.getElementById('abstractListBody');
@@ -17502,6 +17514,37 @@ function downloadAbstractCsv(a){
   link.click();
 }
 
+/* ---------------- BDN documents (PDF or photo, stored in-browser) ---------------- */
+function isBdnImageDoc(doc){
+  if (!doc) return false;
+  if (doc.mime && /^image\//i.test(doc.mime)) return true;
+  if (doc.dataUrl && /^data:image\//i.test(doc.dataUrl)) return true;
+  return /\.(jpe?g|png|webp|gif|heic|bmp)$/i.test(doc.filename || '');
+}
+function showBdnDocument(doc){
+  if (!doc) return;
+  document.getElementById('docViewerTitle').textContent = doc.filename;
+  const embed = document.getElementById('docViewerEmbed');
+  const img = document.getElementById('docViewerImage');
+  const asImage = isBdnImageDoc(doc);
+  if (asImage){
+    embed.style.display = 'none';
+    embed.removeAttribute('src');
+    img.style.display = '';
+    img.src = doc.dataUrl;
+  } else {
+    img.style.display = 'none';
+    img.removeAttribute('src');
+    embed.style.display = '';
+    embed.setAttribute('src', doc.dataUrl);
+  }
+  const dl = document.getElementById('docViewerDownload');
+  dl.href = doc.dataUrl;
+  dl.download = doc.filename;
+  document.getElementById('docViewerPanel').style.display = '';
+  document.getElementById('docViewerPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
 function renderDocList(){
   const body = document.getElementById('docListBody');
   if (!body) return;
@@ -17524,14 +17567,7 @@ function renderDocList(){
   body.querySelectorAll('[data-view-doc]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const doc = state.documents.find(d=>d.id===b.dataset.viewDoc);
-      if (!doc) return;
-      document.getElementById('docViewerTitle').textContent = doc.filename;
-      document.getElementById('docViewerEmbed').setAttribute('src', doc.dataUrl);
-      const dl = document.getElementById('docViewerDownload');
-      dl.href = doc.dataUrl;
-      dl.download = doc.filename;
-      document.getElementById('docViewerPanel').style.display = '';
-      document.getElementById('docViewerPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+      showBdnDocument(doc);
     });
   });
   body.querySelectorAll('[data-del-doc]').forEach(b=>{
@@ -17547,37 +17583,57 @@ function renderDocList(){
 document.getElementById('btnCloseDocViewer').addEventListener('click', ()=>{
   document.getElementById('docViewerPanel').style.display = 'none';
   document.getElementById('docViewerEmbed').removeAttribute('src');
+  const img = document.getElementById('docViewerImage');
+  if (img){ img.removeAttribute('src'); img.style.display = 'none'; }
 });
 
 document.getElementById('btnUploadDoc').addEventListener('click', async ()=>{
   const fileInput = document.getElementById('doc_file');
   const file = fileInput.files[0];
-  if (!file){ alert('Choose a PDF file first.'); return; }
+  if (!file){ alert('Choose a PDF or take/choose a photo of the BDN first.'); return; }
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-  if (!isPdf){ alert('Only PDF files are allowed.'); return; }
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const doc = {
-      id: uid(),
-      vesselId: state.activeVesselId,
-      filename: file.name,
-      bdnNo: document.getElementById('doc_bdn').value,
-      company: document.getElementById('doc_company').value,
-      location: document.getElementById('doc_location').value,
-      uploadedAt: new Date().toISOString(),
-      dataUrl: reader.result
-    };
-    state.documents.push(doc);
-    await dbPut('documents', doc);
-    fileInput.value = '';
-    document.getElementById('doc_bdn').value = '';
-    document.getElementById('doc_company').value = '';
-    document.getElementById('doc_location').value = '';
-    renderDocList();
-    alert('PDF uploaded and stored in this browser\'s local database.');
+  const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|gif|heic|bmp)$/i.test(file.name);
+  if (!isPdf && !isImage){ alert('Only PDF or image files are allowed for BDN documents.'); return; }
+  let dataUrl;
+  try {
+    if (isImage && typeof compressImageFileToDataUrl === 'function') {
+      dataUrl = await compressImageFileToDataUrl(file, 1600, 0.85);
+    } else {
+      dataUrl = await readFileAsDataUrl(file);
+    }
+  } catch (err) {
+    alert('Could not read that file.');
+    return;
+  }
+  const doc = {
+    id: uid(),
+    vesselId: state.activeVesselId,
+    filename: file.name || (isImage ? 'bdn-photo.jpg' : 'bdn.pdf'),
+    mime: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+    bdnNo: document.getElementById('doc_bdn').value,
+    company: document.getElementById('doc_company').value,
+    location: document.getElementById('doc_location').value,
+    uploadedAt: new Date().toISOString(),
+    dataUrl
   };
-  reader.readAsDataURL(file);
+  state.documents.push(doc);
+  await dbPut('documents', doc);
+  fileInput.value = '';
+  document.getElementById('doc_bdn').value = '';
+  document.getElementById('doc_company').value = '';
+  document.getElementById('doc_location').value = '';
+  renderDocList();
+  alert(isImage
+    ? 'BDN photo uploaded and stored in this browser\'s local database.'
+    : 'PDF uploaded and stored in this browser\'s local database.');
 });
+if (typeof ChengCamera !== 'undefined') {
+  ChengCamera.wireTakePictureButton(document.getElementById('btnTakeBdnPhoto'), {
+    fileInput: document.getElementById('doc_file'),
+    title: 'Photograph BDN',
+    basename: 'bdn'
+  });
+}
 
 document.getElementById('rcpt_category').addEventListener('change', (e)=>{
   const sel = document.getElementById('rcpt_type');
@@ -19254,7 +19310,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v204';
+let androidInstallCacheName = 'noon-report-v205';
 
 /*
  * What the program is called.
@@ -19386,6 +19442,7 @@ let androidInstallAssets = [
   './license-config.js',
   './license.js',
   './save-file.js',
+  './camera-capture.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',
