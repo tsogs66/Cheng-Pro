@@ -2984,13 +2984,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Flowmeter Record</h2>
-      <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Uses this vessel’s flowmeter arrangement (single / dual ME / dual GE).</div>
+      <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Inlet/Outlet columns follow <strong>Vessel Data → Flowmeters &amp; Counters → Setup Type</strong> (SINGLE, DUAL ME, DUAL GE, or DUAL BOTH).</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintFlowmeterRecordAll">Print All Meters + Rev. Counter</button>
         <button class="ghost small" type="button" id="btnPrintFlowmeterRecordFuel">Print Fuel Meters Only</button>
         <button class="ghost small" type="button" id="btnPreviewFlowmeterRecordSample">Show Sample</button>
       </div>
-      <div class="hint">All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).</div>
+      <div class="hint" id="flowmeterRecordArrHint">All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).</div>
     </div>
 
     <div class="panel">
@@ -9020,6 +9020,7 @@ function flowArrHintText(arr){
 function updateFlowArrHint(){
   const el = document.getElementById('flowArrHint');
   if (el) el.textContent = flowArrHintText(state.setup.flowArr || 'SINGLE');
+  if (typeof updateFlowmeterRecordArrHint === 'function') updateFlowmeterRecordArrHint();
 }
 
 function fwTankRobId(prefix, tankId){
@@ -12044,51 +12045,106 @@ function printDepArrRobSheet(){
 }
 
 /**
+ * Live flowmeter arrangement from Vessel Data (select if present), else setup.
+ * SINGLE | DUAL_ME | DUAL_GE | DUAL_BOTH
+ */
+function flowmeterRecordArrangement(){
+  const sel = document.getElementById('s_flowArr');
+  if (sel && sel.value){
+    state.setup.flowArr = sel.value;
+    return sel.value;
+  }
+  return (state.setup && state.setup.flowArr) || 'SINGLE';
+}
+
+function flowmeterRecordArrLabel(arr){
+  switch (arr){
+    case 'DUAL_ME': return 'DUAL ME (M/E inlet/outlet)';
+    case 'DUAL_GE': return 'DUAL GE (G/E inlet/outlet)';
+    case 'DUAL_BOTH': return 'DUAL BOTH (M/E & G/E inlet/outlet)';
+    default: return 'SINGLE';
+  }
+}
+
+/**
  * Blank flowmeter handout rows for the watchkeeper.
  * mode 'all'  — M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator
  * mode 'fuel' — M/E, G/E, Boiler only (no cyl oil / rev counter / FW gen)
- * Dual arrangements add Inlet/Outlet lines for ME and/or GE.
+ * Dual arrangements from Vessel Setup use Inlet/Outlet columns for M/E and/or G/E.
  */
 function flowmeterRecordRows(mode){
-  const arr = state.setup.flowArr || 'SINGLE';
+  const arr = flowmeterRecordArrangement();
   const meDual = arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
   const geDual = arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+  const dualLayout = meDual || geDual;
   const rows = [];
-  if (meDual){
-    rows.push({ label: 'M/E Inlet Meter', unit: 'L' });
-    rows.push({ label: 'M/E Outlet Meter', unit: 'L' });
+  if (dualLayout){
+    rows.push({ label: 'M/E', unit: 'L', dual: meDual });
+    rows.push({ label: 'G/E', unit: 'L', dual: geDual });
+    rows.push({ label: 'Boiler', unit: 'L', dual: false });
+    if (mode !== 'fuel'){
+      rows.push({ label: 'Cylinder Oil', unit: 'L', dual: false });
+      rows.push({ label: 'Rev. Counter', unit: '', dual: false });
+      rows.push({ label: 'FW Generator', unit: 'm³', dual: false });
+    }
   } else {
-    rows.push({ label: 'M/E Meter', unit: 'L' });
+    rows.push({ label: 'M/E Meter', unit: 'L', dual: false });
+    rows.push({ label: 'G/E Meter', unit: 'L', dual: false });
+    rows.push({ label: 'Boiler Meter', unit: 'L', dual: false });
+    if (mode !== 'fuel'){
+      rows.push({ label: 'Cylinder Oil Meter', unit: 'L', dual: false });
+      rows.push({ label: 'Rev. Counter', unit: '', dual: false });
+      rows.push({ label: 'FW Generator', unit: 'm³', dual: false });
+    }
   }
-  if (geDual){
-    rows.push({ label: 'G/E Inlet Meter', unit: 'L' });
-    rows.push({ label: 'G/E Outlet Meter', unit: 'L' });
-  } else {
-    rows.push({ label: 'G/E Meter', unit: 'L' });
-  }
-  rows.push({ label: 'Boiler Meter', unit: 'L' });
-  if (mode !== 'fuel'){
-    rows.push({ label: 'Cylinder Oil Meter', unit: 'L' });
-    rows.push({ label: 'Rev. Counter', unit: '' });
-    rows.push({ label: 'FW Generator', unit: 'm³' });
-  }
-  return rows;
+  return { arr, meDual, geDual, dualLayout, rows };
+}
+
+function updateFlowmeterRecordArrHint(){
+  const el = document.getElementById('flowmeterRecordArrHint');
+  if (!el) return;
+  const { arr, meDual, geDual } = flowmeterRecordRows('all');
+  const io = [];
+  if (meDual) io.push('M/E Inlet + Outlet');
+  if (geDual) io.push('G/E Inlet + Outlet');
+  const arrSafe = escPrint(arr);
+  const ioTxt = io.length
+    ? `Current setup <strong>${arrSafe}</strong> — table shows ${io.join(' and ')}.`
+    : `Current setup <strong>${arrSafe}</strong> — one Reading column (no separate inlet/outlet).`;
+  el.innerHTML = `${ioTxt} All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).`;
 }
 
 /** One of eight identical slips on the A4 flowmeter record sheet. */
-function buildFlowmeterRecordSlipHtml(rows, opts = {}){
+function buildFlowmeterRecordSlipHtml(spec, opts = {}){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
   const variant = opts.variantLabel ? escPrint(opts.variantLabel) : '';
   const sample = !!opts.sample;
   const dateVal = sample ? escPrint(opts.sampleDate || '') : '';
   const opVal = sample ? escPrint(opts.sampleOp || '') : '';
-  const meterRows = rows.map((r, i) => {
-    const reading = sample && opts.sampleReadings && opts.sampleReadings[i] != null
-      ? escPrint(String(opts.sampleReadings[i]))
-      : '';
+  const dualLayout = !!spec.dualLayout;
+  const sampleReadings = opts.sampleReadings || [];
+  const meterRows = spec.rows.map((r, i) => {
     const unit = r.unit ? ` <span class="pr-fm-unit">(${escPrint(r.unit)})</span>` : '';
+    const sr = sampleReadings[i];
+    if (dualLayout){
+      if (r.dual){
+        const inlet = sample && sr && sr.inlet != null ? escPrint(String(sr.inlet)) : '';
+        const outlet = sample && sr && sr.outlet != null ? escPrint(String(sr.outlet)) : '';
+        return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td>`
+          + `<td class="pr-fm-reading">${inlet}</td><td class="pr-fm-reading">${outlet}</td></tr>`;
+      }
+      const reading = sample && sr != null && (typeof sr === 'string' || typeof sr === 'number')
+        ? escPrint(String(sr))
+        : (sample && sr && sr.inlet != null ? escPrint(String(sr.inlet)) : '');
+      return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td>`
+        + `<td class="pr-fm-reading" colspan="2">${reading}</td></tr>`;
+    }
+    const reading = sample && sr != null ? escPrint(String(typeof sr === 'object' ? (sr.inlet || '') : sr)) : '';
     return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td><td class="pr-fm-reading">${reading}</td></tr>`;
   }).join('');
+  const head = dualLayout
+    ? `<thead><tr><th>Flowmeter</th><th>Inlet</th><th>Outlet</th></tr></thead>`
+    : `<thead><tr><th>Flowmeter</th><th>Reading</th></tr></thead>`;
   return `<div class="pr-fm-slip">
     <div class="pr-fm-slip-inner">
       <div class="pr-fm-title">FLOWMETER RECORD</div>
@@ -12097,8 +12153,8 @@ function buildFlowmeterRecordSlipHtml(rows, opts = {}){
         <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
         <div class="pr-fm-field"><span class="pr-fm-lbl">Operation</span><span class="pr-fm-line">${opVal}</span></div>
       </div>
-      <table class="pr-fm-table">
-        <thead><tr><th>Flowmeter</th><th>Reading</th></tr></thead>
+      <table class="pr-fm-table${dualLayout ? ' pr-fm-table-io' : ''}">
+        ${head}
         <tbody>${meterRows}</tbody>
       </table>
       <div class="pr-fm-foot">${vessel}</div>
@@ -12108,12 +12164,13 @@ function buildFlowmeterRecordSlipHtml(rows, opts = {}){
 
 /** Full A4 page: eight equal slips (2 columns × 4 rows), content centred in each. */
 function buildFlowmeterRecordPageHtml(mode, opts = {}){
-  const rows = flowmeterRecordRows(mode);
-  const variantLabel = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
+  const spec = flowmeterRecordRows(mode);
+  const base = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
+  const variantLabel = `${base} · ${flowmeterRecordArrLabel(spec.arr)}`;
   const slips = Array.from({ length: 8 }, () =>
-    buildFlowmeterRecordSlipHtml(rows, { ...opts, variantLabel })
+    buildFlowmeterRecordSlipHtml(spec, { ...opts, variantLabel })
   ).join('');
-  return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}">${slips}</div>`;
+  return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
 }
 
 function buildFlowmeterRecordPrintDocument(pageHtml){
@@ -12199,6 +12256,8 @@ html, body{
   text-align:center;
 }
 .pr-fm-meter{ text-align:left; width:68%; }
+.pr-fm-table-io .pr-fm-meter{ width:40%; }
+.pr-fm-table-io .pr-fm-reading{ width:30%; }
 .pr-fm-unit{ color:#555; font-weight:400; font-size:7pt; }
 .pr-fm-reading{
   text-align:center; width:32%;
@@ -12242,10 +12301,16 @@ function printFlowmeterRecord(mode){
 /** On-screen sample window: one filled slip set so the cut layout is visible. */
 function previewFlowmeterRecordSample(){
   const fillReadings = (mode) => {
-    const n = flowmeterRecordRows(mode).length;
-    return Array.from({ length: n }, (_, i) => {
-      if (mode !== 'fuel' && i === n - 1) return '1234.56'; // FW m³
-      if (mode !== 'fuel' && i === n - 2) return '98765432'; // rev counter
+    const { rows } = flowmeterRecordRows(mode);
+    return rows.map((r, i) => {
+      if (r.dual){
+        return {
+          inlet: String(10000000 + (i + 1) * 111111).slice(0, 8),
+          outlet: String(20000000 + (i + 1) * 111111).slice(0, 8)
+        };
+      }
+      if (mode !== 'fuel' && /FW Generator/i.test(r.label)) return '1234.56';
+      if (mode !== 'fuel' && /Rev\. Counter/i.test(r.label)) return '98765432';
       return String(10000000 + (i + 1) * 111111).slice(0, 8);
     });
   };
@@ -19500,7 +19565,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v205';
+let androidInstallCacheName = 'noon-report-v206';
 
 /*
  * What the program is called.
