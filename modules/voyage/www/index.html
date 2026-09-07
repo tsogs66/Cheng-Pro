@@ -12357,6 +12357,7 @@ function ledField(label, opts = {}){
 }
 
 function ledMini(label, opts = {}){
+  if (!label) return `<div class="pr-led-mini pr-led-spacer" aria-hidden="true"></div>`;
   const val = opts.value != null && opts.value !== '' ? escPrint(String(opts.value)) : '';
   return `<div class="pr-led-mini"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line">${val}</span></div>`;
 }
@@ -12429,6 +12430,7 @@ function buildLogEntryDataHalfHtml(){
             ${ledMini('Press diff')}
             ${ledMini('Pump mark')}
             ${ledMini('Fuel temp')}
+            ${ledMini('')}
             ${ledMini('ME LO temp')}
             ${ledMini('ME LO press')}
           </div>
