@@ -82,7 +82,8 @@ check('footer vessel — company — ts0gs', HTML.includes('— ts0gs') && /vess
 check('fuel temp aligned with pump mark', /ledMini\('Fuel temp'\)[\s\S]{0,40}ledMini\('Pump mark'\)/.test(HTML));
 check('FW ROB below bilge/sludge', /Bilge ROB[\s\S]{0,120}Sludge ROB[\s\S]{0,160}FW ROB/.test(HTML));
 check('remarks section present full-width', HTML.includes('pr-led-remarks') && HTML.includes('pr-led-remarks-box') && /pr-led-two[\s\S]{0,2000}pr-led-remarks/.test(HTML));
-check('remarks compact fixed height', /pr-led-remarks-box\{[\s\S]{0,160}height:3\.4mm/.test(HTML) && /pr-led-remarks\{[\s\S]{0,200}flex:0 0 auto/.test(HTML));
+check('remarks compact fixed height', /pr-led-remarks-box\{[\s\S]{0,160}height:13\.6mm/.test(HTML) && /pr-led-remarks\{[\s\S]{0,200}flex:0 0 auto/.test(HTML));
+check('remarks height is 4x prior strip', /height:13\.6mm/.test(HTML) && /pr-led-dense[\s\S]{0,80}height:12mm/.test(HTML));
 check('footer clears remarks with margin', /pr-led-foot\{[\s\S]{0,120}margin-top:1\.6mm/.test(HTML) && !/pr-led-remarks\{[\s\S]{0,120}max-height:4\.8mm/.test(HTML));
 check('data fields use --led-row variable', HTML.includes('--led-row') && /height:var\(--led-row/.test(HTML) && /min-height:var\(--led-row/.test(HTML));
 check('fit grows row height then shrink-to-fit', /Modest rows so ME LO/.test(HTML) && /without clipping|stay on-page/.test(HTML));
