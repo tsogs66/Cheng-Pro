@@ -12883,7 +12883,7 @@ html, body{
   max-width:148.5mm !important;
   height:210mm !important;
   max-height:210mm !important;
-  padding:3mm 3.2mm 2.5mm !important;
+  padding:2.8mm 3mm 3.2mm !important;
   overflow:hidden !important;
   background:#fff !important;
 }
@@ -12977,37 +12977,48 @@ html, body{
 .pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:0.5mm;
+  margin-top:0.8mm;
   flex:0 0 auto;
   display:flex;
   flex-direction:column;
   min-height:0;
-  max-height:4.8mm;
+  /* Do not cap height — label + box must fully clear before the footer. */
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.15mm; flex:0 0 auto; font-size:6pt; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.25mm; flex:0 0 auto; font-size:6pt; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
   flex:0 0 auto;
-  height:3.2mm;
-  min-height:3.2mm;
-  max-height:3.2mm;
+  height:13.6mm;
+  min-height:13.6mm;
+  max-height:13.6mm;
   padding:0.15mm 0.5mm;
   font-size:6pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:0.4mm; font-size:6.2pt; color:#333;
-  flex:0 0 auto; letter-spacing:0.02em;
+  text-align:center;
+  margin-top:1.6mm;
+  padding-top:0.2mm;
+  font-size:5.5pt;
+  line-height:1.25;
+  color:#333;
+  flex:0 0 auto;
+  letter-spacing:0.01em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
 }
-.pr-led-dense{ --led-row: 4.4mm; }
+.pr-led-dense{ --led-row: 4.2mm; }
 .pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
 .pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
 .pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
 .pr-led-dense .pr-led-write{ padding:0.4mm 0.25mm; }
-.pr-led-dense .pr-led-remarks{ margin-top:0.35mm; max-height:4mm; }
-.pr-led-dense .pr-led-remarks-box{ height:2.8mm; min-height:2.8mm; max-height:2.8mm; padding:0.1mm 0.4mm; }
+.pr-led-dense .pr-led-remarks{ margin-top:0.55mm; }
+.pr-led-dense .pr-led-remarks-box{ height:12mm; min-height:12mm; max-height:12mm; padding:0.1mm 0.4mm; }
+.pr-led-dense .pr-led-foot{ margin-top:1.2mm; font-size:5.2pt; }
 @media print{
   html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;
@@ -13082,21 +13093,17 @@ function fitLogEntryDataRoot(doc){
 
   const applyScale = (scale)=>{
     inners.forEach(el=>{
-      if (androidPrint){
-        el.style.zoom = '1';
-        el.style.transform = scale < 0.999 ? ('scale(' + scale + ')') : 'none';
-        el.style.transformOrigin = 'top left';
-      } else {
-        el.style.transform = 'none';
-        el.style.zoom = String(scale);
-      }
+      /* zoom shrinks layout height so the half fills without an empty band. */
+      el.style.transform = 'none';
+      el.style.transformOrigin = 'top left';
+      el.style.zoom = String(scale);
       el.style.width = '100%';
     });
     try{ void doc.body.offsetHeight; }catch(_e){}
   };
 
   /* Modest rows so ME LO, tanks ROB, remarks and footer stay on-page. */
-  let lo = 4.0, hi = 5.6, best = 4.6;
+  let lo = 4.0, hi = 5.4, best = 4.5;
   setRow(best, false);
   if (measure() >= 1){
     for (let k = 0; k < 8; k++){
@@ -13112,9 +13119,9 @@ function fitLogEntryDataRoot(doc){
   }
 
   let scale = measure();
-  /* Android print paints slightly taller — keep a larger safety margin. */
-  const safety = androidPrint ? 0.90 : 0.94;
-  scale = Math.max(0.62, Math.min(1, scale * safety));
+  /* Keep a safety margin without over-shrinking (leaves a large empty band). */
+  const safety = androidPrint ? 0.95 : 0.97;
+  scale = Math.max(0.68, Math.min(1, scale * safety));
   applyScale(scale);
 
   for (let i = 0; i < 8; i++){
@@ -13123,11 +13130,10 @@ function fitLogEntryDataRoot(doc){
       const box = contentBox(copy);
       const inner = inners[idx];
       const layoutH = Math.max(1, inner.scrollHeight);
-      const paintedH = androidPrint ? (layoutH * scale) : layoutH;
-      if (paintedH > box.h + 0.5) stillOver = true;
+      if (layoutH > box.h + 0.5) stillOver = true;
     });
     if (!stillOver) break;
-    scale = Math.max(0.62, scale * 0.95);
+    scale = Math.max(0.68, scale * 0.96);
     applyScale(scale);
   }
 
@@ -20635,7 +20641,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v215';
+let androidInstallCacheName = 'noon-report-v216';
 
 /*
  * What the program is called.
