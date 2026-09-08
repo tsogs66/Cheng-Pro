@@ -12519,7 +12519,8 @@ function buildFlowmeterRecordPageHtml(mode, opts = {}){
   const slips = Array.from({ length: 8 }, () =>
     buildFlowmeterRecordSlipHtml(spec, { ...opts, subtitle })
   ).join('');
-  return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
+  const dense = mode !== 'fuel' ? ' pr-fm-dense' : '';
+  return `<div class="pr-fm-page${dense}" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
 }
 
 function buildFlowmeterRecordPrintDocument(pageHtml, opts = {}){
@@ -12530,38 +12531,50 @@ function buildFlowmeterRecordPrintDocument(pageHtml, opts = {}){
 html, body{
   margin:0 !important; padding:0 !important; background:#fff !important;
   width:210mm !important; height:297mm !important;
+  max-width:210mm !important; max-height:297mm !important;
+  overflow:hidden !important;
   -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
 .pr-fm-page{
   box-sizing:border-box;
   width:210mm; height:297mm;
+  max-width:210mm; max-height:297mm;
   margin:0;
-  /* Equal page inset — keeps all 8 slips on the printable area; cut on dashed lines still yields equal cards. */
-  padding:4.5mm;
+  /* Equal page inset — cut on dashed lines still yields equal cards. */
+  padding:4mm;
   display:grid;
   grid-template-columns:1fr 1fr;
-  grid-template-rows:repeat(4, 1fr);
+  grid-template-rows:repeat(4, minmax(0, 1fr));
   background:#fff;
+  overflow:hidden;
+  page-break-after:avoid;
+  page-break-inside:avoid;
+  break-after:avoid;
+  break-inside:avoid;
 }
 .pr-fm-slip{
   box-sizing:border-box;
   width:100%; height:100%;
+  min-height:0;
   display:flex;
   align-items:center;
   justify-content:center;
   /* Equal inset on every slip so cut pieces match. */
-  padding:3mm 3.2mm;
+  padding:2.6mm 2.8mm;
   border-right:0.35pt dashed #888;
   border-bottom:0.35pt dashed #888;
+  overflow:hidden;
 }
 .pr-fm-page .pr-fm-slip:nth-child(2n){ border-right:none; }
 .pr-fm-page .pr-fm-slip:nth-child(n+7){ border-bottom:none; }
 .pr-fm-slip-inner{
   width:100%;
   max-width:96mm;
+  max-height:100%;
   text-align:center;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
+  box-sizing:border-box;
 }
 .pr-fm-title{
   font-size:11pt; font-weight:700; letter-spacing:0.04em;
@@ -12621,8 +12634,31 @@ html, body{
   color:#555;
   letter-spacing:0.02em;
 }
+/* All-meters (6 rows) — denser so the 8-up sheet stays one A4 page. */
+.pr-fm-dense{
+  padding:3.6mm;
+}
+.pr-fm-dense .pr-fm-slip{ padding:2mm 2.2mm; }
+.pr-fm-dense .pr-fm-title{ font-size:9.5pt; margin:0 0 0.35mm; }
+.pr-fm-dense .pr-fm-variant{ font-size:6.3pt; margin:0 0 0.7mm; }
+.pr-fm-dense .pr-fm-fields{ margin:0 0 0.8mm; }
+.pr-fm-dense .pr-fm-field{ margin:0 0 0.55mm; font-size:7pt; gap:1mm; }
+.pr-fm-dense .pr-fm-lbl{ flex-basis:15mm; font-size:6.5pt; }
+.pr-fm-dense .pr-fm-line{ min-height:2.5mm; font-size:7pt; padding:0 0.35mm 0.1mm; }
+.pr-fm-dense .pr-fm-table{ font-size:6.8pt; }
+.pr-fm-dense .pr-fm-table th{ font-size:6.3pt; padding:0.4mm 0.55mm; }
+.pr-fm-dense .pr-fm-table td{ padding:0.4mm 0.55mm; }
+.pr-fm-dense .pr-fm-reading{ height:3.2mm; }
+.pr-fm-dense .pr-fm-unit{ font-size:5.8pt; }
+.pr-fm-dense .pr-fm-foot{ margin-top:0.7mm; font-size:5.6pt; }
+@media print{
+  html, body, .pr-fm-page{
+    width:210mm !important; height:297mm !important;
+    max-height:297mm !important; overflow:hidden !important;
+  }
+}
 @media screen{
-  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
+  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }
   .pr-fm-page{
     margin:0 auto;
     box-shadow:0 2px 12px rgba(0,0,0,.18);
