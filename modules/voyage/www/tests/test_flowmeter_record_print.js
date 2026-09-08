@@ -64,6 +64,7 @@ check('includes Rev. Counter on log entry form', HTML.includes("'Rev. Counter'")
 check('marked-only: has Date/Time + Distance', HTML.includes("ledField('Date / Time'") && HTML.includes("ledField('Distance ship (nm)')"));
 check('no weather & sea section', !HTML.includes('Weather &amp; sea'));
 check('E/R S/T S/W under operation', HTML.includes("ledMini('E/R °C')") && HTML.includes("ledMini('S/T °C')") && HTML.includes("ledMini('S/W °C')"));
+check('wind/sea above S/W temps', /ledMini\('Wind Dir'\)[\s\S]{0,120}ledMini\('Wind state'\)[\s\S]{0,120}ledMini\('Sea state'\)[\s\S]{0,160}ledMini\('E\/R °C'\)[\s\S]{0,80}ledMini\('S\/W °C'\)/.test(HTML));
 check('ME LO temp and press separate', HTML.includes("ledMini('ME LO temp')") && HTML.includes("ledMini('ME LO press')") && !HTML.includes("ME LO T/P"));
 check('bilge and sludge ROB present', HTML.includes("ledMini('Bilge ROB m³')") && HTML.includes("ledMini('Sludge ROB m³')"));
 check('grouped by machinery categories', HTML.includes('Main engine — cylinders') && HTML.includes('Auxiliaries — hrs / load') && HTML.includes('Tanks — ROB'));
