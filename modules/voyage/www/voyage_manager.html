@@ -12912,7 +12912,7 @@ html, body{
   color:#111;
   font-size:7pt;
   line-height:1.15;
-  --led-row: 5.4mm;
+  --led-row: 4.6mm;
 }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
@@ -13022,20 +13022,29 @@ html, body{
   body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }
   .pr-led-page{ margin:0 auto; box-shadow:0 2px 12px rgba(0,0,0,.18); }
 }
-</style></head><body>${pageHtml}</body></html>`;
+</style></head><body>${pageHtml}
+<script>
+/* Android print WebView re-fits after load so bottom fields are not clipped. */
+${fitLogEntryDataRoot.toString()}
+try{ fitLogEntryDataRoot(document); }catch(_e){}
+<\/script>
+</body></html>`;
 }
 
-/** Same zoom on both copies so a centre cut yields two equal blanks.
- *  Spare height raises --led-row (write-in cells); remarks stay a fixed thin strip.
- *  Always shrink-to-fit so one A4 landscape page never overflows. */
+/** Fit both equal halves onto one A4 landscape page without clipping.
+ *  Spare height raises --led-row; remarks stay a thin strip.
+ *  Uses zoom on desktop Chromium and transform:scale on Android print WebView.
+ */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
   const copies = [...doc.querySelectorAll('.pr-led-copy')];
   const inners = [...doc.querySelectorAll('.pr-led-page-inner')];
   if (!page || copies.length !== 2 || inners.length !== 2) return 1;
 
-  /* Force layout before measuring (critical for fresh iframe / popup docs). */
   try{ void doc.body.offsetHeight; void page.offsetHeight; }catch(_e){}
+
+  const ua = ((doc.defaultView && doc.defaultView.navigator && doc.defaultView.navigator.userAgent) || '');
+  const androidPrint = /Android/i.test(ua);
 
   const setRow = (rowMm, dense)=>{
     inners.forEach(inner=>{
@@ -13068,11 +13077,26 @@ function fitLogEntryDataRoot(doc){
       const contentW = Math.max(1, inner.scrollWidth);
       scale = Math.min(scale, box.h / contentH, box.w / contentW);
     });
-    return Math.max(0.68, Math.min(1, scale));
+    return Math.max(0.62, Math.min(1, scale));
   };
 
-  /* Grow write-in rows until just before overflow, then apply a small safety zoom. */
-  let lo = 4.6, hi = 7.0, best = 5.2;
+  const applyScale = (scale)=>{
+    inners.forEach(el=>{
+      if (androidPrint){
+        el.style.zoom = '1';
+        el.style.transform = scale < 0.999 ? ('scale(' + scale + ')') : 'none';
+        el.style.transformOrigin = 'top left';
+      } else {
+        el.style.transform = 'none';
+        el.style.zoom = String(scale);
+      }
+      el.style.width = '100%';
+    });
+    try{ void doc.body.offsetHeight; }catch(_e){}
+  };
+
+  /* Modest rows so ME LO, tanks ROB, remarks and footer stay on-page. */
+  let lo = 4.0, hi = 5.6, best = 4.6;
   setRow(best, false);
   if (measure() >= 1){
     for (let k = 0; k < 8; k++){
@@ -13083,17 +13107,29 @@ function fitLogEntryDataRoot(doc){
     }
     setRow(best, false);
   } else {
-    setRow(4.6, false);
-    if (measure() < 1){
-      setRow(4.2, true);
-    }
+    setRow(4.0, false);
+    if (measure() < 1) setRow(3.6, true);
   }
 
   let scale = measure();
-  if (scale >= 0.995) scale = 1;
-  else scale = Math.max(0.68, Math.min(1, scale * 0.985));
+  /* Android print paints slightly taller — keep a larger safety margin. */
+  const safety = androidPrint ? 0.90 : 0.94;
+  scale = Math.max(0.62, Math.min(1, scale * safety));
+  applyScale(scale);
 
-  inners.forEach(el=>{ el.style.zoom = String(scale); });
+  for (let i = 0; i < 8; i++){
+    let stillOver = false;
+    copies.forEach((copy, idx)=>{
+      const box = contentBox(copy);
+      const inner = inners[idx];
+      const layoutH = Math.max(1, inner.scrollHeight);
+      const paintedH = androidPrint ? (layoutH * scale) : layoutH;
+      if (paintedH > box.h + 0.5) stillOver = true;
+    });
+    if (!stillOver) break;
+    scale = Math.max(0.62, scale * 0.95);
+    applyScale(scale);
+  }
 
   doc.documentElement.style.height = '210mm';
   doc.documentElement.style.overflow = 'hidden';
@@ -20599,7 +20635,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v214';
+let androidInstallCacheName = 'noon-report-v215';
 
 /*
  * What the program is called.
