@@ -713,7 +713,7 @@
     overflow-x:auto; -webkit-overflow-scrolling:touch;
     margin:0 -4px; padding:0 4px 4px;
   }
-  .bunker-table{width:100%; min-width:640px; border-collapse:collapse; font-size:11px; table-layout:fixed;}
+  .bunker-table{width:100%; min-width:720px; border-collapse:collapse; font-size:11px; table-layout:fixed;}
   .bunker-table th{font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--paper-dim); font-weight:500; padding:4px 3px; border-bottom:1px solid var(--line); white-space:nowrap;}
   .bunker-table td{padding:3px 2px; vertical-align:middle;}
   .bunker-table input[type="text"],
@@ -725,9 +725,13 @@
   .bunker-table input[type="checkbox"]{width:16px; height:16px; accent-color:var(--teal);}
   .bunker-table .col-port{width:40px; text-align:center;}
   .bunker-table .col-from,
-  .bunker-table .col-to{width:18%;}
-  .bunker-table .col-num{width:70px;}
-  .bunker-table .col-qty{width:78px;}
+  .bunker-table .col-to{width:16%;}
+  .bunker-table .col-num{width:64px;}
+  .bunker-table .col-margin{width:68px;}
+  .bunker-table .col-qty{width:72px;}
+  .bunker-leg-actions{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0;}
+  .bunker-leg-actions .btn,
+  .bunker-leg-actions button{min-height:36px;}
   .bunker-totals{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-top:12px;}
   .bunker-totals .field{min-width:0;}
   .bunker-totals .field input{font-weight:600; min-width:0;}
@@ -739,9 +743,10 @@
     .bunker-plan-grid{grid-template-columns:1fr; gap:18px;}
     .bunker-table{min-width:0; width:100%;}
     .bunker-table .col-from,
-    .bunker-table .col-to{width:22%;}
-    .bunker-table .col-num{width:72px;}
-    .bunker-table .col-qty{width:84px;}
+    .bunker-table .col-to{width:20%;}
+    .bunker-table .col-num{width:68px;}
+    .bunker-table .col-margin{width:72px;}
+    .bunker-table .col-qty{width:80px;}
     .bunker-table input[type="text"],
     .bunker-table input[type="number"]{font-size:12px; padding:6px 7px;}
     .bunker-totals{grid-template-columns:1fr 1fr; gap:10px 12px;}
@@ -2784,7 +2789,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
       <div class="bunker-plan-grid" id="bunkerPlanGrid"></div>
-      <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly; a percentage safety margin (often 10–20%) is added to voyage consumption when sizing stems (many operators also keep a 48–72 h steaming reserve).</div>
+      <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly. Start with one destination or stay, set a <strong>Margin %</strong> on that line if you want a reserve for it, then <strong>Add destination / stay</strong> for the next leg — each line can carry its own margin (e.g. different % to a bunkering port vs an anchorage).</div>
     </div>
     <div class="panel" id="bunkerPlanHistory" style="display:none;">
       <h2>Saved Calculations</h2>
@@ -10847,21 +10852,53 @@ async function saveSetup(){
 
 /* ---------------- tabs ---------------- */
 const BOTTOM_NAV_MORE = new Set(['consumption', 'voyageabstract', 'rangetotals', 'receipts', 'reports', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
-const BUNKER_PLAN_LEGS = 10;
+const BUNKER_PLAN_MAX_LEGS = 30;
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
 ];
 
 function emptyBunkerLeg(){
-  return { port:false, from:'', to:'', distance:null, speed:null, dailyCons:null, days:null };
+  return { port:false, from:'', to:'', distance:null, speed:null, dailyCons:null, days:null, marginPct:null };
+}
+function bunkerLegIsBlank(leg){
+  if (!leg) return true;
+  return !leg.port
+    && !(String(leg.from || '').trim())
+    && !(String(leg.to || '').trim())
+    && leg.distance == null
+    && leg.speed == null
+    && leg.dailyCons == null
+    && leg.days == null;
+}
+function normalizeBunkerLegs(legs, legacySideMargin){
+  let list = Array.isArray(legs) ? legs.map(leg=>({
+    port: !!leg.port,
+    from: leg.from || '',
+    to: leg.to || '',
+    distance: leg.distance ?? null,
+    speed: leg.speed ?? null,
+    dailyCons: leg.dailyCons ?? null,
+    days: leg.days ?? null,
+    marginPct: (leg.marginPct==null || leg.marginPct==='') ? null : Number(leg.marginPct)
+  })) : [];
+  list.forEach(leg=>{ if (leg.marginPct!=null && isNaN(leg.marginPct)) leg.marginPct = null; });
+  while (list.length > 1 && bunkerLegIsBlank(list[list.length - 1])) list.pop();
+  if (!list.length) list = [emptyBunkerLeg()];
+  /* Old plans had one Margin % for the whole side — copy onto filled legs once. */
+  const anyPerLeg = list.some(l => l.marginPct != null);
+  const legacy = (legacySideMargin==null || legacySideMargin==='') ? null : Number(legacySideMargin);
+  if (!anyPerLeg && legacy != null && !isNaN(legacy)){
+    list.forEach(leg=>{ if (!bunkerLegIsBlank(leg)) leg.marginPct = legacy; });
+  }
+  if (list.length > BUNKER_PLAN_MAX_LEGS) list = list.slice(0, BUNKER_PLAN_MAX_LEGS);
+  return list;
 }
 function emptyBunkerSide(defaultGrade){
   return {
     grade: defaultGrade,
-    legs: Array.from({length: BUNKER_PLAN_LEGS}, ()=> emptyBunkerLeg()),
+    legs: [emptyBunkerLeg()],
     currentRob: null,
-    marginPct: 20,
     qtyReceive: null
   };
 }
@@ -10881,19 +10918,10 @@ function ensureBunkerPlan(){
   BUNKER_PLAN_SIDES.forEach(side=>{
     if (!bp[side.key]) bp[side.key] = emptyBunkerSide(side.defaultGrade);
     const s = bp[side.key];
-    if (!Array.isArray(s.legs)) s.legs = [];
-    while (s.legs.length < BUNKER_PLAN_LEGS) s.legs.push(emptyBunkerLeg());
-    s.legs = s.legs.slice(0, BUNKER_PLAN_LEGS).map(leg=>({
-      port: !!leg.port,
-      from: leg.from || '',
-      to: leg.to || '',
-      distance: leg.distance ?? null,
-      speed: leg.speed ?? null,
-      dailyCons: leg.dailyCons ?? null,
-      days: leg.days ?? null
-    }));
+    const legacyMargin = s.marginPct;
+    s.legs = normalizeBunkerLegs(s.legs, legacyMargin);
+    if ('marginPct' in s) delete s.marginPct;
     if (!side.grades.includes(s.grade)) s.grade = side.defaultGrade;
-    if (s.marginPct==null || s.marginPct==='') s.marginPct = 20;
   });
   return bp;
 }
@@ -10920,8 +10948,14 @@ function bunkerLegQty(leg){
   if (days==null || !(daily>=0) || isNaN(daily)) return null;
   return daily * days;
 }
+function bunkerLegMarginMt(leg){
+  const qty = bunkerLegQty(leg);
+  const mp = Number(leg.marginPct);
+  if (qty==null || isNaN(mp)) return null;
+  return qty * (mp / 100);
+}
 function summarizeBunkerSide(side){
-  let daysPort=0, daysSea=0, totalDist=0, totalCons=0;
+  let daysPort=0, daysSea=0, totalDist=0, totalCons=0, margin=0;
   (side.legs||[]).forEach(leg=>{
     const days = bunkerLegDays(leg);
     const qty = bunkerLegQty(leg);
@@ -10931,10 +10965,12 @@ function summarizeBunkerSide(side){
       if (leg.port) daysPort += days;
       else daysSea += days;
     }
-    if (qty!=null) totalCons += qty;
+    if (qty!=null){
+      totalCons += qty;
+      const m = bunkerLegMarginMt(leg);
+      if (m!=null) margin += m;
+    }
   });
-  const marginPct = Number(side.marginPct);
-  const margin = (!isNaN(marginPct) ? totalCons * (marginPct/100) : 0);
   const required = totalCons + margin;
   const rob = (side.currentRob!=null && side.currentRob!=='' && !isNaN(side.currentRob)) ? Number(side.currentRob) : null;
   const receive = (side.qtyReceive!=null && side.qtyReceive!=='' && !isNaN(side.qtyReceive)) ? Number(side.qtyReceive) : 0;
@@ -10947,6 +10983,20 @@ function autoFillBunkerSeaDays(leg){
   if (leg.port) return;
   const dist = Number(leg.distance), spd = Number(leg.speed);
   if (dist>0 && spd>0) leg.days = Math.round((dist / (spd * 24)) * 1000) / 1000;
+}
+function addBunkerPlanLeg(sideKey){
+  const side = ensureBunkerPlan()[sideKey];
+  if (!side || side.legs.length >= BUNKER_PLAN_MAX_LEGS) return;
+  side.legs.push(emptyBunkerLeg());
+  renderBunkerPlan();
+  scheduleBunkerPlanSave();
+}
+function removeBunkerPlanLeg(sideKey){
+  const side = ensureBunkerPlan()[sideKey];
+  if (!side || side.legs.length <= 1) return;
+  side.legs.pop();
+  renderBunkerPlan();
+  scheduleBunkerPlanSave();
 }
 
 let _bpSaveTimer = null;
@@ -10982,12 +11032,13 @@ function renderBunkerPlan(){
       return `<tr data-side="${meta.key}" data-row="${i}">
         <td class="col-port"><input type="checkbox" data-f="port" ${leg.port?'checked':''} title="Port or anchorage stay"></td>
         <td class="col-from"><input type="text" data-f="from" value="${escAttr(leg.from)}" placeholder="From" autocomplete="off"></td>
-        <td class="col-to"><input type="text" data-f="to" value="${escAttr(leg.to)}" placeholder="To" autocomplete="off"></td>
+        <td class="col-to"><input type="text" data-f="to" value="${escAttr(leg.to)}" placeholder="To / destination" autocomplete="off"></td>
         <td class="col-num"><input type="number" step="0.1" data-f="distance" value="${leg.distance ?? ''}" ${leg.port?'disabled':''} inputmode="decimal"></td>
         <td class="col-num"><input type="number" step="0.1" data-f="speed" value="${leg.speed ?? ''}" ${leg.port?'disabled':''} inputmode="decimal"></td>
         <td class="col-num"><input type="number" step="0.01" data-f="dailyCons" value="${leg.dailyCons ?? ''}" inputmode="decimal"></td>
         <td class="col-num"><input type="number" step="0.001" data-f="days" value="${days ?? ''}" inputmode="decimal"></td>
         <td class="col-qty"><input type="number" readonly tabindex="-1" value="${qty==null?'':fmtFuel(qty)}"></td>
+        <td class="col-margin"><input type="number" step="0.1" data-f="marginPct" value="${leg.marginPct ?? ''}" placeholder="%" title="Safety margin % for this destination / stay only" inputmode="decimal"></td>
       </tr>`;
     }).join('');
     return `<div class="bunker-side" data-side="${meta.key}">
@@ -11006,13 +11057,17 @@ function renderBunkerPlan(){
             <th class="col-num">Daily Cons</th>
             <th class="col-num">Days</th>
             <th class="col-qty">${meta.qtyLabel} MT</th>
+            <th class="col-margin" title="Optional reserve for this line only">Margin %</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
+      <div class="bunker-leg-actions">
+        <button type="button" class="ghost small" data-bp-add-leg="${meta.key}">Add destination / stay</button>
+        <button type="button" class="ghost small" data-bp-remove-leg="${meta.key}" ${side.legs.length<=1?'disabled':''}>Remove last line</button>
+      </div>
       <div class="bunker-totals">
         <div class="field"><label>Current ROB (MT)</label><input type="number" step="0.001" data-side-f="currentRob" data-side="${meta.key}" value="${side.currentRob ?? ''}"></div>
-        <div class="field"><label>Margin %</label><input type="number" step="0.1" data-side-f="marginPct" data-side="${meta.key}" value="${side.marginPct ?? 20}"></div>
         <div class="field"><label>Quantity to Receive (MT)</label><input type="number" step="0.001" data-side-f="qtyReceive" data-side="${meta.key}" value="${side.qtyReceive ?? ''}"></div>
         <div class="field calc"><label>Days at Port / Anchor</label><input readonly tabindex="-1" value="${fmt(sum.daysPort, 3)}"></div>
         <div class="field calc"><label>Days at Sea</label><input readonly tabindex="-1" value="${fmt(sum.daysSea, 3)}"></div>
@@ -11024,7 +11079,7 @@ function renderBunkerPlan(){
         <div class="field calc"><label>Next Departure ROB (MT)</label><input readonly tabindex="-1" value="${sum.nextDepRob==null?'—':fmtFuel(sum.nextDepRob)}"></div>
         <div class="field calc full"><label>Stem still needed (MT)</label><input readonly tabindex="-1" value="${sum.stem==null?'—':fmtFuel(sum.stem)}"></div>
       </div>
-      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Margin = Cons × Margin% · Required = Cons + Margin · Arrival ROB = Current ROB − Required · Next Dep ROB = Arrival ROB + Qty to Receive</div>
+      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Line margin = Qty × Margin% · Required = Σ Qty + Σ margins · Arrival ROB = Current ROB − Required · Next Dep ROB = Arrival ROB + Qty to Receive</div>
     </div>`;
   }).join('');
 }
@@ -11043,7 +11098,7 @@ function readBunkerPlanFromDom(){
     document.querySelectorAll(`input[data-side-f][data-side="${meta.key}"]`).forEach(inp=>{
       const f = inp.dataset.sideF;
       const v = inp.value === '' ? null : parseFloat(inp.value);
-      side[f] = (f === 'marginPct') ? (v==null || isNaN(v) ? 20 : v) : (v==null || isNaN(v) ? null : v);
+      side[f] = (v==null || isNaN(v) ? null : v);
     });
     side.legs.forEach((leg, i)=>{
       const tr = document.querySelector(`tr[data-side="${meta.key}"][data-row="${i}"]`);
@@ -11054,11 +11109,11 @@ function readBunkerPlanFromDom(){
         const el = tr.querySelector(`[data-f="${f}"]`);
         if (el) leg[f] = el.value;
       });
-      ['distance','speed','dailyCons','days'].forEach(f=>{
+      ['distance','speed','dailyCons','days','marginPct'].forEach(f=>{
         const el = tr.querySelector(`[data-f="${f}"]`);
         if (!el) return;
         const v = el.value === '' ? null : parseFloat(el.value);
-        leg[f] = (v==null || isNaN(v)) ? null : v;
+        leg[f] = (v==null || isNaN(v) ? null : v);
       });
     });
   });
@@ -11094,7 +11149,7 @@ function buildBunkerPlanPrintHtml(){
   const sidesHtml = BUNKER_PLAN_SIDES.map(meta=>{
     const side = bp[meta.key];
     const sum = summarizeBunkerSide(side);
-    const body = side.legs.map((leg)=>{
+    const body = side.legs.filter(leg=>!bunkerLegIsBlank(leg) || bunkerLegQty(leg)!=null).map((leg)=>{
       const days = bunkerLegDays(leg);
       const qty = bunkerLegQty(leg);
       return `<tr>
@@ -11106,6 +11161,7 @@ function buildBunkerPlanPrintHtml(){
         <td>${leg.dailyCons!=null ? fmtFuel(leg.dailyCons) : ''}</td>
         <td>${days!=null ? fmt(days, 3) : ''}</td>
         <td>${qty!=null ? fmtFuel(qty) : ''}</td>
+        <td>${leg.marginPct!=null ? fmt(leg.marginPct, 1) : ''}</td>
       </tr>`;
     }).join('');
     return `
@@ -11114,20 +11170,20 @@ function buildBunkerPlanPrintHtml(){
         <div class="pr-section-body">
           <table class="pr-table pr-bunker-entry-table">
             <thead><tr>
-              <th style="width:7%">P/A</th>
-              <th style="width:18%">From</th>
-              <th style="width:18%">To</th>
-              <th style="width:10%">Dist</th>
-              <th style="width:10%">Speed</th>
-              <th style="width:12%">Daily</th>
-              <th style="width:10%">Days</th>
-              <th style="width:15%">Qty MT</th>
+              <th style="width:6%">P/A</th>
+              <th style="width:15%">From</th>
+              <th style="width:15%">To</th>
+              <th style="width:9%">Dist</th>
+              <th style="width:9%">Speed</th>
+              <th style="width:10%">Daily</th>
+              <th style="width:9%">Days</th>
+              <th style="width:12%">Qty MT</th>
+              <th style="width:10%">Margin %</th>
             </tr></thead>
             <tbody>${body}</tbody>
           </table>
           ${printMetaGrid([
             {label:'Current ROB', value: side.currentRob==null ? '—' : fmtFuel(side.currentRob)+' MT'},
-            {label:'Margin %', value: fmt(side.marginPct, 1)+'%'},
             {label:'Qty to Receive', value: side.qtyReceive==null ? '—' : fmtFuel(side.qtyReceive)+' MT'},
             {label:'Days Port', value: fmt(sum.daysPort, 3)},
             {label:'Days Sea', value: fmt(sum.daysSea, 3)},
@@ -11158,7 +11214,7 @@ function buildBunkerPlanPrintHtml(){
     ${sidesHtml}
     <div class="pr-remarks">
       <div class="pr-remarks-title">Calculation basis</div>
-      <div class="pr-remarks-body">Sea days = Dist ÷ (Speed × 24). Quantity = Daily Cons × Days. Margin = Consumption × Margin%. Required = Consumption + Margin. Arrival ROB = Current ROB − Required. Next Departure ROB = Arrival ROB + Quantity to Receive.</div>
+      <div class="pr-remarks-body">Sea days = Dist ÷ (Speed × 24). Quantity = Daily Cons × Days. Each line may carry its own Margin % (line margin = Qty × Margin%). Required = Σ Qty + Σ line margins. Arrival ROB = Current ROB − Required. Next Departure ROB = Arrival ROB + Quantity to Receive.</div>
     </div>
     ${printSignatory()}
   </div>`;
@@ -11278,6 +11334,22 @@ function bindBunkerPlanUi(){
   document.getElementById('bp_date')?.addEventListener('change', ()=>{
     ensureBunkerPlan().date = document.getElementById('bp_date').value;
     scheduleBunkerPlanSave();
+  });
+  page.addEventListener('click', (e)=>{
+    const addBtn = e.target.closest('[data-bp-add-leg]');
+    const remBtn = e.target.closest('[data-bp-remove-leg]');
+    if (addBtn){
+      e.preventDefault();
+      readBunkerPlanFromDom();
+      addBunkerPlanLeg(addBtn.dataset.bpAddLeg);
+      return;
+    }
+    if (remBtn){
+      e.preventDefault();
+      readBunkerPlanFromDom();
+      removeBunkerPlanLeg(remBtn.dataset.bpRemoveLeg);
+      return;
+    }
   });
   page.addEventListener('change', (e)=>{
     const t = e.target;
@@ -19378,7 +19450,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v205';
+let androidInstallCacheName = 'noon-report-v206';
 
 /*
  * What the program is called.
