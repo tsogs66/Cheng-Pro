@@ -27,7 +27,7 @@ check('flowmeter print is synchronous with click', /function printFlowmeterRecor
 check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,900}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
 check('preview sample helper', HTML.includes('function previewFlowmeterRecordSample'));
 check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, 1fr)') && HTML.includes('grid-template-columns:1fr 1fr'));
-check('flowmeter page inset avoids top/bottom clip', /pr-fm-page\{[\s\S]{0,200}padding:4\.8mm 3\.5mm/.test(HTML));
+check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,120}padding:0/.test(HTML) && /pr-fm-slip\{[\s\S]{0,200}padding:4\.5mm 3\.6mm/.test(HTML));
 check('Reports All Meters button', HTML.includes('id="btnPrintFlowmeterRecordAll"'));
 check('Reports Fuel Only button', HTML.includes('id="btnPrintFlowmeterRecordFuel"'));
 check('Show Sample button', HTML.includes('id="btnPreviewFlowmeterRecordSample"'));
@@ -96,7 +96,8 @@ check('LED includes ME LO and tanks ROB fields', /ledMini\('ME LO temp'\)/.test(
 check('preview sample opens without noopener flag', /function previewLogEntryDataSample\(\)\{[\s\S]{0,250}window\.open\('',\s*'_blank',\s*'width=1280,height=900'\)/.test(HTML));
 check('remarks outside body above footer', /<\/div>\s*<div class="pr-led-remarks">[\s\S]{0,200}pr-led-foot/.test(HTML));
 check('maximized layout packed body', /pr-led-body\{[\s\S]{0,80}flex:0 0 auto/.test(HTML));
-check('edge inset avoids left/top clip', /padding:4\.6mm 4\.5mm 4mm/.test(HTML) && /padding-left:4\.8mm/.test(HTML) && /padding-right:4\.8mm/.test(HTML));
+check('edge inset avoids left/top clip', /padding:4\.5mm 4\.2mm 4\.2mm/.test(HTML));
+check('LED halves equal pad for cut align', /pr-led-copy\{[\s\S]{0,280}padding:4\.5mm 4\.2mm 4\.2mm/.test(HTML) && !/pr-led-copy:first-child\{[\s\S]{0,120}padding-left:4\.8mm/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 

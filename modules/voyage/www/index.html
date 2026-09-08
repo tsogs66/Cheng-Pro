@@ -12535,8 +12535,7 @@ html, body{
   box-sizing:border-box;
   width:210mm; height:297mm;
   margin:0;
-  /* Inset from printer non-printable top/bottom (and a little side). */
-  padding:4.8mm 3.5mm;
+  padding:0;
   display:grid;
   grid-template-columns:1fr 1fr;
   grid-template-rows:repeat(4, 1fr);
@@ -12548,7 +12547,8 @@ html, body{
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:2.4mm 2.6mm;
+  /* Equal inset on every slip so cut pieces match and clear printer margins. */
+  padding:4.5mm 3.6mm;
   border-right:0.35pt dashed #888;
   border-bottom:0.35pt dashed #888;
 }
@@ -12885,24 +12885,20 @@ html, body{
   max-width:148.5mm !important;
   height:210mm !important;
   max-height:210mm !important;
-  /* Extra top/outer side inset — printer non-printable area was clipping title & left edge. */
-  padding:4.6mm 4.5mm 4mm !important;
+  /* Equal L/R/T/B so both cut halves match (outer-heavy pad skewed the cut). */
+  padding:4.5mm 4.2mm 4.2mm !important;
   overflow:hidden !important;
   background:#fff !important;
 }
 .pr-led-page .pr-led-copy:first-child{
   border-right:0.45pt dashed #666 !important;
-  padding-left:4.8mm !important;
-  padding-right:2.6mm !important;
 }
 .pr-led-page .pr-led-copy:last-child{
   border-right:none !important;
-  padding-left:2.6mm !important;
-  padding-right:4.8mm !important;
 }
 .pr-led-page-inner{
   width:100%;
-  max-width:139mm;
+  max-width:140mm;
   height:auto;
   transform-origin:top left;
   box-sizing:border-box;
