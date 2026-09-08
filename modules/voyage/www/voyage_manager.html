@@ -12745,90 +12745,92 @@ function buildLogEntryDataHalfHtml(){
   }).join('');
 
   return `<div class="pr-led-half">
-    <div class="pr-led-inner">
-      <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+    <div class="pr-led-scale">
+      <div class="pr-led-inner">
+        <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
 
-      <div class="pr-led-body">
-        <div class="pr-led-sec">Watch / operation</div>
-        <div class="pr-led-grid3">
-          ${ledField('Date / Time', { wide: true })}
-          ${ledField('Operation')}
-          ${ledField('Distance ship (nm)')}
-        </div>
-        <div class="pr-led-grid3" style="margin-top:1.2mm">
-          ${ledMini('E/R °C')}
-          ${ledMini('S/T °C')}
-          ${ledMini('S/W °C')}
-        </div>
+        <div class="pr-led-body">
+          <div class="pr-led-sec">Watch / operation</div>
+          <div class="pr-led-grid3">
+            ${ledField('Date / Time', { wide: true })}
+            ${ledField('Operation')}
+            ${ledField('Distance ship (nm)')}
+          </div>
+          <div class="pr-led-grid3" style="margin-top:1mm">
+            ${ledMini('E/R °C')}
+            ${ledMini('S/T °C')}
+            ${ledMini('S/W °C')}
+          </div>
 
-        <div class="pr-led-sec">Flowmeters &amp; counters</div>
-        <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
-          ${fmHead}
-          <tbody>${fmBody}</tbody>
-        </table>
+          <div class="pr-led-sec">Flowmeters &amp; counters</div>
+          <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
+            ${fmHead}
+            <tbody>${fmBody}</tbody>
+          </table>
 
-        <div class="pr-led-sec">Main engine — cylinders</div>
-        <table class="pr-led-table">
-          <thead><tr><th></th>${cylHead}</tr></thead>
-          <tbody>
-            <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
-            <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
-          </tbody>
-        </table>
+          <div class="pr-led-sec">Main engine — cylinders</div>
+          <table class="pr-led-table">
+            <thead><tr><th></th>${cylHead}</tr></thead>
+            <tbody>
+              <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
+              <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
+            </tbody>
+          </table>
 
-        <div class="pr-led-two">
-          <div>
-            <div class="pr-led-sec">Main engine — turbocharger</div>
-            <table class="pr-led-table">
-              <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
-              <tbody>${turboRows}</tbody>
-            </table>
+          <div class="pr-led-two">
+            <div>
+              <div class="pr-led-sec">Main engine — turbocharger</div>
+              <table class="pr-led-table">
+                <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
+                <tbody>${turboRows}</tbody>
+              </table>
 
-            <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
-            <div class="pr-led-grid2">
-              ${ledMini('Scav temp')}
-              ${ledMini('Scav press')}
-              ${ledMini('AC in °C')}
-              ${ledMini('AC out °C')}
-              ${ledMini('Press diff')}
-              ${ledMini('')}
-              ${ledMini('Fuel temp')}
-              ${ledMini('Pump mark')}
-              ${ledMini('ME LO temp')}
-              ${ledMini('ME LO press')}
+              <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
+              <div class="pr-led-grid2">
+                ${ledMini('Scav temp')}
+                ${ledMini('Scav press')}
+                ${ledMini('AC in °C')}
+                ${ledMini('AC out °C')}
+                ${ledMini('Press diff')}
+                ${ledMini('')}
+                ${ledMini('Fuel temp')}
+                ${ledMini('Pump mark')}
+                ${ledMini('ME LO temp')}
+                ${ledMini('ME LO press')}
+              </div>
+            </div>
+            <div>
+              <div class="pr-led-sec">Auxiliaries — hrs / load</div>
+              <table class="pr-led-table">
+                <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
+                <tbody>
+                  ${geRows}
+                  <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
+                    <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                  <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
+                    <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                </tbody>
+              </table>
+
+              <div class="pr-led-sec">Tanks — ROB</div>
+              <div class="pr-led-grid2">
+                ${ledMini('Bilge ROB m³')}
+                ${ledMini('Sludge ROB m³')}
+              </div>
+              <div class="pr-led-grid1" style="margin-top:1mm">
+                ${ledField('FW ROB m³')}
+              </div>
             </div>
           </div>
-          <div>
-            <div class="pr-led-sec">Auxiliaries — hrs / load</div>
-            <table class="pr-led-table">
-              <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
-              <tbody>
-                ${geRows}
-                <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
-                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-                <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
-                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-              </tbody>
-            </table>
 
-            <div class="pr-led-sec">Tanks — ROB</div>
-            <div class="pr-led-grid2">
-              ${ledMini('Bilge ROB m³')}
-              ${ledMini('Sludge ROB m³')}
-            </div>
-            <div class="pr-led-grid1" style="margin-top:1.2mm">
-              ${ledField('FW ROB m³')}
-            </div>
+          <div class="pr-led-remarks">
+            <span class="pr-led-lbl">Remarks</span>
+            <div class="pr-led-remarks-box"></div>
           </div>
         </div>
 
-        <div class="pr-led-remarks">
-          <span class="pr-led-lbl">Remarks</span>
-          <div class="pr-led-remarks-box"></div>
-        </div>
+        <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
       </div>
-
-      <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
     </div>
   </div>`;
 }
@@ -12842,44 +12844,56 @@ function buildLogEntryDataPrintDocument(pageHtml){
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Log Entry Data Record</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <style>
+/* Force one A4 landscape sheet — drivers that ignore @page still get a 297×210 box. */
 @page{ size: A4 landscape; margin: 0; }
 html, body{
   margin:0 !important; padding:0 !important; background:#fff !important;
   width:297mm !important; height:210mm !important;
+  max-width:297mm !important; max-height:210mm !important;
+  overflow:hidden !important;
   -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
 .pr-led-page{
-  box-sizing:border-box;
-  width:297mm; height:210mm;
-  margin:0; padding:0;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  background:#fff;
+  box-sizing:border-box !important;
+  width:297mm !important; height:210mm !important;
+  max-width:297mm !important; max-height:210mm !important;
+  margin:0 !important; padding:0 !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  background:#fff !important;
+  overflow:hidden !important;
+  page-break-after:avoid !important; page-break-inside:avoid !important;
+  break-after:avoid !important; break-inside:avoid !important;
 }
 .pr-led-half{
-  box-sizing:border-box;
-  width:100%; height:100%;
-  display:flex;
-  align-items:stretch;
-  justify-content:stretch;
-  padding:3.5mm 4.5mm 3mm;
+  box-sizing:border-box !important;
+  width:100% !important; height:210mm !important; max-height:210mm !important;
+  display:flex !important;
+  align-items:stretch !important;
+  justify-content:stretch !important;
+  padding:3mm 3.5mm 2.5mm !important;
   border-right:0.4pt dashed #888;
+  overflow:hidden !important;
 }
 .pr-led-page .pr-led-half:last-child{ border-right:none; }
+.pr-led-scale{
+  width:100%;
+  transform-origin:top left;
+  box-sizing:border-box;
+}
 .pr-led-inner{
   width:100%;
-  height:100%;
   max-width:none;
   display:flex;
   flex-direction:column;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
-  font-size:7.5pt;
-  line-height:1.2;
+  font-size:7pt;
+  line-height:1.15;
 }
 .pr-led-title{
-  text-align:center; font-size:12pt; font-weight:700; letter-spacing:0.04em;
-  margin:0 0 1.5mm; flex:0 0 auto;
+  text-align:center; font-size:11pt; font-weight:700; letter-spacing:0.04em;
+  margin:0 0 1mm; flex:0 0 auto;
 }
 .pr-led-body{
   flex:1 1 auto;
@@ -12888,12 +12902,12 @@ html, body{
   min-height:0;
 }
 .pr-led-sec{
-  font-size:7pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.8mm 0 1mm; padding-bottom:0.4mm;
+  font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.2mm 0 0.7mm; padding-bottom:0.3mm;
   flex:0 0 auto;
 }
 .pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:1.4mm 2mm;
+  display:grid; gap:1mm 1.6mm;
 }
 .pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
@@ -12905,71 +12919,127 @@ html, body{
 }
 .pr-led-field.pr-led-wide{ grid-column: 1 / -1; }
 .pr-led-lbl{
-  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:7pt;
+  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:6.5pt;
 }
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:5mm;
+  min-height:4.2mm;
   min-width:8mm;
-  padding:0 0.5mm 0.2mm;
-  font-size:8pt;
+  padding:0 0.5mm 0.15mm;
+  font-size:7.5pt;
 }
 .pr-led-two{
-  display:grid; grid-template-columns:1fr 1fr; gap:3mm; align-items:start;
+  display:grid; grid-template-columns:1fr 1fr; gap:2.2mm; align-items:start;
   flex:0 0 auto;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:7pt; margin:0.6mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.5pt; margin:0.4mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.8mm 0.6mm; text-align:center; height:5mm;
+  border:0.5pt solid #222; padding:0.55mm 0.45mm; text-align:center; height:4.2mm;
 }
-.pr-led-table th{ background:#efefef; font-weight:600; font-size:6.5pt; }
-.pr-led-write{ height:5mm; }
-.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:22mm; }
-.pr-led-unit{ color:#555; font-weight:400; font-size:6pt; }
-.pr-led-fm-table .pr-led-rowlbl{ width:34mm; }
+.pr-led-table th{ background:#efefef; font-weight:600; font-size:6pt; }
+.pr-led-write{ height:4.2mm; }
+.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:20mm; }
+.pr-led-unit{ color:#555; font-weight:400; font-size:5.5pt; }
+.pr-led-fm-table .pr-led-rowlbl{ width:30mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
-.pr-led-chk{ font-size:9pt; }
+.pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:2mm;
+  margin-top:1.2mm;
   flex:1 1 auto;
   display:flex;
   flex-direction:column;
-  min-height:18mm;
+  min-height:10mm;
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.6mm; flex:0 0 auto; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.4mm; flex:0 0 auto; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
   flex:1 1 auto;
-  min-height:16mm;
-  padding:1mm 1.2mm;
-  font-size:8pt;
+  min-height:9mm;
+  padding:0.8mm 1mm;
+  font-size:7.5pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:2mm; font-size:7pt; color:#333;
+  text-align:center; margin-top:1mm; font-size:6.5pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
+.pr-led-dense .pr-led-title{ font-size:10pt; margin-bottom:0.6mm; }
+.pr-led-dense .pr-led-sec{ margin:0.8mm 0 0.5mm; font-size:6pt; }
+.pr-led-dense .pr-led-line{ min-height:3.6mm; }
+.pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
+.pr-led-dense .pr-led-write{ height:3.6mm; padding:0.35mm 0.3mm; }
+.pr-led-dense .pr-led-remarks{ min-height:7mm; margin-top:0.8mm; }
+.pr-led-dense .pr-led-remarks-box{ min-height:6mm; }
+@media print{
+  html, body, .pr-led-page, .pr-led-half{
+    width:297mm !important; height:210mm !important;
+    max-height:210mm !important; overflow:hidden !important;
+  }
+}
 @media screen{
-  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
+  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }
   .pr-led-page{ margin:0 auto; box-shadow:0 2px 12px rgba(0,0,0,.18); }
 }
 </style></head><body>${pageHtml}</body></html>`;
+}
+
+/** Scale both halves so the blank Log Entry Data sheet stays on one A4 landscape page. */
+function fitLogEntryDataRoot(doc){
+  const page = doc.querySelector('.pr-led-page');
+  const halves = [...doc.querySelectorAll('.pr-led-half')];
+  const scales = [...doc.querySelectorAll('.pr-led-scale')];
+  if (!page || !halves.length || !scales.length) return 1;
+
+  scales.forEach(scaleEl=>{
+    scaleEl.style.zoom = '1';
+    scaleEl.style.transform = 'none';
+    scaleEl.style.width = '100%';
+    scaleEl.classList.remove('pr-led-dense');
+  });
+
+  const measure = ()=>{
+    let scale = 1;
+    halves.forEach((half, i)=>{
+      const scaleEl = scales[i] || scales[0];
+      const availH = Math.max(1, half.clientHeight);
+      const availW = Math.max(1, half.clientWidth);
+      const contentH = Math.max(1, scaleEl.scrollHeight);
+      const contentW = Math.max(1, scaleEl.scrollWidth);
+      scale = Math.min(scale, availH / contentH, availW / contentW);
+    });
+    return Math.max(0.72, Math.min(1, scale * 0.98));
+  };
+
+  let scale = measure();
+  if (scale < 0.94){
+    scales.forEach(el=> el.classList.add('pr-led-dense'));
+    scale = measure();
+  }
+  scales.forEach(el=>{ el.style.zoom = String(scale); });
+
+  doc.documentElement.style.height = '210mm';
+  doc.documentElement.style.overflow = 'hidden';
+  doc.body.style.height = '210mm';
+  doc.body.style.overflow = 'hidden';
+  return scale;
 }
 
 function printLogEntryDataRecord(){
   const pageHtml = buildLogEntryDataPageHtml();
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
+  /* Real A4 landscape box so fit measurement matches the printed sheet. */
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:297mm;height:210mm;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument;
   doc.open();
   doc.write(buildLogEntryDataPrintDocument(pageHtml));
   doc.close();
+  fitLogEntryDataRoot(doc);
   const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
   const doPrint = ()=> runSystemPrint(iframe.contentWindow, cleanup);
   if (doc.fonts && doc.fonts.ready){
@@ -12982,21 +13052,27 @@ function printLogEntryDataRecord(){
 function previewLogEntryDataSample(){
   /* Same blank sheet as print — layout preview only, no filled readings. */
   const page = buildLogEntryDataPageHtml();
-  const html = buildLogEntryDataPrintDocument(
-    `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:0 0 10px;color:#222">Blank Log Entry Data Record — watchkeeper fills by hand (A4 landscape ÷ 2)</div>`
-    + page
-  );
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
+  const html = buildLogEntryDataPrintDocument(page);
+  const win = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=860');
   if (!win){
     alert('Allow pop-ups to preview the blank form.');
     return;
   }
   win.document.open();
   win.document.write(html.replace(
-    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }',
-    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; overflow:auto !important; }'
+    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }',
+    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }'
   ));
   win.document.close();
+  /* Fit after layout so the preview matches the single-page print. */
+  try{
+    const runFit = ()=> fitLogEntryDataRoot(win.document);
+    if (win.document.fonts && win.document.fonts.ready){
+      win.document.fonts.ready.then(()=> setTimeout(runFit, 40)).catch(()=> setTimeout(runFit, 80));
+    } else {
+      setTimeout(runFit, 80);
+    }
+  }catch(_e){}
 }
 
 function exportWeeklyAbstractCsv(){
@@ -20438,7 +20514,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v209';
+let androidInstallCacheName = 'noon-report-v210';
 
 /*
  * What the program is called.

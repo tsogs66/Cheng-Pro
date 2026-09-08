@@ -43,7 +43,11 @@ check('buildLogEntryDataPageHtml helper', HTML.includes('function buildLogEntryD
 check('printLogEntryDataRecord helper', HTML.includes('function printLogEntryDataRecord'));
 check('preview log entry sample', HTML.includes('function previewLogEntryDataSample'));
 check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.includes('.pr-led-page'));
-check('two equal halves grid', /pr-led-page\{[\s\S]{0,200}grid-template-columns:1fr 1fr/.test(HTML));
+check('single-page overflow lock', /max-height:210mm[\s\S]{0,80}overflow:hidden/.test(HTML) && HTML.includes('page-break-inside:avoid'));
+check('fitLogEntryDataRoot helper', HTML.includes('function fitLogEntryDataRoot'));
+check('print calls fit before print', /fitLogEntryDataRoot\(doc\)[\s\S]{0,200}runSystemPrint/.test(HTML));
+check('scale wrapper for zoom', HTML.includes('pr-led-scale') && /pr-led-half[\s\S]{0,80}pr-led-scale/.test(HTML));
+check('two equal halves grid', /pr-led-page\{[\s\S]{0,280}grid-template-columns:1fr 1fr/.test(HTML));
 check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
 check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
 check('includes cylinder rack/exhaust', HTML.includes('Main engine — cylinders'));
