@@ -24,8 +24,12 @@
   function printViaHiddenIframe(html, title, source) {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
+    const landscape = /@page\s*\{\s*size\s*:\s*A4\s+landscape/i.test(String(html || ''))
+      || /size:\s*A4\s+landscape/i.test(String(html || ''));
+    const box = landscape ? 'width:297mm;height:210mm' : 'width:210mm;height:297mm';
+    /* Keep a tiny on-screen box — fully off-screen/opacity-0 iframes often never print. */
     iframe.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
+      'position:fixed;right:0;bottom:0;' + box + ';border:0;opacity:0.01;z-index:-1;pointer-events:none;';
     document.body.appendChild(iframe);
     const doc = iframe.contentDocument;
     doc.open();
@@ -57,11 +61,8 @@
       }
       setTimeout(finish, 120000);
     };
-    if (doc.fonts && doc.fonts.ready) {
-      doc.fonts.ready.then(() => setTimeout(kick, 40)).catch(() => setTimeout(kick, 120));
-    } else {
-      setTimeout(kick, 120);
-    }
+    /* Prefer immediate print (keeps gesture when message was sync from click). */
+    try { kick(); } catch (_) { setTimeout(kick, 50); }
   }
 
   function printHtmlDocument(html, title, source) {
