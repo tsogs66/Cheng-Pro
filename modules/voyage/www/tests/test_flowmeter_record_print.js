@@ -29,6 +29,9 @@ check('preview sample helper', HTML.includes('function previewFlowmeterRecordSam
 check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, minmax(0, 1fr))') && HTML.includes('grid-template-columns:1fr 1fr'));
 check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,280}padding:4mm/.test(HTML) && /pr-fm-slip\{[\s\S]{0,280}padding:2\.6mm 2\.8mm/.test(HTML));
 check('flowmeter all-meters dense single-page', HTML.includes('pr-fm-dense') && /mode !== 'fuel' \? ' pr-fm-dense'/.test(HTML) && /max-height:297mm/.test(HTML) && /grid-template-rows:repeat\(4, minmax\(0, 1fr\)\)/.test(HTML));
+check('flowmeter slips stretch to maximize meter height', /pr-fm-slip-inner\{[\s\S]{0,220}flex-direction:column/.test(HTML) && /pr-fm-table\{[\s\S]{0,180}flex:1 1 auto/.test(HTML) && /pr-fm-foot\{[\s\S]{0,120}margin-top:auto/.test(HTML));
+check('flowmeter all-meters keeps equal page/slip padding', /\.pr-fm-dense\{[\s\S]{0,80}padding:4mm/.test(HTML) && /\.pr-fm-dense \.pr-fm-slip\{ padding:2\.6mm 2\.8mm/.test(HTML));
+check('flowmeter all-meters reading cells grow with space', /\.pr-fm-dense \.pr-fm-reading\{ min-height:5\.2mm; height:auto/.test(HTML));
 check('flowmeter print title is CARD', HTML.includes('FLOWMETER CARD') && HTML.includes('<h2>Flowmeter Card</h2>'));
 check('flowmeter title no longer says RECORD', !HTML.includes('FLOWMETER RECORD') && !HTML.includes('<title>Flowmeter Record</title>') && !HTML.includes('<h2>Flowmeter Record</h2>'));
 check('flowmeter print jobs have distinct titles', HTML.includes('Flowmeter Card — All Meters') && HTML.includes('Flowmeter Card — Fuel Only'));
