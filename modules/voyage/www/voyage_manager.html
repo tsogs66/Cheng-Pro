@@ -12534,7 +12534,9 @@ html, body{
 .pr-fm-page{
   box-sizing:border-box;
   width:210mm; height:297mm;
-  margin:0; padding:0;
+  margin:0;
+  /* Inset from printer non-printable top/bottom (and a little side). */
+  padding:4.8mm 3.5mm;
   display:grid;
   grid-template-columns:1fr 1fr;
   grid-template-rows:repeat(4, 1fr);
@@ -12546,7 +12548,7 @@ html, body{
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:2.2mm 2.8mm;
+  padding:2.4mm 2.6mm;
   border-right:0.35pt dashed #888;
   border-bottom:0.35pt dashed #888;
 }
