@@ -95,6 +95,7 @@ check('LED includes ME LO and tanks ROB fields', /ledMini\('ME LO temp'\)/.test(
 check('preview sample opens without noopener flag', /function previewLogEntryDataSample\(\)\{[\s\S]{0,250}window\.open\('',\s*'_blank',\s*'width=1280,height=900'\)/.test(HTML));
 check('remarks outside body above footer', /<\/div>\s*<div class="pr-led-remarks">[\s\S]{0,200}pr-led-foot/.test(HTML));
 check('maximized layout packed body', /pr-led-body\{[\s\S]{0,80}flex:0 0 auto/.test(HTML));
+check('edge inset avoids left/top clip', /padding:4\.6mm 4\.5mm 4mm/.test(HTML) && /padding-left:4\.8mm/.test(HTML) && /padding-right:4\.8mm/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 

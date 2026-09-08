@@ -12883,21 +12883,24 @@ html, body{
   max-width:148.5mm !important;
   height:210mm !important;
   max-height:210mm !important;
-  padding:2.8mm 3mm 4mm !important;
+  /* Extra top/outer side inset — printer non-printable area was clipping title & left edge. */
+  padding:4.6mm 4.5mm 4mm !important;
   overflow:hidden !important;
   background:#fff !important;
 }
 .pr-led-page .pr-led-copy:first-child{
   border-right:0.45pt dashed #666 !important;
-  padding-right:2.8mm !important;
+  padding-left:4.8mm !important;
+  padding-right:2.6mm !important;
 }
 .pr-led-page .pr-led-copy:last-child{
   border-right:none !important;
-  padding-left:2.8mm !important;
+  padding-left:2.6mm !important;
+  padding-right:4.8mm !important;
 }
 .pr-led-page-inner{
   width:100%;
-  max-width:142mm;
+  max-width:139mm;
   height:auto;
   transform-origin:top left;
   box-sizing:border-box;
