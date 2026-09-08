@@ -26,8 +26,9 @@ check('printFlowmeterRecord helper', HTML.includes('function printFlowmeterRecor
 check('flowmeter print is synchronous with click', /function printFlowmeterRecord\([\s\S]*?runSystemPrint\(win,\s*cleanup\)[\s\S]*?catch/.test(HTML));
 check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,1500}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
 check('preview sample helper', HTML.includes('function previewFlowmeterRecordSample'));
-check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, 1fr)') && HTML.includes('grid-template-columns:1fr 1fr'));
-check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,220}padding:4\.5mm/.test(HTML) && /pr-fm-slip\{[\s\S]{0,220}padding:3mm 3\.2mm/.test(HTML));
+check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, minmax(0, 1fr))') && HTML.includes('grid-template-columns:1fr 1fr'));
+check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,280}padding:4mm/.test(HTML) && /pr-fm-slip\{[\s\S]{0,280}padding:2\.6mm 2\.8mm/.test(HTML));
+check('flowmeter all-meters dense single-page', HTML.includes('pr-fm-dense') && /mode !== 'fuel' \? ' pr-fm-dense'/.test(HTML) && /max-height:297mm/.test(HTML) && /grid-template-rows:repeat\(4, minmax\(0, 1fr\)\)/.test(HTML));
 check('flowmeter print title is CARD', HTML.includes('FLOWMETER CARD') && HTML.includes('<h2>Flowmeter Card</h2>'));
 check('flowmeter title no longer says RECORD', !HTML.includes('FLOWMETER RECORD') && !HTML.includes('<title>Flowmeter Record</title>') && !HTML.includes('<h2>Flowmeter Record</h2>'));
 check('flowmeter print jobs have distinct titles', HTML.includes('Flowmeter Card — All Meters') && HTML.includes('Flowmeter Card — Fuel Only'));
