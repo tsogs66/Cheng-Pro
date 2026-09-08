@@ -3068,7 +3068,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
 
     <div class="panel">
-      <h2>Flowmeter Record</h2>
+      <h2>Flowmeter Card</h2>
       <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Inlet/Outlet columns follow <strong>Vessel Data → Flowmeters &amp; Counters → Setup Type</strong> (SINGLE, DUAL ME, DUAL GE, or DUAL BOTH).</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintFlowmeterRecordAll">Print All Meters + Rev. Counter</button>
@@ -3079,7 +3079,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
 
     <div class="panel">
-      <h2>Log Entry Data Record</h2>
+      <h2>Log Entry Data Card</h2>
       <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. <strong>Two identical copies</strong> on one page, each exactly half the sheet (148.5&nbsp;mm) — cut on the centre dashed line.</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
@@ -12494,7 +12494,7 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
     : `<thead><tr><th>Flowmeter</th><th>Reading</th></tr></thead>`;
   return `<div class="pr-fm-slip">
     <div class="pr-fm-slip-inner">
-      <div class="pr-fm-title">FLOWMETER RECORD</div>
+      <div class="pr-fm-title">FLOWMETER CARD</div>
       ${subtitle ? `<div class="pr-fm-variant">${subtitle}</div>` : ''}
       <div class="pr-fm-fields">
         <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
@@ -12523,7 +12523,7 @@ function buildFlowmeterRecordPageHtml(mode, opts = {}){
 }
 
 function buildFlowmeterRecordPrintDocument(pageHtml){
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Flowmeter Record</title>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Flowmeter Card</title>
 <style>
 @page{ size: A4 portrait; margin: 0; }
 html, body{
@@ -12753,7 +12753,7 @@ function buildLogEntryDataHalfHtml(){
   }).join('');
 
   return `<div class="pr-led-inner">
-      <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+      <div class="pr-led-title">LOG ENTRY DATA CARD</div>
       <div class="pr-led-sub">Voyage Chief - ${vessel}</div>
 
       <div class="pr-led-body">
@@ -12853,7 +12853,7 @@ function buildLogEntryDataPageHtml(){
 }
 
 function buildLogEntryDataPrintDocument(pageHtml){
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Log Entry Data Record</title>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Log Entry Data Card</title>
 <style>
 @page{ size: A4 landscape; margin: 0; }
 html, body{
