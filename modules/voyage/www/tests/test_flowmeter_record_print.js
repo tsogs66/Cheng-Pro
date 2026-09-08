@@ -27,6 +27,7 @@ check('flowmeter print is synchronous with click', /function printFlowmeterRecor
 check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,900}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
 check('preview sample helper', HTML.includes('function previewFlowmeterRecordSample'));
 check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, 1fr)') && HTML.includes('grid-template-columns:1fr 1fr'));
+check('flowmeter page inset avoids top/bottom clip', /pr-fm-page\{[\s\S]{0,200}padding:4\.8mm 3\.5mm/.test(HTML));
 check('Reports All Meters button', HTML.includes('id="btnPrintFlowmeterRecordAll"'));
 check('Reports Fuel Only button', HTML.includes('id="btnPrintFlowmeterRecordFuel"'));
 check('Show Sample button', HTML.includes('id="btnPreviewFlowmeterRecordSample"'));
