@@ -2821,6 +2821,23 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="stat-strip cols4" id="rangeAverages"></div>
     </div>
     <div class="panel">
+      <h2>Remaining On Board — Start → End of Selection</h2>
+      <div class="hint" id="rangeRobHint">R.O.B. at the start of the selected stretch and at the end report. Start is the stock on board when the range begins; End is after the last report in the selection.</div>
+      <div class="table-scroll">
+        <table id="rangeRobTable">
+          <thead>
+            <tr>
+              <th>Grade / Item</th>
+              <th>Start ROB</th>
+              <th>End ROB</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody id="rangeRobBody"><tr class="empty-row"><td colspan="4">Select a report range.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
       <h2>Reports In Range</h2>
       <div class="table-scroll">
         <table id="rangeRowsTable">
@@ -10041,6 +10058,69 @@ function rangeEntryIds(){
   return list.slice(fi === ti ? fi : fi + 1, ti + 1).map(e => e.id);
 }
 
+/** Entry ids that bookend R.O.B. for the selected From/To reports. */
+function rangeRobBoundaryIds(){
+  const list = sortedEntries();
+  const fromEl = document.getElementById('rangeFrom');
+  const toEl = document.getElementById('rangeTo');
+  if (!list.length) return { startId: null, endId: null, fi: -1, ti: -1 };
+  let fi = list.findIndex(e => e.id === fromEl?.value);
+  let ti = list.findIndex(e => e.id === toEl?.value);
+  if (fi < 0) fi = 0;
+  if (ti < 0) ti = list.length - 1;
+  if (ti < fi) [fi, ti] = [ti, fi];
+  /* Multi-report range: periods after From through To → start stock is R.O.B. as of From.
+     Single-report range: that report's own period → start stock is the previous report
+     (or voyage opening when it is the first entry). */
+  const endId = list[ti].id;
+  const startId = (fi === ti)
+    ? (fi > 0 ? list[fi - 1].id : null)
+    : list[fi].id;
+  return { startId, endId, fi, ti };
+}
+
+/** Grade / total snapshot from a robAsOfEntry result (or voyage opening stores). */
+function summarizeRobSnapshot(asOf){
+  if (!asOf) return null;
+  const byType = {};
+  FUEL_TYPES.forEach(t => { byType[t] = 0; });
+  fuelTankList().forEach(tank => {
+    const g = tank.grade || FUEL_TYPES[0];
+    const v = Number(asOf.rob?.[tank.id]);
+    if (isFinite(v)) byType[g] = (byType[g] || 0) + v;
+  });
+  const fuelTotal = FUEL_TYPES.reduce((s, t) => s + (byType[t] || 0), 0);
+  return {
+    byType,
+    fuelTotal,
+    lubeTotal: totalLubeRob(asOf.robLube || {}),
+    fwTotal: totalFwRob(asOf.robLube || {})
+  };
+}
+
+function rangeRobBookends(){
+  const list = sortedEntries();
+  const { startId, endId } = rangeRobBoundaryIds();
+  const opening = () => ({
+    rob: Object.assign({}, state.setup.rob || {}),
+    robLube: Object.assign({}, state.setup.robLube || {})
+  });
+  const startRaw = startId ? robAsOfEntry(startId) : opening();
+  const endRaw = endId ? robAsOfEntry(endId) : null;
+  const startEntry = startId ? list.find(e => e.id === startId) : null;
+  const endEntry = endId ? list.find(e => e.id === endId) : null;
+  return {
+    start: summarizeRobSnapshot(startRaw),
+    end: summarizeRobSnapshot(endRaw),
+    startLabel: startEntry
+      ? new Date(startEntry.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : 'Voyage opening',
+    endLabel: endEntry
+      ? new Date(endEntry.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '—'
+  };
+}
+
 function rangeAggregate(ids){
   const { rows } = computeDerived();
   const inRange = rows.filter(r => ids.includes(r.id));
@@ -10171,10 +10251,13 @@ function renderRangeTotals(){
   if (!list.length){
     totalsBox.innerHTML = '<div class="hint">No entries yet.</div>';
     avgBox.innerHTML = '';
+    const robBody = document.getElementById('rangeRobBody');
+    if (robBody) robBody.innerHTML = '<tr class="empty-row"><td colspan="4">No entries yet.</td></tr>';
     return;
   }
 
   const agg = rangeAggregate(rangeEntryIds());
+  const robBook = rangeRobBookends();
   const stat = (v, l) => `<div class="stat"><div class="num">${v}</div><div class="lbl">${escHtml(l)}</div></div>`;
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
 
@@ -10210,6 +10293,34 @@ function renderRangeTotals(){
     ...Object.keys(agg.byConsumerPerDay).map(k =>
       stat(n(agg.byConsumerPerDay[k], 3), `${k} per day (MT)`))
   ].join('');
+
+  const robHint = document.getElementById('rangeRobHint');
+  if (robHint){
+    robHint.textContent = `Start R.O.B. as of ${robBook.startLabel} → End R.O.B. as of ${robBook.endLabel}. Change = End − Start (negative means consumed / transferred out of stock).`;
+  }
+  const robBody = document.getElementById('rangeRobBody');
+  if (robBody){
+    const row = (label, startV, endV, unit, dec) => {
+      const s = startV == null || isNaN(startV) ? null : Number(startV);
+      const e = endV == null || isNaN(endV) ? null : Number(endV);
+      const d = (s != null && e != null) ? e - s : null;
+      const fmtU = (v) => v == null ? '—' : `${fmt(v, dec)}${unit ? ' ' + unit : ''}`;
+      return `<tr>
+        <td>${escHtml(label)}</td>
+        <td>${fmtU(s)}</td>
+        <td>${fmtU(e)}</td>
+        <td>${d == null ? '—' : ((d > 0 ? '+' : '') + fmt(d, dec) + (unit ? ' ' + unit : ''))}</td>
+      </tr>`;
+    };
+    const st = robBook.start || {};
+    const en = robBook.end || {};
+    robBody.innerHTML = [
+      ...FUEL_TYPES.map(t => row(t, st.byType?.[t], en.byType?.[t], 'MT', FUEL_DECIMALS)),
+      row('All fuel', st.fuelTotal, en.fuelTotal, 'MT', FUEL_DECIMALS),
+      row('Total lubes', st.lubeTotal, en.lubeTotal, 'L', 0),
+      row('Fresh water', litresToM3(st.fwTotal), litresToM3(en.fwTotal), 'm³', 2)
+    ].join('');
+  }
 
   const head = document.getElementById('rangeRowsHead');
   const body = document.getElementById('rangeRowsBody');
@@ -10314,6 +10425,30 @@ function printRangeTotalsSheet(){
       </tr>
     </table>`;
 
+  const robBook = rangeRobBookends();
+  const robPrintRow = (label, startV, endV, unit, dec) => {
+    const s = startV == null || isNaN(startV) ? null : Number(startV);
+    const e = endV == null || isNaN(endV) ? null : Number(endV);
+    const d = (s != null && e != null) ? e - s : null;
+    const u = (v) => v == null ? '—' : `${fmt(v, dec)}${unit ? ' ' + unit : ''}`;
+    return `<tr>
+      <td class="row-lbl">${escPrint(label)}</td>
+      <td>${u(s)}</td>
+      <td>${u(e)}</td>
+      <td>${d == null ? '—' : ((d > 0 ? '+' : '') + fmt(d, dec) + (unit ? ' ' + unit : ''))}</td>
+    </tr>`;
+  };
+  const st = robBook.start || {}, en = robBook.end || {};
+  const robTable = `
+    <table class="pr-table">
+      <tr><th>Grade / Item</th><th>Start ROB</th><th>End ROB</th><th>Change</th></tr>
+      ${FUEL_TYPES.map(t => robPrintRow(t, st.byType?.[t], en.byType?.[t], 'MT', FUEL_DECIMALS)).join('')}
+      ${robPrintRow('All fuel', st.fuelTotal, en.fuelTotal, 'MT', FUEL_DECIMALS)}
+      ${robPrintRow('Total lubes', st.lubeTotal, en.lubeTotal, 'L', 0)}
+      ${robPrintRow('Fresh water', litresToM3(st.fwTotal), litresToM3(en.fwTotal), 'm³', 2)}
+    </table>
+    <div class="pr-note">Start: ${escPrint(robBook.startLabel)} · End: ${escPrint(robBook.endLabel)}</div>`;
+
   /* The meta grid above carries the full timestamps; in the table a compact date keeps
      each report on one line, which is what lets a page hold a fortnight of them. */
   const shortWhen = (dt) => dt ? new Date(dt).toLocaleString(undefined,
@@ -10364,6 +10499,7 @@ function printRangeTotalsSheet(){
       <div>${printSection('Totals', totals)}</div>
       <div>${printSection('Averages', averages)}</div>
       <div class="pr-span2">${printSection('Fuel Consumption By Consumer', consumerTable)}</div>
+      <div class="pr-span2">${printSection('Remaining On Board — Start → End', robTable)}</div>
       <div class="pr-span2">${printSection(
         `Reports In Range — ${escPrint(when(first?.datetime))} to ${escPrint(when(last?.datetime))}`,
         reportsTable)}</div>
@@ -19416,7 +19552,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v207';
+let androidInstallCacheName = 'noon-report-v208';
 
 /*
  * What the program is called.
