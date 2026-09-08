@@ -12557,8 +12557,8 @@ html, body{
   width:100%; height:100%;
   min-height:0;
   display:flex;
-  align-items:center;
-  justify-content:center;
+  align-items:stretch;
+  justify-content:stretch;
   /* Equal inset on every slip so cut pieces match. */
   padding:2.6mm 2.8mm;
   border-right:0.35pt dashed #888;
@@ -12569,21 +12569,28 @@ html, body{
 .pr-fm-page .pr-fm-slip:nth-child(n+7){ border-bottom:none; }
 .pr-fm-slip-inner{
   width:100%;
-  max-width:96mm;
+  height:100%;
+  max-width:100%;
   max-height:100%;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
   text-align:center;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
   box-sizing:border-box;
 }
 .pr-fm-title{
+  flex:0 0 auto;
   font-size:11pt; font-weight:700; letter-spacing:0.04em;
   line-height:1.15; margin:0 0 0.6mm;
 }
 .pr-fm-variant{
+  flex:0 0 auto;
   font-size:7pt; color:#444; margin:0 0 1.4mm; letter-spacing:0.02em;
 }
 .pr-fm-fields{
+  flex:0 0 auto;
   text-align:left; margin:0 0 1.6mm;
 }
 .pr-fm-field{
@@ -12603,7 +12610,10 @@ html, body{
   font-size:8pt;
 }
 .pr-fm-table{
+  flex:1 1 auto;
   width:100%;
+  height:100%;
+  min-height:0;
   border-collapse:collapse;
   table-layout:fixed;
   font-size:8pt;
@@ -12613,6 +12623,7 @@ html, body{
   border:0.5pt solid #222;
   padding:0.9mm 1.1mm;
   line-height:1.15;
+  vertical-align:middle;
 }
 .pr-fm-table th{
   background:#efefef;
@@ -12626,31 +12637,34 @@ html, body{
 .pr-fm-unit{ color:#555; font-weight:400; font-size:7pt; }
 .pr-fm-reading{
   text-align:center; width:32%;
-  height:4.2mm;
+  height:auto;
+  min-height:4.2mm;
 }
 .pr-fm-foot{
-  margin-top:1.4mm;
+  flex:0 0 auto;
+  margin-top:auto;
+  padding-top:1.2mm;
   font-size:6.5pt;
   color:#555;
   letter-spacing:0.02em;
 }
-/* All-meters (6 rows) — denser so the 8-up sheet stays one A4 page. */
+/* All-meters (6 rows): same equal padding, stretch table to fill slip height, stay on one A4. */
 .pr-fm-dense{
-  padding:3.6mm;
+  padding:4mm;
 }
-.pr-fm-dense .pr-fm-slip{ padding:2mm 2.2mm; }
-.pr-fm-dense .pr-fm-title{ font-size:9.5pt; margin:0 0 0.35mm; }
-.pr-fm-dense .pr-fm-variant{ font-size:6.3pt; margin:0 0 0.7mm; }
-.pr-fm-dense .pr-fm-fields{ margin:0 0 0.8mm; }
-.pr-fm-dense .pr-fm-field{ margin:0 0 0.55mm; font-size:7pt; gap:1mm; }
-.pr-fm-dense .pr-fm-lbl{ flex-basis:15mm; font-size:6.5pt; }
-.pr-fm-dense .pr-fm-line{ min-height:2.5mm; font-size:7pt; padding:0 0.35mm 0.1mm; }
-.pr-fm-dense .pr-fm-table{ font-size:6.8pt; }
-.pr-fm-dense .pr-fm-table th{ font-size:6.3pt; padding:0.4mm 0.55mm; }
-.pr-fm-dense .pr-fm-table td{ padding:0.4mm 0.55mm; }
-.pr-fm-dense .pr-fm-reading{ height:3.2mm; }
-.pr-fm-dense .pr-fm-unit{ font-size:5.8pt; }
-.pr-fm-dense .pr-fm-foot{ margin-top:0.7mm; font-size:5.6pt; }
+.pr-fm-dense .pr-fm-slip{ padding:2.6mm 2.8mm; }
+.pr-fm-dense .pr-fm-title{ font-size:10.5pt; margin:0 0 0.45mm; }
+.pr-fm-dense .pr-fm-variant{ font-size:6.8pt; margin:0 0 1mm; }
+.pr-fm-dense .pr-fm-fields{ margin:0 0 1.1mm; }
+.pr-fm-dense .pr-fm-field{ margin:0 0 0.85mm; font-size:7.5pt; gap:1.2mm; }
+.pr-fm-dense .pr-fm-lbl{ flex-basis:16mm; font-size:7pt; }
+.pr-fm-dense .pr-fm-line{ min-height:2.8mm; font-size:7.5pt; }
+.pr-fm-dense .pr-fm-table{ font-size:7.4pt; }
+.pr-fm-dense .pr-fm-table th{ font-size:7pt; padding:0.65mm 0.85mm; }
+.pr-fm-dense .pr-fm-table td{ padding:0.65mm 0.85mm; }
+.pr-fm-dense .pr-fm-reading{ min-height:5.2mm; height:auto; }
+.pr-fm-dense .pr-fm-unit{ font-size:6.4pt; }
+.pr-fm-dense .pr-fm-foot{ padding-top:1mm; font-size:6pt; }
 @media print{
   html, body, .pr-fm-page{
     width:210mm !important; height:297mm !important;
