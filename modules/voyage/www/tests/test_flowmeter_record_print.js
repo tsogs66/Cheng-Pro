@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Flowmeter Record + Log Entry Data handouts.
+ * Flowmeter Card + Log Entry Data Card handouts.
  * Run: node tests/test_flowmeter_record_print.js
  */
 'use strict';
@@ -24,12 +24,14 @@ check('flowmeterRecordArrangement helper', HTML.includes('function flowmeterReco
 check('buildFlowmeterRecordPageHtml helper', HTML.includes('function buildFlowmeterRecordPageHtml'));
 check('printFlowmeterRecord helper', HTML.includes('function printFlowmeterRecord'));
 check('flowmeter print is synchronous with click', /function printFlowmeterRecord\([\s\S]*?runSystemPrint\(win,\s*cleanup\)[\s\S]*?catch/.test(HTML));
-check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,900}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
+check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,1500}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
 check('preview sample helper', HTML.includes('function previewFlowmeterRecordSample'));
 check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, 1fr)') && HTML.includes('grid-template-columns:1fr 1fr'));
-check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,120}padding:0/.test(HTML) && /pr-fm-slip\{[\s\S]{0,200}padding:4\.5mm 3\.6mm/.test(HTML));
-check('flowmeter print title is CARD', HTML.includes('FLOWMETER CARD') && HTML.includes('<title>Flowmeter Card</title>') && HTML.includes('<h2>Flowmeter Card</h2>'));
+check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,220}padding:4\.5mm/.test(HTML) && /pr-fm-slip\{[\s\S]{0,220}padding:3mm 3\.2mm/.test(HTML));
+check('flowmeter print title is CARD', HTML.includes('FLOWMETER CARD') && HTML.includes('<h2>Flowmeter Card</h2>'));
 check('flowmeter title no longer says RECORD', !HTML.includes('FLOWMETER RECORD') && !HTML.includes('<title>Flowmeter Record</title>') && !HTML.includes('<h2>Flowmeter Record</h2>'));
+check('flowmeter print jobs have distinct titles', HTML.includes('Flowmeter Card — All Meters') && HTML.includes('Flowmeter Card — Fuel Only'));
+check('print prefers same-window bridge before postMessage', /Prefer a same-window native\/AIO bridge/.test(HTML));
 check('Reports All Meters button', HTML.includes('id="btnPrintFlowmeterRecordAll"'));
 check('Reports Fuel Only button', HTML.includes('id="btnPrintFlowmeterRecordFuel"'));
 check('Show Sample button', HTML.includes('id="btnPreviewFlowmeterRecordSample"'));
@@ -58,7 +60,7 @@ check('single-page overflow lock', /max-height:210mm[\s\S]{0,80}overflow:hidden/
 check('fitLogEntryDataRoot helper', HTML.includes('function fitLogEntryDataRoot'));
 check('print calls fit before print', /fitLogEntryDataRoot\(doc\)[\s\S]{0,200}runSystemPrint/.test(HTML));
 check('LED print is synchronous with click', /function printLogEntryDataRecord\(\)\{[\s\S]*?runSystemPrint\(win,\s*cleanup\)[\s\S]*?catch/.test(HTML));
-check('LED print has no fonts.ready defer', /function printLogEntryDataRecord\(\)\{[\s\S]{0,800}?runSystemPrint\(win,\s*cleanup\)/.test(HTML) && !/function printLogEntryDataRecord\(\)\{[\s\S]{0,800}?fonts\.ready/.test(HTML));
+check('LED print has no fonts.ready defer', /function printLogEntryDataRecord\(\)\{[\s\S]{0,1500}?runSystemPrint\(win,\s*cleanup\)/.test(HTML) && !/function printLogEntryDataRecord\(\)\{[\s\S]{0,1500}?fonts\.ready/.test(HTML));
 check('two equal table-cell copies', HTML.includes('display:table') && HTML.includes('table-layout:fixed') && HTML.includes('pr-led-copy') && HTML.includes('148.5mm'));
 check('page builds two copies', /buildLogEntryDataPageHtml[\s\S]{0,200}\$\{copy\}\$\{copy\}/.test(HTML));
 check('same scale both copies', /function applyScale|const applyScale/.test(HTML) && /inners\.forEach\(el=>\{/.test(HTML) && /el\.style\.zoom = String\(scale\)/.test(HTML));
