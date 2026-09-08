@@ -360,6 +360,7 @@ function wireQuickCalcs(root, basis) {
       ['Load', fmt(v.shpKw ?? v.kw, 0), 'kW'],
       ['MCR', fmt(v.mcrPct, 1), '%'],
       ['SFOC', fmt(v.sfoc, 1), 'g/kWh'],
+      ['Fuel rate', fmt(v.fuelKgHr, 1), 'kg/h'],
     ]),
     'perf-rpm': (v) => {
       const hrs = v.meRunHours ?? v.watchHours ?? v.hours;

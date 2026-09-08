@@ -58,4 +58,18 @@ assert.ok(Math.abs(sfocNamed.values.sfoc - 138.89) < 0.1, 'specific fuel');
 const slocNamed = calc.specificCylOil(basis, { cylOilL: 200, hours: 24, kw: 12000, cylOilSg: 0.89 });
 assert.ok(slocNamed.values.sloc > 0.5 && slocNamed.values.sloc < 0.8, 'specific cyl oil');
 
+// Performance by fuel: fuel MT + hours → kW / RPM / %MCR via iterated SFOC curve
+const byFuel = calc.performanceByFuel(basis, { fuelMt: 40, hours: 24 });
+assert.ok(!byFuel.error, 'perf by fuel no error');
+assert.ok(byFuel.values.kw > 5000 && byFuel.values.kw < 20000, 'perf by fuel kW');
+assert.ok(byFuel.values.rpm > 50 && byFuel.values.rpm < 95, 'perf by fuel rpm');
+assert.ok(byFuel.values.mcrPct > 20 && byFuel.values.mcrPct < 110, 'perf by fuel %MCR');
+assert.ok(byFuel.values.sfoc > 150 && byFuel.values.sfoc < 190, 'perf by fuel sfoc');
+/* Round-trip: fuel from that RPM should land near the same MT */
+const roundTrip = calc.fuelByRpm(basis, { rpm: byFuel.values.rpm, hours: 24 });
+assert.ok(Math.abs(roundTrip.values.fuelMtPeriod - 40) < 0.5, 'fuel↔rpm round-trip');
+
+const byFuelMissing = calc.performanceByFuel({ mcrRpm: 91, mcrKw: 18630 }, { fuelMt: 40, hours: 24 });
+assert.ok(byFuelMissing.error && /SFOC/i.test(byFuelMissing.error), 'perf by fuel needs SFOC');
+
 console.log('perf-calc-test: ok');
