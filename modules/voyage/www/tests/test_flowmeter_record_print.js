@@ -18,7 +18,7 @@ function check(label, cond, detail) {
   if (!ok) failures++;
 }
 
-console.log('\nFlowmeter Record printout');
+console.log('\nFlowmeter Card printout');
 check('flowmeterRecordRows helper', HTML.includes('function flowmeterRecordRows'));
 check('flowmeterRecordArrangement helper', HTML.includes('function flowmeterRecordArrangement'));
 check('buildFlowmeterRecordPageHtml helper', HTML.includes('function buildFlowmeterRecordPageHtml'));
@@ -27,7 +27,9 @@ check('flowmeter print is synchronous with click', /function printFlowmeterRecor
 check('flowmeter print has no fonts.ready defer', !/function printFlowmeterRecord\([^)]*\)\{[^}]*fonts\.ready/.test(HTML) && /function printFlowmeterRecord[\s\S]{0,900}?runSystemPrint\(win,\s*cleanup\)/.test(HTML));
 check('preview sample helper', HTML.includes('function previewFlowmeterRecordSample'));
 check('8-up grid CSS', HTML.includes('grid-template-rows:repeat(4, 1fr)') && HTML.includes('grid-template-columns:1fr 1fr'));
-check('flowmeter page inset avoids top/bottom clip', /pr-fm-page\{[\s\S]{0,200}padding:4\.8mm 3\.5mm/.test(HTML));
+check('flowmeter equal slip inset for cut align', /pr-fm-page\{[\s\S]{0,120}padding:0/.test(HTML) && /pr-fm-slip\{[\s\S]{0,200}padding:4\.5mm 3\.6mm/.test(HTML));
+check('flowmeter print title is CARD', HTML.includes('FLOWMETER CARD') && HTML.includes('<title>Flowmeter Card</title>') && HTML.includes('<h2>Flowmeter Card</h2>'));
+check('flowmeter title no longer says RECORD', !HTML.includes('FLOWMETER RECORD') && !HTML.includes('<title>Flowmeter Record</title>') && !HTML.includes('<h2>Flowmeter Record</h2>'));
 check('Reports All Meters button', HTML.includes('id="btnPrintFlowmeterRecordAll"'));
 check('Reports Fuel Only button', HTML.includes('id="btnPrintFlowmeterRecordFuel"'));
 check('Show Sample button', HTML.includes('id="btnPreviewFlowmeterRecordSample"'));
@@ -44,12 +46,14 @@ check('flowmeter mode picks sea vs port subtitle', /mode === 'fuel'[\s\S]{0,120}
 check('flowmeter footer matches LED vessel — company — ts0gs', /pr-fm-foot\}?\$\{vessel\} — \$\{company\} — ts0gs/.test(HTML) || /pr-fm-foot">\$\{vessel\} — \$\{company\} — ts0gs/.test(HTML));
 check('hint updates with flowArr change', HTML.includes('updateFlowmeterRecordArrHint'));
 
-console.log('\nLog Entry Data record (A4 landscape ÷2)');
+console.log('\nLog Entry Data card (A4 landscape ÷2)');
 check('buildLogEntryDataHalfHtml helper', HTML.includes('function buildLogEntryDataHalfHtml'));
 check('buildLogEntryDataPageHtml helper', HTML.includes('function buildLogEntryDataPageHtml'));
 check('printLogEntryDataRecord helper', HTML.includes('function printLogEntryDataRecord'));
 check('preview log entry sample', HTML.includes('function previewLogEntryDataSample'));
 check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.includes('.pr-led-page'));
+check('log entry print title is CARD', HTML.includes('LOG ENTRY DATA CARD') && HTML.includes('<title>Log Entry Data Card</title>') && HTML.includes('<h2>Log Entry Data Card</h2>'));
+check('log entry title no longer says RECORD', !HTML.includes('LOG ENTRY DATA RECORD') && !HTML.includes('<title>Log Entry Data Record</title>') && !HTML.includes('<h2>Log Entry Data Record</h2>'));
 check('single-page overflow lock', /max-height:210mm[\s\S]{0,80}overflow:hidden/.test(HTML) && HTML.includes('page-break-inside:avoid'));
 check('fitLogEntryDataRoot helper', HTML.includes('function fitLogEntryDataRoot'));
 check('print calls fit before print', /fitLogEntryDataRoot\(doc\)[\s\S]{0,200}runSystemPrint/.test(HTML));
@@ -96,7 +100,8 @@ check('LED includes ME LO and tanks ROB fields', /ledMini\('ME LO temp'\)/.test(
 check('preview sample opens without noopener flag', /function previewLogEntryDataSample\(\)\{[\s\S]{0,250}window\.open\('',\s*'_blank',\s*'width=1280,height=900'\)/.test(HTML));
 check('remarks outside body above footer', /<\/div>\s*<div class="pr-led-remarks">[\s\S]{0,200}pr-led-foot/.test(HTML));
 check('maximized layout packed body', /pr-led-body\{[\s\S]{0,80}flex:0 0 auto/.test(HTML));
-check('edge inset avoids left/top clip', /padding:4\.6mm 4\.5mm 4mm/.test(HTML) && /padding-left:4\.8mm/.test(HTML) && /padding-right:4\.8mm/.test(HTML));
+check('edge inset avoids left/top clip', /padding:4\.5mm 4\.2mm 4\.2mm/.test(HTML));
+check('LED halves equal pad for cut align', /Equal L\/R\/T\/B so both cut halves match/.test(HTML) && /padding:4\.5mm 4\.2mm 4\.2mm !important/.test(HTML) && !/padding-left:4\.8mm !important/.test(HTML) && !/padding-right:4\.8mm !important/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 
