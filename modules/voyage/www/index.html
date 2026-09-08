@@ -12833,12 +12833,12 @@ function buildLogEntryDataHalfHtml(){
           </div>
         </div>
 
-        <div class="pr-led-remarks">
-          <span class="pr-led-lbl">Remarks</span>
-          <div class="pr-led-remarks-box"></div>
-        </div>
       </div>
 
+      <div class="pr-led-remarks">
+        <span class="pr-led-lbl">Remarks</span>
+        <div class="pr-led-remarks-box"></div>
+      </div>
       <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
     </div>`;
 }
@@ -12898,20 +12898,21 @@ html, body{
 .pr-led-page-inner{
   width:100%;
   max-width:142mm;
-  height:100%;
+  height:auto;
   transform-origin:top left;
   box-sizing:border-box;
 }
 .pr-led-inner{
   width:100%;
-  height:100%;
-  min-height:100%;
+  height:auto;
+  min-height:0;
   display:flex;
   flex-direction:column;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
   font-size:7pt;
   line-height:1.15;
+  --led-row: 5.4mm;
 }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
@@ -12922,18 +12923,20 @@ html, body{
   margin:0 0 1mm; flex:0 0 auto;
 }
 .pr-led-body{
-  flex:1 1 auto;
+  flex:0 0 auto;
   display:flex;
   flex-direction:column;
+  justify-content:flex-start;
+  gap:0;
   min-height:0;
 }
 .pr-led-sec{
   font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.1mm 0 0.65mm; padding-bottom:0.25mm;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.2mm 0 0.7mm; padding-bottom:0.25mm;
   flex:0 0 auto;
 }
 .pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:0.9mm 1.4mm;
+  display:grid; gap:1.1mm 1.4mm;
 }
 .pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
@@ -12950,7 +12953,7 @@ html, body{
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:4.6mm;
+  min-height:var(--led-row, 5.4mm);
   min-width:6mm;
   padding:0 0.4mm 0.1mm;
   font-size:7pt;
@@ -12958,51 +12961,53 @@ html, body{
 .pr-led-two{
   display:grid; grid-template-columns:1fr 1fr; gap:2mm; align-items:start;
   flex:0 0 auto;
+  min-height:0;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.35mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.4mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.55mm 0.35mm; text-align:center; height:4.6mm;
+  border:0.5pt solid #222; padding:0.65mm 0.35mm; text-align:center; height:var(--led-row, 5.4mm);
 }
 .pr-led-table th{ background:#efefef; font-weight:600; font-size:5.8pt; }
-.pr-led-write{ height:4.6mm; }
+.pr-led-write{ height:var(--led-row, 5.4mm); }
 .pr-led-rowlbl{ text-align:left !important; font-weight:600; width:18mm; }
 .pr-led-unit{ color:#555; font-weight:400; font-size:5.3pt; }
 .pr-led-fm-table .pr-led-rowlbl{ width:28mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:0.7mm;
+  margin-top:0.5mm;
   flex:0 0 auto;
   display:flex;
   flex-direction:column;
   min-height:0;
+  max-height:4.8mm;
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.25mm; flex:0 0 auto; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.15mm; flex:0 0 auto; font-size:6pt; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
   flex:0 0 auto;
-  height:5.5mm;
-  min-height:5.5mm;
-  max-height:5.5mm;
-  padding:0.4mm 0.7mm;
-  font-size:6.5pt;
+  height:3.2mm;
+  min-height:3.2mm;
+  max-height:3.2mm;
+  padding:0.15mm 0.5mm;
+  font-size:6pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:0.6mm; font-size:6.2pt; color:#333;
+  text-align:center; margin-top:0.4mm; font-size:6.2pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
+.pr-led-dense{ --led-row: 4.4mm; }
 .pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
 .pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
 .pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
-.pr-led-dense .pr-led-line{ min-height:3.8mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
-.pr-led-dense .pr-led-write{ height:3.8mm; padding:0.35mm 0.25mm; }
-.pr-led-dense .pr-led-remarks{ margin-top:0.45mm; }
-.pr-led-dense .pr-led-remarks-box{ height:4.5mm; min-height:4.5mm; max-height:4.5mm; padding:0.3mm 0.55mm; }
+.pr-led-dense .pr-led-write{ padding:0.4mm 0.25mm; }
+.pr-led-dense .pr-led-remarks{ margin-top:0.35mm; max-height:4mm; }
+.pr-led-dense .pr-led-remarks-box{ height:2.8mm; min-height:2.8mm; max-height:2.8mm; padding:0.1mm 0.4mm; }
 @media print{
   html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;
@@ -13020,22 +13025,28 @@ html, body{
 </style></head><body>${pageHtml}</body></html>`;
 }
 
-/** Same zoom on both copies so a centre cut yields two equal blanks. */
+/** Same zoom on both copies so a centre cut yields two equal blanks.
+ *  Spare vertical space grows write-in row height (--led-row); remarks stay compact. */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
   const copies = [...doc.querySelectorAll('.pr-led-copy')];
   const inners = [...doc.querySelectorAll('.pr-led-page-inner')];
   if (!page || copies.length !== 2 || inners.length !== 2) return 1;
 
-  inners.forEach(inner=>{
-    inner.style.zoom = '1';
-    inner.style.transform = 'none';
-    inner.style.width = '100%';
-    inner.classList.remove('pr-led-dense');
-  });
+  const reset = (rowMm)=>{
+    inners.forEach(inner=>{
+      inner.style.zoom = '1';
+      inner.style.transform = 'none';
+      inner.style.width = '100%';
+      inner.classList.remove('pr-led-dense');
+      const host = inner.querySelector('.pr-led-inner') || inner;
+      host.style.setProperty('--led-row', rowMm + 'mm');
+    });
+  };
 
   const measure = ()=>{
     let scale = 1;
+    let spareMm = Infinity;
     copies.forEach((copy, i)=>{
       const inner = inners[i];
       const availH = Math.max(1, copy.clientHeight);
@@ -13043,14 +13054,32 @@ function fitLogEntryDataRoot(doc){
       const contentH = Math.max(1, inner.scrollHeight);
       const contentW = Math.max(1, inner.scrollWidth);
       scale = Math.min(scale, availH / contentH, availW / contentW);
+      const pxPerMm = availH / 210; /* copy is A4-landscape half height in layout px */
+      const padGuess = 0; /* padding already inside copy.clientHeight */
+      spareMm = Math.min(spareMm, (availH - contentH) / Math.max(pxPerMm, 0.01));
     });
-    return Math.max(0.72, Math.min(1, scale * 0.98));
+    return {
+      scale: Math.max(0.72, Math.min(1, scale * 0.98)),
+      spareMm: Number.isFinite(spareMm) ? spareMm : 0
+    };
   };
 
-  let scale = measure();
+  /* ~18 write rows share spare height (fm, cyl, turbo, aux, field lines). */
+  const ROW_SHARE = 18;
+  let rowMm = 5.4;
+  reset(rowMm);
+  let { scale, spareMm } = measure();
+
+  if (scale >= 0.98 && spareMm > 1.5){
+    const bump = Math.min(2.4, Math.max(0, (spareMm - 0.8) / ROW_SHARE));
+    rowMm = Math.min(7.2, 5.4 + bump);
+    reset(rowMm);
+    ({ scale, spareMm } = measure());
+  }
+
   if (scale < 0.94){
     inners.forEach(el=> el.classList.add('pr-led-dense'));
-    scale = measure();
+    ({ scale } = measure());
   }
   /* One scale for both copies — keeps the cut exactly centre-equal. */
   inners.forEach(el=>{ el.style.zoom = String(scale); });
