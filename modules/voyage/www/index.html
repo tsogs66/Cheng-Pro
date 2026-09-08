@@ -12463,7 +12463,8 @@ function updateFlowmeterRecordArrHint(){
 /** One of eight identical slips on the A4 flowmeter record sheet. */
 function buildFlowmeterRecordSlipHtml(spec, opts = {}){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
-  const variant = opts.variantLabel ? escPrint(opts.variantLabel) : '';
+  const company = escPrint(state.setup.company || 'Company');
+  const subtitle = opts.subtitle ? escPrint(opts.subtitle) : '';
   const sample = !!opts.sample;
   const dateVal = sample ? escPrint(opts.sampleDate || '') : '';
   const opVal = sample ? escPrint(opts.sampleOp || '') : '';
@@ -12494,7 +12495,7 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
   return `<div class="pr-fm-slip">
     <div class="pr-fm-slip-inner">
       <div class="pr-fm-title">FLOWMETER RECORD</div>
-      ${variant ? `<div class="pr-fm-variant">${variant}</div>` : ''}
+      ${subtitle ? `<div class="pr-fm-variant">${subtitle}</div>` : ''}
       <div class="pr-fm-fields">
         <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
         <div class="pr-fm-field"><span class="pr-fm-lbl">Operation</span><span class="pr-fm-line">${opVal}</span></div>
@@ -12503,7 +12504,7 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
         ${head}
         <tbody>${meterRows}</tbody>
       </table>
-      <div class="pr-fm-foot">${vessel}</div>
+      <div class="pr-fm-foot">${vessel} — ${company} — ts0gs</div>
     </div>
   </div>`;
 }
@@ -12511,10 +12512,12 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
 /** Full A4 page: eight equal slips (2 columns × 4 rows), content centred in each. */
 function buildFlowmeterRecordPageHtml(mode, opts = {}){
   const spec = flowmeterRecordRows(mode);
-  const base = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
-  const variantLabel = `${base} · ${flowmeterRecordArrLabel(spec.arr)}`;
+  const vesselName = state.setup.vesselName || 'Vessel';
+  const subtitle = mode === 'fuel'
+    ? `${vesselName} - at port / anchorage`
+    : `${vesselName} - at sea / maneuvering`;
   const slips = Array.from({ length: 8 }, () =>
-    buildFlowmeterRecordSlipHtml(spec, { ...opts, variantLabel })
+    buildFlowmeterRecordSlipHtml(spec, { ...opts, subtitle })
   ).join('');
   return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
 }
@@ -12749,6 +12752,7 @@ function buildLogEntryDataHalfHtml(){
 
   return `<div class="pr-led-inner">
       <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+      <div class="pr-led-sub">Voyage Chief - ${vessel}</div>
 
       <div class="pr-led-body">
         <div class="pr-led-sec">Watch / operation</div>
@@ -12829,12 +12833,12 @@ function buildLogEntryDataHalfHtml(){
           </div>
         </div>
 
-        <div class="pr-led-remarks">
-          <span class="pr-led-lbl">Remarks</span>
-          <div class="pr-led-remarks-box"></div>
-        </div>
       </div>
 
+      <div class="pr-led-remarks">
+        <span class="pr-led-lbl">Remarks</span>
+        <div class="pr-led-remarks-box"></div>
+      </div>
       <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
     </div>`;
 }
@@ -12894,38 +12898,45 @@ html, body{
 .pr-led-page-inner{
   width:100%;
   max-width:142mm;
-  height:100%;
+  height:auto;
   transform-origin:top left;
   box-sizing:border-box;
 }
 .pr-led-inner{
   width:100%;
-  height:100%;
-  min-height:100%;
+  height:auto;
+  min-height:0;
   display:flex;
   flex-direction:column;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
   color:#111;
   font-size:7pt;
   line-height:1.15;
+  --led-row: 5.4mm;
 }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
+  margin:0 0 0.35mm; flex:0 0 auto;
+}
+.pr-led-sub{
+  text-align:center; font-size:7pt; color:#444; letter-spacing:0.02em;
   margin:0 0 1mm; flex:0 0 auto;
 }
 .pr-led-body{
-  flex:1 1 auto;
+  flex:0 0 auto;
   display:flex;
   flex-direction:column;
+  justify-content:flex-start;
+  gap:0;
   min-height:0;
 }
 .pr-led-sec{
   font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.1mm 0 0.65mm; padding-bottom:0.25mm;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.2mm 0 0.7mm; padding-bottom:0.25mm;
   flex:0 0 auto;
 }
 .pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:0.9mm 1.4mm;
+  display:grid; gap:1.1mm 1.4mm;
 }
 .pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
@@ -12942,7 +12953,7 @@ html, body{
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:4mm;
+  min-height:var(--led-row, 5.4mm);
   min-width:6mm;
   padding:0 0.4mm 0.1mm;
   font-size:7pt;
@@ -12950,48 +12961,53 @@ html, body{
 .pr-led-two{
   display:grid; grid-template-columns:1fr 1fr; gap:2mm; align-items:start;
   flex:0 0 auto;
+  min-height:0;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.35mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.4mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.45mm 0.35mm; text-align:center; height:4mm;
+  border:0.5pt solid #222; padding:0.65mm 0.35mm; text-align:center; height:var(--led-row, 5.4mm);
 }
 .pr-led-table th{ background:#efefef; font-weight:600; font-size:5.8pt; }
-.pr-led-write{ height:4mm; }
+.pr-led-write{ height:var(--led-row, 5.4mm); }
 .pr-led-rowlbl{ text-align:left !important; font-weight:600; width:18mm; }
 .pr-led-unit{ color:#555; font-weight:400; font-size:5.3pt; }
 .pr-led-fm-table .pr-led-rowlbl{ width:28mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:1mm;
-  flex:1 1 auto;
+  margin-top:0.5mm;
+  flex:0 0 auto;
   display:flex;
   flex-direction:column;
-  min-height:9mm;
+  min-height:0;
+  max-height:4.8mm;
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.35mm; flex:0 0 auto; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.15mm; flex:0 0 auto; font-size:6pt; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
-  flex:1 1 auto;
-  min-height:8mm;
-  padding:0.7mm 0.9mm;
-  font-size:7pt;
+  flex:0 0 auto;
+  height:3.2mm;
+  min-height:3.2mm;
+  max-height:3.2mm;
+  padding:0.15mm 0.5mm;
+  font-size:6pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:0.8mm; font-size:6.2pt; color:#333;
+  text-align:center; margin-top:0.4mm; font-size:6.2pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
-.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.5mm; }
+.pr-led-dense{ --led-row: 4.4mm; }
+.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
+.pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
 .pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
-.pr-led-dense .pr-led-line{ min-height:3.4mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
-.pr-led-dense .pr-led-write{ height:3.4mm; padding:0.3mm 0.25mm; }
-.pr-led-dense .pr-led-remarks{ min-height:6.5mm; margin-top:0.6mm; }
-.pr-led-dense .pr-led-remarks-box{ min-height:5.5mm; }
+.pr-led-dense .pr-led-write{ padding:0.4mm 0.25mm; }
+.pr-led-dense .pr-led-remarks{ margin-top:0.35mm; max-height:4mm; }
+.pr-led-dense .pr-led-remarks-box{ height:2.8mm; min-height:2.8mm; max-height:2.8mm; padding:0.1mm 0.4mm; }
 @media print{
   html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;
@@ -13009,39 +13025,74 @@ html, body{
 </style></head><body>${pageHtml}</body></html>`;
 }
 
-/** Same zoom on both copies so a centre cut yields two equal blanks. */
+/** Same zoom on both copies so a centre cut yields two equal blanks.
+ *  Spare height raises --led-row (write-in cells); remarks stay a fixed thin strip.
+ *  Always shrink-to-fit so one A4 landscape page never overflows. */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
   const copies = [...doc.querySelectorAll('.pr-led-copy')];
   const inners = [...doc.querySelectorAll('.pr-led-page-inner')];
   if (!page || copies.length !== 2 || inners.length !== 2) return 1;
 
-  inners.forEach(inner=>{
-    inner.style.zoom = '1';
-    inner.style.transform = 'none';
-    inner.style.width = '100%';
-    inner.classList.remove('pr-led-dense');
-  });
+  /* Force layout before measuring (critical for fresh iframe / popup docs). */
+  try{ void doc.body.offsetHeight; void page.offsetHeight; }catch(_e){}
+
+  const setRow = (rowMm, dense)=>{
+    inners.forEach(inner=>{
+      inner.style.zoom = '1';
+      inner.style.transform = 'none';
+      inner.style.width = '100%';
+      inner.classList.toggle('pr-led-dense', !!dense);
+      const host = inner.querySelector('.pr-led-inner') || inner;
+      host.style.setProperty('--led-row', rowMm + 'mm');
+    });
+    try{ void doc.body.offsetHeight; }catch(_e){}
+  };
+
+  const contentBox = (copy)=>{
+    const cs = doc.defaultView.getComputedStyle(copy);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    return {
+      h: Math.max(1, copy.clientHeight - padY),
+      w: Math.max(1, copy.clientWidth - padX)
+    };
+  };
 
   const measure = ()=>{
     let scale = 1;
     copies.forEach((copy, i)=>{
       const inner = inners[i];
-      const availH = Math.max(1, copy.clientHeight);
-      const availW = Math.max(1, copy.clientWidth);
+      const box = contentBox(copy);
       const contentH = Math.max(1, inner.scrollHeight);
       const contentW = Math.max(1, inner.scrollWidth);
-      scale = Math.min(scale, availH / contentH, availW / contentW);
+      scale = Math.min(scale, box.h / contentH, box.w / contentW);
     });
-    return Math.max(0.72, Math.min(1, scale * 0.98));
+    return Math.max(0.68, Math.min(1, scale));
   };
 
-  let scale = measure();
-  if (scale < 0.94){
-    inners.forEach(el=> el.classList.add('pr-led-dense'));
-    scale = measure();
+  /* Grow write-in rows until just before overflow, then apply a small safety zoom. */
+  let lo = 4.6, hi = 7.0, best = 5.2;
+  setRow(best, false);
+  if (measure() >= 1){
+    for (let k = 0; k < 8; k++){
+      const mid = (lo + hi) / 2;
+      setRow(mid, false);
+      if (measure() >= 1){ best = mid; lo = mid; }
+      else hi = mid;
+    }
+    setRow(best, false);
+  } else {
+    setRow(4.6, false);
+    if (measure() < 1){
+      setRow(4.2, true);
+    }
   }
-  /* One scale for both copies — keeps the cut exactly centre-equal. */
+
+  let scale = measure();
+  if (scale >= 0.995) scale = 1;
+  else scale = Math.max(0.68, Math.min(1, scale * 0.985));
+
   inners.forEach(el=>{ el.style.zoom = String(scale); });
 
   doc.documentElement.style.height = '210mm';
@@ -13063,6 +13114,7 @@ function printLogEntryDataRecord(){
     doc.open();
     doc.write(buildLogEntryDataPrintDocument(pageHtml));
     doc.close();
+    try{ void iframe.offsetHeight; void doc.body.offsetHeight; }catch(_e){}
     fitLogEntryDataRoot(doc);
     const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
     /* Synchronous with the button click so the system print dialog is allowed. */
@@ -13075,24 +13127,30 @@ function printLogEntryDataRecord(){
 
 function previewLogEntryDataSample(){
   const page = buildLogEntryDataPageHtml();
-  const html = buildLogEntryDataPrintDocument(page);
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=860');
+  /* No noopener — we must call fitLogEntryDataRoot on the opened document. */
+  const win = window.open('', '_blank', 'width=1280,height=900');
   if (!win){
     alert('Allow pop-ups to preview the blank form.');
     return;
   }
-  win.document.open();
-  win.document.write(html.replace(
+  const html = buildLogEntryDataPrintDocument(page).replace(
     'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }',
     'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }'
-  ));
+  );
+  win.document.open();
+  win.document.write(html);
   win.document.close();
+  const runFit = ()=>{
+    try{
+      void win.document.body.offsetHeight;
+      fitLogEntryDataRoot(win.document);
+    }catch(_e){}
+  };
+  runFit();
   try{
-    const runFit = ()=> fitLogEntryDataRoot(win.document);
+    win.addEventListener('load', ()=> setTimeout(runFit, 30));
     if (win.document.fonts && win.document.fonts.ready){
-      win.document.fonts.ready.then(()=> setTimeout(runFit, 40)).catch(()=> setTimeout(runFit, 80));
-    } else {
-      setTimeout(runFit, 80);
+      win.document.fonts.ready.then(()=> setTimeout(runFit, 30)).catch(()=>{});
     }
   }catch(_e){}
 }
@@ -20541,7 +20599,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v213';
+let androidInstallCacheName = 'noon-report-v214';
 
 /*
  * What the program is called.
