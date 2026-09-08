@@ -39,6 +39,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
@@ -215,8 +216,13 @@ public class MainActivity extends BridgeActivity {
               PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
               if (printManager == null) return;
               PrintDocumentAdapter adapter = view.createPrintDocumentAdapter(name);
+              PrintAttributes.MediaSize media = PrintAttributes.MediaSize.ISO_A4;
+              String src = html != null ? html.toLowerCase(Locale.US) : "";
+              if (src.contains("size: a4 landscape") || src.contains("size:a4 landscape")) {
+                media = media.asLandscape();
+              }
               PrintAttributes attrs = new PrintAttributes.Builder()
-                  .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                  .setMediaSize(media)
                   .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                   .build();
               printManager.print(name, adapter, attrs);
