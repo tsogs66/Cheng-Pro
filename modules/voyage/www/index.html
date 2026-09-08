@@ -12463,7 +12463,8 @@ function updateFlowmeterRecordArrHint(){
 /** One of eight identical slips on the A4 flowmeter record sheet. */
 function buildFlowmeterRecordSlipHtml(spec, opts = {}){
   const vessel = escPrint(state.setup.vesselName || 'Vessel');
-  const variant = opts.variantLabel ? escPrint(opts.variantLabel) : '';
+  const company = escPrint(state.setup.company || 'Company');
+  const subtitle = opts.subtitle ? escPrint(opts.subtitle) : '';
   const sample = !!opts.sample;
   const dateVal = sample ? escPrint(opts.sampleDate || '') : '';
   const opVal = sample ? escPrint(opts.sampleOp || '') : '';
@@ -12494,7 +12495,7 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
   return `<div class="pr-fm-slip">
     <div class="pr-fm-slip-inner">
       <div class="pr-fm-title">FLOWMETER RECORD</div>
-      ${variant ? `<div class="pr-fm-variant">${variant}</div>` : ''}
+      ${subtitle ? `<div class="pr-fm-variant">${subtitle}</div>` : ''}
       <div class="pr-fm-fields">
         <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
         <div class="pr-fm-field"><span class="pr-fm-lbl">Operation</span><span class="pr-fm-line">${opVal}</span></div>
@@ -12503,7 +12504,7 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
         ${head}
         <tbody>${meterRows}</tbody>
       </table>
-      <div class="pr-fm-foot">${vessel}</div>
+      <div class="pr-fm-foot">${vessel} — ${company} — ts0gs</div>
     </div>
   </div>`;
 }
@@ -12511,10 +12512,12 @@ function buildFlowmeterRecordSlipHtml(spec, opts = {}){
 /** Full A4 page: eight equal slips (2 columns × 4 rows), content centred in each. */
 function buildFlowmeterRecordPageHtml(mode, opts = {}){
   const spec = flowmeterRecordRows(mode);
-  const base = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
-  const variantLabel = `${base} · ${flowmeterRecordArrLabel(spec.arr)}`;
+  const vesselName = state.setup.vesselName || 'Vessel';
+  const subtitle = mode === 'fuel'
+    ? `${vesselName} - at port / anchorage`
+    : `${vesselName} - at sea / maneuvering`;
   const slips = Array.from({ length: 8 }, () =>
-    buildFlowmeterRecordSlipHtml(spec, { ...opts, variantLabel })
+    buildFlowmeterRecordSlipHtml(spec, { ...opts, subtitle })
   ).join('');
   return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
 }
@@ -12749,6 +12752,7 @@ function buildLogEntryDataHalfHtml(){
 
   return `<div class="pr-led-inner">
       <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+      <div class="pr-led-sub">Voyage Chief - ${vessel}</div>
 
       <div class="pr-led-body">
         <div class="pr-led-sec">Watch / operation</div>
@@ -12911,6 +12915,10 @@ html, body{
 }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
+  margin:0 0 0.35mm; flex:0 0 auto;
+}
+.pr-led-sub{
+  text-align:center; font-size:7pt; color:#444; letter-spacing:0.02em;
   margin:0 0 1mm; flex:0 0 auto;
 }
 .pr-led-body{
@@ -12985,7 +12993,8 @@ html, body{
   text-align:center; margin-top:0.8mm; font-size:6.2pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
-.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.5mm; }
+.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
+.pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
 .pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
 .pr-led-dense .pr-led-line{ min-height:3.4mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
@@ -20541,7 +20550,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v213';
+let androidInstallCacheName = 'noon-report-v214';
 
 /*
  * What the program is called.

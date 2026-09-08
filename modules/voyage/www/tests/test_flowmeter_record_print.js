@@ -37,6 +37,10 @@ check('DUAL_ME / DUAL_BOTH mark M/E dual', /DUAL_ME[\s\S]{0,80}DUAL_BOTH[\s\S]{0
 check('DUAL_GE / DUAL_BOTH mark G/E dual', /DUAL_GE[\s\S]{0,80}DUAL_BOTH[\s\S]{0,40}geDual/.test(HTML));
 check('wired print all click', HTML.includes("printFlowmeterRecord('all')"));
 check('wired print fuel click', HTML.includes("printFlowmeterRecord('fuel')"));
+check('all-meters subtitle vessel - at sea / maneuvering', /subtitle[\s\S]{0,200}at sea \/ maneuvering/.test(HTML) || /at sea \/ maneuvering/.test(HTML));
+check('fuel-only subtitle vessel - at port / anchorage', /at port \/ anchorage/.test(HTML));
+check('flowmeter mode picks sea vs port subtitle', /mode === 'fuel'[\s\S]{0,120}at port \/ anchorage[\s\S]{0,80}at sea \/ maneuvering/.test(HTML));
+check('flowmeter footer matches LED vessel — company — ts0gs', /pr-fm-foot\}?\$\{vessel\} — \$\{company\} — ts0gs/.test(HTML) || /pr-fm-foot">\$\{vessel\} — \$\{company\} — ts0gs/.test(HTML));
 check('hint updates with flowArr change', HTML.includes('updateFlowmeterRecordArrHint'));
 
 console.log('\nLog Entry Data record (A4 landscape ÷2)');
@@ -72,7 +76,7 @@ check('marked-only: no fuel grade section', !HTML.includes('M/E run &amp; fuel g
 check('marked-only: no Condition / Time zone / Clock', !/ledField\('Condition B\/L'\)/.test(HTML) && !/ledField\('Time zone'\)/.test(HTML));
 check('marked-only: no ECA fields', !HTML.includes("ledMini('ECA grade')"));
 check('keeps FW ROB + remarks', HTML.includes("ledField('FW ROB m³')") && HTML.includes('pr-led-remarks-box'));
-check('no subtitle under title', !HTML.includes('pr-led-sub') || !/LOG ENTRY DATA RECORD[\s\S]{0,200}pr-led-sub/.test(HTML));
+check('subtitle Voyage Chief - vessel', /pr-led-sub">Voyage Chief - \$\{vessel\}/.test(HTML) && HTML.includes('.pr-led-sub'));
 check('no handoff subtitle text', !HTML.includes('Blank form — watchkeeper fills by hand → Chief Engineer'));
 check('footer vessel — company — ts0gs', HTML.includes('— ts0gs') && /vessel[\s\S]{0,80}company[\s\S]{0,40}ts0gs/.test(HTML));
 check('fuel temp aligned with pump mark', /ledMini\('Fuel temp'\)[\s\S]{0,40}ledMini\('Pump mark'\)/.test(HTML));
