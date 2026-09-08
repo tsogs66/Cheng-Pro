@@ -172,10 +172,20 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
   padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line-strong);
   background: rgba(0,0,0,0.18); color: var(--text);
 }
-html.bright .btn { background: rgba(18,34,56,0.05); }
+html.bright .btn { background: rgba(18,34,56,0.05); color: var(--text); }
 .btn:hover { border-color: var(--brass); color: var(--brass); }
 .btn.primary { background: var(--brass); border-color: var(--brass); color: #0a1420; font-weight: 700; }
-html.bright .btn.primary { color: #fff8ee; }
+/* Keep the brass fill in bright mode — html.bright .btn alone was washing it out
+   and leaving cream text on cream, which made Open Voyage / Tank unreadable. */
+html.bright .btn.primary {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: #ffffff;
+}
+html.bright .btn.primary:hover {
+  color: #ffffff;
+  filter: brightness(1.08);
+}
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 .icon-btn, .menu-btn {
   width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
