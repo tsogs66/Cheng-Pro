@@ -1598,6 +1598,15 @@
   .pr-table.pr-table-rob tr.rob-present-row td.rob-total-col *{
     background:#dce3ee !important; color:#0a1420 !important;
   }
+  /* Full-page landscape ROB: use the extra width for slightly larger type. */
+  .pr-sheet.pr-sheet-rob .pr-table.pr-table-rob{ font-size:11px; }
+  .pr-sheet.pr-sheet-rob .pr-table.pr-table-rob th{ font-size:10px; padding:1.6mm 1.3mm; }
+  .pr-sheet.pr-sheet-rob .pr-table.pr-table-rob td{ font-size:11px; padding:2mm 1.3mm; }
+  .pr-sheet.pr-sheet-rob .pr-table.pr-table-rob td.row-lbl{ font-size:10.5px; }
+  .pr-sheet.pr-sheet-rob .pr-table.pr-table-rob .pr-rob-unit{ font-size:7.5px; }
+  .pr-sheet.pr-sheet-rob.pr-dense .pr-table.pr-table-rob{ font-size:10px; }
+  .pr-sheet.pr-sheet-rob.pr-dense .pr-table.pr-table-rob th{ font-size:9px; padding:1.3mm 1.1mm; }
+  .pr-sheet.pr-sheet-rob.pr-dense .pr-table.pr-table-rob td{ font-size:10px; padding:1.5mm 1.1mm; }
   /* Says the list under it was cut, so a short list is never mistaken for the range. */
   .pr-note{ font-size:8.5px; color:#5a6578; font-style:italic; margin-top:0.8mm; }
   .pr-remarks{
@@ -12102,7 +12111,7 @@ function printDepArrRobSheet(){
   const {consByFuel, consByLube} = computeDerived();
   const rows = depArrRobRows(consByFuel, consByLube);
   const table = printSection('Departure / Arrival ROB', printDepArrRobTableHtml(rows));
-  const sheet = `<div class="pr-sheet">
+  const sheet = `<div class="pr-sheet pr-sheet-rob">
     ${printDocHeader({ title: 'Dep / Arr ROB Comparison', subtitle: state.setup.voyageNumber||'Voyage', badge: state.setup.shipCondition||'' })}
     ${printMetaGrid([
       {label:'Vessel', value:state.setup.vesselName||'—'},
@@ -12113,7 +12122,7 @@ function printDepArrRobSheet(){
     <div class="pr-grid"><div class="pr-span2">${table}</div></div>
     ${printSignatory()}
   </div>`;
-  printPortraitSinglePage(sheet);
+  printLandscapeFullPages(sheet);
 }
 
 function exportWeeklyAbstractCsv(){
@@ -13251,6 +13260,123 @@ function printPortraitSinglePage(sheetHtml){
   doc.close();
 
   fitPrintPortraitRoot(doc);
+  const fittedHtml = doc.body.innerHTML;
+  const win = iframe.contentWindow;
+
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=> runSystemPrint(win, cleanup);
+
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+  return fittedHtml;
+}
+
+/**
+ * Full A4 landscape sheet(s) — one copy per page, full width.
+ * Used for transposed ROB tables that need tank columns across the long edge.
+ */
+function buildPrintDocumentHtmlLandscapeFull(bodyInner){
+  const css = printDocumentCss();
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+@page{ size: A4 landscape; margin: 0; }
+html, body{
+  margin:0 !important; padding:0 !important; background:#fff !important;
+  width:297mm !important;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-page-landscape{
+  display:block !important;
+  width:297mm !important; height:210mm !important; max-height:210mm !important;
+  overflow:hidden !important; box-sizing:border-box !important;
+  /* Tight printable margin so the ROB tank grid uses nearly the full sheet */
+  padding:5mm 6mm !important; background:#fff !important;
+  position:relative !important;
+  page-break-after:always !important; page-break-inside:avoid !important;
+  break-after:page !important; break-inside:avoid !important;
+}
+.pr-page-landscape:last-child{
+  page-break-after:avoid !important; break-after:avoid !important;
+}
+.pr-page-landscape-inner{
+  transform-origin:top left; width:100%; box-sizing:border-box;
+}
+.pr-page-landscape .pr-copy-label{
+  position:absolute !important; top:1.2mm !important; right:2.8mm !important;
+  font-family:'Oswald',sans-serif !important; font-size:6.5px !important; font-weight:600 !important;
+  letter-spacing:0.16em !important; color:#b8c0cc !important; text-transform:uppercase !important;
+  z-index:1 !important; pointer-events:none !important;
+}
+.pr-section, .pr-box{ break-inside:auto !important; page-break-inside:auto !important; }
+${css}
+</style></head><body>${bodyInner}</body></html>`;
+}
+
+function fitPrintLandscapeRoot(doc){
+  const pages = [...doc.querySelectorAll('.pr-page-landscape')];
+  if (!pages.length) return 1;
+  let minScale = 1;
+
+  pages.forEach(page=>{
+    const inner = page.querySelector('.pr-page-landscape-inner');
+    if (!inner) return;
+
+    sizePrintTables(doc);
+    inner.querySelector('.pr-sheet')?.classList.remove('pr-dense');
+    inner.style.zoom = '1';
+    inner.style.transform = 'none';
+    inner.style.width = '100%';
+
+    const measure = ()=>{
+      const availH = Math.max(1, page.clientHeight - 2);
+      const availW = Math.max(1, page.clientWidth - 2);
+      const contentH = Math.max(1, inner.scrollHeight);
+      const contentW = Math.max(1, inner.scrollWidth);
+      return Math.max(0.6, Math.min(1, Math.min(availH / contentH, availW / contentW) * 0.98));
+    };
+
+    let scale = measure();
+    if (scale < 0.92){
+      inner.querySelector('.pr-sheet')?.classList.add('pr-dense');
+      scale = measure();
+    }
+    if (scale < 0.82){
+      inner.querySelectorAll('table.pr-table').forEach(t=>{
+        if (t.classList.contains('pr-table-rob')) return;
+        t.classList.remove('pr-table-wide');
+        t.classList.add('pr-table-xl');
+      });
+      scale = measure();
+    }
+    inner.style.zoom = String(scale);
+    minScale = Math.min(minScale, scale);
+  });
+
+  return minScale;
+}
+
+function printLandscapeFullPages(sheetHtml, copyLabels){
+  const labels = (copyLabels && copyLabels.length) ? copyLabels : ['Office Copy', 'Ship Copy'];
+  const bodyInner = labels.map(label=>
+    `<div class="pr-page-landscape"><span class="pr-copy-label">${label}</span><div class="pr-page-landscape-inner">${sheetHtml}</div></div>`
+  ).join('');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  /* Tall enough to lay out every copy page for fit measurement */
+  const frameH = Math.max(210, 210 * labels.length);
+  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:297mm;height:${frameH}mm;border:0;opacity:0;pointer-events:none;`;
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildPrintDocumentHtmlLandscapeFull(bodyInner));
+  doc.close();
+
+  fitPrintLandscapeRoot(doc);
   const fittedHtml = doc.body.innerHTML;
   const win = iframe.contentWindow;
 
@@ -14705,7 +14831,7 @@ document.getElementById('btnCloseRobSnapshot').addEventListener('click', ()=>{
 function printRobSnapshot(entry, dt, rowsForPrint){
   const dateStr = dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
   const timeStr = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  const sheetHtml = `<div class="pr-sheet">
+  const sheetHtml = `<div class="pr-sheet pr-sheet-rob">
     ${printDocHeader({ title: 'Remaining On Board', subtitle: 'Fuel, Lube & Fresh Water Inventory Snapshot', badge: entry.operation })}
     ${printMetaGrid([
       {label:'Date', value:dateStr},
@@ -14715,7 +14841,8 @@ function printRobSnapshot(entry, dt, rowsForPrint){
     ${printSection('Stock Balance', printRobBalanceTableHtml(rowsForPrint))}
     ${printSignatory(entry)}
   </div>`;
-  printSinglePage(sheetHtml);
+  /* Full A4 landscape per copy — transposed tank columns need the long edge. */
+  printLandscapeFullPages(sheetHtml);
 }
 
 function openVoyageSummary(entryId){
@@ -19378,7 +19505,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v205';
+let androidInstallCacheName = 'noon-report-v206';
 
 /*
  * What the program is called.
