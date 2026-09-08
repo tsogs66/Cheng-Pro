@@ -159,7 +159,7 @@
       if (has(out.lubeLPeriod)) set('lubeLhr', out.lubeLPeriod / out.hours, 'lube L period ÷ hours');
     }
 
-    // Density bridges kg ↔ L
+      // Density bridges kg ↔ L
     for (let pass = 0; pass < 12; pass++) {
       let changed = false;
 
@@ -174,6 +174,33 @@
       }
       if (has(out.lubeLhr) && lubeDensity > 0) {
         changed = set('lubeKgHr', out.lubeLhr * lubeDensity, 'lube L/h × density') || changed;
+      }
+
+      /* Fuel rate alone cannot give kW without SFOC, and the shop-trial SFOC
+         curve needs %MCR — which itself comes from kW. Iterate from a mid-load
+         SFOC seed until load and curve SFOC agree (classic "from consumption"). */
+      if (has(out.fuelKgHr) && out.fuelKgHr > 0 && coeffs && has(sfoc100)
+          && !has(out.sfoc) && !has(out.kw) && !has(out.mcrPct) && !has(out.rpm)) {
+        let sfocGuess = referenceSfocAtLoad(sfoc100, coeffs, 85) || sfoc100;
+        let kwGuess = (out.fuelKgHr * 1000) / sfocGuess;
+        if (has(mcrKw) && mcrKw > 0) {
+          for (let iter = 0; iter < 24; iter++) {
+            const pct = (kwGuess / mcrKw) * 100;
+            const next = referenceSfocAtLoad(sfoc100, coeffs, pct);
+            if (!has(next) || !(next > 0)) break;
+            kwGuess = (out.fuelKgHr * 1000) / next;
+            if (Math.abs(next - sfocGuess) < 0.05) {
+              sfocGuess = next;
+              break;
+            }
+            sfocGuess = next;
+          }
+          changed = set('sfoc', sfocGuess, 'iterated shop-trial SFOC from fuel rate') || changed;
+          changed = set('kw', kwGuess, 'fuel kg/h × 1000 / iterated SFOC') || changed;
+        } else {
+          changed = set('sfoc', sfocGuess, 'shop-trial SFOC (no MCR kW — constant seed)') || changed;
+          changed = set('kw', kwGuess, 'fuel kg/h × 1000 / SFOC seed') || changed;
+        }
       }
 
       // Propeller law / MCR triangle: rpm ↔ mcrPct ↔ kw
@@ -463,9 +490,26 @@
   function performanceByFuel(basis, { fuelMt, hours }) {
     const mt = num(fuelMt);
     const h = num(hours);
-    if (!has(mt) || !has(h) || !(h > 0)) return { error: 'Need fuel consumption (MT) and runtime (h).' };
+    if (!has(mt) || !(mt > 0) || !has(h) || !(h > 0)) {
+      return { error: 'Need fuel consumption (MT) and runtime (h).' };
+    }
+    const b = basis || {};
+    if (!has(num(b.sfoc100)) || !(num(b.sfoc100) > 0)) {
+      return { error: 'Set shop-trial SFOC @ 100% in Vessel Setup — needed to convert fuel into load.' };
+    }
+    if (!has(num(b.mcrKw)) || !(num(b.mcrKw) > 0)) {
+      return { error: 'Set MCR kW in Vessel Setup — needed for load % and RPM from fuel.' };
+    }
     const fuelKgPeriod = mt * 1000;
-    return packResult(solve(basis, { fuelKgPeriod, hours: h, meRunHours: h }));
+    const solved = solve(basis, { fuelKgPeriod, hours: h, meRunHours: h });
+    if (!has(solved.values.kw) && !has(solved.values.rpm)) {
+      return {
+        error: 'Could not derive load from fuel — check Vessel Setup MCR RPM / MCR kW / SFOC.',
+        values: solved.values,
+        notes: solved.notes,
+      };
+    }
+    return packResult(solved);
   }
   function performanceByRpm(basis, { rpm, hours, distanceNm }) {
     return packResult(solve(basis, { rpm, hours, meRunHours: hours, distanceNm }));
