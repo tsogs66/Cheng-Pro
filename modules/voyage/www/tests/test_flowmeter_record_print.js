@@ -97,7 +97,7 @@ check('preview sample opens without noopener flag', /function previewLogEntryDat
 check('remarks outside body above footer', /<\/div>\s*<div class="pr-led-remarks">[\s\S]{0,200}pr-led-foot/.test(HTML));
 check('maximized layout packed body', /pr-led-body\{[\s\S]{0,80}flex:0 0 auto/.test(HTML));
 check('edge inset avoids left/top clip', /padding:4\.5mm 4\.2mm 4\.2mm/.test(HTML));
-check('LED halves equal pad for cut align', /pr-led-copy\{[\s\S]{0,280}padding:4\.5mm 4\.2mm 4\.2mm/.test(HTML) && !/pr-led-copy:first-child\{[\s\S]{0,120}padding-left:4\.8mm/.test(HTML));
+check('LED halves equal pad for cut align', /Equal L\/R\/T\/B so both cut halves match/.test(HTML) && /padding:4\.5mm 4\.2mm 4\.2mm !important/.test(HTML) && !/padding-left:4\.8mm !important/.test(HTML) && !/padding-right:4\.8mm !important/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
 
