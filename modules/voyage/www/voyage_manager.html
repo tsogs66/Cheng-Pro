@@ -12950,7 +12950,7 @@ html, body{
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:4mm;
+  min-height:4.6mm;
   min-width:6mm;
   padding:0 0.4mm 0.1mm;
   font-size:7pt;
@@ -12963,44 +12963,46 @@ html, body{
   width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.35mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.45mm 0.35mm; text-align:center; height:4mm;
+  border:0.5pt solid #222; padding:0.55mm 0.35mm; text-align:center; height:4.6mm;
 }
 .pr-led-table th{ background:#efefef; font-weight:600; font-size:5.8pt; }
-.pr-led-write{ height:4mm; }
+.pr-led-write{ height:4.6mm; }
 .pr-led-rowlbl{ text-align:left !important; font-weight:600; width:18mm; }
 .pr-led-unit{ color:#555; font-weight:400; font-size:5.3pt; }
 .pr-led-fm-table .pr-led-rowlbl{ width:28mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:1mm;
-  flex:1 1 auto;
+  margin-top:0.7mm;
+  flex:0 0 auto;
   display:flex;
   flex-direction:column;
-  min-height:9mm;
+  min-height:0;
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.35mm; flex:0 0 auto; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.25mm; flex:0 0 auto; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
-  flex:1 1 auto;
-  min-height:8mm;
-  padding:0.7mm 0.9mm;
-  font-size:7pt;
+  flex:0 0 auto;
+  height:5.5mm;
+  min-height:5.5mm;
+  max-height:5.5mm;
+  padding:0.4mm 0.7mm;
+  font-size:6.5pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:0.8mm; font-size:6.2pt; color:#333;
+  text-align:center; margin-top:0.6mm; font-size:6.2pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
 .pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
 .pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
 .pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
-.pr-led-dense .pr-led-line{ min-height:3.4mm; }
+.pr-led-dense .pr-led-line{ min-height:3.8mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
-.pr-led-dense .pr-led-write{ height:3.4mm; padding:0.3mm 0.25mm; }
-.pr-led-dense .pr-led-remarks{ min-height:6.5mm; margin-top:0.6mm; }
-.pr-led-dense .pr-led-remarks-box{ min-height:5.5mm; }
+.pr-led-dense .pr-led-write{ height:3.8mm; padding:0.35mm 0.25mm; }
+.pr-led-dense .pr-led-remarks{ margin-top:0.45mm; }
+.pr-led-dense .pr-led-remarks-box{ height:4.5mm; min-height:4.5mm; max-height:4.5mm; padding:0.3mm 0.55mm; }
 @media print{
   html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;

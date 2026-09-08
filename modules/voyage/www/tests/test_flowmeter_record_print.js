@@ -82,6 +82,8 @@ check('footer vessel — company — ts0gs', HTML.includes('— ts0gs') && /vess
 check('fuel temp aligned with pump mark', /ledMini\('Fuel temp'\)[\s\S]{0,40}ledMini\('Pump mark'\)/.test(HTML));
 check('FW ROB below bilge/sludge', /Bilge ROB[\s\S]{0,120}Sludge ROB[\s\S]{0,160}FW ROB/.test(HTML));
 check('remarks section present full-width', HTML.includes('pr-led-remarks') && HTML.includes('pr-led-remarks-box') && /pr-led-two[\s\S]{0,2000}pr-led-remarks/.test(HTML));
+check('remarks compact fixed height', /pr-led-remarks\{[\s\S]{0,120}flex:0 0 auto/.test(HTML) && /pr-led-remarks-box\{[\s\S]{0,120}height:5\.5mm/.test(HTML));
+check('data fields taller after remarks shrink', /pr-led-write\{ height:4\.6mm/.test(HTML) && /pr-led-line\{[\s\S]{0,80}min-height:4\.6mm/.test(HTML));
 check('maximized layout body flex', HTML.includes('pr-led-body') && HTML.includes('flex:1 1 auto'));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));
 check('wired sample click', HTML.includes('previewLogEntryDataSample()'));
