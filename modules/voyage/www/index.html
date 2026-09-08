@@ -12999,6 +12999,615 @@ function previewLogEntryDataSample(){
   win.document.close();
 }
 
+/**
+ * Live flowmeter arrangement from Vessel Data (select if present), else setup.
+ * SINGLE | DUAL_ME | DUAL_GE | DUAL_BOTH
+ */
+function flowmeterRecordArrangement(){
+  const sel = document.getElementById('s_flowArr');
+  if (sel && sel.value){
+    state.setup.flowArr = sel.value;
+    return sel.value;
+  }
+  return (state.setup && state.setup.flowArr) || 'SINGLE';
+}
+
+function flowmeterRecordArrLabel(arr){
+  switch (arr){
+    case 'DUAL_ME': return 'DUAL ME (M/E inlet/outlet)';
+    case 'DUAL_GE': return 'DUAL GE (G/E inlet/outlet)';
+    case 'DUAL_BOTH': return 'DUAL BOTH (M/E & G/E inlet/outlet)';
+    default: return 'SINGLE';
+  }
+}
+
+/**
+ * Blank flowmeter handout rows for the watchkeeper.
+ * mode 'all'  — M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator
+ * mode 'fuel' — M/E, G/E, Boiler only (no cyl oil / rev counter / FW gen)
+ * Dual arrangements from Vessel Setup use Inlet/Outlet columns for M/E and/or G/E.
+ */
+function flowmeterRecordRows(mode){
+  const arr = flowmeterRecordArrangement();
+  const meDual = arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
+  const geDual = arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+  const dualLayout = meDual || geDual;
+  const rows = [];
+  if (dualLayout){
+    rows.push({ label: 'M/E', unit: 'L', dual: meDual });
+    rows.push({ label: 'G/E', unit: 'L', dual: geDual });
+    rows.push({ label: 'Boiler', unit: 'L', dual: false });
+    if (mode !== 'fuel'){
+      rows.push({ label: 'Cylinder Oil', unit: 'L', dual: false });
+      rows.push({ label: 'Rev. Counter', unit: '', dual: false });
+      rows.push({ label: 'FW Generator', unit: 'm³', dual: false });
+    }
+  } else {
+    rows.push({ label: 'M/E Meter', unit: 'L', dual: false });
+    rows.push({ label: 'G/E Meter', unit: 'L', dual: false });
+    rows.push({ label: 'Boiler Meter', unit: 'L', dual: false });
+    if (mode !== 'fuel'){
+      rows.push({ label: 'Cylinder Oil Meter', unit: 'L', dual: false });
+      rows.push({ label: 'Rev. Counter', unit: '', dual: false });
+      rows.push({ label: 'FW Generator', unit: 'm³', dual: false });
+    }
+  }
+  return { arr, meDual, geDual, dualLayout, rows };
+}
+
+function updateFlowmeterRecordArrHint(){
+  const el = document.getElementById('flowmeterRecordArrHint');
+  if (!el) return;
+  const { arr, meDual, geDual } = flowmeterRecordRows('all');
+  const io = [];
+  if (meDual) io.push('M/E Inlet + Outlet');
+  if (geDual) io.push('G/E Inlet + Outlet');
+  const arrSafe = escPrint(arr);
+  const ioTxt = io.length
+    ? `Current setup <strong>${arrSafe}</strong> — table shows ${io.join(' and ')}.`
+    : `Current setup <strong>${arrSafe}</strong> — one Reading column (no separate inlet/outlet).`;
+  el.innerHTML = `${ioTxt} All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).`;
+}
+
+/** One of eight identical slips on the A4 flowmeter record sheet. */
+function buildFlowmeterRecordSlipHtml(spec, opts = {}){
+  const vessel = escPrint(state.setup.vesselName || 'Vessel');
+  const variant = opts.variantLabel ? escPrint(opts.variantLabel) : '';
+  const sample = !!opts.sample;
+  const dateVal = sample ? escPrint(opts.sampleDate || '') : '';
+  const opVal = sample ? escPrint(opts.sampleOp || '') : '';
+  const dualLayout = !!spec.dualLayout;
+  const sampleReadings = opts.sampleReadings || [];
+  const meterRows = spec.rows.map((r, i) => {
+    const unit = r.unit ? ` <span class="pr-fm-unit">(${escPrint(r.unit)})</span>` : '';
+    const sr = sampleReadings[i];
+    if (dualLayout){
+      if (r.dual){
+        const inlet = sample && sr && sr.inlet != null ? escPrint(String(sr.inlet)) : '';
+        const outlet = sample && sr && sr.outlet != null ? escPrint(String(sr.outlet)) : '';
+        return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td>`
+          + `<td class="pr-fm-reading">${inlet}</td><td class="pr-fm-reading">${outlet}</td></tr>`;
+      }
+      const reading = sample && sr != null && (typeof sr === 'string' || typeof sr === 'number')
+        ? escPrint(String(sr))
+        : (sample && sr && sr.inlet != null ? escPrint(String(sr.inlet)) : '');
+      return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td>`
+        + `<td class="pr-fm-reading" colspan="2">${reading}</td></tr>`;
+    }
+    const reading = sample && sr != null ? escPrint(String(typeof sr === 'object' ? (sr.inlet || '') : sr)) : '';
+    return `<tr><td class="pr-fm-meter">${escPrint(r.label)}${unit}</td><td class="pr-fm-reading">${reading}</td></tr>`;
+  }).join('');
+  const head = dualLayout
+    ? `<thead><tr><th>Flowmeter</th><th>Inlet</th><th>Outlet</th></tr></thead>`
+    : `<thead><tr><th>Flowmeter</th><th>Reading</th></tr></thead>`;
+  return `<div class="pr-fm-slip">
+    <div class="pr-fm-slip-inner">
+      <div class="pr-fm-title">FLOWMETER RECORD</div>
+      ${variant ? `<div class="pr-fm-variant">${variant}</div>` : ''}
+      <div class="pr-fm-fields">
+        <div class="pr-fm-field"><span class="pr-fm-lbl">Date</span><span class="pr-fm-line">${dateVal}</span></div>
+        <div class="pr-fm-field"><span class="pr-fm-lbl">Operation</span><span class="pr-fm-line">${opVal}</span></div>
+      </div>
+      <table class="pr-fm-table${dualLayout ? ' pr-fm-table-io' : ''}">
+        ${head}
+        <tbody>${meterRows}</tbody>
+      </table>
+      <div class="pr-fm-foot">${vessel}</div>
+    </div>
+  </div>`;
+}
+
+/** Full A4 page: eight equal slips (2 columns × 4 rows), content centred in each. */
+function buildFlowmeterRecordPageHtml(mode, opts = {}){
+  const spec = flowmeterRecordRows(mode);
+  const base = mode === 'fuel' ? 'Fuel meters' : 'All meters + rev. counter';
+  const variantLabel = `${base} · ${flowmeterRecordArrLabel(spec.arr)}`;
+  const slips = Array.from({ length: 8 }, () =>
+    buildFlowmeterRecordSlipHtml(spec, { ...opts, variantLabel })
+  ).join('');
+  return `<div class="pr-fm-page" data-fm-mode="${escPrint(mode)}" data-fm-arr="${escPrint(spec.arr)}">${slips}</div>`;
+}
+
+function buildFlowmeterRecordPrintDocument(pageHtml){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Flowmeter Record</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+@page{ size: A4 portrait; margin: 0; }
+html, body{
+  margin:0 !important; padding:0 !important; background:#fff !important;
+  width:210mm !important; height:297mm !important;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-fm-page{
+  box-sizing:border-box;
+  width:210mm; height:297mm;
+  margin:0; padding:0;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:repeat(4, 1fr);
+  background:#fff;
+}
+.pr-fm-slip{
+  box-sizing:border-box;
+  width:100%; height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:2.2mm 2.8mm;
+  border-right:0.35pt dashed #888;
+  border-bottom:0.35pt dashed #888;
+}
+.pr-fm-page .pr-fm-slip:nth-child(2n){ border-right:none; }
+.pr-fm-page .pr-fm-slip:nth-child(n+7){ border-bottom:none; }
+.pr-fm-slip-inner{
+  width:100%;
+  max-width:96mm;
+  text-align:center;
+  font-family: Calibri, 'Segoe UI', Candara, sans-serif;
+  color:#111;
+}
+.pr-fm-title{
+  font-size:11pt; font-weight:700; letter-spacing:0.04em;
+  line-height:1.15; margin:0 0 0.6mm;
+}
+.pr-fm-variant{
+  font-size:7pt; color:#444; margin:0 0 1.4mm; letter-spacing:0.02em;
+}
+.pr-fm-fields{
+  text-align:left; margin:0 0 1.6mm;
+}
+.pr-fm-field{
+  display:flex; align-items:flex-end; gap:1.5mm;
+  margin:0 0 1.2mm; font-size:8pt;
+}
+.pr-fm-lbl{
+  flex:0 0 18mm; font-weight:600; text-align:left;
+}
+.pr-fm-line{
+  flex:1 1 auto;
+  border-bottom:0.6pt solid #222;
+  min-height:3.2mm;
+  line-height:1.1;
+  padding:0 0.5mm 0.2mm;
+  text-align:left;
+  font-size:8pt;
+}
+.pr-fm-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:8pt;
+  margin:0 auto;
+}
+.pr-fm-table th, .pr-fm-table td{
+  border:0.5pt solid #222;
+  padding:0.9mm 1.1mm;
+  line-height:1.15;
+}
+.pr-fm-table th{
+  background:#efefef;
+  font-weight:600;
+  font-size:7.5pt;
+  text-align:center;
+}
+.pr-fm-meter{ text-align:left; width:68%; }
+.pr-fm-table-io .pr-fm-meter{ width:40%; }
+.pr-fm-table-io .pr-fm-reading{ width:30%; }
+.pr-fm-unit{ color:#555; font-weight:400; font-size:7pt; }
+.pr-fm-reading{
+  text-align:center; width:32%;
+  height:4.2mm;
+}
+.pr-fm-foot{
+  margin-top:1.4mm;
+  font-size:6.5pt;
+  color:#555;
+  letter-spacing:0.02em;
+}
+@media screen{
+  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
+  .pr-fm-page{
+    margin:0 auto;
+    box-shadow:0 2px 12px rgba(0,0,0,.18);
+  }
+}
+</style></head><body>${pageHtml}</body></html>`;
+}
+
+function printFlowmeterRecord(mode){
+  const pageHtml = buildFlowmeterRecordPageHtml(mode === 'fuel' ? 'fuel' : 'all');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildFlowmeterRecordPrintDocument(pageHtml));
+  doc.close();
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=> runSystemPrint(iframe.contentWindow, cleanup);
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+}
+
+/** On-screen sample window: one filled slip set so the cut layout is visible. */
+function previewFlowmeterRecordSample(){
+  const fillReadings = (mode) => {
+    const { rows } = flowmeterRecordRows(mode);
+    return rows.map((r, i) => {
+      if (r.dual){
+        return {
+          inlet: String(10000000 + (i + 1) * 111111).slice(0, 8),
+          outlet: String(20000000 + (i + 1) * 111111).slice(0, 8)
+        };
+      }
+      if (mode !== 'fuel' && /FW Generator/i.test(r.label)) return '1234.56';
+      if (mode !== 'fuel' && /Rev\. Counter/i.test(r.label)) return '98765432';
+      return String(10000000 + (i + 1) * 111111).slice(0, 8);
+    });
+  };
+  const sampleOpts = {
+    sample: true,
+    sampleDate: '07 Sep 2026',
+    sampleOp: 'NOON'
+  };
+  const allPage = buildFlowmeterRecordPageHtml('all', { ...sampleOpts, sampleReadings: fillReadings('all') });
+  const fuelPage = buildFlowmeterRecordPageHtml('fuel', { ...sampleOpts, sampleReadings: fillReadings('fuel') });
+  const html = buildFlowmeterRecordPrintDocument(
+    `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:0 0 10px;color:#222">Sample — All meters + rev. counter (8 slips / A4)</div>`
+    + allPage
+    + `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:18px 0 10px;color:#222">Sample — Fuel meters only (8 slips / A4)</div>`
+    + fuelPage
+  );
+  const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
+  if (!win){
+    alert('Allow pop-ups to show the sample.');
+    return;
+  }
+  win.document.open();
+  win.document.write(html.replace(
+    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }',
+    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; overflow:auto !important; }'
+  ));
+  win.document.close();
+}
+
+/** Blank line field for log-entry data handouts. */
+function ledField(label, opts = {}){
+  const w = opts.wide ? ' pr-led-wide' : '';
+  const val = opts.value != null && opts.value !== '' ? escPrint(String(opts.value)) : '';
+  return `<div class="pr-led-field${w}"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line">${val}</span></div>`;
+}
+
+function ledMini(label, opts = {}){
+  if (!label) return `<div class="pr-led-mini pr-led-spacer" aria-hidden="true"></div>`;
+  const val = opts.value != null && opts.value !== '' ? escPrint(String(opts.value)) : '';
+  return `<div class="pr-led-mini"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line">${val}</span></div>`;
+}
+
+/**
+ * One half of the A4 landscape Log Entry Data record.
+ * Blank write-in only, grouped by machinery / category for the watchkeeper.
+ * Flowmeters + rev counter follow Vessel Data Setup Type (Inlet/Outlet when dual).
+ */
+function buildLogEntryDataHalfHtml(){
+  const vessel = escPrint(state.setup.vesselName || 'Vessel');
+  const company = escPrint(state.setup.company || 'Company');
+  const cylN = meCylinderCount();
+  const turboN = turboCount();
+  const geN = typeof geUnitCount === 'function' ? geUnitCount() : Math.max(1, Math.min(3, state.setup.generatorCount || 1));
+  const fm = flowmeterRecordRows('all');
+
+  const cylHead = Array.from({ length: cylN }, (_, i) => `<th>C${i + 1}</th>`).join('');
+  const cylRack = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
+  const cylExh = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
+
+  const turboRows = Array.from({ length: turboN }, (_, i) =>
+    `<tr><td class="pr-led-rowlbl">T/C ${i + 1}</td>`
+    + `<td class="pr-led-write"></td><td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+  ).join('');
+
+  const geRows = Array.from({ length: geN }, (_, i) =>
+    `<tr><td class="pr-led-rowlbl">A/E ${i + 1}</td>`
+    + `<td class="pr-led-write pr-led-chk"></td>`
+    + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+  ).join('');
+
+  const fmHead = fm.dualLayout
+    ? `<thead><tr><th>Meter / counter</th><th>Inlet</th><th>Outlet</th></tr></thead>`
+    : `<thead><tr><th>Meter / counter</th><th>Reading</th></tr></thead>`;
+  const fmBody = fm.rows.map(r => {
+    const unit = r.unit ? ` <span class="pr-led-unit">(${escPrint(r.unit)})</span>` : '';
+    if (fm.dualLayout){
+      if (r.dual){
+        return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+          + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`;
+      }
+      return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+        + `<td class="pr-led-write" colspan="2"></td></tr>`;
+    }
+    return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
+      + `<td class="pr-led-write"></td></tr>`;
+  }).join('');
+
+  return `<div class="pr-led-half">
+    <div class="pr-led-inner">
+      <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+
+      <div class="pr-led-body">
+        <div class="pr-led-sec">Watch / operation</div>
+        <div class="pr-led-grid3">
+          ${ledField('Date / Time', { wide: true })}
+          ${ledField('Operation')}
+          ${ledField('Distance ship (nm)')}
+        </div>
+        <div class="pr-led-grid3" style="margin-top:1.2mm">
+          ${ledMini('E/R °C')}
+          ${ledMini('S/T °C')}
+          ${ledMini('S/W °C')}
+        </div>
+
+        <div class="pr-led-sec">Flowmeters &amp; counters</div>
+        <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
+          ${fmHead}
+          <tbody>${fmBody}</tbody>
+        </table>
+
+        <div class="pr-led-sec">Main engine — cylinders</div>
+        <table class="pr-led-table">
+          <thead><tr><th></th>${cylHead}</tr></thead>
+          <tbody>
+            <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
+            <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
+          </tbody>
+        </table>
+
+        <div class="pr-led-two">
+          <div>
+            <div class="pr-led-sec">Main engine — turbocharger</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
+              <tbody>${turboRows}</tbody>
+            </table>
+
+            <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Scav temp')}
+              ${ledMini('Scav press')}
+              ${ledMini('AC in °C')}
+              ${ledMini('AC out °C')}
+              ${ledMini('Press diff')}
+              ${ledMini('')}
+              ${ledMini('Fuel temp')}
+              ${ledMini('Pump mark')}
+              ${ledMini('ME LO temp')}
+              ${ledMini('ME LO press')}
+            </div>
+          </div>
+          <div>
+            <div class="pr-led-sec">Auxiliaries — hrs / load</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
+              <tbody>
+                ${geRows}
+                <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+              </tbody>
+            </table>
+
+            <div class="pr-led-sec">Tanks — ROB</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Bilge ROB m³')}
+              ${ledMini('Sludge ROB m³')}
+            </div>
+            <div class="pr-led-grid1" style="margin-top:1.2mm">
+              ${ledField('FW ROB m³')}
+            </div>
+          </div>
+        </div>
+
+        <div class="pr-led-remarks">
+          <span class="pr-led-lbl">Remarks</span>
+          <div class="pr-led-remarks-box"></div>
+        </div>
+      </div>
+
+      <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
+    </div>
+  </div>`;
+}
+
+function buildLogEntryDataPageHtml(){
+  const half = buildLogEntryDataHalfHtml();
+  return `<div class="pr-led-page">${half}${half}</div>`;
+}
+
+function buildLogEntryDataPrintDocument(pageHtml){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Log Entry Data Record</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+@page{ size: A4 landscape; margin: 0; }
+html, body{
+  margin:0 !important; padding:0 !important; background:#fff !important;
+  width:297mm !important; height:210mm !important;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-led-page{
+  box-sizing:border-box;
+  width:297mm; height:210mm;
+  margin:0; padding:0;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  background:#fff;
+}
+.pr-led-half{
+  box-sizing:border-box;
+  width:100%; height:100%;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  padding:3.5mm 4.5mm 3mm;
+  border-right:0.4pt dashed #888;
+}
+.pr-led-page .pr-led-half:last-child{ border-right:none; }
+.pr-led-inner{
+  width:100%;
+  height:100%;
+  max-width:none;
+  display:flex;
+  flex-direction:column;
+  font-family: Calibri, 'Segoe UI', Candara, sans-serif;
+  color:#111;
+  font-size:7.5pt;
+  line-height:1.2;
+}
+.pr-led-title{
+  text-align:center; font-size:12pt; font-weight:700; letter-spacing:0.04em;
+  margin:0 0 1.5mm; flex:0 0 auto;
+}
+.pr-led-body{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.pr-led-sec{
+  font-size:7pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.8mm 0 1mm; padding-bottom:0.4mm;
+  flex:0 0 auto;
+}
+.pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
+  display:grid; gap:1.4mm 2mm;
+}
+.pr-led-grid1{ grid-template-columns:1fr; }
+.pr-led-grid2{ grid-template-columns:1fr 1fr; }
+.pr-led-grid3{ grid-template-columns:1.5fr 1fr 1fr; }
+.pr-led-grid4{ grid-template-columns:repeat(4, 1fr); }
+.pr-led-grid5{ grid-template-columns:repeat(5, 1fr); }
+.pr-led-field, .pr-led-mini{
+  display:flex; align-items:flex-end; gap:1mm; min-width:0;
+}
+.pr-led-field.pr-led-wide{ grid-column: 1 / -1; }
+.pr-led-lbl{
+  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:7pt;
+}
+.pr-led-line{
+  flex:1 1 auto;
+  border-bottom:0.6pt solid #222;
+  min-height:5mm;
+  min-width:8mm;
+  padding:0 0.5mm 0.2mm;
+  font-size:8pt;
+}
+.pr-led-two{
+  display:grid; grid-template-columns:1fr 1fr; gap:3mm; align-items:start;
+  flex:0 0 auto;
+}
+.pr-led-table{
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:7pt; margin:0.6mm 0;
+}
+.pr-led-table th, .pr-led-table td{
+  border:0.5pt solid #222; padding:0.8mm 0.6mm; text-align:center; height:5mm;
+}
+.pr-led-table th{ background:#efefef; font-weight:600; font-size:6.5pt; }
+.pr-led-write{ height:5mm; }
+.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:22mm; }
+.pr-led-unit{ color:#555; font-weight:400; font-size:6pt; }
+.pr-led-fm-table .pr-led-rowlbl{ width:34mm; }
+.pr-led-fm-io .pr-led-write{ width:22%; }
+.pr-led-chk{ font-size:9pt; }
+.pr-led-remarks{
+  margin-top:2mm;
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:18mm;
+}
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.6mm; flex:0 0 auto; }
+.pr-led-remarks-box{
+  border:0.55pt solid #222;
+  flex:1 1 auto;
+  min-height:16mm;
+  padding:1mm 1.2mm;
+  font-size:8pt;
+  width:100%;
+  box-sizing:border-box;
+}
+.pr-led-foot{
+  text-align:center; margin-top:2mm; font-size:7pt; color:#333;
+  flex:0 0 auto; letter-spacing:0.02em;
+}
+@media screen{
+  body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }
+  .pr-led-page{ margin:0 auto; box-shadow:0 2px 12px rgba(0,0,0,.18); }
+}
+</style></head><body>${pageHtml}</body></html>`;
+}
+
+function printLogEntryDataRecord(){
+  const pageHtml = buildLogEntryDataPageHtml();
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:297mm;height:210mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildLogEntryDataPrintDocument(pageHtml));
+  doc.close();
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=> runSystemPrint(iframe.contentWindow, cleanup);
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+}
+
+function previewLogEntryDataSample(){
+  /* Same blank sheet as print — layout preview only, no filled readings. */
+  const page = buildLogEntryDataPageHtml();
+  const html = buildLogEntryDataPrintDocument(
+    `<div style="font:700 14px Calibri,sans-serif;text-align:center;margin:0 0 10px;color:#222">Blank Log Entry Data Record — watchkeeper fills by hand (A4 landscape ÷ 2)</div>`
+    + page
+  );
+  const win = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
+  if (!win){
+    alert('Allow pop-ups to preview the blank form.');
+    return;
+  }
+  win.document.open();
+  win.document.write(html.replace(
+    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }',
+    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; overflow:auto !important; }'
+  ));
+  win.document.close();
+}
+
 function exportWeeklyAbstractCsv(){
   const {rows} = computeDerived();
   const cutoff = Date.now() - 7*24*3600*1000;
