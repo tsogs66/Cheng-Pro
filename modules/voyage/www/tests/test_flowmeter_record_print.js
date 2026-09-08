@@ -84,7 +84,10 @@ check('FW ROB below bilge/sludge', /Bilge ROB[\s\S]{0,120}Sludge ROB[\s\S]{0,160
 check('remarks section present full-width', HTML.includes('pr-led-remarks') && HTML.includes('pr-led-remarks-box') && /pr-led-two[\s\S]{0,2000}pr-led-remarks/.test(HTML));
 check('remarks compact fixed height', /pr-led-remarks-box\{[\s\S]{0,160}height:3\.2mm/.test(HTML) && /pr-led-remarks\{[\s\S]{0,120}flex:0 0 auto/.test(HTML));
 check('data fields use --led-row variable', HTML.includes('--led-row') && /height:var\(--led-row/.test(HTML) && /min-height:var\(--led-row/.test(HTML));
-check('fit grows row height from spare space', /Spare vertical space grows write-in row height/.test(HTML) || /ROW_SHARE/.test(HTML));
+check('fit grows row height then shrink-to-fit', /Grow write-in rows until just before overflow/.test(HTML) && /Always shrink-to-fit/.test(HTML));
+check('fit forces layout before measure', /Force layout before measuring/.test(HTML) && /void doc\.body\.offsetHeight/.test(HTML));
+check('print forces iframe layout before fit', /void iframe\.offsetHeight[\s\S]{0,80}fitLogEntryDataRoot\(doc\)/.test(HTML));
+check('preview sample opens without noopener flag', /function previewLogEntryDataSample\(\)\{[\s\S]{0,250}window\.open\('',\s*'_blank',\s*'width=1280,height=900'\)/.test(HTML));
 check('remarks outside body above footer', /<\/div>\s*<div class="pr-led-remarks">[\s\S]{0,200}pr-led-foot/.test(HTML));
 check('maximized layout packed body', /pr-led-body\{[\s\S]{0,80}flex:0 0 auto/.test(HTML));
 check('wired print click', HTML.includes('printLogEntryDataRecord()'));

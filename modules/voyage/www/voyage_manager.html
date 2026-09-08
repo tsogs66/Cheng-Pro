@@ -13026,62 +13026,73 @@ html, body{
 }
 
 /** Same zoom on both copies so a centre cut yields two equal blanks.
- *  Spare vertical space grows write-in row height (--led-row); remarks stay compact. */
+ *  Spare height raises --led-row (write-in cells); remarks stay a fixed thin strip.
+ *  Always shrink-to-fit so one A4 landscape page never overflows. */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
   const copies = [...doc.querySelectorAll('.pr-led-copy')];
   const inners = [...doc.querySelectorAll('.pr-led-page-inner')];
   if (!page || copies.length !== 2 || inners.length !== 2) return 1;
 
-  const reset = (rowMm)=>{
+  /* Force layout before measuring (critical for fresh iframe / popup docs). */
+  try{ void doc.body.offsetHeight; void page.offsetHeight; }catch(_e){}
+
+  const setRow = (rowMm, dense)=>{
     inners.forEach(inner=>{
       inner.style.zoom = '1';
       inner.style.transform = 'none';
       inner.style.width = '100%';
-      inner.classList.remove('pr-led-dense');
+      inner.classList.toggle('pr-led-dense', !!dense);
       const host = inner.querySelector('.pr-led-inner') || inner;
       host.style.setProperty('--led-row', rowMm + 'mm');
     });
+    try{ void doc.body.offsetHeight; }catch(_e){}
+  };
+
+  const contentBox = (copy)=>{
+    const cs = doc.defaultView.getComputedStyle(copy);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    return {
+      h: Math.max(1, copy.clientHeight - padY),
+      w: Math.max(1, copy.clientWidth - padX)
+    };
   };
 
   const measure = ()=>{
     let scale = 1;
-    let spareMm = Infinity;
     copies.forEach((copy, i)=>{
       const inner = inners[i];
-      const availH = Math.max(1, copy.clientHeight);
-      const availW = Math.max(1, copy.clientWidth);
+      const box = contentBox(copy);
       const contentH = Math.max(1, inner.scrollHeight);
       const contentW = Math.max(1, inner.scrollWidth);
-      scale = Math.min(scale, availH / contentH, availW / contentW);
-      const pxPerMm = availH / 210; /* copy is A4-landscape half height in layout px */
-      const padGuess = 0; /* padding already inside copy.clientHeight */
-      spareMm = Math.min(spareMm, (availH - contentH) / Math.max(pxPerMm, 0.01));
+      scale = Math.min(scale, box.h / contentH, box.w / contentW);
     });
-    return {
-      scale: Math.max(0.72, Math.min(1, scale * 0.98)),
-      spareMm: Number.isFinite(spareMm) ? spareMm : 0
-    };
+    return Math.max(0.68, Math.min(1, scale));
   };
 
-  /* ~18 write rows share spare height (fm, cyl, turbo, aux, field lines). */
-  const ROW_SHARE = 18;
-  let rowMm = 5.4;
-  reset(rowMm);
-  let { scale, spareMm } = measure();
-
-  if (scale >= 0.98 && spareMm > 1.5){
-    const bump = Math.min(2.4, Math.max(0, (spareMm - 0.8) / ROW_SHARE));
-    rowMm = Math.min(7.2, 5.4 + bump);
-    reset(rowMm);
-    ({ scale, spareMm } = measure());
+  /* Grow write-in rows until just before overflow, then apply a small safety zoom. */
+  let lo = 4.6, hi = 7.0, best = 5.2;
+  setRow(best, false);
+  if (measure() >= 1){
+    for (let k = 0; k < 8; k++){
+      const mid = (lo + hi) / 2;
+      setRow(mid, false);
+      if (measure() >= 1){ best = mid; lo = mid; }
+      else hi = mid;
+    }
+    setRow(best, false);
+  } else {
+    setRow(4.6, false);
+    if (measure() < 1){
+      setRow(4.2, true);
+    }
   }
 
-  if (scale < 0.94){
-    inners.forEach(el=> el.classList.add('pr-led-dense'));
-    ({ scale } = measure());
-  }
-  /* One scale for both copies — keeps the cut exactly centre-equal. */
+  let scale = measure();
+  if (scale >= 0.995) scale = 1;
+  else scale = Math.max(0.68, Math.min(1, scale * 0.985));
+
   inners.forEach(el=>{ el.style.zoom = String(scale); });
 
   doc.documentElement.style.height = '210mm';
@@ -13103,6 +13114,7 @@ function printLogEntryDataRecord(){
     doc.open();
     doc.write(buildLogEntryDataPrintDocument(pageHtml));
     doc.close();
+    try{ void iframe.offsetHeight; void doc.body.offsetHeight; }catch(_e){}
     fitLogEntryDataRoot(doc);
     const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
     /* Synchronous with the button click so the system print dialog is allowed. */
@@ -13115,24 +13127,30 @@ function printLogEntryDataRecord(){
 
 function previewLogEntryDataSample(){
   const page = buildLogEntryDataPageHtml();
-  const html = buildLogEntryDataPrintDocument(page);
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=860');
+  /* No noopener — we must call fitLogEntryDataRoot on the opened document. */
+  const win = window.open('', '_blank', 'width=1280,height=900');
   if (!win){
     alert('Allow pop-ups to preview the blank form.');
     return;
   }
-  win.document.open();
-  win.document.write(html.replace(
+  const html = buildLogEntryDataPrintDocument(page).replace(
     'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }',
     'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }'
-  ));
+  );
+  win.document.open();
+  win.document.write(html);
   win.document.close();
+  const runFit = ()=>{
+    try{
+      void win.document.body.offsetHeight;
+      fitLogEntryDataRoot(win.document);
+    }catch(_e){}
+  };
+  runFit();
   try{
-    const runFit = ()=> fitLogEntryDataRoot(win.document);
+    win.addEventListener('load', ()=> setTimeout(runFit, 30));
     if (win.document.fonts && win.document.fonts.ready){
-      win.document.fonts.ready.then(()=> setTimeout(runFit, 40)).catch(()=> setTimeout(runFit, 80));
-    } else {
-      setTimeout(runFit, 80);
+      win.document.fonts.ready.then(()=> setTimeout(runFit, 30)).catch(()=>{});
     }
   }catch(_e){}
 }
