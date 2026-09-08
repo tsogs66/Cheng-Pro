@@ -10132,6 +10132,16 @@ function rangeAggregate(ids){
     avgSlip: wAvg(r => r.slip, r => r.hrs),
     avgSfoc: wAvg(r => r.sfocActual, r => (r.meHrs != null ? r.meHrs : r.hrs)),
     avgSfocRef: wAvg(r => r.sfocRef, r => (r.meHrs != null ? r.meHrs : r.hrs)),
+    /* Mean distance per report in range (same idea as the classic Average panel). */
+    avgDistShip: (() => {
+      const samples = inRange.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+      return samples.length ? samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length : null;
+    })(),
+    avgDistEngine: (() => {
+      const samples = inRange.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+      return samples.length ? samples.reduce((s, r) => s + r.distEngine, 0) / samples.length : null;
+    })(),
+    avgSpeedEngine: hrs > 0 && sum(r => r.distEngine) > 0 ? sum(r => r.distEngine) / hrs : null,
     fuelPerDay: hrs > 0 ? (Object.values(fuel).reduce((a, v) => a + v, 0) / hrs) * 24 : null,
     rows: inRange
   };
@@ -10185,11 +10195,15 @@ function renderRangeTotals(){
   ].join('');
 
   avgBox.innerHTML = [
-    stat(n(agg.avgSpeed), 'Ship speed (kn)'),
+    /* Core set matching classic voyage Average panel (RPM → Slip → Load → distances/speeds). */
     stat(n(agg.avgRpm), 'RPM'),
-    stat(n(agg.avgMcr), '% MCR'),
-    stat(n(agg.avgKw), 'Shaft power (kW)'),
     stat(n(agg.avgSlip), 'Slip %'),
+    stat(n(agg.avgKw), 'Load (kW)'),
+    stat(n(agg.avgMcr), 'Load % (MCR)'),
+    stat(n(agg.avgDistEngine), 'Engine Distance (nm)'),
+    stat(n(agg.avgSpeedEngine), 'Engine Speed (kn)'),
+    stat(n(agg.avgDistShip), 'Ship Distance (nm)'),
+    stat(n(agg.avgSpeed), 'Ship Speed (kn)'),
     stat(n(agg.avgSfoc), 'Actual SFOC (g/kWh)'),
     stat(n(agg.avgSfocRef), 'Reference SFOC (g/kWh)'),
     stat(n(agg.fuelPerDay, 3), 'Fuel per day (MT)'),
@@ -10264,11 +10278,14 @@ function printRangeTotalsSheet(){
      engine figures over M/E running hours, so a short manoeuvring watch does not
      pull a voyage average around as hard as a full day at sea. */
   const averages = [
-    printRow('Ship speed', `${n(agg.avgSpeed)} kn`),
-    printRow('M/E revolutions', `${n(agg.avgRpm)} rpm`),
-    printRow('Engine load', `${n(agg.avgMcr)} % MCR`),
-    printRow('Shaft power', `${n(agg.avgKw, 0)} kW`),
+    printRow('RPM', `${n(agg.avgRpm)} rpm`),
     printRow('Slip', `${n(agg.avgSlip)} %`),
+    printRow('Load (kW)', `${n(agg.avgKw, 0)} kW`),
+    printRow('Load % (MCR)', `${n(agg.avgMcr)} %`),
+    printRow('Engine Distance', `${n(agg.avgDistEngine)} nm`),
+    printRow('Engine Speed', `${n(agg.avgSpeedEngine)} kn`),
+    printRow('Ship Distance', `${n(agg.avgDistShip)} nm`),
+    printRow('Ship Speed', `${n(agg.avgSpeed)} kn`),
     printRow('Actual SFOC', `${n(agg.avgSfoc)} g/kWh`, sfocDeltaClass(
       agg.avgSfoc != null && agg.avgSfocRef ? ((agg.avgSfoc - agg.avgSfocRef) / agg.avgSfocRef) * 100 : null)),
     printRow('Reference SFOC', `${n(agg.avgSfocRef)} g/kWh`),
@@ -10727,9 +10744,18 @@ function render(){
   document.getElementById('perfTotalsStrip').innerHTML = `
     <div class="stat"><div class="num">${perf.avgRpm===null?'—':fmt(perf.avgRpm,2)}</div><div class="lbl">RPM</div></div>
     <div class="stat"><div class="num">${perf.avgSlip===null?'—':fmt(perf.avgSlip,2)}</div><div class="lbl">Slip %</div></div>
-    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">%MCR (hrs-wtd)</div></div>
-    <div class="stat"><div class="num">${perf.avgKw===null?'—':fmt(perf.avgKw,2)}</div><div class="lbl">KW</div></div>
-    <div class="stat"><div class="num">${seaAvgDistStr}</div><div class="lbl">Distance (nm/day)</div></div>
+    <div class="stat"><div class="num">${perf.avgKw===null?'—':fmt(perf.avgKw,1)}</div><div class="lbl">Load (kW)</div></div>
+    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">Load % (MCR)</div></div>
+    <div class="stat"><div class="num">${(() => {
+      const samples = rows.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+      return samples.length ? fmt(samples.reduce((s, r) => s + r.distEngine, 0) / samples.length, 2) : '—';
+    })()}</div><div class="lbl">Engine Distance (nm)</div></div>
+    <div class="stat"><div class="num">${(perf.totalHrs > 0 && perf.totalDistEngine > 0) ? fmt(perf.totalDistEngine / perf.totalHrs, 2) : '—'}</div><div class="lbl">Engine Speed (kn)</div></div>
+    <div class="stat"><div class="num">${(() => {
+      const samples = rows.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+      return samples.length ? fmt(samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length, 2) : '—';
+    })()}</div><div class="lbl">Ship Distance (nm)</div></div>
+    <div class="stat"><div class="num">${perf.avgSpeedShip===null?'—':fmt(perf.avgSpeedShip,2)}</div><div class="lbl">Ship Speed (kn)</div></div>
   `;
 
   const sfoc100 = state.setup.sfoc100;
@@ -11873,9 +11899,21 @@ function printNoonVoyageAveragesSection(perf, derivedRows){
   const avgShipDist = distSamples.length
     ? distSamples.reduce((s, r) => s + r.distanceShip, 0) / distSamples.length
     : null;
+  const engSamples = (derivedRows || []).filter(r =>
+    r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+  const avgEngDist = engSamples.length
+    ? engSamples.reduce((s, r) => s + r.distEngine, 0) / engSamples.length
+    : null;
+  const avgEngSpeed = (perf.totalHrs > 0 && perf.totalDistEngine > 0)
+    ? perf.totalDistEngine / perf.totalHrs
+    : null;
   return printSection('Voyage Averages', [
     printRow('Average RPM', perf.avgRpm==null?'—':fmt(perf.avgRpm, 2)),
     printRow('Average Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip, 2)),
+    printRow('Average Load (kW)', perf.avgKw==null?'—':`${fmt(perf.avgKw, 1)} kW`),
+    printRow('Average Load % (MCR)', (perf.avgMcrTimeWeighted ?? perf.avgMcr)==null?'—':`${fmt(perf.avgMcrTimeWeighted ?? perf.avgMcr, 2)} %`),
+    printRow('Average Engine Distance', avgEngDist==null?'—':`${fmt(avgEngDist, 2)} nm`),
+    printRow('Average Engine Speed', avgEngSpeed==null?'—':`${fmt(avgEngSpeed, 2)} kn`),
     printRow('Average Ship Distance', avgShipDist==null?'—':`${fmt(avgShipDist, 2)} nm`),
     printRow('Average Ship Speed', perf.avgSpeedShip==null?'—':`${fmt(perf.avgSpeedShip, 2)} kn`)
   ].join(''));
@@ -19378,7 +19416,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v205';
+let androidInstallCacheName = 'noon-report-v207';
 
 /*
  * What the program is called.
