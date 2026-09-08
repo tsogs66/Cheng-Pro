@@ -3080,7 +3080,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Log Entry Data Record</h2>
-      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. Two identical blank halves per page; cut on the centre dashed line.</div>
+      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. <strong>Two identical copies</strong> on one page, each exactly half the sheet (148.5&nbsp;mm) — cut on the centre dashed line.</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
         <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
@@ -12744,107 +12744,104 @@ function buildLogEntryDataHalfHtml(){
       + `<td class="pr-led-write"></td></tr>`;
   }).join('');
 
-  return `<div class="pr-led-half">
-    <div class="pr-led-scale">
-      <div class="pr-led-inner">
-        <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
+  return `<div class="pr-led-inner">
+      <div class="pr-led-title">LOG ENTRY DATA RECORD</div>
 
-        <div class="pr-led-body">
-          <div class="pr-led-sec">Watch / operation</div>
-          <div class="pr-led-grid3">
-            ${ledField('Date / Time', { wide: true })}
-            ${ledField('Operation')}
-            ${ledField('Distance ship (nm)')}
-          </div>
-          <div class="pr-led-grid3" style="margin-top:1mm">
-            ${ledMini('E/R °C')}
-            ${ledMini('S/T °C')}
-            ${ledMini('S/W °C')}
-          </div>
+      <div class="pr-led-body">
+        <div class="pr-led-sec">Watch / operation</div>
+        <div class="pr-led-grid3">
+          ${ledField('Date / Time', { wide: true })}
+          ${ledField('Operation')}
+          ${ledField('Distance ship (nm)')}
+        </div>
+        <div class="pr-led-grid3" style="margin-top:1mm">
+          ${ledMini('E/R °C')}
+          ${ledMini('S/T °C')}
+          ${ledMini('S/W °C')}
+        </div>
 
-          <div class="pr-led-sec">Flowmeters &amp; counters</div>
-          <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
-            ${fmHead}
-            <tbody>${fmBody}</tbody>
-          </table>
+        <div class="pr-led-sec">Flowmeters &amp; counters</div>
+        <table class="pr-led-table pr-led-fm-table${fm.dualLayout ? ' pr-led-fm-io' : ''}">
+          ${fmHead}
+          <tbody>${fmBody}</tbody>
+        </table>
 
-          <div class="pr-led-sec">Main engine — cylinders</div>
-          <table class="pr-led-table">
-            <thead><tr><th></th>${cylHead}</tr></thead>
-            <tbody>
-              <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
-              <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
-            </tbody>
-          </table>
+        <div class="pr-led-sec">Main engine — cylinders</div>
+        <table class="pr-led-table">
+          <thead><tr><th></th>${cylHead}</tr></thead>
+          <tbody>
+            <tr><td class="pr-led-rowlbl">Rack</td>${cylRack}</tr>
+            <tr><td class="pr-led-rowlbl">Exh °C</td>${cylExh}</tr>
+          </tbody>
+        </table>
 
-          <div class="pr-led-two">
-            <div>
-              <div class="pr-led-sec">Main engine — turbocharger</div>
-              <table class="pr-led-table">
-                <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
-                <tbody>${turboRows}</tbody>
-              </table>
+        <div class="pr-led-two">
+          <div>
+            <div class="pr-led-sec">Main engine — turbocharger</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In °C</th><th>Out °C</th><th>RPM</th></tr></thead>
+              <tbody>${turboRows}</tbody>
+            </table>
 
-              <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
-              <div class="pr-led-grid2">
-                ${ledMini('Scav temp')}
-                ${ledMini('Scav press')}
-                ${ledMini('AC in °C')}
-                ${ledMini('AC out °C')}
-                ${ledMini('Press diff')}
-                ${ledMini('')}
-                ${ledMini('Fuel temp')}
-                ${ledMini('Pump mark')}
-                ${ledMini('ME LO temp')}
-                ${ledMini('ME LO press')}
-              </div>
-            </div>
-            <div>
-              <div class="pr-led-sec">Auxiliaries — hrs / load</div>
-              <table class="pr-led-table">
-                <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
-                <tbody>
-                  ${geRows}
-                  <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
-                    <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-                  <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
-                    <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
-                </tbody>
-              </table>
-
-              <div class="pr-led-sec">Tanks — ROB</div>
-              <div class="pr-led-grid2">
-                ${ledMini('Bilge ROB m³')}
-                ${ledMini('Sludge ROB m³')}
-              </div>
-              <div class="pr-led-grid1" style="margin-top:1mm">
-                ${ledField('FW ROB m³')}
-              </div>
+            <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Scav temp')}
+              ${ledMini('Scav press')}
+              ${ledMini('AC in °C')}
+              ${ledMini('AC out °C')}
+              ${ledMini('Press diff')}
+              ${ledMini('')}
+              ${ledMini('Fuel temp')}
+              ${ledMini('Pump mark')}
+              ${ledMini('ME LO temp')}
+              ${ledMini('ME LO press')}
             </div>
           </div>
+          <div>
+            <div class="pr-led-sec">Auxiliaries — hrs / load</div>
+            <table class="pr-led-table">
+              <thead><tr><th></th><th>In svc</th><th>Run hrs</th><th>Avg kW</th></tr></thead>
+              <tbody>
+                ${geRows}
+                <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
+                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+              </tbody>
+            </table>
 
-          <div class="pr-led-remarks">
-            <span class="pr-led-lbl">Remarks</span>
-            <div class="pr-led-remarks-box"></div>
+            <div class="pr-led-sec">Tanks — ROB</div>
+            <div class="pr-led-grid2">
+              ${ledMini('Bilge ROB m³')}
+              ${ledMini('Sludge ROB m³')}
+            </div>
+            <div class="pr-led-grid1" style="margin-top:1mm">
+              ${ledField('FW ROB m³')}
+            </div>
           </div>
         </div>
 
-        <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
+        <div class="pr-led-remarks">
+          <span class="pr-led-lbl">Remarks</span>
+          <div class="pr-led-remarks-box"></div>
+        </div>
       </div>
-    </div>
-  </div>`;
+
+      <div class="pr-led-foot">${vessel} — ${company} — ts0gs</div>
+    </div>`;
 }
 
+/** Two identical copies on one A4 landscape sheet — equal 148.5mm columns; cut on the centre dashed line. */
 function buildLogEntryDataPageHtml(){
-  const half = buildLogEntryDataHalfHtml();
-  return `<div class="pr-led-page">${half}${half}</div>`;
+  const form = buildLogEntryDataHalfHtml();
+  const copy = `<div class="pr-led-copy"><div class="pr-led-page-inner">${form}</div></div>`;
+  return `<div class="pr-led-page">${copy}${copy}</div>`;
 }
 
 function buildLogEntryDataPrintDocument(pageHtml){
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Log Entry Data Record</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <style>
-/* Force one A4 landscape sheet — drivers that ignore @page still get a 297×210 box. */
 @page{ size: A4 landscape; margin: 0; }
 html, body{
   margin:0 !important; padding:0 !important; background:#fff !important;
@@ -12853,37 +12850,51 @@ html, body{
   overflow:hidden !important;
   -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
+/* table-cell columns — equal measure for a centre cut (grid can collapse in some print paths) */
 .pr-led-page{
   box-sizing:border-box !important;
+  display:table !important;
+  table-layout:fixed !important;
+  border-collapse:collapse !important;
   width:297mm !important; height:210mm !important;
   max-width:297mm !important; max-height:210mm !important;
   margin:0 !important; padding:0 !important;
-  display:grid !important;
-  grid-template-columns:1fr 1fr !important;
   background:#fff !important;
   overflow:hidden !important;
   page-break-after:avoid !important; page-break-inside:avoid !important;
   break-after:avoid !important; break-inside:avoid !important;
 }
-.pr-led-half{
+.pr-led-copy{
+  display:table-cell !important;
+  vertical-align:top !important;
   box-sizing:border-box !important;
-  width:100% !important; height:210mm !important; max-height:210mm !important;
-  display:flex !important;
-  align-items:stretch !important;
-  justify-content:stretch !important;
-  padding:3mm 3.5mm 2.5mm !important;
-  border-right:0.4pt dashed #888;
+  width:148.5mm !important;
+  max-width:148.5mm !important;
+  height:210mm !important;
+  max-height:210mm !important;
+  padding:3mm 3.2mm 2.5mm !important;
   overflow:hidden !important;
+  background:#fff !important;
 }
-.pr-led-page .pr-led-half:last-child{ border-right:none; }
-.pr-led-scale{
+.pr-led-page .pr-led-copy:first-child{
+  border-right:0.45pt dashed #666 !important;
+  padding-right:2.8mm !important;
+}
+.pr-led-page .pr-led-copy:last-child{
+  border-right:none !important;
+  padding-left:2.8mm !important;
+}
+.pr-led-page-inner{
   width:100%;
+  max-width:142mm;
+  height:100%;
   transform-origin:top left;
   box-sizing:border-box;
 }
 .pr-led-inner{
   width:100%;
-  max-width:none;
+  height:100%;
+  min-height:100%;
   display:flex;
   flex-direction:column;
   font-family: Calibri, 'Segoe UI', Candara, sans-serif;
@@ -12892,7 +12903,7 @@ html, body{
   line-height:1.15;
 }
 .pr-led-title{
-  text-align:center; font-size:11pt; font-weight:700; letter-spacing:0.04em;
+  text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
   margin:0 0 1mm; flex:0 0 auto;
 }
 .pr-led-body{
@@ -12903,11 +12914,11 @@ html, body{
 }
 .pr-led-sec{
   font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.2mm 0 0.7mm; padding-bottom:0.3mm;
+  color:#333; border-bottom:0.5pt solid #222; margin:1.1mm 0 0.65mm; padding-bottom:0.25mm;
   flex:0 0 auto;
 }
 .pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:1mm 1.6mm;
+  display:grid; gap:0.9mm 1.4mm;
 }
 .pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
@@ -12915,69 +12926,73 @@ html, body{
 .pr-led-grid4{ grid-template-columns:repeat(4, 1fr); }
 .pr-led-grid5{ grid-template-columns:repeat(5, 1fr); }
 .pr-led-field, .pr-led-mini{
-  display:flex; align-items:flex-end; gap:1mm; min-width:0;
+  display:flex; align-items:flex-end; gap:0.8mm; min-width:0;
 }
 .pr-led-field.pr-led-wide{ grid-column: 1 / -1; }
 .pr-led-lbl{
-  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:6.5pt;
+  flex:0 0 auto; font-weight:600; white-space:nowrap; font-size:6.3pt;
 }
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:4.2mm;
-  min-width:8mm;
-  padding:0 0.5mm 0.15mm;
-  font-size:7.5pt;
+  min-height:4mm;
+  min-width:6mm;
+  padding:0 0.4mm 0.1mm;
+  font-size:7pt;
 }
 .pr-led-two{
-  display:grid; grid-template-columns:1fr 1fr; gap:2.2mm; align-items:start;
+  display:grid; grid-template-columns:1fr 1fr; gap:2mm; align-items:start;
   flex:0 0 auto;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.5pt; margin:0.4mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.35mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.55mm 0.45mm; text-align:center; height:4.2mm;
+  border:0.5pt solid #222; padding:0.45mm 0.35mm; text-align:center; height:4mm;
 }
-.pr-led-table th{ background:#efefef; font-weight:600; font-size:6pt; }
-.pr-led-write{ height:4.2mm; }
-.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:20mm; }
-.pr-led-unit{ color:#555; font-weight:400; font-size:5.5pt; }
-.pr-led-fm-table .pr-led-rowlbl{ width:30mm; }
+.pr-led-table th{ background:#efefef; font-weight:600; font-size:5.8pt; }
+.pr-led-write{ height:4mm; }
+.pr-led-rowlbl{ text-align:left !important; font-weight:600; width:18mm; }
+.pr-led-unit{ color:#555; font-weight:400; font-size:5.3pt; }
+.pr-led-fm-table .pr-led-rowlbl{ width:28mm; }
 .pr-led-fm-io .pr-led-write{ width:22%; }
 .pr-led-chk{ font-size:8pt; }
 .pr-led-remarks{
-  margin-top:1.2mm;
+  margin-top:1mm;
   flex:1 1 auto;
   display:flex;
   flex-direction:column;
-  min-height:10mm;
+  min-height:9mm;
 }
-.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.4mm; flex:0 0 auto; }
+.pr-led-remarks .pr-led-lbl{ display:block; margin-bottom:0.35mm; flex:0 0 auto; }
 .pr-led-remarks-box{
   border:0.55pt solid #222;
   flex:1 1 auto;
-  min-height:9mm;
-  padding:0.8mm 1mm;
-  font-size:7.5pt;
+  min-height:8mm;
+  padding:0.7mm 0.9mm;
+  font-size:7pt;
   width:100%;
   box-sizing:border-box;
 }
 .pr-led-foot{
-  text-align:center; margin-top:1mm; font-size:6.5pt; color:#333;
+  text-align:center; margin-top:0.8mm; font-size:6.2pt; color:#333;
   flex:0 0 auto; letter-spacing:0.02em;
 }
-.pr-led-dense .pr-led-title{ font-size:10pt; margin-bottom:0.6mm; }
-.pr-led-dense .pr-led-sec{ margin:0.8mm 0 0.5mm; font-size:6pt; }
-.pr-led-dense .pr-led-line{ min-height:3.6mm; }
+.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.5mm; }
+.pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
+.pr-led-dense .pr-led-line{ min-height:3.4mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
-.pr-led-dense .pr-led-write{ height:3.6mm; padding:0.35mm 0.3mm; }
-.pr-led-dense .pr-led-remarks{ min-height:7mm; margin-top:0.8mm; }
-.pr-led-dense .pr-led-remarks-box{ min-height:6mm; }
+.pr-led-dense .pr-led-write{ height:3.4mm; padding:0.3mm 0.25mm; }
+.pr-led-dense .pr-led-remarks{ min-height:6.5mm; margin-top:0.6mm; }
+.pr-led-dense .pr-led-remarks-box{ min-height:5.5mm; }
 @media print{
-  html, body, .pr-led-page, .pr-led-half{
+  html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;
     max-height:210mm !important; overflow:hidden !important;
+  }
+  .pr-led-copy{
+    width:148.5mm !important; max-width:148.5mm !important;
+    height:210mm !important; max-height:210mm !important;
   }
 }
 @media screen{
@@ -12987,28 +13002,28 @@ html, body{
 </style></head><body>${pageHtml}</body></html>`;
 }
 
-/** Scale both halves so the blank Log Entry Data sheet stays on one A4 landscape page. */
+/** Same zoom on both copies so a centre cut yields two equal blanks. */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
-  const halves = [...doc.querySelectorAll('.pr-led-half')];
-  const scales = [...doc.querySelectorAll('.pr-led-scale')];
-  if (!page || !halves.length || !scales.length) return 1;
+  const copies = [...doc.querySelectorAll('.pr-led-copy')];
+  const inners = [...doc.querySelectorAll('.pr-led-page-inner')];
+  if (!page || copies.length !== 2 || inners.length !== 2) return 1;
 
-  scales.forEach(scaleEl=>{
-    scaleEl.style.zoom = '1';
-    scaleEl.style.transform = 'none';
-    scaleEl.style.width = '100%';
-    scaleEl.classList.remove('pr-led-dense');
+  inners.forEach(inner=>{
+    inner.style.zoom = '1';
+    inner.style.transform = 'none';
+    inner.style.width = '100%';
+    inner.classList.remove('pr-led-dense');
   });
 
   const measure = ()=>{
     let scale = 1;
-    halves.forEach((half, i)=>{
-      const scaleEl = scales[i] || scales[0];
-      const availH = Math.max(1, half.clientHeight);
-      const availW = Math.max(1, half.clientWidth);
-      const contentH = Math.max(1, scaleEl.scrollHeight);
-      const contentW = Math.max(1, scaleEl.scrollWidth);
+    copies.forEach((copy, i)=>{
+      const inner = inners[i];
+      const availH = Math.max(1, copy.clientHeight);
+      const availW = Math.max(1, copy.clientWidth);
+      const contentH = Math.max(1, inner.scrollHeight);
+      const contentW = Math.max(1, inner.scrollWidth);
       scale = Math.min(scale, availH / contentH, availW / contentW);
     });
     return Math.max(0.72, Math.min(1, scale * 0.98));
@@ -13016,10 +13031,11 @@ function fitLogEntryDataRoot(doc){
 
   let scale = measure();
   if (scale < 0.94){
-    scales.forEach(el=> el.classList.add('pr-led-dense'));
+    inners.forEach(el=> el.classList.add('pr-led-dense'));
     scale = measure();
   }
-  scales.forEach(el=>{ el.style.zoom = String(scale); });
+  /* One scale for both copies — keeps the cut exactly centre-equal. */
+  inners.forEach(el=>{ el.style.zoom = String(scale); });
 
   doc.documentElement.style.height = '210mm';
   doc.documentElement.style.overflow = 'hidden';
@@ -13032,7 +13048,6 @@ function printLogEntryDataRecord(){
   const pageHtml = buildLogEntryDataPageHtml();
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
-  /* Real A4 landscape box so fit measurement matches the printed sheet. */
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:297mm;height:210mm;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument;
@@ -13050,7 +13065,6 @@ function printLogEntryDataRecord(){
 }
 
 function previewLogEntryDataSample(){
-  /* Same blank sheet as print — layout preview only, no filled readings. */
   const page = buildLogEntryDataPageHtml();
   const html = buildLogEntryDataPrintDocument(page);
   const win = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=860');
@@ -13064,7 +13078,6 @@ function previewLogEntryDataSample(){
     'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }'
   ));
   win.document.close();
-  /* Fit after layout so the preview matches the single-page print. */
   try{
     const runFit = ()=> fitLogEntryDataRoot(win.document);
     if (win.document.fonts && win.document.fonts.ready){

@@ -46,8 +46,10 @@ check('landscape A4 page size', HTML.includes('size: A4 landscape') && HTML.incl
 check('single-page overflow lock', /max-height:210mm[\s\S]{0,80}overflow:hidden/.test(HTML) && HTML.includes('page-break-inside:avoid'));
 check('fitLogEntryDataRoot helper', HTML.includes('function fitLogEntryDataRoot'));
 check('print calls fit before print', /fitLogEntryDataRoot\(doc\)[\s\S]{0,200}runSystemPrint/.test(HTML));
-check('scale wrapper for zoom', HTML.includes('pr-led-scale') && /pr-led-half[\s\S]{0,80}pr-led-scale/.test(HTML));
-check('two equal halves grid', /pr-led-page\{[\s\S]{0,280}grid-template-columns:1fr 1fr/.test(HTML));
+check('two equal table-cell copies', HTML.includes('display:table') && HTML.includes('table-layout:fixed') && HTML.includes('pr-led-copy') && HTML.includes('148.5mm'));
+check('page builds two copies', /buildLogEntryDataPageHtml[\s\S]{0,200}\$\{copy\}\$\{copy\}/.test(HTML));
+check('same zoom both copies', HTML.includes('One scale for both copies') || /inners\.forEach\(el=>\{ el\.style\.zoom = String\(scale\)/.test(HTML));
+check('centre cut dashed border', /pr-led-copy:first-child[\s\S]{0,120}border-right:0\.45pt dashed/.test(HTML));
 check('Reports print button', HTML.includes('id="btnPrintLogEntryDataRecord"'));
 check('Reports sample button', HTML.includes('id="btnPreviewLogEntryDataSample"'));
 check('includes cylinder rack/exhaust', HTML.includes('Main engine — cylinders'));
