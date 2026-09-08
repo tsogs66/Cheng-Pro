@@ -1,5 +1,6 @@
 /* Optional license API override — loaded before license.js.
-   Set in License → Server URL, or localStorage.chengLicenseApi / apiServerBase. */
+   Set in the activation dialog, or localStorage.chengLicenseApi / apiServerBase
+   (e.g. https://your-cheng-aio-host or http://192.168.x.x:8080). */
 (function () {
   try {
     var u = localStorage.getItem('chengLicenseApi');

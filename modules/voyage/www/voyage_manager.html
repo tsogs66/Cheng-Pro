@@ -2835,6 +2835,23 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="stat-strip cols4" id="rangeAverages"></div>
     </div>
     <div class="panel">
+      <h2>Remaining On Board — Start → End of Selection</h2>
+      <div class="hint" id="rangeRobHint">R.O.B. at the start of the selected stretch and at the end report. Start is the stock on board when the range begins; End is after the last report in the selection.</div>
+      <div class="table-scroll">
+        <table id="rangeRobTable">
+          <thead>
+            <tr>
+              <th>Grade / Item</th>
+              <th>Start ROB</th>
+              <th>End ROB</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody id="rangeRobBody"><tr class="empty-row"><td colspan="4">Select a report range.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
       <h2>Reports In Range</h2>
       <div class="table-scroll">
         <table id="rangeRowsTable">
@@ -10055,6 +10072,69 @@ function rangeEntryIds(){
   return list.slice(fi === ti ? fi : fi + 1, ti + 1).map(e => e.id);
 }
 
+/** Entry ids that bookend R.O.B. for the selected From/To reports. */
+function rangeRobBoundaryIds(){
+  const list = sortedEntries();
+  const fromEl = document.getElementById('rangeFrom');
+  const toEl = document.getElementById('rangeTo');
+  if (!list.length) return { startId: null, endId: null, fi: -1, ti: -1 };
+  let fi = list.findIndex(e => e.id === fromEl?.value);
+  let ti = list.findIndex(e => e.id === toEl?.value);
+  if (fi < 0) fi = 0;
+  if (ti < 0) ti = list.length - 1;
+  if (ti < fi) [fi, ti] = [ti, fi];
+  /* Multi-report range: periods after From through To → start stock is R.O.B. as of From.
+     Single-report range: that report's own period → start stock is the previous report
+     (or voyage opening when it is the first entry). */
+  const endId = list[ti].id;
+  const startId = (fi === ti)
+    ? (fi > 0 ? list[fi - 1].id : null)
+    : list[fi].id;
+  return { startId, endId, fi, ti };
+}
+
+/** Grade / total snapshot from a robAsOfEntry result (or voyage opening stores). */
+function summarizeRobSnapshot(asOf){
+  if (!asOf) return null;
+  const byType = {};
+  FUEL_TYPES.forEach(t => { byType[t] = 0; });
+  fuelTankList().forEach(tank => {
+    const g = tank.grade || FUEL_TYPES[0];
+    const v = Number(asOf.rob?.[tank.id]);
+    if (isFinite(v)) byType[g] = (byType[g] || 0) + v;
+  });
+  const fuelTotal = FUEL_TYPES.reduce((s, t) => s + (byType[t] || 0), 0);
+  return {
+    byType,
+    fuelTotal,
+    lubeTotal: totalLubeRob(asOf.robLube || {}),
+    fwTotal: totalFwRob(asOf.robLube || {})
+  };
+}
+
+function rangeRobBookends(){
+  const list = sortedEntries();
+  const { startId, endId } = rangeRobBoundaryIds();
+  const opening = () => ({
+    rob: Object.assign({}, state.setup.rob || {}),
+    robLube: Object.assign({}, state.setup.robLube || {})
+  });
+  const startRaw = startId ? robAsOfEntry(startId) : opening();
+  const endRaw = endId ? robAsOfEntry(endId) : null;
+  const startEntry = startId ? list.find(e => e.id === startId) : null;
+  const endEntry = endId ? list.find(e => e.id === endId) : null;
+  return {
+    start: summarizeRobSnapshot(startRaw),
+    end: summarizeRobSnapshot(endRaw),
+    startLabel: startEntry
+      ? new Date(startEntry.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : 'Voyage opening',
+    endLabel: endEntry
+      ? new Date(endEntry.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '—'
+  };
+}
+
 function rangeAggregate(ids){
   const { rows } = computeDerived();
   const inRange = rows.filter(r => ids.includes(r.id));
@@ -10146,6 +10226,16 @@ function rangeAggregate(ids){
     avgSlip: wAvg(r => r.slip, r => r.hrs),
     avgSfoc: wAvg(r => r.sfocActual, r => (r.meHrs != null ? r.meHrs : r.hrs)),
     avgSfocRef: wAvg(r => r.sfocRef, r => (r.meHrs != null ? r.meHrs : r.hrs)),
+    /* Mean distance per report in range (same idea as the classic Average panel). */
+    avgDistShip: (() => {
+      const samples = inRange.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+      return samples.length ? samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length : null;
+    })(),
+    avgDistEngine: (() => {
+      const samples = inRange.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+      return samples.length ? samples.reduce((s, r) => s + r.distEngine, 0) / samples.length : null;
+    })(),
+    avgSpeedEngine: hrs > 0 && sum(r => r.distEngine) > 0 ? sum(r => r.distEngine) / hrs : null,
     fuelPerDay: hrs > 0 ? (Object.values(fuel).reduce((a, v) => a + v, 0) / hrs) * 24 : null,
     rows: inRange
   };
@@ -10175,10 +10265,13 @@ function renderRangeTotals(){
   if (!list.length){
     totalsBox.innerHTML = '<div class="hint">No entries yet.</div>';
     avgBox.innerHTML = '';
+    const robBody = document.getElementById('rangeRobBody');
+    if (robBody) robBody.innerHTML = '<tr class="empty-row"><td colspan="4">No entries yet.</td></tr>';
     return;
   }
 
   const agg = rangeAggregate(rangeEntryIds());
+  const robBook = rangeRobBookends();
   const stat = (v, l) => `<div class="stat"><div class="num">${v}</div><div class="lbl">${escHtml(l)}</div></div>`;
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
 
@@ -10199,17 +10292,49 @@ function renderRangeTotals(){
   ].join('');
 
   avgBox.innerHTML = [
-    stat(n(agg.avgSpeed), 'Ship speed (kn)'),
+    /* Core set matching classic voyage Average panel (RPM → Slip → Load → distances/speeds). */
     stat(n(agg.avgRpm), 'RPM'),
-    stat(n(agg.avgMcr), '% MCR'),
-    stat(n(agg.avgKw), 'Shaft power (kW)'),
     stat(n(agg.avgSlip), 'Slip %'),
+    stat(n(agg.avgKw), 'Load (kW)'),
+    stat(n(agg.avgMcr), 'Load % (MCR)'),
+    stat(n(agg.avgDistEngine), 'Engine Distance (nm)'),
+    stat(n(agg.avgSpeedEngine), 'Engine Speed (kn)'),
+    stat(n(agg.avgDistShip), 'Ship Distance (nm)'),
+    stat(n(agg.avgSpeed), 'Ship Speed (kn)'),
     stat(n(agg.avgSfoc), 'Actual SFOC (g/kWh)'),
     stat(n(agg.avgSfocRef), 'Reference SFOC (g/kWh)'),
     stat(n(agg.fuelPerDay, 3), 'Fuel per day (MT)'),
     ...Object.keys(agg.byConsumerPerDay).map(k =>
       stat(n(agg.byConsumerPerDay[k], 3), `${k} per day (MT)`))
   ].join('');
+
+  const robHint = document.getElementById('rangeRobHint');
+  if (robHint){
+    robHint.textContent = `Start R.O.B. as of ${robBook.startLabel} → End R.O.B. as of ${robBook.endLabel}. Change = End − Start (negative means consumed / transferred out of stock).`;
+  }
+  const robBody = document.getElementById('rangeRobBody');
+  if (robBody){
+    const row = (label, startV, endV, unit, dec) => {
+      const s = startV == null || isNaN(startV) ? null : Number(startV);
+      const e = endV == null || isNaN(endV) ? null : Number(endV);
+      const d = (s != null && e != null) ? e - s : null;
+      const fmtU = (v) => v == null ? '—' : `${fmt(v, dec)}${unit ? ' ' + unit : ''}`;
+      return `<tr>
+        <td>${escHtml(label)}</td>
+        <td>${fmtU(s)}</td>
+        <td>${fmtU(e)}</td>
+        <td>${d == null ? '—' : ((d > 0 ? '+' : '') + fmt(d, dec) + (unit ? ' ' + unit : ''))}</td>
+      </tr>`;
+    };
+    const st = robBook.start || {};
+    const en = robBook.end || {};
+    robBody.innerHTML = [
+      ...FUEL_TYPES.map(t => row(t, st.byType?.[t], en.byType?.[t], 'MT', FUEL_DECIMALS)),
+      row('All fuel', st.fuelTotal, en.fuelTotal, 'MT', FUEL_DECIMALS),
+      row('Total lubes', st.lubeTotal, en.lubeTotal, 'L', 0),
+      row('Fresh water', litresToM3(st.fwTotal), litresToM3(en.fwTotal), 'm³', 2)
+    ].join('');
+  }
 
   const head = document.getElementById('rangeRowsHead');
   const body = document.getElementById('rangeRowsBody');
@@ -10278,11 +10403,14 @@ function printRangeTotalsSheet(){
      engine figures over M/E running hours, so a short manoeuvring watch does not
      pull a voyage average around as hard as a full day at sea. */
   const averages = [
-    printRow('Ship speed', `${n(agg.avgSpeed)} kn`),
-    printRow('M/E revolutions', `${n(agg.avgRpm)} rpm`),
-    printRow('Engine load', `${n(agg.avgMcr)} % MCR`),
-    printRow('Shaft power', `${n(agg.avgKw, 0)} kW`),
+    printRow('RPM', `${n(agg.avgRpm)} rpm`),
     printRow('Slip', `${n(agg.avgSlip)} %`),
+    printRow('Load (kW)', `${n(agg.avgKw, 0)} kW`),
+    printRow('Load % (MCR)', `${n(agg.avgMcr)} %`),
+    printRow('Engine Distance', `${n(agg.avgDistEngine)} nm`),
+    printRow('Engine Speed', `${n(agg.avgSpeedEngine)} kn`),
+    printRow('Ship Distance', `${n(agg.avgDistShip)} nm`),
+    printRow('Ship Speed', `${n(agg.avgSpeed)} kn`),
     printRow('Actual SFOC', `${n(agg.avgSfoc)} g/kWh`, sfocDeltaClass(
       agg.avgSfoc != null && agg.avgSfocRef ? ((agg.avgSfoc - agg.avgSfocRef) / agg.avgSfocRef) * 100 : null)),
     printRow('Reference SFOC', `${n(agg.avgSfocRef)} g/kWh`),
@@ -10310,6 +10438,30 @@ function printRangeTotalsSheet(){
         <td><strong>${agg.consumerTotal > 0 ? '100.0' : '—'}</strong></td>
       </tr>
     </table>`;
+
+  const robBook = rangeRobBookends();
+  const robPrintRow = (label, startV, endV, unit, dec) => {
+    const s = startV == null || isNaN(startV) ? null : Number(startV);
+    const e = endV == null || isNaN(endV) ? null : Number(endV);
+    const d = (s != null && e != null) ? e - s : null;
+    const u = (v) => v == null ? '—' : `${fmt(v, dec)}${unit ? ' ' + unit : ''}`;
+    return `<tr>
+      <td class="row-lbl">${escPrint(label)}</td>
+      <td>${u(s)}</td>
+      <td>${u(e)}</td>
+      <td>${d == null ? '—' : ((d > 0 ? '+' : '') + fmt(d, dec) + (unit ? ' ' + unit : ''))}</td>
+    </tr>`;
+  };
+  const st = robBook.start || {}, en = robBook.end || {};
+  const robTable = `
+    <table class="pr-table">
+      <tr><th>Grade / Item</th><th>Start ROB</th><th>End ROB</th><th>Change</th></tr>
+      ${FUEL_TYPES.map(t => robPrintRow(t, st.byType?.[t], en.byType?.[t], 'MT', FUEL_DECIMALS)).join('')}
+      ${robPrintRow('All fuel', st.fuelTotal, en.fuelTotal, 'MT', FUEL_DECIMALS)}
+      ${robPrintRow('Total lubes', st.lubeTotal, en.lubeTotal, 'L', 0)}
+      ${robPrintRow('Fresh water', litresToM3(st.fwTotal), litresToM3(en.fwTotal), 'm³', 2)}
+    </table>
+    <div class="pr-note">Start: ${escPrint(robBook.startLabel)} · End: ${escPrint(robBook.endLabel)}</div>`;
 
   /* The meta grid above carries the full timestamps; in the table a compact date keeps
      each report on one line, which is what lets a page hold a fortnight of them. */
@@ -10361,6 +10513,7 @@ function printRangeTotalsSheet(){
       <div>${printSection('Totals', totals)}</div>
       <div>${printSection('Averages', averages)}</div>
       <div class="pr-span2">${printSection('Fuel Consumption By Consumer', consumerTable)}</div>
+      <div class="pr-span2">${printSection('Remaining On Board — Start → End', robTable)}</div>
       <div class="pr-span2">${printSection(
         `Reports In Range — ${escPrint(when(first?.datetime))} to ${escPrint(when(last?.datetime))}`,
         reportsTable)}</div>
@@ -10741,9 +10894,18 @@ function render(){
   document.getElementById('perfTotalsStrip').innerHTML = `
     <div class="stat"><div class="num">${perf.avgRpm===null?'—':fmt(perf.avgRpm,2)}</div><div class="lbl">RPM</div></div>
     <div class="stat"><div class="num">${perf.avgSlip===null?'—':fmt(perf.avgSlip,2)}</div><div class="lbl">Slip %</div></div>
-    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">%MCR (hrs-wtd)</div></div>
-    <div class="stat"><div class="num">${perf.avgKw===null?'—':fmt(perf.avgKw,2)}</div><div class="lbl">KW</div></div>
-    <div class="stat"><div class="num">${seaAvgDistStr}</div><div class="lbl">Distance (nm/day)</div></div>
+    <div class="stat"><div class="num">${perf.avgKw===null?'—':fmt(perf.avgKw,1)}</div><div class="lbl">Load (kW)</div></div>
+    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">Load % (MCR)</div></div>
+    <div class="stat"><div class="num">${(() => {
+      const samples = rows.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+      return samples.length ? fmt(samples.reduce((s, r) => s + r.distEngine, 0) / samples.length, 2) : '—';
+    })()}</div><div class="lbl">Engine Distance (nm)</div></div>
+    <div class="stat"><div class="num">${(perf.totalHrs > 0 && perf.totalDistEngine > 0) ? fmt(perf.totalDistEngine / perf.totalHrs, 2) : '—'}</div><div class="lbl">Engine Speed (kn)</div></div>
+    <div class="stat"><div class="num">${(() => {
+      const samples = rows.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+      return samples.length ? fmt(samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length, 2) : '—';
+    })()}</div><div class="lbl">Ship Distance (nm)</div></div>
+    <div class="stat"><div class="num">${perf.avgSpeedShip===null?'—':fmt(perf.avgSpeedShip,2)}</div><div class="lbl">Ship Speed (kn)</div></div>
   `;
 
   const sfoc100 = state.setup.sfoc100;
@@ -11954,9 +12116,21 @@ function printNoonVoyageAveragesSection(perf, derivedRows){
   const avgShipDist = distSamples.length
     ? distSamples.reduce((s, r) => s + r.distanceShip, 0) / distSamples.length
     : null;
+  const engSamples = (derivedRows || []).filter(r =>
+    r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+  const avgEngDist = engSamples.length
+    ? engSamples.reduce((s, r) => s + r.distEngine, 0) / engSamples.length
+    : null;
+  const avgEngSpeed = (perf.totalHrs > 0 && perf.totalDistEngine > 0)
+    ? perf.totalDistEngine / perf.totalHrs
+    : null;
   return printSection('Voyage Averages', [
     printRow('Average RPM', perf.avgRpm==null?'—':fmt(perf.avgRpm, 2)),
     printRow('Average Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip, 2)),
+    printRow('Average Load (kW)', perf.avgKw==null?'—':`${fmt(perf.avgKw, 1)} kW`),
+    printRow('Average Load % (MCR)', (perf.avgMcrTimeWeighted ?? perf.avgMcr)==null?'—':`${fmt(perf.avgMcrTimeWeighted ?? perf.avgMcr, 2)} %`),
+    printRow('Average Engine Distance', avgEngDist==null?'—':`${fmt(avgEngDist, 2)} nm`),
+    printRow('Average Engine Speed', avgEngSpeed==null?'—':`${fmt(avgEngSpeed, 2)} kn`),
     printRow('Average Ship Distance', avgShipDist==null?'—':`${fmt(avgShipDist, 2)} nm`),
     printRow('Average Ship Speed', perf.avgSpeedShip==null?'—':`${fmt(perf.avgSpeedShip, 2)} kn`)
   ].join(''));
@@ -19577,7 +19751,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v206';
+let androidInstallCacheName = 'noon-report-v208';
 
 /*
  * What the program is called.
