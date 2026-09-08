@@ -224,7 +224,6 @@
       overlay.querySelector('[data-cam="system"]').addEventListener('click', async () => {
         try {
           /* Close the overlay first so the OS camera UI is not covered. */
-          const prefer = true;
           cleanup();
           settled = true;
           const file = await openSystemCameraInput();
