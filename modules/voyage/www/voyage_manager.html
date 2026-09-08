@@ -12883,7 +12883,7 @@ html, body{
   max-width:148.5mm !important;
   height:210mm !important;
   max-height:210mm !important;
-  padding:2.8mm 3mm 3.2mm !important;
+  padding:2.8mm 3mm 4mm !important;
   overflow:hidden !important;
   background:#fff !important;
 }
@@ -12912,7 +12912,7 @@ html, body{
   color:#111;
   font-size:7pt;
   line-height:1.15;
-  --led-row: 4.6mm;
+  --led-row: 4.2mm;
 }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
@@ -12932,11 +12932,11 @@ html, body{
 }
 .pr-led-sec{
   font-size:6.5pt; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
-  color:#333; border-bottom:0.5pt solid #222; margin:1.2mm 0 0.7mm; padding-bottom:0.25mm;
+  color:#333; border-bottom:0.5pt solid #222; margin:0.9mm 0 0.45mm; padding-bottom:0.2mm;
   flex:0 0 auto;
 }
 .pr-led-grid1, .pr-led-grid2, .pr-led-grid3, .pr-led-grid4, .pr-led-grid5{
-  display:grid; gap:1.1mm 1.4mm;
+  display:grid; gap:0.75mm 1.2mm;
 }
 .pr-led-grid1{ grid-template-columns:1fr; }
 .pr-led-grid2{ grid-template-columns:1fr 1fr; }
@@ -12953,7 +12953,7 @@ html, body{
 .pr-led-line{
   flex:1 1 auto;
   border-bottom:0.6pt solid #222;
-  min-height:var(--led-row, 5.4mm);
+  min-height:var(--led-row, 4.2mm);
   min-width:6mm;
   padding:0 0.4mm 0.1mm;
   font-size:7pt;
@@ -12964,13 +12964,13 @@ html, body{
   min-height:0;
 }
 .pr-led-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.4mm 0;
+  width:100%; border-collapse:collapse; table-layout:fixed; font-size:6.3pt; margin:0.25mm 0;
 }
 .pr-led-table th, .pr-led-table td{
-  border:0.5pt solid #222; padding:0.65mm 0.35mm; text-align:center; height:var(--led-row, 5.4mm);
+  border:0.5pt solid #222; padding:0.45mm 0.3mm; text-align:center; height:var(--led-row, 4.2mm);
 }
 .pr-led-table th{ background:#efefef; font-weight:600; font-size:5.8pt; }
-.pr-led-write{ height:var(--led-row, 5.4mm); }
+.pr-led-write{ height:var(--led-row, 4.2mm); }
 .pr-led-rowlbl{ text-align:left !important; font-weight:600; width:18mm; }
 .pr-led-unit{ color:#555; font-weight:400; font-size:5.3pt; }
 .pr-led-fm-table .pr-led-rowlbl{ width:28mm; }
@@ -13010,15 +13010,17 @@ html, body{
   text-overflow:ellipsis;
   max-width:100%;
 }
-.pr-led-dense{ --led-row: 4.2mm; }
-.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.25mm; }
-.pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.5mm; }
-.pr-led-dense .pr-led-sec{ margin:0.7mm 0 0.4mm; font-size:6pt; }
+.pr-led-dense{ --led-row: 3.6mm; }
+.pr-led-dense .pr-led-title{ font-size:9.5pt; margin-bottom:0.2mm; }
+.pr-led-dense .pr-led-sub{ font-size:6.5pt; margin-bottom:0.4mm; }
+.pr-led-dense .pr-led-sec{ margin:0.55mm 0 0.3mm; font-size:6pt; }
+.pr-led-dense .pr-led-grid1, .pr-led-dense .pr-led-grid2, .pr-led-dense .pr-led-grid3,
+.pr-led-dense .pr-led-grid4, .pr-led-dense .pr-led-grid5{ gap:0.55mm 1mm; }
 .pr-led-dense .pr-led-table th, .pr-led-dense .pr-led-table td,
-.pr-led-dense .pr-led-write{ padding:0.4mm 0.25mm; }
-.pr-led-dense .pr-led-remarks{ margin-top:0.55mm; }
+.pr-led-dense .pr-led-write{ padding:0.3mm 0.2mm; }
+.pr-led-dense .pr-led-remarks{ margin-top:0.45mm; }
 .pr-led-dense .pr-led-remarks-box{ height:12mm; min-height:12mm; max-height:12mm; padding:0.1mm 0.4mm; }
-.pr-led-dense .pr-led-foot{ margin-top:1.2mm; font-size:5.2pt; }
+.pr-led-dense .pr-led-foot{ margin-top:1.1mm; font-size:5.2pt; }
 @media print{
   html, body, .pr-led-page{
     width:297mm !important; height:210mm !important;
@@ -13043,8 +13045,9 @@ try{ fitLogEntryDataRoot(document); }catch(_e){}
 }
 
 /** Fit both equal halves onto one A4 landscape page without clipping.
- *  Spare height raises --led-row; remarks stay a thin strip.
- *  Uses zoom on desktop Chromium and transform:scale on Android print WebView.
+ *  Keeps the 4× remarks box; packs --led-row first, then shrink-to-fit.
+ *  Desktop Chromium: CSS zoom (layout shrinks). Android WebView: transform:scale
+ *  (zoom is unreliable in the print path and lets the OS scale the whole page).
  */
 function fitLogEntryDataRoot(doc){
   const page = doc.querySelector('.pr-led-page');
@@ -13064,6 +13067,7 @@ function fitLogEntryDataRoot(doc){
       inner.style.width = '100%';
       inner.classList.toggle('pr-led-dense', !!dense);
       const host = inner.querySelector('.pr-led-inner') || inner;
+      host.classList.toggle('pr-led-dense', !!dense);
       host.style.setProperty('--led-row', rowMm + 'mm');
     });
     try{ void doc.body.offsetHeight; }catch(_e){}
@@ -13093,44 +13097,74 @@ function fitLogEntryDataRoot(doc){
 
   const applyScale = (scale)=>{
     inners.forEach(el=>{
-      /* zoom shrinks layout height so the half fills without an empty band. */
-      el.style.transform = 'none';
-      el.style.transformOrigin = 'top left';
-      el.style.zoom = String(scale);
-      el.style.width = '100%';
+      if (androidPrint){
+        /* transform does not shrink layout — OS print must not see overflow. */
+        el.style.zoom = '1';
+        el.style.transform = scale < 0.999 ? ('scale(' + scale + ')') : 'none';
+        el.style.transformOrigin = 'top left';
+        el.style.width = '100%';
+      } else {
+        /* zoom shrinks layout height so the half fills without an empty band. */
+        el.style.transform = 'none';
+        el.style.transformOrigin = 'top left';
+        el.style.zoom = String(scale);
+        el.style.width = '100%';
+      }
     });
     try{ void doc.body.offsetHeight; }catch(_e){}
   };
 
-  /* Modest rows so ME LO, tanks ROB, remarks and footer stay on-page. */
-  let lo = 4.0, hi = 5.4, best = 4.5;
+  /* Pack write-in rows around the tall remarks box before any page scale. */
+  let lo = 3.4, hi = 5.2, best = 4.2, dense = false;
   setRow(best, false);
-  if (measure() >= 1){
-    for (let k = 0; k < 8; k++){
+  if (measure() >= 0.995){
+    for (let k = 0; k < 10; k++){
       const mid = (lo + hi) / 2;
       setRow(mid, false);
-      if (measure() >= 1){ best = mid; lo = mid; }
+      if (measure() >= 0.995){ best = mid; lo = mid; }
       else hi = mid;
     }
     setRow(best, false);
   } else {
-    setRow(4.0, false);
-    if (measure() < 1) setRow(3.6, true);
+    dense = true;
+    lo = 3.0; hi = 3.8; best = 3.6;
+    setRow(best, true);
+    for (let k = 0; k < 10; k++){
+      const mid = (lo + hi) / 2;
+      setRow(mid, true);
+      if (measure() >= 0.995){ best = mid; lo = mid; }
+      else hi = mid;
+    }
+    setRow(best, true);
   }
 
   let scale = measure();
-  /* Keep a safety margin without over-shrinking (leaves a large empty band). */
-  const safety = androidPrint ? 0.95 : 0.97;
-  scale = Math.max(0.68, Math.min(1, scale * safety));
-  applyScale(scale);
+  /* Scale only when packed content still overflows. Android needs transform + light safety. */
+  if (scale >= 0.995){
+    scale = androidPrint ? 0.98 : 1;
+    applyScale(scale);
+  } else {
+    scale = Math.max(0.68, Math.min(1, scale * (androidPrint ? 0.94 : 0.985)));
+    applyScale(scale);
+  }
 
-  for (let i = 0; i < 8; i++){
+  for (let i = 0; i < 10; i++){
     let stillOver = false;
     copies.forEach((copy, idx)=>{
       const box = contentBox(copy);
       const inner = inners[idx];
-      const layoutH = Math.max(1, inner.scrollHeight);
-      if (layoutH > box.h + 0.5) stillOver = true;
+      const foot = inner.querySelector('.pr-led-foot');
+      if (!foot){
+        const layoutH = Math.max(1, inner.scrollHeight);
+        const paintedH = androidPrint ? (layoutH * scale) : layoutH;
+        if (paintedH > box.h + 0.5) stillOver = true;
+        return;
+      }
+      /* getBoundingClientRect includes transform:scale — catches real paint overflow. */
+      const padB = parseFloat(doc.defaultView.getComputedStyle(copy).paddingBottom) || 0;
+      const footBottom = foot.getBoundingClientRect().bottom;
+      const limit = copy.getBoundingClientRect().bottom - padB;
+      if (footBottom > limit + 0.5) stillOver = true;
     });
     if (!stillOver) break;
     scale = Math.max(0.68, scale * 0.96);
@@ -20641,7 +20675,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v216';
+let androidInstallCacheName = 'noon-report-v218';
 
 /*
  * What the program is called.

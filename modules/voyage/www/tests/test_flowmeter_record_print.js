@@ -86,9 +86,9 @@ check('remarks compact fixed height', /pr-led-remarks-box\{[\s\S]{0,160}height:1
 check('remarks height is 4x prior strip', /height:13\.6mm/.test(HTML) && /pr-led-dense[\s\S]{0,80}height:12mm/.test(HTML));
 check('footer clears remarks with margin', /pr-led-foot\{[\s\S]{0,120}margin-top:1\.6mm/.test(HTML) && !/pr-led-remarks\{[\s\S]{0,120}max-height:4\.8mm/.test(HTML));
 check('data fields use --led-row variable', HTML.includes('--led-row') && /height:var\(--led-row/.test(HTML) && /min-height:var\(--led-row/.test(HTML));
-check('fit grows row height then shrink-to-fit', /Modest rows so ME LO/.test(HTML) && /without clipping|stay on-page/.test(HTML));
+check('fit packs rows then shrink-to-fit', /Pack write-in rows around the tall remarks|packs --led-row first/.test(HTML) && /without clipping/.test(HTML));
 check('fit forces layout before measure', /void doc\.body\.offsetHeight/.test(HTML) && /void page\.offsetHeight/.test(HTML));
-check('fit prefers zoom layout shrink', /Prefer zoom|zoom shrinks layout height|el\.style\.zoom = String\(scale\)/.test(HTML));
+check('fit prefers zoom on desktop, transform on Android', /zoom shrinks layout height/.test(HTML) && /androidPrint[\s\S]{0,200}scale\(/.test(HTML) && /el\.style\.zoom = String\(scale\)/.test(HTML));
 check('print document re-fits on load for Android', /Android print WebView re-fits/.test(HTML) && /fitLogEntryDataRoot\.toString\(\)/.test(HTML));
 check('print forces iframe layout before fit', /void iframe\.offsetHeight[\s\S]{0,80}fitLogEntryDataRoot\(doc\)/.test(HTML));
 check('LED includes ME LO and tanks ROB fields', /ledMini\('ME LO temp'\)/.test(HTML) && /ledMini\('Bilge ROB/.test(HTML) && /ledField\('FW ROB/.test(HTML));
