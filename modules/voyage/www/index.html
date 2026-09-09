@@ -2031,7 +2031,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="btn-row" id="registerVesselRow" hidden style="margin-top:8px;">
         <button class="ghost small" id="btnRegisterVessel" type="button">Register Vessel</button>
       </div>
-      <div class="hint">Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel and used on printouts, CII and the e-ORB prefill. Inside <strong>ChEng AIO</strong> these identity fields are managed only in AIO → Vessel Setup (this panel becomes read-only). Opening ROB and voyage ops stay here.</div>
+      <div class="hint">Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel and used on printouts, CII and the e-ORB prefill. These fields stay editable so you can correct errors or record a flag-registry change. Opening ROB and voyage ops stay on this tab.</div>
 
       <h3 class="sub">Vessel Stamp</h3>
       <div class="stamp-row">
@@ -2988,7 +2988,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" type="button" id="btnExportWeeklyAbstract">Export Weekly Abstract (CSV)</button>
       </div>
       <div class="table-scroll" id="depArrRobTable"></div>
-      <div class="hint">Opening ROB (voyage start / carryover) vs present ROB after all receipts and consumption. Print for end-of-voyage or port arrival handover.</div>
+      <div class="hint">Opening = Vessel Data Opening ROB (voyage baseline). Present = current ROB from the latest log entry. Received uses the same book rules as the ROB tab (hand receipts + stamped Received, no double-count). Consumed = Opening + Received − Present.</div>
     </div>
     <div class="panel">
       <h2>Carbon Intensity &amp; CO₂ (voyage estimate)</h2>
@@ -3407,7 +3407,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button type="button" class="primary small" id="btnSaveSyncSettings"
           onclick="if(window.__saveSyncSettingsClick){window.__saveSyncSettingsClick(event);return false;}">Save Sync Settings</button>
         <button type="button" class="ghost small" id="btnTestSync">Test Connection</button>
-        <button type="button" class="ghost small" id="btnSyncNow">Sync Now (active leg)</button>
+        <button type="button" class="ghost small" id="btnSyncNow">Push Active Leg</button>
         <button type="button" class="ghost small" id="btnPullRemote">Pull Active Leg</button>
         <button type="button" class="ghost small" id="btnListRemoteVoyages">List Remote Voyages</button>
         <button type="button" class="ghost small" id="btnRequestPersist">Keep Data Persistent</button>
@@ -3421,7 +3421,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint" id="syncMetaLine">Last sync: never</div>
       <div id="remoteVoyageList" class="hint" style="display:none; margin-top:8px;"></div>
-      <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden). Sync Now pushes the active voyage + condition only.</div>
+      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Keep Data Persistent</strong> merges local and server entries for the same leg in chronological order (union both ways — missing entries are filled from the other side), then saves the merged result on both sides. Every action asks for confirmation first.</div>
+      <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden).</div>
     </div>
     <!-- ARCHIVED (APP_FEATURES.installAndroid): install panels kept for future use -->
     <div class="panel" id="androidInstallPanel" hidden>
@@ -3506,8 +3507,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
     <div class="panel">
       <h2>Local Database (active voyage)</h2>
-      <p class="hint">All data is stored automatically in this browser's IndexedDB. The buttons below export/import the <em>active vessel’s working voyage</em> only. For every vessel and the voyage library, use Database Backup / Restore / Merge above.</p>
+      <p class="hint">All data is stored automatically in this browser's IndexedDB. Use the vessel backup buttons to move or restore a full ship. Leg export/import below affects only the <em>active vessel’s working voyage</em>. Full-database tools are in Database Backup / Restore / Merge above.</p>
       <div class="btn-row">
+        <button class="primary small" id="btnExportActiveVessel" type="button">Export Active Vessel</button>
+        <button class="ghost small" id="btnImportVesselBackup" type="button">Import Vessel Backup…</button>
         <button class="ghost small" id="btnExportJSON">Export Active Leg (JSON)</button>
         <button class="ghost small" id="btnExportSetupJSON">Export Setup Only (JSON)</button>
         <button class="ghost small" id="btnImportSetupJSON">Import Setup Only (JSON)</button>
@@ -3517,10 +3520,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="primary small" id="btnRecalculateAllData" type="button">Recalculate All Data</button>
         <input type="file" id="fileImport" accept="application/json" style="display:none;">
         <input type="file" id="fileImportSetup" accept="application/json" style="display:none;">
+        <input type="file" id="fileImportVesselBackup" accept="application/json,.json" style="display:none;">
       </div>
+      <div class="hint"><strong>Export Active Vessel</strong> downloads a complete backup of the currently loaded vessel (details, opening ROB, every leg, entries, receipts, documents, e-ORB). <strong>Import Vessel Backup</strong> restores or adds a vessel; if that ship already exists you choose Merge voyage legs into the existing database, or Overwrite the entire vessel. Sync API token is never written to the file.</div>
       <div class="hint">"Export Setup Only" saves just the Vessel Data tab configuration without log entries. "Replace Active Leg from Backup" replaces this vessel’s current working entries/receipts/documents from a leg JSON file.</div>
       <div class="hint">"Recalculate All Data" re-derives M/E average RPM from rev-counter deltas (so engine distance &amp; slip % match Pitch × Δrevs ÷ 1852), rebuilds performance tables, and refreshes every saved voyage leg. Manual consumption overrides are kept. For the open report only, Voyage Summary also has <strong>Recalculate Averages</strong> (can clear frozen unit overrides).</div>
       <div class="hint" id="entryCount"></div>
+      <div class="hint" id="localVesselBackupStatus" role="status" aria-live="polite">No vessel backup action yet this session.</div>
     </div>
   </div>
 
@@ -10596,8 +10602,8 @@ function render(){
   renderVesselSelector();
   renderVoyageLibrary().catch(()=>{});
   const {rows, consByFuel, consByLube, perf} = computeDerived();
-  /* The R.O.B. tab can be pointed at a past report; everything else on the page
-     still wants the figure as it stands now. */
+  /* The R.O.B. tab can be pointed at a past report; gauges use that pick.
+     Voyage Setup Remaining Onboard and Dep/Arr Present always use live current ROB. */
   const asOfPick = robGaugeSource();
   const live = currentROB(consByFuel, consByLube);
   const {rob, robLube} = asOfPick || live;
@@ -10654,7 +10660,7 @@ function render(){
   document.getElementById('s_def_geSg').value = d.geSg;
   document.getElementById('s_def_blrSg').value = d.blrSg;
 
-  renderVoyageSetupRobFields(rob, robLube);
+  renderVoyageSetupRobFields(live.rob, live.robLube);
 
   document.getElementById('capacitySettings').innerHTML =
     fuelTankList().map(t=>`<div class="unit-box"><h3>${t.name} (MT)</h3><div class="field"><input type="number" data-cap-fuel="${t.id}" value="${tankCapValue(state.setup.capacity, t)}"></div></div>`).join('') +
@@ -11989,12 +11995,10 @@ function isNoonReportOp(op){
   return u.includes('NOON') || u === 'HEAVY WEATHER';
 }
 
-/** Print title is the operation (IN PORT - NOON, AT SEA - NOON, …); the old
- *  generic "Noon Report — Voyage Summary" becomes the subtitle. */
+/** Print title is the operation (IN PORT - NOON, AT SEA - NOON, …); subtitle is Voyage Chief — Voyage Summary. */
 function noonSheetTitles(operation){
   const op = (operation || '').trim();
-  const noon = isNoonReportOp(op);
-  const kind = noon ? 'Noon Report — Voyage Summary' : 'Voyage Summary';
+  const kind = 'Voyage Chief — Voyage Summary';
   return { title: op || kind, subtitle: op ? kind : '' };
 }
 
@@ -12301,26 +12305,56 @@ function renderRunningHoursStrip(rows, perf){
     stat(fmt(purHrs,1), 'LO purifier hrs');
 }
 
+/**
+ * Voyage-total Received for Dep/Arr (Opening → Present). Same book rules as robAsOf:
+ * hand-logged receipts + stamped summary Received; rob-survey mirrors only when the
+ * entry has no stamp yet (never double-count mirror + stamp).
+ */
+function voyageReceivedQty(tank, categories){
+  const cats = Array.isArray(categories) ? categories : [categories];
+  const stampCat = cats.includes('fuel') && !cats.includes('fw') && !cats.includes('lube')
+    ? 'fuel'
+    : (cats.includes('fw') ? 'fw' : 'lube');
+  let hand = 0, surveyFallback = 0;
+  for (const r of (state.receipts || [])){
+    if (!receiptMatchesTank(r, tank, cats.length === 1 ? cats[0] : cats)) continue;
+    const qty = Number(r.qty) || 0;
+    if (r.source === 'rob-survey'){
+      if (!entryHasStampedReceived(r.surveyEntryId, tank.id, stampCat)) surveyFallback += qty;
+    } else {
+      hand += qty;
+    }
+  }
+  let stamped = 0;
+  for (const e of (state.entries || [])){
+    if (!e) continue;
+    const map = stampCat === 'fuel' ? e.robReceived : e.robReceivedLube;
+    if (map && map[tank.id] != null) stamped += Number(map[tank.id]) || 0;
+  }
+  return hand + surveyFallback + stamped;
+}
+
 function depArrRobRows(consByFuel, consByLube){
+  /* Opening = Vessel Data Opening ROB; Present = latest-log current ROB. */
   const {rob, robLube} = currentROB(consByFuel, consByLube);
   const rows = [];
   fuelTankList().forEach(t=>{
     const open = tankRobValue(state.setup.rob, t) || 0;
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'fuel')).reduce((s,r)=>s+(r.qty||0),0);
+    const received = voyageReceivedQty(t, 'fuel');
     const present = rob[t.id] ?? 0;
     const consumed = open + received - present;
     rows.push({ id:t.id, label:t.name, unit:'MT', open, received, consumed, present, cat:'fuel' });
   });
   lubeTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'lube')).reduce((s,r)=>s+(r.qty||0),0);
+    const received = voyageReceivedQty(t, 'lube');
     const present = robLube[t.id] ?? 0;
     const consumed = open + received - present;
     rows.push({ id:t.id, label:t.name, unit:'L', open, received, consumed, present, cat:'lube' });
   });
   fwTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, ['fw','lube'])).reduce((s,r)=>s+(r.qty||0),0);
+    const received = voyageReceivedQty(t, ['fw','lube']);
     const present = robLube[t.id] ?? 0;
     const consumed = open + received - present;
     rows.push({ id:t.id, label:t.name, unit:'m³', open, received, consumed, present, cat:'fw' });
@@ -14566,11 +14600,14 @@ function printLandscapeFullPages(sheetHtml, copyLabels){
 }
 
 function printDocHeader(opts){
-  const { title, subtitle, badge } = opts;
+  const { title, subtitle, badge, deptLine } = opts;
+  const dept = (deptLine != null && deptLine !== '')
+    ? deptLine
+    : (`Engine Department — ${APP_NAME}`);
   return `<header class="pr-doc-header">
     <div>
       <div class="pr-doc-vessel">${escPrint(state.setup.vesselName || 'Vessel')}</div>
-      <div class="pr-doc-dept">Engine Department — ${escPrint(APP_NAME)}</div>
+      <div class="pr-doc-dept">${escPrint(dept)}</div>
     </div>
     <div class="pr-doc-title-wrap">
       ${badge ? `<div class="pr-doc-badge">${escPrint(badge)}</div>` : ''}
@@ -14834,8 +14871,6 @@ async function snapshotMetersAsNextReportReference(){
     alert('No log entries yet. Enter the opening meters under Vessel Data → Flowmeters & Counters, then save.');
     return;
   }
-  const { consByFuel, consByLube } = computeDerived();
-  const { rob, robLube } = currentROB(consByFuel, consByLube);
   const fm = state.setup.flowmeters || {};
   const dig = (key, fallback=8) => (fm[key] && fm[key].digits != null) ? fm[key].digits : fallback;
   const meIn = last.me?.meterIn != null ? last.me.meterIn : last.me?.meter;
@@ -14851,8 +14886,9 @@ async function snapshotMetersAsNextReportReference(){
     fw: { reading: last.fwProd ?? null, digits: dig('fw') }
   };
   state.setup.carryover = JSON.parse(JSON.stringify(last));
-  state.setup.rob = { ...(rob || {}) };
-  state.setup.robLube = { ...(robLube || {}) };
+  /* Opening ROB stays on Vessel Data — do not overwrite with current ROB here.
+     Current ROB is shown on Voyage Setup; Create New Voyage carries it into the
+     next leg's Opening ROB. */
   await saveSetup();
   try { renderFlowmeterCounterRows(); } catch (_) {}
   try {
@@ -14867,8 +14903,8 @@ async function snapshotMetersAsNextReportReference(){
   alert(
     'Next-report reference updated from the latest log entry.\n\n' +
     `Entry: ${last.operation || '—'} @ ${last.datetime || '—'}\n` +
-    'Flowmeters, rev counter, carryover, and Opening ROB now match present stock.\n' +
-    'The voyage log was not cleared.'
+    'Flowmeters, rev counter, and carryover now match the latest report.\n' +
+    'Opening ROB (Vessel Data) was not changed. The voyage log was not cleared.'
   );
 }
 document.getElementById('btnSnapshotMetersBaseline')?.addEventListener('click', ()=> snapshotMetersAsNextReportReference());
@@ -15237,7 +15273,8 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
     `Current leg ${oldVoyageNo || '—'} / ${oldCondition} will be kept in the Voyage Library ` +
     `(and synced folder data/<vessel>/${slugVoyageNo(oldVoyageNo)}/${normalizeCondition(oldCondition)}.json).\n\n` +
     `Next active leg: ${newVoyageNo} / ${newCondition}.\n\n` +
-    'A backup JSON + Voyage Abstract CSV will download. Opening ROB and meter carryover are kept.\n\nContinue?'
+    'A backup JSON + Voyage Abstract CSV will download.\n' +
+    'Last log ROB becomes Vessel Data Opening ROB for the new leg; meter carryover is taken from the last entry.\n\nContinue?'
   );
   if (!ok) return;
 
@@ -17416,16 +17453,14 @@ function buildVoyageNoonSheetHTML(entry){
 
   const titles = noonSheetTitles(entry.operation);
   const flagName = flagRegistryName(vesselFlagCode());
+  const deptLine = `${flagName || '—'} — ${state.setup.imoNo || '—'}`;
   return `<div class="pr-sheet pr-sheet-noon">
-    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: conditionLabel(entry.condition) })}
+    ${printDocHeader({ title: titles.title, subtitle: titles.subtitle, badge: conditionLabel(entry.condition), deptLine })}
     ${printMetaGrid([
       {label:'Date & Time', value:dtStr},
-      {label:'Route', value:`${state.setup.departPort||'—'} → ${state.setup.arrivePort||'—'}`},
-      {label:'Condition', value:conditionLabel(entry.condition)},
       {label:'Last Report', value:prevReportStr},
-      {label:'IMO No.', value:state.setup.imoNo||'—'},
-      {label:'Flag', value:flagName||'—'}
-    ], 6)}
+      {label:'Route', value:`${state.setup.departPort||'—'} → ${state.setup.arrivePort||'—'}`}
+    ], 3)}
     ${printKpiRow(kpiItems)}
     <div class="pr-noon-body">
       <div class="pr-noon-cols">
@@ -20126,6 +20161,8 @@ function applyRemoteSnapshot(remote, policy){
   if (typeof entryMatchesActiveLeg === 'function'){
     state.entries = (state.entries || []).filter(entryMatchesActiveLeg);
   }
+  /* Chronological order for Keep Data Persistent / merge reviews. */
+  state.entries = (state.entries || []).slice().sort((a,b)=> String(a.datetime||'').localeCompare(String(b.datetime||'')));
 }
 
 function filterDeleted(items, deleted){
@@ -20479,25 +20516,30 @@ function queueBackgroundSync(){
 })();
 
 document.getElementById('btnSyncNow').addEventListener('click', async ()=>{
+  if (!confirm(
+    'PUSH ACTIVE LEG — WARNING\n\n' +
+    'This uploads the current active voyage leg from THIS device and OVERWRITES the same vessel/voyage/condition on the server if it already exists.\n\n' +
+    'Server entries that exist only on the server (and not locally) for this leg will be lost.\n\n' +
+    'Use Keep Data Persistent instead if you need a chronological merge both ways.\n\nContinue with Push (overwrite server)?'
+  )) return;
   try {
-    await syncNow();
-    alert('Sync completed successfully.');
+    await syncNow({ policy: 'local' });
+    alert('Push completed. Server active leg was overwritten with this device’s data.');
   } catch (e){
-    alert('Sync failed: ' + e.message);
+    alert('Push failed: ' + e.message);
   }
 });
 
 document.getElementById('btnPullRemote').addEventListener('click', async ()=>{
   if (!confirm(
-    'Pull from the server and MERGE with local data?\n\n' +
-    'Newer of local vs server is kept for each record (by updatedAt).\n\n' +
-    'OK = merge (recommended after an app update).\n' +
-    'Cancel = do nothing.\n\n' +
-    'To intentionally discard local data, set Conflict Policy to “Prefer server” and use Sync Now.'
+    'PULL ACTIVE LEG — WARNING\n\n' +
+    'This downloads the active voyage leg from the server and OVERWRITES the local active leg on this device.\n\n' +
+    'Local-only entries for this leg that are not on the server will be lost.\n\n' +
+    'Use Keep Data Persistent instead if you need a chronological merge both ways.\n\nContinue with Pull (overwrite local)?'
   )) return;
   try {
-    await syncNow({ pullOnly: true, policy: 'merge' });
-    alert('Pulled and merged with local data (newer of each record kept).');
+    await syncNow({ pullOnly: true, policy: 'remote' });
+    alert('Pull completed. Local active leg was overwritten with server data.');
   } catch (e){
     alert('Pull failed: ' + e.message);
   }
@@ -20673,19 +20715,34 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
 });
 
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
+  if (!confirm(
+    'KEEP DATA PERSISTENT — WARNING\n\n' +
+    'This merges the active voyage leg with the same leg on the server:\n' +
+    '• Union of local and server entries/receipts (chronological / by record id)\n' +
+    '• Missing entries on either side are filled from the other\n' +
+    '• Same watch (datetime + operation) collapses to the newer copy\n' +
+    '• The merged result is then saved locally AND pushed to the server\n\n' +
+    'This is the safe two-way sync. Push/Pull alone overwrite one side.\n\nContinue with chronological merge?'
+  )) return;
   try {
-    if (!navigator.storage || !navigator.storage.persist){
-      alert('Persistent storage API not available in this browser.');
-      return;
-    }
-    const already = await navigator.storage.persisted();
-    if (already){ alert('Storage is already persistent on this device.'); return; }
-    const ok = await navigator.storage.persist();
-    alert(ok
-      ? 'Browser will keep IndexedDB data even under storage pressure. Install as PWA for best results on Android.'
-      : 'Persistent storage was not granted. Install the app (Add to Home Screen) and try again.');
+    await syncNow({ policy: 'merge' });
+    let persistMsg = '';
+    try {
+      if (navigator.storage && navigator.storage.persist){
+        const already = await navigator.storage.persisted();
+        if (!already){
+          const ok = await navigator.storage.persist();
+          persistMsg = ok
+            ? '\n\nBrowser also granted persistent IndexedDB storage on this device.'
+            : '\n\n(Browser did not grant persistent storage — install as PWA for best results.)';
+        } else {
+          persistMsg = '\n\nBrowser storage was already marked persistent on this device.';
+        }
+      }
+    } catch (_) {}
+    alert('Keep Data Persistent completed: active leg merged both ways with the server.' + persistMsg);
   } catch (e){
-    alert('Could not request persistence: ' + e.message);
+    alert('Keep Data Persistent failed: ' + e.message);
   }
 });
 
@@ -20738,7 +20795,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v218';
+let androidInstallCacheName = 'noon-report-v226';
 
 /*
  * What the program is called.
@@ -21477,10 +21534,11 @@ function matchVesselForImport(payload){
       || null;
 }
 
-async function importVesselExport(payload){
+async function importVesselExport(payload, options = {}){
   if (!isVesselExport(payload)){
     throw new Error('Not a vessel export (expected format ' + VESSEL_EXPORT_FORMAT + ').');
   }
+  const mode = options.mode === 'merge' ? 'merge' : 'replace';
   await ensureDB();
   await saveCurrentVesselState();
 
@@ -21493,9 +21551,11 @@ async function importVesselExport(payload){
   if (target){
     if (srcName) target.name = srcName;
     if (srcSlug) target.slug = srcSlug;
-    /* Wipe this vessel only — pack stores, its legs and its setup row. */
-    await clearVesselPackData(target.id);
-    await clearVesselStore('orbEntries', target.id);
+    if (mode === 'replace'){
+      /* Wipe this vessel only — pack stores, its legs and its setup row. */
+      await clearVesselPackData(target.id);
+      await clearVesselStore('orbEntries', target.id);
+    }
   } else {
     target = {
       id: src.id || ('v-' + uid()),
@@ -21506,15 +21566,88 @@ async function importVesselExport(payload){
     state.vessels.push(target);
   }
 
-  const setup = migrateSetup(JSON.parse(JSON.stringify(payload.setup || defaultSetupTemplate({ vesselName: srcName }))));
-  if (!setup.vesselName) setup.vesselName = srcName;
-  /* Device credentials are mirrored back on load; carry only the ship's slug. */
-  setup.sync = { ...(setup.sync || {}), apiToken: '', vesselId: srcSlug };
-  await dbPut('meta', { key: `setup:${target.id}`, value: setup });
+  if (mode === 'replace' || !replacing){
+    const setup = migrateSetup(JSON.parse(JSON.stringify(payload.setup || defaultSetupTemplate({ vesselName: srcName }))));
+    if (!setup.vesselName) setup.vesselName = srcName;
+    /* Device credentials are mirrored back on load; carry only the ship's slug. */
+    setup.sync = { ...(setup.sync || {}), apiToken: '', vesselId: srcSlug };
+    await dbPut('meta', { key: `setup:${target.id}`, value: setup });
+  } else {
+    /* Merge: keep local setup/opening ROB; only fold in voyage library + records. */
+    const metaAll = await dbGetAll('meta');
+    const setupRow = metaAll.find(m => m.key === `setup:${target.id}`);
+    if (!setupRow && payload.setup){
+      const setup = migrateSetup(JSON.parse(JSON.stringify(payload.setup)));
+      setup.sync = { ...(setup.sync || {}), apiToken: '', vesselId: srcSlug };
+      await dbPut('meta', { key: `setup:${target.id}`, value: setup });
+    }
+  }
 
   let written = 0;
   for (const name of VESSEL_EXPORT_STORES){
     const rows = (payload.stores && payload.stores[name]) || [];
+    if (mode === 'merge' && replacing && name === 'voyageLegs'){
+      const existingLegs = await listVoyageLegsForVessel(target.id);
+      const byId = new Map(existingLegs.map(l => [l.id, l]));
+      for (const raw of rows){
+        if (!raw) continue;
+        const row = JSON.parse(JSON.stringify(raw));
+        row.vesselId = target.id;
+        row.id = voyageLegId(target.id, row.voyageNumber, row.condition);
+        for (const key of ['entries','receipts','documents','abstracts','printHistory']){
+          if (Array.isArray(row[key])){
+            row[key] = row[key].map(x => (x && typeof x === 'object') ? { ...x, vesselId: target.id } : x);
+          }
+        }
+        if (row.setup) row.setup = { ...row.setup, sync: { ...(row.setup.sync || {}), apiToken: '', vesselId: srcSlug } };
+        const prev = byId.get(row.id);
+        if (!prev){
+          await dbPut('voyageLegs', row);
+          written++;
+          continue;
+        }
+        const deleted = { entries: [], receipts: [], documents: [], abstracts: [], printHistory: [] };
+        const merged = {
+          ...prev,
+          ...row,
+          id: row.id,
+          vesselId: target.id,
+          entries: dedupeEntriesByContent(
+            mergeListsById(row.entries || [], prev.entries || []),
+            deleted
+          ).sort((a,b)=> String(a.datetime||'').localeCompare(String(b.datetime||''))),
+          receipts: mergeListsById(row.receipts || [], prev.receipts || []),
+          documents: mergeListsById(row.documents || [], prev.documents || []),
+          abstracts: mergeListsById(row.abstracts || [], prev.abstracts || []),
+          printHistory: mergeListsById(row.printHistory || [], prev.printHistory || []),
+          /* Prefer local setup/opening on merge; keep incoming only when local missing. */
+          setup: prev.setup || row.setup
+        };
+        await dbPut('voyageLegs', merged);
+        written++;
+      }
+      continue;
+    }
+    if (mode === 'merge' && replacing && name !== 'voyageLegs'){
+      let existing = [];
+      try { existing = (await dbGetAll(name)) || []; } catch (_) { existing = []; }
+      existing = existing.filter(r => recordBelongsToVessel(name, r, target.id));
+      const incoming = [];
+      for (const raw of rows){
+        if (!raw || raw.id == null) continue;
+        const row = JSON.parse(JSON.stringify(raw));
+        row.vesselId = target.id;
+        incoming.push(row);
+      }
+      const merged = name === 'entries'
+        ? dedupeEntriesByContent(mergeListsById(incoming, existing), { entries: [] })
+        : mergeListsById(incoming, existing);
+      for (const row of merged){
+        await dbPut(name, row);
+        written++;
+      }
+      continue;
+    }
     for (const raw of rows){
       if (!raw || raw.id == null) continue;
       const row = JSON.parse(JSON.stringify(raw));
@@ -21542,11 +21675,85 @@ async function importVesselExport(payload){
   prefillFromLastEntry();
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
-  return { vessel: target, replacing, written };
+  return { vessel: target, replacing, written, mode };
 }
 
 function vesselExportCountSummary(counts){
   return Object.keys(counts || {}).filter(k => counts[k]).map(k => `${k}: ${counts[k]}`).join(', ') || 'no records';
+}
+
+function setLocalVesselBackupStatus(msg){
+  const el = document.getElementById('localVesselBackupStatus');
+  if (el) el.textContent = msg;
+  setVesselExportStatus(msg);
+}
+
+/** Prompt: new vessel / merge legs / overwrite entire vessel. Returns mode or null if cancelled. */
+function promptVesselImportMode(payload, fileName){
+  const src = payload.vessel || {};
+  const existing = matchVesselForImport(payload);
+  const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
+  const summary = vesselExportCountSummary(payload.counts);
+  if (!existing){
+    const ok = confirm(
+      'IMPORT VESSEL BACKUP — WARNING\n\n' +
+      `Add "${src.name || 'vessel'}" as a NEW vessel to this database?\n\n` +
+      `File: ${fileName || '—'}\nExported: ${payload.exportedAt || 'unknown'}\nIncoming: ${total} record(s) — ${summary}\n\n` +
+      'Other vessels are untouched.'
+    );
+    return ok ? 'replace' : null;
+  }
+  const merge = confirm(
+    'IMPORT VESSEL BACKUP — WARNING\n\n' +
+    `Vessel "${existing.name}" already exists in this database.\n\n` +
+    `File: ${fileName || '—'}\nExported: ${payload.exportedAt || 'unknown'}\nIncoming: ${total} record(s) — ${summary}\n\n` +
+    'OK = MERGE voyage legs into the existing vessel database\n' +
+    '  (union of legs/entries chronologically; local Opening ROB / Vessel Data kept).\n\n' +
+    'Cancel = choose Overwrite instead (or abort).'
+  );
+  if (merge) return 'merge';
+  const overwrite = confirm(
+    'OVERWRITE ENTIRE VESSEL — WARNING\n\n' +
+    `Replace ALL local data for "${existing.name}" with this backup file?\n\n` +
+    'This erases that ship’s local entries, receipts, documents, voyage legs and e-ORB records first, then loads the file.\n' +
+    'Other vessels are untouched. This cannot be undone except from another backup.\n\nContinue with Overwrite?'
+  );
+  return overwrite ? 'replace' : null;
+}
+
+async function runVesselBackupExport(vesselId, statusFn){
+  const setStatus = statusFn || setLocalVesselBackupStatus;
+  if (!vesselId){ alert('No active vessel to export.'); return; }
+  if (!confirm(
+    'EXPORT ACTIVE VESSEL — WARNING\n\n' +
+    'This downloads a complete backup of the selected vessel (details, Opening ROB, every saved voyage leg, log entries, receipts, documents, print history and e-ORB).\n\n' +
+    'The sync API token is never written to the file.\n\nContinue?'
+  )) return;
+  setStatus('Building vessel export…');
+  const payload = await buildVesselExport(vesselId);
+  const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const name = `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`;
+  const saved = await downloadJsonFile(name, payload);
+  const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
+  const summary = vesselExportCountSummary(payload.counts);
+  const where = downloadWhereLabel(saved);
+  setStatus(`Exported ${payload.vessel.name}: ${saved.filename} — ${total} record(s) (${summary}). Sync API token excluded. (${where})`);
+  alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${saved.filename}\nRecords: ${total}\n${summary}\n\nThe file was ${where}.\nThe sync API token is not written to the file.`);
+}
+
+async function runVesselBackupImport(payload, fileName, statusFn){
+  const setStatus = statusFn || setLocalVesselBackupStatus;
+  if (!isVesselExport(payload)){
+    throw new Error('This file is not a vessel export (format ' + VESSEL_EXPORT_FORMAT + '). Create one with “Export Active Vessel”. Full-database backups go through Restore / Merge on the Setup tab.');
+  }
+  const mode = promptVesselImportMode(payload, fileName);
+  if (!mode){ setStatus('Vessel import cancelled.'); return null; }
+  setStatus(mode === 'merge' ? 'Merging vessel backup…' : 'Importing vessel (overwrite)…');
+  const res = await importVesselExport(payload, { mode });
+  const verb = !res.replacing ? 'added' : (res.mode === 'merge' ? 'merged into' : 'replaced');
+  setStatus(`Vessel ${verb}: ${res.vessel.name} — ${res.written} record(s) written and loaded as the active vessel.`);
+  alert(`Vessel ${verb} from ${fileName || 'backup'}.\n\nVessel: ${res.vessel.name}\nMode: ${res.mode}\nRecords written: ${res.written}\n\nIt is now the active vessel.`);
+  return res;
 }
 
 document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>{
@@ -21556,16 +21763,7 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
   if (!vesselId){ alert('Select a vessel in the Fleet list first.'); return; }
   if (btn) btn.disabled = true;
   try{
-    setVesselExportStatus('Building vessel export…');
-    const payload = await buildVesselExport(vesselId);
-    const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-    const name = `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`;
-    const saved = await downloadJsonFile(name, payload);
-    const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
-    const summary = vesselExportCountSummary(payload.counts);
-    const where = downloadWhereLabel(saved);
-    setVesselExportStatus(`Exported ${payload.vessel.name}: ${saved.filename} — ${total} record(s) (${summary}). Sync API token excluded. (${where})`);
-    alert(`Vessel export ready.\n\nVessel: ${payload.vessel.name}\nFile: ${saved.filename}\nRecords: ${total}\n${summary}\n\nThe file was ${where}.\nThe sync API token is not written to the file.`);
+    await runVesselBackupExport(vesselId, setVesselExportStatus);
   }catch(e){
     console.error(e);
     if (isSaveCancelled(e)){
@@ -21579,7 +21777,34 @@ document.getElementById('btnExportVessel')?.addEventListener('click', async ()=>
   }
 });
 
+document.getElementById('btnExportActiveVessel')?.addEventListener('click', async ()=>{
+  const btn = document.getElementById('btnExportActiveVessel');
+  if (btn) btn.disabled = true;
+  try{
+    await runVesselBackupExport(state.activeVesselId, setLocalVesselBackupStatus);
+  }catch(e){
+    console.error(e);
+    if (isSaveCancelled(e)){
+      setLocalVesselBackupStatus('Export cancelled — nothing was saved.');
+      return;
+    }
+    setLocalVesselBackupStatus('Vessel export failed: ' + e.message);
+    alert('Vessel export failed: ' + e.message);
+  }finally{
+    if (btn) btn.disabled = false;
+  }
+});
+
 document.getElementById('btnImportVessel')?.addEventListener('click', ()=> document.getElementById('fileImportVessel')?.click());
+document.getElementById('btnImportVesselBackup')?.addEventListener('click', ()=>{
+  if (!confirm(
+    'IMPORT VESSEL BACKUP — WARNING\n\n' +
+    'You will choose a vessel export JSON file.\n' +
+    'If that vessel already exists you will be asked to MERGE voyage legs into the existing database, or OVERWRITE the entire vessel.\n\n' +
+    'Continue to choose a file?'
+  )) return;
+  document.getElementById('fileImportVesselBackup')?.click();
+});
 
 window.addEventListener('message', async (ev)=>{
   const msg = ev.data || {};
@@ -21615,8 +21840,9 @@ window.addEventListener('message', async (ev)=>{
       });
     } else if (msg.action === 'import-vessel') {
       if (!msg.payload) throw new Error('No vessel payload');
-      const res = await importVesselExport(msg.payload);
-      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records).` });
+      const mode = msg.mode === 'merge' ? 'merge' : 'replace';
+      const res = await importVesselExport(msg.payload, { mode });
+      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records, mode ${res.mode}).` });
     } else {
       reply({ error: 'Unknown backup action: ' + msg.action });
     }
@@ -21632,25 +21858,25 @@ document.getElementById('fileImportVessel')?.addEventListener('change', async (e
   try{
     setVesselExportStatus('Reading vessel file…');
     const payload = await readJsonFileInput(file);
-    if (!isVesselExport(payload)){
-      throw new Error('This file is not a vessel export (format ' + VESSEL_EXPORT_FORMAT + '). Create one with “Export Selected Vessel (JSON)”. Full-database backups go through Restore / Merge on the Setup tab.');
-    }
-    const src = payload.vessel || {};
-    const existing = matchVesselForImport(payload);
-    const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
-    const summary = vesselExportCountSummary(payload.counts);
-    const msg = existing
-      ? `REPLACE all local data for "${existing.name}" with this file?\n\nFile: ${file.name}\nExported: ${payload.exportedAt || 'unknown'}\nIncoming: ${total} record(s) — ${summary}\n\nThis ship's local entries, receipts, documents, voyage legs and e-ORB records are erased first. Other vessels are untouched.`
-      : `Import "${src.name || 'vessel'}" as a new vessel?\n\nFile: ${file.name}\nExported: ${payload.exportedAt || 'unknown'}\nIncoming: ${total} record(s) — ${summary}`;
-    if (!confirm(msg)){ setVesselExportStatus('Vessel import cancelled.'); return; }
-    setVesselExportStatus('Importing vessel…');
-    const res = await importVesselExport(payload);
-    const verb = res.replacing ? 'replaced' : 'added';
-    setVesselExportStatus(`Vessel ${verb}: ${res.vessel.name} — ${res.written} record(s) written and loaded as the active vessel.`);
-    alert(`Vessel ${verb} from ${file.name}.\n\nVessel: ${res.vessel.name}\nRecords written: ${res.written}\n\nIt is now the active vessel.`);
+    await runVesselBackupImport(payload, file.name, setVesselExportStatus);
   }catch(e){
     console.error(e);
     setVesselExportStatus('Vessel import failed: ' + e.message);
+    alert('Vessel import failed: ' + e.message);
+  }
+});
+
+document.getElementById('fileImportVesselBackup')?.addEventListener('change', async (ev)=>{
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  try{
+    setLocalVesselBackupStatus('Reading vessel file…');
+    const payload = await readJsonFileInput(file);
+    await runVesselBackupImport(payload, file.name, setLocalVesselBackupStatus);
+  }catch(e){
+    console.error(e);
+    setLocalVesselBackupStatus('Vessel import failed: ' + e.message);
     alert('Vessel import failed: ' + e.message);
   }
 });
@@ -23904,27 +24130,29 @@ function applyEorbLicenseVisibility(){
 }
 
 /**
- * Inside ChEng AIO, shared ship identity is read-only here — edit in AIO → Vessel Setup.
- * Standalone Voyage Chief keeps full Vessel Data editing. ROB / voyage ops stay editable.
+ * Vessel identity stays editable here (flag registry changes, corrections, etc.).
+ * ChEng AIO still mirrors hub values on load; chiefs can override locally when needed.
  */
 function applyChengAioVesselHubLock(alreadyLocked){
   const hub = isChengAioEmbedded();
-  const lock = hub || !!alreadyLocked;
   ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (el.tagName === 'SELECT') el.disabled = lock;
-    else el.readOnly = lock;
-    if (hub) {
-      el.title = 'Managed in ChEng AIO → Vessel Setup. Opening ROB and voyage data stay editable here.';
-    }
+    if (el.tagName === 'SELECT') el.disabled = false;
+    else el.readOnly = false;
+    el.title = hub
+      ? 'Editable here for corrections (e.g. flag registry change). AIO Vessel Setup may re-apply hub values on next load.'
+      : '';
   });
   const saveBtn = document.getElementById('btnSaveVesselIdentity');
-  if (saveBtn) saveBtn.hidden = !!hub;
+  if (saveBtn) saveBtn.hidden = false;
   const idNote = document.getElementById('vesselIdentityNote');
-  if (idNote && hub) {
-    idNote.textContent = 'Ship identity (name, IMO, call sign, flag, company, DWT) is managed in ChEng AIO → Vessel Setup. Fuel/lube opening ROB and voyage setup remain on this tab.';
+  if (idNote) {
+    idNote.textContent = hub
+      ? 'Ship identity is editable for corrections (name, IMO, call sign, flag, company, DWT). Prefer AIO → Vessel Setup for fleet-wide changes; local edits apply to this device’s voyage data.'
+      : 'Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel. Edit here if details change (e.g. flag registry).';
   }
+  void alreadyLocked;
 }
 
 /* ---------------- device enrollment ----------------
