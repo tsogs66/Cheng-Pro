@@ -52,10 +52,13 @@ shellHtml = shellHtml.replace(/<link[^>]+fonts\.googleapis\.com[^>]*>\s*/gi, '')
 shellHtml = shellHtml.replace(/<link[^>]+fonts\.gstatic\.com[^>]*>\s*/gi, '');
 shellHtml = shellHtml.replace(/<link[^>]+preconnect[^>]*googleapis[^>]*>\s*/gi, '');
 shellHtml = shellHtml.replace(/<link[^>]+preconnect[^>]*gstatic[^>]*>\s*/gi, '');
+const pkg = require(path.join(ROOT, 'package.json'));
+const aioVersion = String(pkg.version || '').replace(/^v/i, '');
+
 shellHtml = shellHtml.replace(
   '<script src="js/api.js"></script>',
   [
-    '<script>window.CHENG_PRO_BUNDLED = true; window.CHENG_PRO_EMBEDDED_BASE = "tanks/embedded/";</script>',
+    `<script>window.CHENG_PRO_BUNDLED = true; window.CHENG_PRO_EMBEDDED_BASE = "tanks/embedded/"; window.CHENG_PRO_VERSION = ${JSON.stringify(aioVersion)}; window.CHENG_PRO_AUTHOR = "ts0gs · Marvin C. Endozo";</script>`,
     '<script src="tanks/js/node-shim.js"></script>',
     '<script src="tanks/js/node-require.js"></script>',
     '<script src="tanks/js/fuel-report-core.js"></script>',

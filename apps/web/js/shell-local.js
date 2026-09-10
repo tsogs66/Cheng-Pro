@@ -104,7 +104,9 @@
       return {
         ok: true,
         product: 'cheng-aio',
-        version: 'bundled',
+        version: (typeof window !== 'undefined' && window.CHENG_PRO_VERSION)
+          ? String(window.CHENG_PRO_VERSION).replace(/^v/i, '')
+          : 'bundled',
         modules: {
           tanks: { ok: true, ...(health || {}) },
           voyage: { ok: false, note: 'Configure sync URL in Voyage Chief when online' },

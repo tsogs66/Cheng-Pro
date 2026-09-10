@@ -177,22 +177,26 @@
     updateSidebarMeta();
   }
 
+  function resolveAppVersion() {
+    const stamped = String(window.CHENG_PRO_VERSION || '').replace(/^v/i, '').trim();
+    const topVer = document.getElementById('appVersion');
+    const fromDom = ((topVer && topVer.textContent) || '').replace(/^v/i, '').trim();
+    if (fromDom && !/^bundled$/i.test(fromDom)) return fromDom;
+    if (stamped) return stamped;
+    return fromDom || '';
+  }
+
   function updateSidebarMeta() {
     const verEl = document.getElementById('sidebarVersion');
-    const emailEl = document.getElementById('sidebarEmail');
+    const authorEl = document.getElementById('sidebarAuthor');
     const topVer = document.getElementById('appVersion');
-    if (verEl) {
-      const v = (topVer && topVer.textContent) || '';
-      verEl.textContent = v || '';
+    const ver = resolveAppVersion();
+    if (ver && topVer && (!topVer.textContent || /^v?bundled$/i.test(topVer.textContent.trim()))) {
+      topVer.textContent = 'v' + ver;
     }
-    if (emailEl) {
-      let email = '';
-      try {
-        if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
-          email = ChengLicense.licenseEmail() || '';
-        }
-      } catch { /* ignore */ }
-      emailEl.textContent = email;
+    if (verEl) verEl.textContent = ver ? ('v' + ver) : '';
+    if (authorEl) {
+      authorEl.textContent = window.CHENG_PRO_AUTHOR || 'ts0gs · Marvin C. Endozo';
     }
   }
 
@@ -294,6 +298,7 @@
 
     /* First paint — do not leave #main empty while LocalApi starts. */
     main.innerHTML = '<section class="panel"><p class="empty">Starting on this device…</p></section>';
+    updateSidebarMeta();
 
     try {
       if (typeof LocalApi !== 'undefined' && LocalApi.start) {
@@ -310,8 +315,12 @@
       healthDot.classList.toggle('bad', !health.ok);
       const verEl = document.getElementById('appVersion');
       if (verEl) {
-        const ver = health.version || health.appVersion;
-        if (ver) verEl.textContent = 'v' + String(ver).replace(/^v/, '');
+        let ver = health.version || health.appVersion || '';
+        ver = String(ver).replace(/^v/i, '').trim();
+        if (!ver || /^bundled$/i.test(ver)) {
+          ver = String(window.CHENG_PRO_VERSION || '').replace(/^v/i, '').trim();
+        }
+        if (ver) verEl.textContent = 'v' + ver;
       }
       updateSidebarMeta();
     } catch {

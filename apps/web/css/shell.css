@@ -89,10 +89,6 @@ html.bright .topbar { background: rgba(255,255,255,0.92); }
   letter-spacing: 0.04em; text-transform: uppercase;
 }
 .brand-text > span { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.brand-byline {
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
-  color: var(--muted); margin-top: 2px;
-}
 .vessel-switcher { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .vessel-switcher label {
   font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
@@ -157,8 +153,8 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
   color: var(--muted);
 }
 .sidebar-meta .ver { font-family: var(--mono); color: var(--text); font-weight: 600; }
-.sidebar-meta .email { font-family: var(--mono); color: var(--text); word-break: break-all; margin-top: 2px; }
-.sidebar-meta .email:empty, .sidebar-meta .ver:empty { display: none; }
+.sidebar-meta .author { font-family: var(--mono); color: var(--muted); word-break: break-word; margin-top: 2px; }
+.sidebar-meta .author:empty, .sidebar-meta .ver:empty { display: none; }
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -290,7 +286,6 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 /* Phone landscape — compact chrome, still one-row bottom nav */
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
   .topbar { padding-top: 6px; padding-bottom: 6px; }
-  .brand-byline { display: none; }
   .bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
