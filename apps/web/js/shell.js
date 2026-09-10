@@ -174,6 +174,26 @@
       el.classList.remove('nav-warn');
       el.removeAttribute('title');
     });
+    updateSidebarMeta();
+  }
+
+  function updateSidebarMeta() {
+    const verEl = document.getElementById('sidebarVersion');
+    const emailEl = document.getElementById('sidebarEmail');
+    const topVer = document.getElementById('appVersion');
+    if (verEl) {
+      const v = (topVer && topVer.textContent) || '';
+      verEl.textContent = v || '';
+    }
+    if (emailEl) {
+      let email = '';
+      try {
+        if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
+          email = ChengLicense.licenseEmail() || '';
+        }
+      } catch { /* ignore */ }
+      emailEl.textContent = email;
+    }
   }
 
   function showToast(msg) {
@@ -293,6 +313,7 @@
         const ver = health.version || health.appVersion;
         if (ver) verEl.textContent = 'v' + String(ver).replace(/^v/, '');
       }
+      updateSidebarMeta();
     } catch {
       healthDot.classList.add('bad');
     }

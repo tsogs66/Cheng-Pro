@@ -4,100 +4,178 @@ window.ChengProModules.home = {
   title: 'Home',
   async render(root) {
     const active = ChengPro.vessel.getActive();
-    let health = { ok: false };
-    try { health = await ChengPro.api.fetch('/api/health'); } catch { /* ignore */ }
     const vessels = ChengPro.vessel.getListSync();
     const firstRun = !vessels.length;
-    const ver = health.version || '';
-
-    const hasVoyage = !window.ChengLicense || ChengLicense.moduleAllowed('voyage');
-    const hasTanks = !window.ChengLicense || ChengLicense.moduleAllowed('tanks');
-    const hasEorb = !window.ChengLicense || ChengLicense.moduleAllowed('eorb');
-    const hasPerf = !window.ChengLicense || ChengLicense.moduleAllowed('performance');
+    /* Soft gate: when license is inactive, still show Home panels (nav soft-allows programs).
+       Only hide when a valid seat explicitly excludes Voyage/Tanks. */
+    const hasVoyage = moduleSoftAllowed('voyage');
+    const hasTanks = moduleSoftAllowed('tanks');
+    const Dash = window.ChengProHomeDashboard;
 
     root.innerHTML = `
-      <section class="home-hero panel">
-        <p class="home-kicker">Chief engineer suite</p>
-        <h1>ChEng AIO</h1>
-        <p class="home-lead">
-          Built for the people who keep the plant running — one vessel identity,
-          then the tools you already know: Voyage Chief for the noon book and ROB chain,
-          Tank Chief for soundings and bunkers, and e-ORB when your company carries the book electronically.
-        </p>
-        ${firstRun ? `
-        <div class="form-actions" style="margin-top:18px">
+      ${firstRun ? `
+      <section class="panel">
+        <div class="form-actions">
           <button type="button" class="btn primary" data-go="vessel">Set up this vessel</button>
         </div>
-        <p class="home-aside">Start with the ship name and IMO. You can fill engine particulars later when you need Performance.</p>
-        ` : `
-        <div class="home-vessel-line">
-          <span>Working vessel</span>
-          <strong>${active ? esc(active.name) : 'None selected'}</strong>
-          ${active?.imo ? `<em>${esc(active.imo)}</em>` : ''}
+        <p class="hint" style="margin-top:10px">Start with the ship name and IMO. Home becomes an operational dashboard once a vessel is active.</p>
+      </section>` : `
+      <div class="vessel-chip">
+        <span>Working vessel</span>
+        <strong>${active ? esc(active.name) : 'None selected'}</strong>
+        ${active?.imo ? `<em>${esc(active.imo)}</em>` : ''}
+      </div>`}
+
+      <section class="panel" id="homeVoyagePanel">
+        <div class="section-head">
+          <h2>Voyage progress</h2>
+          <div class="sub" id="homeVoyageSub">${hasVoyage ? 'Loading…' : 'Voyage not on this license'}</div>
         </div>
-        `}
+        ${hasVoyage ? `
+        <div class="toggle-row" id="homeWxToggle">
+          <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
+          <button type="button" data-wx="local" title="Weather only near the ship">Ship-local weather</button>
+        </div>
+        <div id="voyageProgressViz"></div>
+        <div class="form-actions" style="margin-top:10px">
+          <button type="button" class="btn" id="goVoyageFromHome">Open Voyage Chief</button>
+        </div>` : `
+        <p class="home-warn">Voyage Chief is not on this license — ask the office to include it on your ChEng AIO key.</p>`}
       </section>
 
-      <section class="panel home-section">
-        <h2>What this suite covers</h2>
-        <div class="home-feature-list">
-          <article>
-            <h3>Voyage Chief</h3>
-            <p>Daily noon and intermediate reports, ROB continuity, bunker receipts, abstracts, and voyage library — the paperwork you need at sea, offline on the tablet or PC.</p>
-            ${hasVoyage
-              ? '<button type="button" class="btn primary" id="goVoyage">Open Voyage Chief</button>'
-              : '<p class="home-warn">Not on this license — ask the office to include Voyage Chief on your ChEng AIO key.</p>'}
-          </article>
-          <article>
-            <h3>Tank Chief</h3>
-            <p>Soundings with trim and list, calibration tables, fuel condition reports, and bunkering records. Same active vessel as Voyage, separate tank database.</p>
-            ${hasTanks
-              ? '<button type="button" class="btn primary" id="goTanks">Open Tank Chief</button>'
-              : '<p class="home-warn">Not on this license — ask the office to include Tank Chief on your ChEng AIO key.</p>'}
-          </article>
-          <article>
-            <h3>e-ORB</h3>
-            <p>Electronic Oil Record Book Part I — coded entries, signatures, and a printable book. Lives with the voyage data for this vessel.</p>
-            ${hasEorb
-              ? '<button type="button" class="btn" id="goEorb">Open e-ORB</button>'
-              : '<p class="home-warn">Not on this license — e-ORB is an optional program on the key.</p>'}
-          </article>
-          <article>
-            <h3>Performance</h3>
-            <p>Watch and voyage performance from the figures you already keep — slip, consumption, and engine run hours between two times.</p>
-            ${hasPerf
-              ? '<button type="button" class="btn" data-go="performance">Open Performance</button>'
-              : ''}
-          </article>
+      <section class="panel" id="homeGaugesPanel">
+        <div class="section-head">
+          <h2>Consumption vs ROB</h2>
+          <div class="sub">Voyage opening ROB · dials match Voyage Chief</div>
         </div>
+        <div class="gauge-grid" id="fuelDualGauges"></div>
+        <p class="hint" id="homeGaugeHint" style="margin-top:8px"></p>
       </section>
 
-      <section class="panel home-section">
-        <h2>How licensing works here</h2>
-        <p class="home-copy">
-          You activate once in ChEng AIO with the email and key from your office.
-          Voyage Chief and Tank Chief opened from this menu use that same seat —
-          you do not sign in again. Standalone Voyage or Tank installs keep their own keys.
-        </p>
-        <div class="form-actions">
-          <button type="button" class="btn" data-go="license">License</button>
-          <button type="button" class="btn" data-go="vessel">Vessel Setup</button>
+      <section class="panel" id="homeTanksPanel">
+        <div class="section-head">
+          <h2>Vessel tank overview</h2>
+          <div class="sub">Fuel tanks only</div>
         </div>
-        ${ver ? `<p class="home-meta">Build ${esc(ver)}</p>` : ''}
+        ${hasTanks ? `
+        <div class="cards-row" id="homeFuelSummary"></div>
+        <div class="tg-grid" id="homeFuelGrid"></div>
+        <div class="form-actions" style="margin-top:10px">
+          <button type="button" class="btn" id="goTanksFromHome">Open Tank Chief</button>
+        </div>` : `
+        <p class="home-warn">Tank Chief is not on this license — ask the office to include it on your ChEng AIO key.</p>`}
       </section>
     `;
 
-    root.querySelector('#goVoyage')?.addEventListener('click', () => ChengPro.openVoyage());
-    root.querySelector('#goTanks')?.addEventListener('click', () => ChengPro.openTanks());
-    root.querySelector('#goEorb')?.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'eorb' }));
-    });
     root.querySelectorAll('[data-go]').forEach((btn) => {
       btn.onclick = () =>
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
     });
+    root.querySelector('#goVoyageFromHome')?.addEventListener('click', () => ChengPro.openVoyage());
+    root.querySelector('#goTanksFromHome')?.addEventListener('click', () => ChengPro.openTanks());
+
+    let wxMode = 'full';
+    let voyageSnap = null;
+
+    function paintVoyage() {
+      const viz = root.querySelector('#voyageProgressViz');
+      const sub = root.querySelector('#homeVoyageSub');
+      if (!hasVoyage || !Dash) return;
+      if (!voyageSnap || !voyageSnap.ok) {
+        if (sub) sub.textContent = 'No Voyage Chief data on this device yet';
+        if (viz) {
+          viz.innerHTML = `<div class="hint">Open Voyage Chief once for this vessel to populate progress and weather.</div>`;
+        }
+        const gauges = root.querySelector('#fuelDualGauges');
+        if (gauges) gauges.innerHTML = `<div class="hint">Open Voyage Chief to load fuel ROB gauges.</div>`;
+        return;
+      }
+      const total = voyageSnap.totalDistance;
+      if (sub) {
+        if (total > 0) {
+          sub.textContent = `${voyageSnap.departPort || 'Departure'} → ${voyageSnap.arrivePort || 'Arrival'} · ${Number(total).toLocaleString()} nm`;
+        } else {
+          sub.textContent = 'Set voyage distance in Voyage Setup';
+        }
+      }
+      Dash.renderVoyageProgressViz(viz, voyageSnap, wxMode);
+      Dash.renderFuelGauges(root.querySelector('#fuelDualGauges'), voyageSnap);
+      const hint = root.querySelector('#homeGaugeHint');
+      if (hint) {
+        hint.textContent = voyageSnap.entryCount
+          ? 'Current needle uses opening ROB, or the latest bunker-survey measured figures when present. Open Voyage Chief for live consumption-chain ROB.'
+          : 'Showing voyage opening ROB (no log entries yet).';
+      }
+    }
+
+    root.querySelectorAll('#homeWxToggle [data-wx]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        wxMode = btn.dataset.wx;
+        root.querySelectorAll('#homeWxToggle [data-wx]').forEach((b) => b.classList.toggle('on', b === btn));
+        paintVoyage();
+      });
+    });
+
+    if (hasVoyage && window.ChengProVoyageBridge && typeof ChengProVoyageBridge.readHomeSnapshot === 'function') {
+      try {
+        voyageSnap = await ChengProVoyageBridge.readHomeSnapshot(active);
+      } catch (err) {
+        console.warn('Home voyage snapshot:', err);
+        voyageSnap = null;
+      }
+    }
+    paintVoyage();
+
+    if (hasTanks && active) {
+      try {
+        const bundle = await loadTankBundle(active.id);
+        if (Dash && bundle) {
+          Dash.renderFuelTankOverview(
+            root.querySelector('#homeFuelSummary'),
+            root.querySelector('#homeFuelGrid'),
+            bundle
+          );
+        }
+      } catch (err) {
+        const grid = root.querySelector('#homeFuelGrid');
+        const summary = root.querySelector('#homeFuelSummary');
+        if (summary) summary.innerHTML = '';
+        if (grid) {
+          grid.innerHTML = `<div class="hint">Could not load Tank Chief data (${esc(err.message || 'offline')}).</div>`;
+        }
+      }
+    } else if (hasTanks && !active) {
+      const grid = root.querySelector('#homeFuelGrid');
+      if (grid) grid.innerHTML = `<div class="hint">Select an active vessel to see fuel tanks.</div>`;
+    }
   },
 };
+
+async function loadTankBundle(vesselId) {
+  if (!vesselId) return null;
+  if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
+    try {
+      await LocalApi.start();
+      const res = await LocalApi.handle('GET', '/api/vessels/' + encodeURIComponent(vesselId));
+      if (res.status < 400 && res.body) return res.body;
+    } catch { /* fall through to HTTP */ }
+  }
+  if (window.ChengProApi && ChengProApi.api) {
+    return ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
+  }
+  return null;
+}
+
+function moduleSoftAllowed(moduleId) {
+  if (!window.ChengLicense) return true;
+  try {
+    const ent = ChengLicense.loadEntitlement();
+    if (!ChengLicense.isValid(ent)) return true;
+    return ChengLicense.moduleAllowed(moduleId, ent);
+  } catch {
+    return true;
+  }
+}
 
 function esc(s) {
   return String(s ?? '')

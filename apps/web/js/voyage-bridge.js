@@ -414,8 +414,145 @@
     return null;
   }
 
+  /**
+   * Lightweight voyage snapshot for the AIO Home dashboard (progress + opening ROB gauges).
+   * Does not re-run Voyage's full computeDerived chain — gauges use opening ROB vs capacity;
+   * when a bunker survey measured map exists on the latest entry, that becomes current ROB.
+   */
+  async function readHomeSnapshot(activeVessel) {
+    const empty = {
+      ok: false,
+      setup: null,
+      entries: [],
+      traveled: 0,
+      totalDistance: null,
+      weather: null,
+      fuelTanks: [],
+      capacity: {},
+      robStart: {},
+      robCurrent: {},
+    };
+    let db;
+    try {
+      db = await openVoyageDb();
+    } catch {
+      return empty;
+    }
+    try {
+      const meta = await idbGetAll(db, 'meta');
+      const byKey = new Map(meta.map((row) => [row.key, row.value]));
+      const vessels = Array.isArray(byKey.get('vessels')) ? byKey.get('vessels') : [];
+      const activeId = byKey.get('activeVesselId') || null;
+
+      let reg = null;
+      if (activeVessel) {
+        const imo = normalizeImo(activeVessel.imo);
+        const name = String(activeVessel.name || '').trim().toLowerCase();
+        const slug = activeVessel.voyageSlug || activeVessel.id;
+        reg = vessels.find((v) =>
+          v.id === activeVessel.voyageRegistryId
+          || v.slug === slug
+          || v.id === slug
+          || (name && String(v.name || '').trim().toLowerCase() === name)
+        ) || null;
+        if (!reg && imo) {
+          for (const v of vessels) {
+            const setup = byKey.get(`setup:${v.id}`) || {};
+            if (normalizeImo(setup.imoNo) === imo) { reg = v; break; }
+          }
+        }
+      }
+      if (!reg && activeId) reg = vessels.find((v) => v.id === activeId) || null;
+      if (!reg && vessels.length) reg = vessels[0];
+
+      const setup = (reg && byKey.get(`setup:${reg.id}`)) || byKey.get('setup') || null;
+      if (!setup) return empty;
+
+      const allEntries = await idbGetAll(db, 'entries');
+      const vesselKeys = new Set();
+      if (reg) {
+        vesselKeys.add(reg.id);
+        if (reg.slug) vesselKeys.add(reg.slug);
+      }
+      let entries = (allEntries || []).filter((e) => {
+        if (!e) return false;
+        if (e.vesselId && vesselKeys.size) return vesselKeys.has(e.vesselId);
+        return !e.vesselId && (!reg || reg.id === 'legacy');
+      });
+      const vn = String(setup.voyageNumber || '').trim();
+      if (vn) {
+        const scoped = entries.filter((e) => String(e.voyageNumber || setup.voyageNumber || '').trim() === vn
+          || !e.voyageNumber);
+        if (scoped.length) entries = scoped;
+      }
+      entries = entries.slice().sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+
+      let traveled = 0;
+      for (const e of entries) traveled += Number(e.distanceShip) || 0;
+
+      let weather = null;
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const w = entries[i] && entries[i].weather;
+        if (!w) continue;
+        if (w.windDir || w.windBft != null || w.seaState != null) {
+          weather = w;
+          break;
+        }
+      }
+
+      const fuelTanks = Array.isArray(setup.fuelTanks) ? setup.fuelTanks : [];
+      const capacity = setup.capacity || {};
+      const robStart = { ...(setup.rob || {}) };
+      const robCurrent = { ...robStart };
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const measured = entries[i]?.robSurvey?.measured;
+        if (measured && typeof measured === 'object' && Object.keys(measured).length) {
+          Object.assign(robCurrent, measured);
+          break;
+        }
+      }
+
+      let lastSpeed = null;
+      let avgSpeed = null;
+      if (entries.length) {
+        const last = entries[entries.length - 1];
+        /* speedShip may only exist on computed rows; estimate from distance / hours if present. */
+        if (last.speedShip != null) lastSpeed = Number(last.speedShip);
+        const withDist = entries.filter((e) => Number(e.distanceShip) > 0);
+        if (withDist.length >= 2) {
+          /* Rough average when hour deltas unavailable — Home shows last known figure only. */
+          lastSpeed = lastSpeed != null ? lastSpeed : null;
+        }
+      }
+
+      return {
+        ok: true,
+        registry: reg,
+        setup,
+        entries,
+        traveled,
+        totalDistance: setup.voyageDistance != null && setup.voyageDistance !== ''
+          ? Number(setup.voyageDistance)
+          : null,
+        departPort: setup.departPort || 'Departure',
+        arrivePort: setup.arrivePort || 'Arrival',
+        weather,
+        fuelTanks,
+        capacity,
+        robStart,
+        robCurrent,
+        lastSpeed,
+        avgSpeed,
+        entryCount: entries.length,
+      };
+    } finally {
+      try { db.close(); } catch { /* ignore */ }
+    }
+  }
+
   root.ChengProVoyageBridge = {
     readVoyageFleet,
+    readHomeSnapshot,
     importIntoChengPro,
     exportVesselToVoyage,
     autoImportIfNeeded,

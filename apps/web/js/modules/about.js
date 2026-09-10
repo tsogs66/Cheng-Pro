@@ -85,7 +85,7 @@ window.ChengProModules.about = {
         <p class="home-kicker">About</p>
         <h1>ChEng AIO</h1>
         <p class="home-lead">
-          Chief Engineer All-In-One brings Voyage Chief, Tank Chief, e-ORB, and Performance
+          Marine Engineer Suite brings Voyage Chief, Tank Chief, e-ORB, and Performance
           onto one vessel identity. Built for daily work at sea — offline first, sync when the link is up.
         </p>
         <p class="home-meta">ts0gs · Marvin C. Endozo · v${ver}</p>
@@ -94,6 +94,19 @@ window.ChengProModules.about = {
           <a class="btn" id="about-update-link" href="https://github.com/tsogs66/Cheng-Pro/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
         </div>
         <p class="hint" id="about-update-status" role="status" aria-live="polite" style="margin-top:10px;"></p>
+      </section>
+
+      <section class="panel home-section" id="about-licensing">
+        <h2>How licensing works here</h2>
+        <p class="home-copy">
+          You activate once in ChEng AIO with the email and key from your office.
+          Voyage Chief and Tank Chief opened from this menu use that same seat —
+          you do not sign in again. Standalone Voyage or Tank installs keep their own keys.
+        </p>
+        <div class="form-actions">
+          <button type="button" class="btn" data-go-about="license">License</button>
+          <button type="button" class="btn" data-go-about="vessel">Vessel Setup</button>
+        </div>
       </section>
 
       <section class="panel home-section" id="about-programs">
@@ -232,5 +245,9 @@ window.ChengProModules.about = {
       </section>
     `;
     root.querySelector('#btnCheckAioUpdate')?.addEventListener('click', checkAioAppUpdate);
+    root.querySelectorAll('[data-go-about]').forEach((btn) => {
+      btn.onclick = () =>
+        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.goAbout }));
+    });
   },
 };
