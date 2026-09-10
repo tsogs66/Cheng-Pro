@@ -128,13 +128,21 @@ window.ChengProModules.home = {
 
     if (hasTanks && active) {
       try {
-        const bundle = await loadTankBundle(active.id);
+        const tankId = await resolveTankVesselId(active);
+        const bundle = tankId ? await loadTankBundle(tankId) : null;
         if (Dash && bundle) {
           Dash.renderFuelTankOverview(
             root.querySelector('#homeFuelSummary'),
             root.querySelector('#homeFuelGrid'),
             bundle
           );
+        } else if (Dash) {
+          const grid = root.querySelector('#homeFuelGrid');
+          const summary = root.querySelector('#homeFuelSummary');
+          if (summary) summary.innerHTML = '';
+          if (grid) {
+            grid.innerHTML = `<div class="hint">No Tank Chief vessel matches ${esc(active.name || active.id)} yet. Open Tank Chief once for this ship.</div>`;
+          }
         }
       } catch (err) {
         const grid = root.querySelector('#homeFuelGrid');
@@ -150,6 +158,46 @@ window.ChengProModules.home = {
     }
   },
 };
+
+async function listTankVessels() {
+  if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
+    try {
+      await LocalApi.start();
+      const st = await LocalApi.handle('GET', '/api/status');
+      if (st.status < 400 && st.body && Array.isArray(st.body.vessels)) return st.body.vessels;
+      const list = await LocalApi.handle('GET', '/api/vessels');
+      if (list.status < 400 && list.body) {
+        return Array.isArray(list.body) ? list.body : (list.body.vessels || []);
+      }
+    } catch { /* fall through to HTTP */ }
+  }
+  if (window.ChengProApi && ChengProApi.api) {
+    try {
+      const st = await ChengProApi.api('/tanks/api/status');
+      if (st && Array.isArray(st.vessels)) return st.vessels;
+    } catch { /* ignore */ }
+    try {
+      const data = await ChengProApi.api('/tanks/api/vessels');
+      return Array.isArray(data) ? data : ((data && data.vessels) || []);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Map AIO shell vessel → Tank folder id via IMO, then slug/name. */
+async function resolveTankVesselId(active) {
+  if (!active) return null;
+  const vessels = await listTankVessels();
+  if (!vessels.length) return active.id || null;
+  if (window.ChengProVoyageBridge && typeof ChengProVoyageBridge.resolveFromList === 'function') {
+    const match = ChengProVoyageBridge.resolveFromList(vessels, active);
+    if (match && match.id) return match.id;
+  }
+  if (vessels.some((v) => v.id === active.id)) return active.id;
+  return null;
+}
 
 async function loadTankBundle(vesselId) {
   if (!vesselId) return null;
