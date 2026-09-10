@@ -3062,7 +3062,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">M/E, G/E and boiler daily rates use each consumer's own running hours. Cylinder oil uses M/E running hours. Grade totals and fresh water use elapsed voyage hours. Sea vs port/anchorage splits total fuel by operation (port noon, anchorage noon, departure sequence and bunkering count as port/anchorage).</div>
     </div>
     <div class="panel">
-      <h2>CONSUMPTION VS ROB</h2>
+      <h2>CALCULATED ROB</h2>
       <h3 class="sub">Fuel</h3>
       <div class="gauge-grid cols4" id="fuelDualGauges"></div>
       <h3 class="sub">Lube Oil</h3>
@@ -3071,8 +3071,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h3 class="sub">Fresh Water</h3>
       <div class="gauge-grid cols4" id="fwDualGauges"></div>
       <div class="stat-strip cols3" id="fwTotalSummaryStrip" style="margin-top:14px;"></div>
-      <div class="hint">The brass arc shows the current R.O.B. level; the white tick mark shows where R.O.B. started this voyage. The gap between them is what's been consumed.</div>
-      <div class="hint">The blue arc shows the current R.O.B. in m³; the white tick mark shows where R.O.B. started this voyage. When more than one tank is fitted, the total is the sum of those tanks.</div>
+      <div class="hint">Opening tick = Vessel Data Opening ROB. Present needle and “used” follow the Dep / Arr book: saved log ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed from the voyage log (unit/grade overrides included — not a raw flowmeter re-sum alone).</div>
+      <div class="hint">Fresh water is in m³. When more than one tank is fitted, the total is the sum of those tanks.</div>
     </div>
   </div>
 
@@ -10888,38 +10888,48 @@ function render(){
     <div class="stat"><div class="num">${etaStr}</div><div class="lbl">ETA</div></div>
   `;
 
-  // Consumption dual gauges: starting ROB vs current ROB
+  // Calculated ROB gauges: Opening vs Present/Consumed from Dep/Arr book
+  // (saved log ROB + log consumption). Do not use currentROB() — that rebuilds
+  // from flowmeters and can re-add stamped Received on top of receipts.
+  const calcRows = depArrRobRows(consByFuel, consByLube);
+  const calcById = Object.fromEntries(calcRows.map(r => [r.id, r]));
+  const calcRobLube = {};
+  calcRows.filter(r => r.cat === 'lube' || r.cat === 'fw').forEach(r => {
+    calcRobLube[r.id] = r.present;
+  });
   document.getElementById('fuelDualGauges').innerHTML = fuelTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacity, t) || 1;
     const startVal = tankRobValue(state.setup.rob, t) || 0;
-    const curVal = rob[t.id] ?? 0;
-    const grade = t.grade || t.name;
+    const row = calcById[t.id];
+    const curVal = row ? row.present : 0;
+    const usedVal = row ? row.consumed : 0;
     return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
       <div class="gauge-value">${fmtFuel(curVal)}</div>
-      <div class="gauge-cap">start ${fmtFuel(startVal)} · used ${fmtFuel(consByFuel[grade]||0)} MT</div>
+      <div class="gauge-cap">start ${fmtFuel(startVal)} · used ${fmtFuel(usedVal)} MT</div>
       <div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeDualGauges').innerHTML = lubeTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacityLube, t) || 1;
     const startVal = tankRobValue(state.setup.robLube, t) || 0;
-    const curVal = robLube[t.id] ?? 0;
-    const kindLabel = lubeKindToLabel(t.kind);
+    const row = calcById[t.id];
+    const curVal = row ? row.present : 0;
+    const usedVal = row ? row.consumed : 0;
     return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
       <div class="gauge-value">${fmtLube(curVal)}</div>
-      <div class="gauge-cap">start ${fmtLube(startVal)} · used ${fmtLube(consByLube[kindLabel]||0)} L</div>
+      <div class="gauge-cap">start ${fmtLube(startVal)} · used ${fmtLube(usedVal)} L</div>
       <div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeTotalSummaryStrip').innerHTML = `
-    <div class="stat"><div class="num">${fmtLube(totalLubeRob(robLube))}</div><div class="lbl">Total Lube Oil (L)</div></div>`;
+    <div class="stat"><div class="num">${fmtLube(totalLubeRob(calcRobLube))}</div><div class="lbl">Total Lube Oil (L)</div></div>`;
   const fwDual = document.getElementById('fwDualGauges');
   if (fwDual){
     const fwTanks = fwTankList();
-    const fwUsed = consByLube['FRESH WATER']||0;
     fwDual.innerHTML = fwTanks.map(t=>{
       const cap = tankCapValue(state.setup.capacityLube, t) || 1;
       const startVal = tankRobValue(state.setup.robLube, t) || 0;
-      const curVal = robLube[t.id] ?? 0;
-      const usedBit = fwTanks.length===1 ? ` · used ${fmtFw(fwUsed)}` : '';
+      const row = calcById[t.id];
+      const curVal = row ? row.present : 0;
+      const usedBit = fwTanks.length===1 ? ` · used ${fmtFw(row ? row.consumed : 0)}` : '';
       return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, GAUGE_COLORS['FRESH WATER'])}
         <div class="gauge-value">${fmtFw(curVal)}</div>
         <div class="gauge-cap">start ${fmtFw(startVal)}${usedBit} m³</div>
@@ -10931,7 +10941,7 @@ function render(){
     if (showFwTotal()){
       fwTotalSummary.style.display = '';
       fwTotalSummary.innerHTML = `
-    <div class="stat"><div class="num">${fmtFw(totalFwRob(robLube))}</div><div class="lbl">Total Fresh Water (m³)</div></div>`;
+    <div class="stat"><div class="num">${fmtFw(totalFwRob(calcRobLube))}</div><div class="lbl">Total Fresh Water (m³)</div></div>`;
     } else {
       fwTotalSummary.style.display = 'none';
       fwTotalSummary.innerHTML = '';

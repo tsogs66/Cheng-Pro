@@ -606,9 +606,105 @@
   }
 
   /**
-   * Lightweight voyage snapshot for the AIO Home dashboard (progress + opening ROB gauges).
-   * Does not re-run Voyage's full computeDerived chain — gauges use opening ROB vs capacity;
-   * when a bunker survey measured map exists on the latest entry, that becomes current ROB.
+   * Fuel Calculated ROB for Home: Opening / Received / Present / Consumed.
+   * Present prefers saved survey measured ROB; otherwise Opening + Received −
+   * saved log consumption (unitOverride / consOverride / misc — not a meter rebuild).
+   */
+  function homeFuelReceiptQty(receipts, tank) {
+    let hand = 0;
+    let survey = 0;
+    for (const r of receipts || []) {
+      if (!r || r.category !== 'fuel') continue;
+      const match = (r.tankId && r.tankId === tank.id)
+        || (r.type && tank.name && String(r.type).toLowerCase() === String(tank.name).toLowerCase())
+        || (r.type && tank.grade && String(r.type) === String(tank.grade));
+      if (!match) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.source === 'rob-survey') survey += qty;
+      else hand += qty;
+    }
+    return hand > 0 ? hand : survey;
+  }
+
+  function homeOpenShare(peers, tank, openStore) {
+    if (!peers.length) return 0;
+    let total = 0;
+    let mine = 0;
+    peers.forEach((p) => {
+      const v = Number(openStore && openStore[p.id]) || 0;
+      total += v;
+      if (p.id === tank.id) mine = v;
+    });
+    if (total > 0) return mine / total;
+    return 1 / peers.length;
+  }
+
+  /** Saved period consumption by grade (overrides + misc only — no flowmeter deltas). */
+  function homeSavedFuelConsByGrade(entries) {
+    const grades = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
+    for (const e of entries || []) {
+      const ov = e.consOverride || {};
+      const gradeKeys = Object.keys(grades);
+      const hasGradeOv = gradeKeys.some((g) => ov[g] != null && ov[g] !== '');
+      if (hasGradeOv) {
+        gradeKeys.forEach((g) => {
+          if (ov[g] != null && ov[g] !== '') grades[g] += Number(ov[g]) || 0;
+        });
+        continue;
+      }
+      const u = e.unitOverride || {};
+      const add = (type, mt) => {
+        if (mt == null || isNaN(Number(mt)) || !type || grades[type] == null) return;
+        grades[type] += Number(mt) || 0;
+      };
+      add(e.me && e.me.type, u.ME);
+      add(e.ge && e.ge.type, u.GE);
+      add(e.blr && e.blr.type, u.BLR);
+      const misc = e.miscCons || {};
+      grades['MDO/MGO'] += Number(misc['MDO/MGO']) || 0;
+      grades['LSMGO'] += Number(misc['LSMGO']) || 0;
+    }
+    return grades;
+  }
+
+  function buildHomeCalculatedRob(setup, entries, receipts) {
+    const fuelTanks = Array.isArray(setup && setup.fuelTanks) ? setup.fuelTanks : [];
+    const robStart = { ...((setup && setup.rob) || {}) };
+    const robCurrent = {};
+    const robUsed = {};
+    const list = Array.isArray(entries) ? entries : [];
+    const consByGrade = homeSavedFuelConsByGrade(list);
+
+    for (const t of fuelTanks) {
+      const open = Number(robStart[t.id]) || 0;
+      const received = homeFuelReceiptQty(receipts, t);
+      const grade = t.grade || t.name;
+      const peers = fuelTanks.filter((p) => (p.grade || p.name) === grade);
+      const consumed = (Number(consByGrade[grade]) || 0) * homeOpenShare(peers, t, robStart);
+      let measured = null;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const m = list[i] && list[i].robSurvey && list[i].robSurvey.measured
+          ? list[i].robSurvey.measured[t.id]
+          : null;
+        if (m != null && m !== '' && !isNaN(Number(m))) {
+          measured = Number(m);
+          break;
+        }
+      }
+      robUsed[t.id] = Math.max(0, consumed);
+      if (measured != null) {
+        robCurrent[t.id] = measured;
+        if (!(consumed > 0)) robUsed[t.id] = Math.max(0, open + received - measured);
+      } else {
+        robCurrent[t.id] = open + received - robUsed[t.id];
+      }
+    }
+    return { robStart, robCurrent, robUsed };
+  }
+
+  /**
+   * Lightweight voyage snapshot for the AIO Home dashboard (progress + Calculated ROB).
+   * Fuel gauges use Opening / Received / saved Present & consumption — not a flowmeter rebuild.
    */
   async function readHomeSnapshot(activeVessel) {
     const empty = {
@@ -622,6 +718,7 @@
       capacity: {},
       robStart: {},
       robCurrent: {},
+      robUsed: {},
     };
     let db;
     try {
@@ -666,6 +763,7 @@
       if (!setup) return empty;
 
       const allEntries = await idbGetAll(db, 'entries');
+      const allReceipts = await idbGetAll(db, 'receipts');
       const vesselKeys = new Set();
       if (reg) {
         vesselKeys.add(reg.id);
@@ -675,6 +773,11 @@
         if (!e) return false;
         if (e.vesselId && vesselKeys.size) return vesselKeys.has(e.vesselId);
         return !e.vesselId && (!reg || reg.id === 'legacy');
+      });
+      let receipts = (allReceipts || []).filter((r) => {
+        if (!r) return false;
+        if (r.vesselId && vesselKeys.size) return vesselKeys.has(r.vesselId);
+        return !r.vesselId;
       });
       const vn = String(setup.voyageNumber || '').trim();
       if (vn) {
@@ -696,15 +799,10 @@
 
       const fuelTanks = Array.isArray(setup.fuelTanks) ? setup.fuelTanks : [];
       const capacity = setup.capacity || {};
-      const robStart = { ...(setup.rob || {}) };
-      const robCurrent = { ...robStart };
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const measured = entries[i]?.robSurvey?.measured;
-        if (measured && typeof measured === 'object' && Object.keys(measured).length) {
-          Object.assign(robCurrent, measured);
-          break;
-        }
-      }
+      const calc = buildHomeCalculatedRob(setup, entries, receipts);
+      const robStart = calc.robStart;
+      const robCurrent = calc.robCurrent;
+      const robUsed = calc.robUsed;
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
@@ -728,6 +826,7 @@
         capacity,
         robStart,
         robCurrent,
+        robUsed,
         lastSpeed: progress.lastSpeed,
         avgSpeed: progress.avgSpeed,
         entryCount: entries.length,
