@@ -3017,7 +3017,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" type="button" id="btnExportWeeklyAbstract">Export Weekly Abstract (CSV)</button>
       </div>
       <div class="table-scroll" id="depArrRobTable"></div>
-      <div class="hint">Opening = Vessel Data Opening ROB. Received = Receipts / bunkering entries only (each receipt once; never re-adds stamped log Received). Consumed = voyage log consumption including unit/grade overrides (not a raw flowmeter re-sum alone). Present = latest log saved ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed.</div>
+      <div class="hint">Opening = Vessel Data Opening ROB. Received = bunkers once (hand Receipts preferred; else Summary Received stamp / rob-survey mirror — never both). Consumed = voyage log consumption including unit/grade overrides, shared by Opening+Received stock (same as R.O.B. tab). Present = latest log saved ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed.</div>
       <div class="hint"><strong>Recalculate Dep / Arr ROB</strong> after you change Vessel Data Opening ROB, bunkering / receipts, or log consumption. It saves the current Opening ROB, rebuilds the voyage ROB chain from that baseline, and refreshes this table. Use Undo Recalculate if that was a mistake.</div>
       <div class="hint" id="depArrRobRecalcStatus" role="status" aria-live="polite"></div>
     </div>
@@ -3071,7 +3071,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h3 class="sub">Fresh Water</h3>
       <div class="gauge-grid cols4" id="fwDualGauges"></div>
       <div class="stat-strip cols3" id="fwTotalSummaryStrip" style="margin-top:14px;"></div>
-      <div class="hint">Opening tick = Vessel Data Opening ROB. Present needle and “used” follow the Dep / Arr book: saved log ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed from the voyage log (unit/grade overrides included — not a raw flowmeter re-sum alone).</div>
+      <div class="hint">Opening tick = Vessel Data Opening ROB. Present needle and “used” follow the same book as the R.O.B. tab: bunkers once (Receipts or Summary Received, never both), consumption shared by Opening+Received stock, Present = Opening + Received − Consumed (or survey measured when saved).</div>
       <div class="hint">Fresh water is in m³. When more than one tank is fitted, the total is the sum of those tanks.</div>
     </div>
   </div>
