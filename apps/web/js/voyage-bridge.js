@@ -119,7 +119,7 @@
     let daysToGo = null;
     let etaIso = null;
     let etaLabel = null;
-    if (list.length && totalDistance != null && isFinite(totalDistance)) {
+    if (list.length && totalDistance != null && isFinite(totalDistance) && totalDistance > 0) {
       distToGo = totalDistance - traveled;
       const last = list[list.length - 1];
       const refSpeed = (lastSpeed != null && lastSpeed > 0) ? lastSpeed : avgSpeed;
@@ -140,7 +140,9 @@
 
     return {
       traveled,
-      totalDistance: totalDistance != null && isFinite(totalDistance) ? totalDistance : null,
+      totalDistance: totalDistance != null && isFinite(totalDistance) && totalDistance > 0
+        ? totalDistance
+        : null,
       totalHrs,
       daysAtSea,
       distToGo,
