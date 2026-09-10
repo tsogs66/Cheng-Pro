@@ -6,8 +6,10 @@ window.ChengProModules.home = {
     const active = ChengPro.vessel.getActive();
     const vessels = ChengPro.vessel.getListSync();
     const firstRun = !vessels.length;
-    const hasVoyage = !window.ChengLicense || ChengLicense.moduleAllowed('voyage');
-    const hasTanks = !window.ChengLicense || ChengLicense.moduleAllowed('tanks');
+    /* Soft gate: when license is inactive, still show Home panels (nav soft-allows programs).
+       Only hide when a valid seat explicitly excludes Voyage/Tanks. */
+    const hasVoyage = moduleSoftAllowed('voyage');
+    const hasTanks = moduleSoftAllowed('tanks');
     const Dash = window.ChengProHomeDashboard;
 
     root.innerHTML = `
@@ -162,6 +164,17 @@ async function loadTankBundle(vesselId) {
     return ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
   }
   return null;
+}
+
+function moduleSoftAllowed(moduleId) {
+  if (!window.ChengLicense) return true;
+  try {
+    const ent = ChengLicense.loadEntitlement();
+    if (!ChengLicense.isValid(ent)) return true;
+    return ChengLicense.moduleAllowed(moduleId, ent);
+  } catch {
+    return true;
+  }
 }
 
 function esc(s) {
