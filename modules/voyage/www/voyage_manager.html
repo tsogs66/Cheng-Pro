@@ -4955,7 +4955,14 @@ const state = {
 const LEGACY_VESSEL_ID = 'v-fangcheng';
 
 function vesselSlugFromName(name){
-  return (name || 'vessel').replace(/^M\/V\s*/i,'').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase().slice(0, 48) || 'vessel';
+  /* Strip MV / M/V / M.V. so Voyage, Tank, and AIO land on the same core slug. */
+  let core = String(name || 'vessel').trim();
+  let prev = '';
+  while (core !== prev) {
+    prev = core;
+    core = core.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+  }
+  return (core || 'vessel').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase().slice(0, 48) || 'vessel';
 }
 
 function activeVessel(){
