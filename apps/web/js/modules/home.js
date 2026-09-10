@@ -168,29 +168,43 @@ window.ChengProModules.home = {
   },
 };
 
+/** Match Tank Chief / shell-local: license email isolates offline data under users/<slug>/. */
+function applyTankOfflineScope() {
+  try {
+    if (typeof StoreCore === 'undefined' || typeof StoreCore.setUserScope !== 'function') return;
+    if (!window.ChengLicense) return;
+    StoreCore.setUserScope({
+      email: ChengLicense.licenseEmail() || null,
+      master: !!ChengLicense.isMaster(),
+    });
+  } catch { /* ignore */ }
+}
+
 async function listTankVessels() {
+  applyTankOfflineScope();
+  /* Bundled offline: ChengProApi is patched by shell-local to LocalApi WITH scope. */
+  if (window.ChengProApi && ChengProApi.api) {
+    try {
+      const st = await ChengProApi.api('/tanks/api/status');
+      if (st && Array.isArray(st.vessels) && st.vessels.length) return st.vessels;
+    } catch { /* ignore */ }
+    try {
+      const data = await ChengProApi.api('/tanks/api/vessels');
+      const list = Array.isArray(data) ? data : ((data && data.vessels) || []);
+      if (list.length) return list;
+    } catch { /* fall through */ }
+  }
   if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
     try {
       await LocalApi.start();
+      applyTankOfflineScope();
       const st = await LocalApi.handle('GET', '/api/status');
       if (st.status < 400 && st.body && Array.isArray(st.body.vessels)) return st.body.vessels;
       const list = await LocalApi.handle('GET', '/api/vessels');
       if (list.status < 400 && list.body) {
         return Array.isArray(list.body) ? list.body : (list.body.vessels || []);
       }
-    } catch { /* fall through to HTTP */ }
-  }
-  if (window.ChengProApi && ChengProApi.api) {
-    try {
-      const st = await ChengProApi.api('/tanks/api/status');
-      if (st && Array.isArray(st.vessels)) return st.vessels;
     } catch { /* ignore */ }
-    try {
-      const data = await ChengProApi.api('/tanks/api/vessels');
-      return Array.isArray(data) ? data : ((data && data.vessels) || []);
-    } catch {
-      return [];
-    }
   }
   return [];
 }
@@ -239,15 +253,20 @@ async function resolveTankVesselId(active) {
 
 async function loadTankBundle(vesselId) {
   if (!vesselId) return null;
+  applyTankOfflineScope();
+  if (window.ChengProApi && ChengProApi.api) {
+    try {
+      const viaApi = await ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
+      if (viaApi && (viaApi.vessel || viaApi.tanks)) return viaApi;
+    } catch { /* fall through */ }
+  }
   if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
     try {
       await LocalApi.start();
+      applyTankOfflineScope();
       const res = await LocalApi.handle('GET', '/api/vessels/' + encodeURIComponent(vesselId));
       if (res.status < 400 && res.body) return res.body;
-    } catch { /* fall through to HTTP */ }
-  }
-  if (window.ChengProApi && ChengProApi.api) {
-    return ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
+    } catch { /* ignore */ }
   }
   return null;
 }
