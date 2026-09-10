@@ -310,6 +310,30 @@
       </svg>`;
   }
 
+  /**
+   * Voyage Chief–style progress strip: Days at Sea, Days To Go, ETA.
+   */
+  function renderVoyageProgressStrip(el, snap) {
+    if (!el) return;
+    if (!snap || !snap.ok) {
+      el.innerHTML = '';
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    const daysAtSea = snap.daysAtSea != null && isFinite(snap.daysAtSea)
+      ? fmt(snap.daysAtSea, 2)
+      : '0.00';
+    const daysToGo = snap.daysToGo != null && isFinite(snap.daysToGo)
+      ? fmt(snap.daysToGo, 2)
+      : '—';
+    const eta = snap.etaLabel || '—';
+    el.innerHTML = `
+      <div class="stat"><div class="num">${daysAtSea}</div><div class="lbl">Days at Sea</div></div>
+      <div class="stat"><div class="num">${daysToGo}</div><div class="lbl">Days To Go</div></div>
+      <div class="stat"><div class="num">${esc(eta)}</div><div class="lbl">ETA</div></div>`;
+  }
+
   function gaugePctToDeg(p) {
     return GAUGE_GEOM.startDeg + Math.max(0, Math.min(1, p || 0)) * GAUGE_GEOM.sweepDeg;
   }
@@ -459,6 +483,7 @@
 
   root.ChengProHomeDashboard = {
     renderVoyageProgressViz,
+    renderVoyageProgressStrip,
     renderFuelGauges,
     renderFuelTankOverview,
     windAngleDeg,

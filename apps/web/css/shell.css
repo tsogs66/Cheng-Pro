@@ -395,6 +395,39 @@ html:not(.bright) .vessel-chip { background: rgba(255,255,255,.04); }
   border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer;
 }
 .toggle-row button.on { background: var(--brass); color: #fff8ee; border-color: var(--brass); }
+.home-voyage-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.home-voyage-strip .stat {
+  background: transparent;
+  border: none;
+  border-left: 2px solid var(--brass-dim, var(--brass));
+  border-radius: 0;
+  padding: 0 0 0 10px;
+  min-width: 0;
+}
+html.bright .home-voyage-strip .stat { background: transparent; }
+.home-voyage-strip .stat .num {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  color: var(--text);
+  font-weight: 600;
+  word-break: break-word;
+  line-height: 1.25;
+}
+.home-voyage-strip .stat .lbl {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+}
+@media (max-width: 560px) {
+  .home-voyage-strip { grid-template-columns: 1fr; gap: 10px; }
+}
 .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; }
 .gauge-box { text-align: center; padding: 8px 2px 2px; }
 .gauge-box svg.analog-gauge { width: 100%; max-width: 170px; height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28)); }

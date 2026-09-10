@@ -50,6 +50,108 @@
     return String(imo || '').replace(/^IMO\s*/i, '').replace(/\D/g, '').trim();
   }
 
+  /** Match Voyage Chief: ignore bogus clock changes larger than 3 h. */
+  function sanitizeClockChangeMin(min) {
+    const n = Number(min);
+    if (!isFinite(n) || n === 0) return 0;
+    if (Math.abs(n) > 180) return 0;
+    return n;
+  }
+
+  /**
+   * Actual hours between two ship's-clock stamps (clocks advanced are subtracted).
+   * Same rule as Voyage Chief / ShipTime.elapsedShipHours.
+   */
+  function elapsedShipHours(prevDt, curDt, clockChangeMin) {
+    if (root.ShipTime && typeof root.ShipTime.elapsedShipHours === 'function') {
+      return root.ShipTime.elapsedShipHours(prevDt, curDt, clockChangeMin);
+    }
+    if (!prevDt || !curDt) return null;
+    const naive = (new Date(curDt) - new Date(prevDt)) / 3600000;
+    if (!isFinite(naive)) return null;
+    const adj = naive - sanitizeClockChangeMin(clockChangeMin) / 60;
+    return adj > 0 ? adj : null;
+  }
+
+  /**
+   * Days at Sea / Days To Go / ETA — same formulas as Voyage Summary progress strip.
+   */
+  function computeVoyageProgressMetrics(setup, entries) {
+    const list = Array.isArray(entries) ? entries : [];
+    let traveled = 0;
+    for (const e of list) traveled += Number(e && e.distanceShip) || 0;
+
+    let prevDt = null;
+    if (list.length && setup && setup.carryover && setup.carryover.datetime) {
+      prevDt = setup.carryover.datetime;
+    } else if (setup && setup.initDateTime) {
+      prevDt = setup.initDateTime;
+    }
+
+    let totalHrs = 0;
+    let lastPeriodHrs = null;
+    let lastDistance = null;
+    for (const e of list) {
+      if (!e || !e.datetime) continue;
+      if (prevDt) {
+        const hrs = elapsedShipHours(prevDt, e.datetime, e.clockChangeMin);
+        if (hrs != null && hrs > 0) {
+          totalHrs += hrs;
+          lastPeriodHrs = hrs;
+          lastDistance = Number(e.distanceShip) || 0;
+        }
+      }
+      prevDt = e.datetime;
+    }
+
+    const avgSpeed = totalHrs > 0 ? traveled / totalHrs : null;
+    let lastSpeed = null;
+    if (lastPeriodHrs > 0) lastSpeed = lastDistance / lastPeriodHrs;
+    else if (list.length && list[list.length - 1].speedShip != null) {
+      lastSpeed = Number(list[list.length - 1].speedShip);
+    }
+
+    const totalDistance = setup && setup.voyageDistance != null && setup.voyageDistance !== ''
+      ? Number(setup.voyageDistance)
+      : null;
+    const daysAtSea = totalHrs / 24;
+    let distToGo = null;
+    let daysToGo = null;
+    let etaIso = null;
+    let etaLabel = null;
+    if (list.length && totalDistance != null && isFinite(totalDistance)) {
+      distToGo = totalDistance - traveled;
+      const last = list[list.length - 1];
+      const refSpeed = (lastSpeed != null && lastSpeed > 0) ? lastSpeed : avgSpeed;
+      if (refSpeed > 0) {
+        daysToGo = (distToGo / refSpeed) / 24;
+        if (last && last.datetime) {
+          const eta = new Date(new Date(last.datetime).getTime() + daysToGo * 24 * 3600000);
+          if (!isNaN(eta.getTime())) {
+            etaIso = eta.toISOString();
+            etaLabel = eta.toLocaleString(undefined, {
+              year: 'numeric', month: 'short', day: '2-digit',
+              hour: '2-digit', minute: '2-digit',
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      traveled,
+      totalDistance: totalDistance != null && isFinite(totalDistance) ? totalDistance : null,
+      totalHrs,
+      daysAtSea,
+      distToGo,
+      daysToGo,
+      etaIso,
+      etaLabel,
+      lastSpeed,
+      avgSpeed,
+    };
+  }
+
   /**
    * Open Voyage's DB read-only without creating/upgrading schema.
    * Never pass a version here: opening at v6 with an empty onupgradeneeded
@@ -536,9 +638,6 @@
       }
       entries = entries.slice().sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
 
-      let traveled = 0;
-      for (const e of entries) traveled += Number(e.distanceShip) || 0;
-
       let weather = null;
       for (let i = entries.length - 1; i >= 0; i--) {
         const w = entries[i] && entries[i].weather;
@@ -561,28 +660,21 @@
         }
       }
 
-      let lastSpeed = null;
-      let avgSpeed = null;
-      if (entries.length) {
-        const last = entries[entries.length - 1];
-        /* speedShip may only exist on computed rows; estimate from distance / hours if present. */
-        if (last.speedShip != null) lastSpeed = Number(last.speedShip);
-        const withDist = entries.filter((e) => Number(e.distanceShip) > 0);
-        if (withDist.length >= 2) {
-          /* Rough average when hour deltas unavailable — Home shows last known figure only. */
-          lastSpeed = lastSpeed != null ? lastSpeed : null;
-        }
-      }
+      const progress = computeVoyageProgressMetrics(setup, entries);
 
       return {
         ok: true,
         registry: reg,
         setup,
         entries,
-        traveled,
-        totalDistance: setup.voyageDistance != null && setup.voyageDistance !== ''
-          ? Number(setup.voyageDistance)
-          : null,
+        traveled: progress.traveled,
+        totalDistance: progress.totalDistance,
+        totalHrs: progress.totalHrs,
+        daysAtSea: progress.daysAtSea,
+        distToGo: progress.distToGo,
+        daysToGo: progress.daysToGo,
+        etaIso: progress.etaIso,
+        etaLabel: progress.etaLabel,
         departPort: setup.departPort || 'Departure',
         arrivePort: setup.arrivePort || 'Arrival',
         weather,
@@ -590,8 +682,8 @@
         capacity,
         robStart,
         robCurrent,
-        lastSpeed,
-        avgSpeed,
+        lastSpeed: progress.lastSpeed,
+        avgSpeed: progress.avgSpeed,
         entryCount: entries.length,
       };
     } finally {
@@ -609,6 +701,8 @@
     writeActiveHint,
     mapSetupToPatch,
     findMatch,
+    computeVoyageProgressMetrics,
+    elapsedShipHours,
     slugify,
     normalizeImo,
     normalizeVesselName,

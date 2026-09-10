@@ -37,6 +37,10 @@ window.ChengProModules.home = {
           <button type="button" data-wx="local" title="Weather only near the ship">Ship-local weather</button>
         </div>
         <div id="voyageProgressViz"></div>
+        <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>
+        <p class="hint" id="homeVoyageEtaHint" style="margin-top:8px" hidden>
+          Distance To Go, Days To Go and ETA use Total Voyage Distance minus distance run, divided by the last entry’s speed (voyage average if needed).
+        </p>
         <div class="form-actions" style="margin-top:10px">
           <button type="button" class="btn" id="goVoyageFromHome">Open Voyage Chief</button>
         </div>` : `
@@ -80,12 +84,16 @@ window.ChengProModules.home = {
     function paintVoyage() {
       const viz = root.querySelector('#voyageProgressViz');
       const sub = root.querySelector('#homeVoyageSub');
+      const strip = root.querySelector('#homeVoyageProgressStrip');
+      const etaHint = root.querySelector('#homeVoyageEtaHint');
       if (!hasVoyage || !Dash) return;
       if (!voyageSnap || !voyageSnap.ok) {
         if (sub) sub.textContent = 'No Voyage Chief data on this device yet';
         if (viz) {
           viz.innerHTML = `<div class="hint">Open Voyage Chief once for this vessel to populate progress and weather.</div>`;
         }
+        if (Dash.renderVoyageProgressStrip) Dash.renderVoyageProgressStrip(strip, null);
+        if (etaHint) etaHint.hidden = true;
         const gauges = root.querySelector('#fuelDualGauges');
         if (gauges) gauges.innerHTML = `<div class="hint">Open Voyage Chief to load fuel ROB gauges.</div>`;
         return;
@@ -99,6 +107,8 @@ window.ChengProModules.home = {
         }
       }
       Dash.renderVoyageProgressViz(viz, voyageSnap, wxMode);
+      if (Dash.renderVoyageProgressStrip) Dash.renderVoyageProgressStrip(strip, voyageSnap);
+      if (etaHint) etaHint.hidden = false;
       Dash.renderFuelGauges(root.querySelector('#fuelDualGauges'), voyageSnap);
       const hint = root.querySelector('#homeGaugeHint');
       if (hint) {
