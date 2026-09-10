@@ -15,8 +15,31 @@
     'mechEff', 'fuelDensity', 'lubeDensity', 'propLawExp',
   ];
 
+  /**
+   * Strip common ship-name prefixes so "MV FOO", "M/V FOO", and "M.V. FOO" match.
+   * Repeated prefixes are removed (e.g. "MV M/V FOO" → "FOO").
+   */
+  function stripShipNamePrefix(name) {
+    let s = String(name || '').trim();
+    let prev = '';
+    while (s !== prev) {
+      prev = s;
+      s = s.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+    }
+    return s;
+  }
+
+  function normalizeVesselName(name) {
+    return stripShipNamePrefix(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function slugify(name) {
-    return String(name || 'vessel')
+    const core = stripShipNamePrefix(name) || String(name || 'vessel');
+    return String(core)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
@@ -24,7 +47,7 @@
   }
 
   function normalizeImo(imo) {
-    return String(imo || '').replace(/^IMO\s*/i, '').trim();
+    return String(imo || '').replace(/^IMO\s*/i, '').replace(/\D/g, '').trim();
   }
 
   /**
@@ -176,16 +199,27 @@
   function findMatch(list, patch) {
     const imo = normalizeImo(patch.imo);
     const slug = patch.voyageSlug || slugify(patch.name);
+    const slugCore = slugify(patch.name);
+    /* 1) IMO is authoritative when both sides have it. */
     if (imo) {
       const byImo = list.find((v) => normalizeImo(v.imo) === imo);
       if (byImo) return byImo;
     }
-    const bySlug = list.find((v) => v.id === slug || v.voyageSlug === slug);
+    /* 2) Slug / folder id (MV vs M/V now slugify to the same core). */
+    const bySlug = list.find((v) =>
+      v.id === slug || v.id === slugCore
+      || v.voyageSlug === slug || v.voyageSlug === slugCore
+    );
     if (bySlug) return bySlug;
+    /* 3) Voyage registry id when present. */
     const byVoyageId = list.find((v) => v.voyageRegistryId && v.voyageRegistryId === patch.voyageRegistryId);
     if (byVoyageId) return byVoyageId;
-    const name = String(patch.name || '').trim().toLowerCase();
-    if (name) return list.find((v) => String(v.name || '').trim().toLowerCase() === name) || null;
+    /* 4) Name ignoring MV / M/V / M.V. prefixes and punctuation. */
+    const nameKey = normalizeVesselName(patch.name);
+    if (nameKey) {
+      const byName = list.find((v) => normalizeVesselName(v.name) === nameKey);
+      if (byName) return byName;
+    }
     return null;
   }
 
@@ -301,15 +335,24 @@
       const byKey = new Map(meta.map((row) => [row.key, row.value]));
       const vessels = Array.isArray(byKey.get('vessels')) ? byKey.get('vessels') : [];
       const imo = normalizeImo(vessel.imo);
-      let reg = vessels.find((v) => v.id === vessel.voyageRegistryId || v.slug === vessel.voyageSlug || v.slug === vessel.id);
+      let reg = vessels.find((v) =>
+        v.id === vessel.voyageRegistryId
+        || v.slug === vessel.voyageSlug
+        || v.slug === vessel.id
+        || v.slug === slugify(vessel.name)
+      );
       if (!reg && imo) {
         for (const v of vessels) {
           const setup = byKey.get(`setup:${v.id}`) || {};
-          if (normalizeImo(setup.imoNo) === imo) { reg = v; break; }
+          if (normalizeImo(setup.imoNo) === imo || normalizeImo(setup.orb && setup.orb.imo) === imo) {
+            reg = v;
+            break;
+          }
         }
       }
       if (!reg) {
-        reg = vessels.find((v) => String(v.name || '').toLowerCase() === String(vessel.name).toLowerCase());
+        const nameKey = normalizeVesselName(vessel.name);
+        reg = vessels.find((v) => normalizeVesselName(v.name) === nameKey) || null;
       }
       if (!reg) {
         reg = {
@@ -447,19 +490,25 @@
       let reg = null;
       if (activeVessel) {
         const imo = normalizeImo(activeVessel.imo);
-        const name = String(activeVessel.name || '').trim().toLowerCase();
-        const slug = activeVessel.voyageSlug || activeVessel.id;
-        reg = vessels.find((v) =>
-          v.id === activeVessel.voyageRegistryId
-          || v.slug === slug
-          || v.id === slug
-          || (name && String(v.name || '').trim().toLowerCase() === name)
-        ) || null;
-        if (!reg && imo) {
+        const nameKey = normalizeVesselName(activeVessel.name);
+        const slug = activeVessel.voyageSlug || activeVessel.id || slugify(activeVessel.name);
+        const slugCore = slugify(activeVessel.name);
+        if (imo) {
           for (const v of vessels) {
             const setup = byKey.get(`setup:${v.id}`) || {};
-            if (normalizeImo(setup.imoNo) === imo) { reg = v; break; }
+            if (normalizeImo(setup.imoNo) === imo || normalizeImo(setup.orb && setup.orb.imo) === imo) {
+              reg = v;
+              break;
+            }
           }
+        }
+        if (!reg) {
+          reg = vessels.find((v) =>
+            v.id === activeVessel.voyageRegistryId
+            || v.slug === slug || v.slug === slugCore
+            || v.id === slug || v.id === slugCore
+            || (nameKey && normalizeVesselName(v.name) === nameKey)
+          ) || null;
         }
       }
       if (!reg && activeId) reg = vessels.find((v) => v.id === activeId) || null;
@@ -559,6 +608,10 @@
     readActiveHint,
     writeActiveHint,
     mapSetupToPatch,
+    findMatch,
+    slugify,
+    normalizeImo,
+    normalizeVesselName,
     HINT_KEY,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

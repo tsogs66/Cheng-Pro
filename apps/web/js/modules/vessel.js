@@ -28,7 +28,8 @@ window.ChengProModules.vessel = {
             <h2>Vessel Setup</h2>
             <p>Shared ship identity for Voyage Chief and Tank Chief (name, IMO, call sign, flag, company, type, DWT).
                Opening ROB and voyage ops stay in Voyage; tanks stay in Tank Chief.
-               When those modules run inside ChEng AIO they read this record — they do not edit it separately.</p>
+               Matching uses <strong>IMO first</strong>, then vessel name — <code>MV</code> / <code>M/V</code> / <code>M.V.</code> prefixes are ignored.
+               Put the same IMO on both programs, then tap <strong>Import from Voyage Chief</strong>.</p>
           </div>
         </div>
         <form id="vesselForm">
