@@ -2984,11 +2984,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="panel">
       <h2>Departure / Arrival ROB Comparison</h2>
       <div class="btn-row" style="margin-bottom:10px;">
+        <button class="primary small" type="button" id="btnRecalcDepArrRob" title="Rebuild Opening / Received / Consumed / Present after Opening ROB, bunkering, or consumption changes">Recalculate Dep / Arr ROB</button>
+        <button class="ghost small" type="button" id="btnUndoDepArrRobRecalc" style="display:none;" title="Restore entries from before the last Dep / Arr recalculate">Undo Recalculate</button>
         <button class="ghost small" type="button" id="btnPrintDepArrRob">Print Dep / Arr ROB Sheet</button>
         <button class="ghost small" type="button" id="btnExportWeeklyAbstract">Export Weekly Abstract (CSV)</button>
       </div>
       <div class="table-scroll" id="depArrRobTable"></div>
       <div class="hint">Opening = Vessel Data Opening ROB (voyage baseline). Present = current ROB from the latest log entry. Received uses the same book rules as the ROB tab (hand receipts + stamped Received, no double-count). Consumed = Opening + Received − Present.</div>
+      <div class="hint"><strong>Recalculate Dep / Arr ROB</strong> after you change Vessel Data Opening ROB, bunkering / receipts, or log consumption. It saves the current Opening ROB, rebuilds the voyage ROB chain from that baseline, and refreshes this table. Use Undo Recalculate if that was a mistake.</div>
+      <div class="hint" id="depArrRobRecalcStatus" role="status" aria-live="polite"></div>
     </div>
     <div class="panel">
       <h2>Carbon Intensity &amp; CO₂ (voyage estimate)</h2>
@@ -15085,6 +15089,98 @@ async function persistCiiSetupFromForm(){
   if (!el) return;
   el.addEventListener('change', ()=>{ persistCiiSetupFromForm().catch(console.error); });
 });
+function setDepArrRobRecalcStatus(msg){
+  const el = document.getElementById('depArrRobRecalcStatus');
+  if (el) el.textContent = msg || '';
+}
+
+/**
+ * Re-check Dep / Arr ROB after Opening ROB, bunkering, or consumption changes:
+ * commit Vessel Data Opening ROB, rebuild the active-leg ROB/consumption chain,
+ * then refresh Opening / Received / Consumed / Present.
+ */
+async function recalculateDepArrRobComparison(){
+  if (!confirm(
+    'RECALCULATE DEP / ARR ROB — WARNING\n\n' +
+    'This will:\n' +
+    '• Save Vessel Data Opening ROB (and any open Ship Details edits)\n' +
+    '• Rebuild the active voyage ROB / consumption chain from that Opening baseline\n' +
+    '• Refresh Opening, Received (bunkers/receipts), Consumed, and Present\n\n' +
+    'Use this after changing starting ROB, bunkering, or consumption figures.\n' +
+    'An Undo Recalculate button will appear if this was a mistake.\n' +
+    'This does NOT sync to the server.\n\nContinue?'
+  )) return;
+
+  const clearOverrides = state.entries.length
+    ? confirm(
+        'Clear manual ME / GE / Boiler consumption overrides so meter readings drive the figures?\n\n' +
+        'OK = clear overrides (recommended after Opening ROB or bunkering corrections).\n' +
+        'Cancel = keep typed overrides and only rebuild the ROB chain / table.'
+      )
+    : false;
+
+  const btn = document.getElementById('btnRecalcDepArrRob');
+  if (btn) btn.disabled = true;
+  setDepArrRobRecalcStatus('Recalculating Dep / Arr ROB…');
+  try{
+    /* Pick up Opening ROB typed on Vessel Data → Fuel/Lube/FW even if Save was not pressed. */
+    try{ if (typeof readFuelTypeManagementFromDom === 'function') readFuelTypeManagementFromDom(); }catch(_){}
+    try{
+      if (typeof saveSetupFromForm === 'function') await saveSetupFromForm({ silent: true });
+      else if (typeof saveSetup === 'function') await saveSetup();
+    }catch(err){
+      console.warn('save before Dep/Arr ROB recalc:', err);
+      try{ if (typeof saveSetup === 'function') await saveSetup(); }catch(_){}
+    }
+
+    let stats = { entryCount: 0, rpmFixed: 0 };
+    if (state.entries.length){
+      pushVoyageRecalcUndo(clearOverrides ? 'Dep/Arr ROB (cleared overrides)' : 'Dep/Arr ROB');
+      /* Prefer Vessel Data opening meters/ROB as the voyage-start baseline. */
+      state.setup.carryover = null;
+      stats = await recalculateCurrentEntries({ persist: true, clearOverrides });
+      if ((state.setup.voyageNumber || '').trim() && state.activeVesselId){
+        try{ await archiveActiveVoyageLeg(); }catch(_){}
+      }
+      markPendingSync();
+      updateVoyageRecalcUndoButtons();
+    }
+
+    render();
+    try{
+      document.getElementById('depArrRobTable')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }catch(_){}
+
+    const { consByFuel, consByLube } = computeDerived();
+    const rows = depArrRobRows(consByFuel, consByLube).filter(r => !r.total);
+    const msg =
+      `Dep / Arr ROB recalculated.\n\n` +
+      `Tanks refreshed: ${rows.length}\n` +
+      `Log entries rebuilt: ${stats.entryCount}\n` +
+      (clearOverrides ? 'Manual unit consumption overrides were cleared.\n' : '') +
+      (state.entries.length ? '\nIf this was accidental, use Undo Recalculate.' : '\nNo log entries — table refreshed from Opening ROB and receipts only.');
+    setDepArrRobRecalcStatus(
+      `Recalculated ${rows.length} tank(s)` +
+      (stats.entryCount ? ` · ${stats.entryCount} log entr${stats.entryCount===1?'y':'ies'} rebuilt` : '') +
+      (clearOverrides ? ' · overrides cleared' : '') +
+      '.'
+    );
+    alert(msg);
+  } catch(err){
+    console.error(err);
+    setDepArrRobRecalcStatus('Dep / Arr ROB recalculate failed: ' + (err?.message || err));
+    alert('Dep / Arr ROB recalculate failed: ' + (err?.message || err));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('btnRecalcDepArrRob')?.addEventListener('click', ()=>{
+  recalculateDepArrRobComparison().catch(e=>alert(e.message||e));
+});
+document.getElementById('btnUndoDepArrRobRecalc')?.addEventListener('click', ()=>{
+  undoVoyageRecalculate().catch(e=>alert(e.message||e));
+});
 document.getElementById('btnPrintDepArrRob')?.addEventListener('click', ()=> printDepArrRobSheet());
 document.getElementById('btnPrintRangeTotals')?.addEventListener('click', ()=> printRangeTotalsSheet());
 document.getElementById('btnPrintFlowmeterRecordAll')?.addEventListener('click', ()=> printFlowmeterRecord('all'));
@@ -20795,7 +20891,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v226';
+let androidInstallCacheName = 'noon-report-v227';
 
 /*
  * What the program is called.
@@ -22113,7 +22209,7 @@ function updateVoyageRecalcUndoButtons(){
   const label = show
     ? `Undo Recalculate${voyageRecalcUndoStack.length>1 ? ` (${voyageRecalcUndoStack.length})` : ''}`
     : 'Undo Recalculate';
-  ['btnUndoVoyageRecalc','btnUndoVoyageRecalcTop','btnUndoSummaryRecalc'].forEach(id=>{
+  ['btnUndoVoyageRecalc','btnUndoVoyageRecalcTop','btnUndoSummaryRecalc','btnUndoDepArrRobRecalc'].forEach(id=>{
     const el = document.getElementById(id);
     if (!el) return;
     el.style.display = show ? '' : 'none';
@@ -22153,6 +22249,7 @@ async function undoVoyageRecalculate(){
   render();
   const vsOpen = document.getElementById('voyageSummaryPanel')?.style.display !== 'none';
   if (vsOpen && currentVsEntryId) openVoyageSummary(currentVsEntryId);
+  setDepArrRobRecalcStatus('Recalculate undone — previous figures restored.');
   alert('Recalculate undone — previous entry figures restored.');
 }
 
