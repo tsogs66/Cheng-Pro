@@ -3,11 +3,48 @@
   let active = null;
   let list = [];
   let session = null;
+  const HINT_KEY = 'chengProActiveVesselHint';
 
   function emit() {
     for (const fn of listeners) {
       try { fn(active); } catch (e) { console.error(e); }
     }
+  }
+
+  function writeActiveHint(vessel) {
+    try {
+      if (vessel && vessel.id) {
+        localStorage.setItem(HINT_KEY, JSON.stringify({
+          id: vessel.id,
+          imo: vessel.imo || '',
+          name: vessel.name || '',
+          slug: vessel.voyageSlug || vessel.slug || vessel.id || '',
+        }));
+      } else {
+        localStorage.removeItem(HINT_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+
+  /** Tell embedded Voyage / Tank iframes the shell vessel changed (IMO/name hint). */
+  function notifyEmbeds(vessel) {
+    try {
+      window.dispatchEvent(new CustomEvent('chengpro:vessel-changed', { detail: vessel }));
+    } catch { /* ignore */ }
+    const payload = {
+      type: 'chengaio-vessel-changed',
+      vessel: vessel ? {
+        id: vessel.id,
+        imo: vessel.imo || '',
+        name: vessel.name || '',
+        slug: vessel.voyageSlug || vessel.slug || vessel.id || '',
+      } : null,
+    };
+    document.querySelectorAll('iframe').forEach((frame) => {
+      try {
+        if (frame.contentWindow) frame.contentWindow.postMessage(payload, '*');
+      } catch { /* ignore */ }
+    });
   }
 
   async function refreshList() {
@@ -27,6 +64,7 @@
         active = null;
         ChengProApi.setActiveId('');
       }
+      writeActiveHint(active);
       emit();
       return { list, active };
     } catch (err) {
@@ -42,7 +80,9 @@
       body: JSON.stringify({ id: id || null }),
     });
     ChengProApi.setActiveId(id || '');
-    return refreshList();
+    const result = await refreshList();
+    notifyEmbeds(active);
+    return result;
   }
 
   root.ChengPro = {

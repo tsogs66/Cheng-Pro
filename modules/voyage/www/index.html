@@ -24409,6 +24409,96 @@ function isChengAioEmbedded(){
   } catch (_) { return false; }
 }
 
+function normalizeImoForAio(imo){
+  return String(imo || '').replace(/^IMO\s*/i, '').replace(/\D/g, '').trim();
+}
+
+function normalizeVesselNameForAio(name){
+  let s = String(name || '').trim();
+  let prev = '';
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+  }
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * When embedded in ChEng AIO, switch to the shell's active vessel by IMO or name.
+ * Folder / registry ids often differ between AIO, Voyage, and Tank.
+ */
+async function syncActiveVesselFromChengAio(forceVessel){
+  if (!isChengAioEmbedded()) return false;
+  let hint = forceVessel || null;
+  if (!hint) {
+    try {
+      const p = window.parent && window.parent !== window ? window.parent : null;
+      if (p && p.ChengPro && p.ChengPro.vessel && typeof p.ChengPro.vessel.getActive === 'function') {
+        hint = p.ChengPro.vessel.getActive();
+      }
+    } catch (_) { /* cross-origin */ }
+  }
+  if (!hint) {
+    try {
+      const raw = localStorage.getItem('chengProActiveVesselHint');
+      if (raw) hint = JSON.parse(raw);
+    } catch (_) { /* ignore */ }
+  }
+  if (!hint || (!hint.imo && !hint.name && !hint.vesselName && !hint.id)) return false;
+  if (!Array.isArray(state.vessels) || !state.vessels.length) return false;
+
+  const imo = normalizeImoForAio(hint.imo);
+  const nameKey = normalizeVesselNameForAio(hint.name || hint.vesselName);
+  const slug = vesselSlugFromName(hint.name || hint.vesselName || hint.slug || '');
+  const hintId = hint.id || hint.voyageRegistryId || '';
+
+  let match = null;
+  if (imo) {
+    let byKey = null;
+    try {
+      const metaAll = await dbGetAll('meta');
+      byKey = new Map((metaAll || []).map((m) => [m.key, m.value]));
+    } catch (_) { byKey = null; }
+    for (const v of state.vessels) {
+      let setup = (v.id === state.activeVesselId) ? state.setup : null;
+      if (!setup && byKey) setup = byKey.get(`setup:${v.id}`) || {};
+      if (!setup) setup = {};
+      if (normalizeImoForAio(setup.imoNo) === imo
+          || normalizeImoForAio(setup.orb && setup.orb.imo) === imo) {
+        match = v;
+        break;
+      }
+    }
+  }
+  if (!match) {
+    match = state.vessels.find((v) =>
+      v.id === hintId
+      || v.slug === slug || v.slug === hintId || v.slug === hint.slug
+      || v.id === slug
+      || (nameKey && normalizeVesselNameForAio(v.name) === nameKey)
+    ) || null;
+  }
+  if (!match) return false;
+  if (match.id !== state.activeVesselId) await switchVessel(match.id);
+  return true;
+}
+
+function installChengAioVesselSync(){
+  if (!isChengAioEmbedded() || window._chengAioVesselSyncInstalled) return;
+  window._chengAioVesselSyncInstalled = true;
+  window.addEventListener('message', (ev) => {
+    const msg = ev && ev.data;
+    if (!msg || msg.type !== 'chengaio-vessel-changed') return;
+    syncActiveVesselFromChengAio(msg.vessel).catch((err) => {
+      console.warn('AIO vessel sync:', err && err.message);
+    });
+  });
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'chengProActiveVesselHint' && e.key !== 'chengProActiveVesselId') return;
+    syncActiveVesselFromChengAio().catch(() => {});
+  });
+}
+
 /**
  * e-ORB tab: always hidden when embedded in ChEng AIO (use AIO → e-ORB iframe).
  * Standalone Voyage: show only when the license includes e-ORB (AIO key, eorb add-on, or master).
@@ -25483,6 +25573,12 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       applyConsumptionPlanVisibility();
       if (isChengAioEmbedded()) {
         try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
+        try {
+          installChengAioVesselSync();
+          await syncActiveVesselFromChengAio();
+        } catch (syncErr) {
+          console.warn('AIO vessel sync on boot:', syncErr);
+        }
       }
     } catch (_) {}
   } catch(e){

@@ -198,8 +198,8 @@
 
   function findMatch(list, patch) {
     const imo = normalizeImo(patch.imo);
-    const slug = patch.voyageSlug || slugify(patch.name);
-    const slugCore = slugify(patch.name);
+    const slug = patch.voyageSlug || patch.slug || patch.id || slugify(patch.name);
+    const slugCore = slugify(patch.name || patch.vesselName);
     /* 1) IMO is authoritative when both sides have it. */
     if (imo) {
       const byImo = list.find((v) => normalizeImo(v.imo) === imo);
@@ -209,18 +209,52 @@
     const bySlug = list.find((v) =>
       v.id === slug || v.id === slugCore
       || v.voyageSlug === slug || v.voyageSlug === slugCore
+      || v.slug === slug || v.slug === slugCore
     );
     if (bySlug) return bySlug;
     /* 3) Voyage registry id when present. */
     const byVoyageId = list.find((v) => v.voyageRegistryId && v.voyageRegistryId === patch.voyageRegistryId);
     if (byVoyageId) return byVoyageId;
-    /* 4) Name ignoring MV / M/V / M.V. prefixes and punctuation. */
-    const nameKey = normalizeVesselName(patch.name);
+    /* 4) Exact folder / shell id. */
+    if (patch.id) {
+      const byId = list.find((v) => v.id === patch.id);
+      if (byId) return byId;
+    }
+    /* 5) Name ignoring MV / M/V / M.V. prefixes and punctuation. */
+    const nameKey = normalizeVesselName(patch.name || patch.vesselName);
     if (nameKey) {
-      const byName = list.find((v) => normalizeVesselName(v.name) === nameKey);
+      const byName = list.find((v) =>
+        normalizeVesselName(v.name || v.vesselName) === nameKey
+      );
       if (byName) return byName;
     }
     return null;
+  }
+
+  /**
+   * Resolve a Tank or Voyage vessel row from an AIO shell vessel (or hint).
+   * Folder ids often differ across apps; IMO then name/slug are the real keys.
+   */
+  function resolveFromList(list, hint) {
+    if (!Array.isArray(list) || !list.length || !hint) return null;
+    const shaped = list.map((v) => ({
+      id: v.id,
+      name: v.name || v.vesselName || '',
+      vesselName: v.vesselName || v.name || '',
+      imo: v.imo,
+      slug: v.slug || v.voyageSlug || v.id,
+      voyageSlug: v.voyageSlug || v.slug || v.id,
+      voyageRegistryId: v.voyageRegistryId || null,
+    }));
+    return findMatch(shaped, {
+      id: hint.id || '',
+      name: hint.name || hint.vesselName || '',
+      vesselName: hint.vesselName || hint.name || '',
+      imo: hint.imo,
+      slug: hint.slug || hint.voyageSlug || hint.id || '',
+      voyageSlug: hint.voyageSlug || hint.slug || hint.id || '',
+      voyageRegistryId: hint.voyageRegistryId || null,
+    });
   }
 
   async function importIntoChengPro(options = {}) {
@@ -609,6 +643,7 @@
     writeActiveHint,
     mapSetupToPatch,
     findMatch,
+    resolveFromList,
     slugify,
     normalizeImo,
     normalizeVesselName,
