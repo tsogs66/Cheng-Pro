@@ -18547,10 +18547,10 @@ function renderVoyageProgress(animateShip){
   const blowToDeg = (angleFrom + 180) % 360;
   const blowSin = Math.sin(blowToDeg * Math.PI / 180);
   const windDirX = blowSin >= 0 ? 1 : -1;
-  /* Mid-range knots by Beaufort — motion tempo relative to BF 2 (~5 kn). */
+  /* Mid-range knots by Beaufort — tempo relative to BF 2 (~5 kn), then halved. */
   const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
   const bfIdx = Math.max(0, Math.min(12, Math.round(bftEff)));
-  const windSpeed = (BF_KN[bfIdx] || 5) / 5; // 1.0 at BF2; ~7.4 at BF8
+  const windSpeed = ((BF_KN[bfIdx] || 5) / 5) * 0.5; // half previous scale (~0.5 at BF2)
 
   function rnd(seed){
     let t = (seed * 9301 + 49297) % 233280;
@@ -18587,7 +18587,7 @@ function renderVoyageProgress(animateShip){
   function windLayer(xL, xR, count){
     const parts = [];
     const dir = windDirX;
-    const speed = Math.max(0.45, windSpeed);
+    const speed = Math.max(0.25, windSpeed);
     for (let i = 0; i < count; i++){
       const sx = rndRange(i * 17 + 3, xL, xR);
       const sy = rndRange(i * 31 + 11, skyTop + 14, skyBottom - 48);
@@ -18633,7 +18633,7 @@ function renderVoyageProgress(animateShip){
   function rainLayer(xL, xR, count){
     const parts = [];
     const lean = windDirX * (6 + bftEff * 1.2);
-    const speed = Math.max(0.45, windSpeed);
+    const speed = Math.max(0.25, windSpeed);
     for (let i = 0; i < count; i++){
       const sx = rndRange(i * 53 + 8, xL - 10, xR + 10);
       const sy = rndRange(i * 59 + 14, skyTop - 20, skyBottom - 50);
@@ -18668,6 +18668,40 @@ function renderVoyageProgress(animateShip){
         rainN: 40 + Math.round(bftEff * 10),
       })
     : '';
+
+  function compassRoseSvg(){
+    const cx = 852, cy = 40, r = 24;
+    const toDeg = blowToDeg;
+    /* SVG: 0° = east, clockwise; meteo 0° = north. Convert meteo→SVG rotate. */
+    const needleSvgDeg = toDeg - 90;
+    const fromLabel = windDir || (windAngle!=null ? String(Math.round(windAngle)) + '°' : '—');
+    const tick = (deg, major)=>{
+      const rad = (deg - 90) * Math.PI / 180;
+      const r0 = major ? r - 5 : r - 3;
+      const r1 = r;
+      const x0t = cx + Math.cos(rad) * r0, y0t = cy + Math.sin(rad) * r0;
+      const x1t = cx + Math.cos(rad) * r1, y1t = cy + Math.sin(rad) * r1;
+      return `<line x1="${x0t}" y1="${y0t}" x2="${x1t}" y2="${y1t}" stroke="var(--paper-dim)" stroke-width="${major?1.4:0.8}" opacity="${major?0.85:0.45}"/>`;
+    };
+    let ticks = '';
+    for (let d = 0; d < 360; d += 30) ticks += tick(d, d % 90 === 0);
+    return `<g class="voyage-compass" pointer-events="none">
+      <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" fill="#e0b56a" font-family="'IBM Plex Mono',monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
+      <circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="rgba(8,16,28,0.72)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1.1" opacity="0.7"/>
+      ${ticks}
+      <text x="${cx}" y="${cy - r + 10}" text-anchor="middle" fill="var(--brass)" font-family="Oswald,sans-serif" font-size="9" font-weight="700">N</text>
+      <text x="${cx + r - 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">E</text>
+      <text x="${cx}" y="${cy + r - 2}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">S</text>
+      <text x="${cx - r + 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">W</text>
+      <g transform="rotate(${needleSvgDeg} ${cx} ${cy})">
+        <line x1="${cx}" y1="${cy}" x2="${cx + r - 6}" y2="${cy}" stroke="#e0b56a" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M ${cx + r - 2} ${cy} L ${cx + r - 10} ${cy - 4.5} L ${cx + r - 10} ${cy + 4.5} Z" fill="#e0b56a"/>
+        <circle cx="${cx}" cy="${cy}" r="2.4" fill="#e0b56a" stroke="#8a6b3c" stroke-width="0.8"/>
+      </g>
+    </g>`;
+  }
+  const compassSvg = compassRoseSvg();
 
   const bfTxt = windBft!=null ? `BF ${fmt(windBft,0)}${windDir ? ' · '+windDir : ''}` : (windDir ? windDir : '');
   const bfName = voyageBfLabel(windBft);
@@ -18773,6 +18807,7 @@ function renderVoyageProgress(animateShip){
       ${seaAround}
       ${driftRipples}
       ${weatherSvg}
+      ${compassSvg}
 
       <line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="var(--line-strong)" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>
       <line x1="${x0}" y1="${y}" x2="${shipX}" y2="${y}" class="voyage-progress-line" stroke="var(--brass)" stroke-width="3" stroke-linecap="round"/>

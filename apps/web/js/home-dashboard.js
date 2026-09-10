@@ -85,7 +85,7 @@
   function windLayer(ctx, xL, xR, count) {
     const { windDirX, skyTop, skyBottom, bftEff, windSpeed } = ctx;
     const parts = [];
-    const speed = Math.max(0.45, windSpeed || 1);
+    const speed = Math.max(0.25, windSpeed || 1);
     for (let i = 0; i < count; i++) {
       const sx = rndRange(i * 17 + 3, xL, xR);
       const sy = rndRange(i * 31 + 11, skyTop + 14, skyBottom - 48);
@@ -132,7 +132,7 @@
     const { windDirX, skyTop, skyBottom, bftEff, windSpeed } = ctx;
     const parts = [];
     const lean = windDirX * (6 + bftEff * 1.2);
-    const speed = Math.max(0.45, windSpeed || 1);
+    const speed = Math.max(0.25, windSpeed || 1);
     for (let i = 0; i < count; i++) {
       const sx = rndRange(i * 53 + 8, xL - 10, xR + 10);
       const sy = rndRange(i * 59 + 14, skyTop - 20, skyBottom - 50);
@@ -195,7 +195,7 @@
     const blowToDeg = (angleFrom + 180) % 360;
     const windDirX = Math.sin(blowToDeg * Math.PI / 180) >= 0 ? 1 : -1;
     const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
-    const windSpeed = (BF_KN[Math.max(0, Math.min(12, Math.round(bftEff)))] || 5) / 5;
+    const windSpeed = ((BF_KN[Math.max(0, Math.min(12, Math.round(bftEff)))] || 5) / 5) * 0.5;
     const ctx = { windDirX, skyTop, skyBottom, bftEff, windSpeed };
     const chopY = 2 + seaEff * 0.9;
     const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
@@ -253,6 +253,31 @@
     const upperHull = `M ${shipX - 44} ${y + 9} L ${shipX - 44} ${y + 4} L ${shipX + 24} ${y + 4} L ${shipX + 46} ${y + 9} Z`;
     const lowerHull = `M ${shipX - 44} ${y + 18} L ${shipX - 44} ${y + 9} L ${shipX + 46} ${y + 9} L ${shipX + 24} ${y + 18} Z`;
     const speedTxt = snap.lastSpeed != null ? `${fmt(snap.lastSpeed, 1)} kn` : '';
+    const cx = 852, cy = 40, r = 24;
+    const needleSvgDeg = blowToDeg - 90;
+    const fromLabel = windDir || (windAngle != null ? String(Math.round(windAngle)) + '°' : '—');
+    let compassTicks = '';
+    for (let d = 0; d < 360; d += 30) {
+      const rad = (d - 90) * Math.PI / 180;
+      const major = d % 90 === 0;
+      const r0 = major ? r - 5 : r - 3;
+      compassTicks += `<line x1="${cx + Math.cos(rad) * r0}" y1="${cy + Math.sin(rad) * r0}" x2="${cx + Math.cos(rad) * r}" y2="${cy + Math.sin(rad) * r}" stroke="var(--paper-dim)" stroke-width="${major ? 1.4 : 0.8}" opacity="${major ? 0.85 : 0.45}"/>`;
+    }
+    const compassSvg = `<g class="voyage-compass" pointer-events="none">
+      <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" fill="#e0b56a" font-family="monospace" font-size="9" font-weight="600">FROM ${esc(fromLabel)}</text>
+      <circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="rgba(8,16,28,0.72)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1.1" opacity="0.7"/>
+      ${compassTicks}
+      <text x="${cx}" y="${cy - r + 10}" text-anchor="middle" fill="var(--brass)" font-family="Georgia,serif" font-size="9" font-weight="700">N</text>
+      <text x="${cx + r - 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">E</text>
+      <text x="${cx}" y="${cy + r - 2}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">S</text>
+      <text x="${cx - r + 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">W</text>
+      <g transform="rotate(${needleSvgDeg} ${cx} ${cy})">
+        <line x1="${cx}" y1="${cy}" x2="${cx + r - 6}" y2="${cy}" stroke="#e0b56a" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M ${cx + r - 2} ${cy} L ${cx + r - 10} ${cy - 4.5} L ${cx + r - 10} ${cy + 4.5} Z" fill="#e0b56a"/>
+        <circle cx="${cx}" cy="${cy}" r="2.4" fill="#e0b56a" stroke="#8a6b3c" stroke-width="0.8"/>
+      </g>
+    </g>`;
     el.innerHTML = `
       <svg viewBox="0 0 900 340" class="home-voyage-svg" style="width:100%;height:auto;max-height:360px;background:rgba(18,34,56,.03);border-radius:12px">
         <defs><clipPath id="homeSkyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
@@ -260,6 +285,7 @@
         <g class="voyage-wave" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
         ${sea}
         ${weather}
+        ${compassSvg}
         <line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="var(--line-strong)" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>
         <line x1="${x0}" y1="${y}" x2="${shipX}" y2="${y}" stroke="var(--brass)" stroke-width="3" stroke-linecap="round"/>
         <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
