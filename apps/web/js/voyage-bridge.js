@@ -610,14 +610,14 @@
    * Present prefers saved survey measured ROB; otherwise Opening + Received −
    * saved log consumption (unitOverride / consOverride / misc — not a meter rebuild).
    */
+  /** Credit bunker/lube/FW receipts to one tank — tankId preferred; name only if tankId missing (never grade). */
   function homeFuelReceiptQty(receipts, tank) {
     let hand = 0;
     let survey = 0;
     for (const r of receipts || []) {
       if (!r || r.category !== 'fuel') continue;
       const match = (r.tankId && r.tankId === tank.id)
-        || (r.type && tank.name && String(r.type).toLowerCase() === String(tank.name).toLowerCase())
-        || (r.type && tank.grade && String(r.type) === String(tank.grade));
+        || (!r.tankId && r.type && tank.name && String(r.type) === String(tank.name));
       if (!match) continue;
       const qty = Number(r.qty) || 0;
       if (r.source === 'rob-survey') survey += qty;
@@ -634,6 +634,22 @@
       const v = Number(openStore && openStore[p.id]) || 0;
       total += v;
       if (p.id === tank.id) mine = v;
+    });
+    if (total > 0) return mine / total;
+    return 1 / peers.length;
+  }
+
+  /** Opening+Received stock share (matches Voyage deductGradeConsumption / Calculated ROB). */
+  function homeStockShare(peers, tank, openStore, receipts) {
+    if (!peers.length) return 0;
+    let total = 0;
+    let mine = 0;
+    peers.forEach((p) => {
+      const open = Number(openStore && openStore[p.id]) || 0;
+      const recv = homeFuelReceiptQty(receipts, p);
+      const stock = Math.max(0, open + recv);
+      total += stock;
+      if (p.id === tank.id) mine = stock;
     });
     if (total > 0) return mine / total;
     return 1 / peers.length;
@@ -680,7 +696,7 @@
       const received = homeFuelReceiptQty(receipts, t);
       const grade = t.grade || t.name;
       const peers = fuelTanks.filter((p) => (p.grade || p.name) === grade);
-      const consumed = (Number(consByGrade[grade]) || 0) * homeOpenShare(peers, t, robStart);
+      const consumed = (Number(consByGrade[grade]) || 0) * homeStockShare(peers, t, robStart, receipts);
       let measured = null;
       for (let i = list.length - 1; i >= 0; i--) {
         const m = list[i] && list[i].robSurvey && list[i].robSurvey.measured

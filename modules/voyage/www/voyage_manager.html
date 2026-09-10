@@ -8417,14 +8417,14 @@ function currentROB(consByFuel, consByLube){
      baseline plus anything already received is the current ROB. */
   const rob = {};
   fuelTankList().forEach(t=>{
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'fuel')).reduce((s,r)=>s+r.qty,0);
+    const received = bookReceivedPreferOnce(t, 'fuel', {});
     rob[t.id] = tankRobValue(state.setup.rob, t) + received;
   });
   FUEL_TYPES.forEach(g=> deductGradeConsumption(rob, fuelTankList(), g, 'grade', consByFuel[g]||0));
 
   const robLube = {};
   lubeTankList().forEach(t=>{
-    const received = state.receipts.filter(r=>receiptMatchesTank(r, t, 'lube')).reduce((s,r)=>s+r.qty,0);
+    const received = bookReceivedPreferOnce(t, 'lube', {});
     robLube[t.id] = tankRobValue(state.setup.robLube, t) + received;
   });
   deductLubeConsumption(robLube, 'cylHigh', consByLube['CYL HIGH']||0);
@@ -8850,14 +8850,19 @@ function entryHasStampedReceived(entryId, tankId, cat){
  */
 function stampedReceivedAsOf(tankId, cat, cutoff, survey){
   let sum = 0;
-  const limit = cutoff.getTime();
+  const limit = cutoff && cutoff.getTime ? cutoff.getTime() : Infinity;
   for (const e of (state.entries || [])){
-    if (!e || !e.datetime) continue;
-    const t = new Date(e.datetime).getTime();
-    if (!Number.isFinite(t) || t > limit) continue;
-    if (survey){
-      /* Survey day and earlier are inside / before the measured re-base. */
-      if (!receiptDayAfter(e.datetime, survey.date)) continue;
+    if (!e) continue;
+    if (e.datetime){
+      const t = new Date(e.datetime).getTime();
+      if (Number.isFinite(t) && t > limit) continue;
+      if (survey){
+        /* Survey day and earlier are inside / before the measured re-base. */
+        if (!receiptDayAfter(e.datetime, survey.date)) continue;
+      }
+    } else if (survey){
+      /* No datetime — cannot place relative to survey; skip under survey rebase. */
+      continue;
     }
     const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
     if (map && map[tankId] != null) sum += Number(map[tankId]) || 0;
@@ -8904,33 +8909,14 @@ function robAsOfComputedRow(row, rowsHint){
   };
   /* Include bunkers by calendar day so a date-only receipt on this report's day
      is never dropped by timezone when comparing to the entry datetime. */
-  const countReceipt = (r) => {
-    const rDay = String(r.date || '').slice(0, 10);
-    if (!rDay || rDay > cutoffDay) return false;
-    /* Bunkers delivered up to the survey are already inside the measured figure —
-       counting them again would double the delivery. */
-    return !survey || receiptDayAfter(r.date, survey.date);
-  };
-  /* Book bunkers = hand-logged receipts + stamped summary Received.
-     rob-survey receipt mirrors are ONLY a fallback when an old entry has no
-     stamp yet — never add mirror + stamp together (that inflated Previous). */
-  const receiptQty = (t, cat) => {
-    let hand = 0, surveyFallback = 0;
-    for (const r of (state.receipts || [])){
-      if (!receiptMatchesTank(r, t, cat) || !countReceipt(r)) continue;
-      const qty = Number(r.qty) || 0;
-      if (r.source === 'rob-survey'){
-        if (!entryHasStampedReceived(r.surveyEntryId, t.id, cat)) surveyFallback += qty;
-      } else {
-        hand += qty;
-      }
-    }
-    return hand + surveyFallback;
-  };
+  /* Book bunkers prefer-once: hand Receipts, else rob-survey mirrors, else stamp.
+     Never hand+stamp (Save Report mirrors Received into Receipts — counting both
+     inflated LSFO R.O.B. / Calculated Present after bunkering). */
+  const receivedOpts = { cutoff, cutoffDay, survey };
 
   const rob = {};
   fuelTankList().forEach(t=>{
-    const received = receiptQty(t, 'fuel') + stampedReceivedAsOf(t.id, 'fuel', cutoff, survey);
+    const received = bookReceivedPreferOnce(t, 'fuel', receivedOpts);
     rob[t.id] = base(state.setup.rob, t, survey?.measured, survey?.calculated) + received;
   });
   FUEL_TYPES.forEach(g=> deductGradeConsumption(rob, fuelTankList(), g, 'grade',
@@ -8938,7 +8924,7 @@ function robAsOfComputedRow(row, rowsHint){
 
   const robLube = {};
   lubeTankList().forEach(t=>{
-    const received = receiptQty(t, 'lube') + stampedReceivedAsOf(t.id, 'lube', cutoff, survey);
+    const received = bookReceivedPreferOnce(t, 'lube', receivedOpts);
     robLube[t.id] = base(state.setup.robLube, t, survey?.measuredLube, survey?.calculatedLube) + received;
   });
   deductLubeConsumption(robLube, 'cylHigh', Math.max(0, (row.cumLube?.['CYL HIGH']||0) - (survey ? (sRow?.cumLube?.['CYL HIGH']||0) : 0)));
@@ -8947,7 +8933,7 @@ function robAsOfComputedRow(row, rowsHint){
   deductLubeConsumption(robLube, 'geSys', Math.max(0, (row.cumLube?.['GE SYS OIL']||0) - (survey ? (sRow?.cumLube?.['GE SYS OIL']||0) : 0)));
   /* FW Received stamped on entries (and manual FW receipts) also carry forward. */
   fwTankList().forEach(t=>{
-    const received = receiptQty(t, 'fw') + stampedReceivedAsOf(t.id, 'fw', cutoff, survey);
+    const received = bookReceivedPreferOnce(t, 'fw', receivedOpts);
     if (received) robLube[t.id] = (Number(robLube[t.id])||0) + received;
   });
   const fwTanks = fwTankList();
@@ -12366,26 +12352,73 @@ function receiptMatchesTankStrict(r, tank, categories){
 }
 
 /**
- * Voyage-total Received for Dep/Arr: Receipts store only (never re-add stamped
- * entry.robReceived). Prefer hand-logged Receipts; use rob-survey mirrors only
- * when that tank has no hand receipt — Save Report writes mirrors from the
- * Received column, so counting hand + stamp/mirror ballooned bunkers.
- * Tank match is strict (tankId or exact name, never grade broadcast).
+ * Book Received for one tank: hand Receipts, else rob-survey mirrors, else stamped
+ * Summary Received — never sum two of those for the same bunker.
+ * Save Report stamps Received AND writes a rob-survey mirror; counting stamp + hand
+ * (or stamp + mirror) inflated LSFO Present / Calculated ROB after bunkering.
+ *
+ * @param {object} tank
+ * @param {string|string[]} categories
+ * @param {{cutoff?:Date, cutoffDay?:string, survey?:object|null}} [opts]
+ *        cutoff/cutoffDay/survey limit bunkers for robAsOf; omit for voyage-total Dep/Arr.
  */
-function voyageReceivedQty(tank, categories){
+function bookReceivedPreferOnce(tank, categories, opts){
   const cats = Array.isArray(categories) ? categories : [categories];
-  const catArg = cats.length === 1 ? cats[0] : cats;
-  let hand = 0, survey = 0;
+  const cat = cats[0];
+  const o = opts || {};
+  const survey = o.survey || null;
+  const cutoff = o.cutoff || null;
+  const cutoffDay = o.cutoffDay
+    || (cutoff ? String(cutoff instanceof Date ? cutoff.toISOString() : cutoff).slice(0, 10) : null);
+
+  const allowReceipt = (r) => {
+    if (!receiptMatchesTankStrict(r, tank, cats)) return false;
+    if (!cutoffDay) return true;
+    const rDay = String(r.date || '').slice(0, 10);
+    if (!rDay || rDay > cutoffDay) return false;
+    /* Bunkers on/before survey day are already inside the measured figure. */
+    return !survey || receiptDayAfter(r.date, survey.date);
+  };
+
+  let hand = 0, surveyFallback = 0;
   for (const r of (state.receipts || [])){
-    if (!receiptMatchesTankStrict(r, tank, catArg)) continue;
+    if (!allowReceipt(r)) continue;
     const qty = Number(r.qty) || 0;
-    if (r.source === 'rob-survey') survey += qty;
-    else hand += qty;
+    if (r.source === 'rob-survey'){
+      if (!entryHasStampedReceived(r.surveyEntryId, tank.id, cat)) surveyFallback += qty;
+    } else {
+      hand += qty;
+    }
   }
-  return hand > 0 ? hand : survey;
+  if (hand > 0) return hand;
+  if (surveyFallback > 0) return surveyFallback;
+  const stampCutoff = cutoff || new Date('2999-12-31T23:59:59Z');
+  return stampedReceivedAsOf(tank.id, cat, stampCutoff, survey);
 }
 
-/** Opening-share among peer tanks (stable voyage attribution for grade/kind totals). */
+/**
+ * Voyage-total Received for Dep/Arr / Calculated ROB (prefer-once book bunkers).
+ */
+function voyageReceivedQty(tank, categories){
+  return bookReceivedPreferOnce(tank, categories, {});
+}
+
+/** Opening+Received stock share among peer tanks (matches deductGradeConsumption). */
+function depArrStockShare(peers, tank, openStore, cat){
+  if (!peers.length) return 0;
+  let total = 0, mine = 0;
+  peers.forEach(p=>{
+    const open = tankRobValue(openStore, p) || 0;
+    const recv = bookReceivedPreferOnce(p, cat, {});
+    const stock = Math.max(0, open + recv);
+    total += stock;
+    if (p.id === tank.id) mine = stock;
+  });
+  if (total > 0) return mine / total;
+  return 1 / peers.length;
+}
+
+/** Opening-share among peer tanks (legacy helper; stock share preferred for Present). */
 function depArrOpenShare(peers, tank, openStore){
   if (!peers.length) return 0;
   let total = 0, mine = 0;
@@ -12401,6 +12434,7 @@ function depArrOpenShare(peers, tank, openStore){
 /**
  * Voyage consumption for one tank from the derived log (unitOverride / consOverride
  * already applied in computeDerived). Not a separate flowmeter re-read.
+ * Share matches robAsOf deductGradeConsumption: by Opening+Received stock.
  */
 function voyageConsumedFromLog(tank, cat, rows){
   if (!rows || !rows.length) return 0;
@@ -12408,13 +12442,13 @@ function voyageConsumedFromLog(tank, cat, rows){
   if (cat === 'fuel'){
     const total = Number(last.cumFuel?.[tank.grade]) || 0;
     const peers = fuelTankList().filter(t => t.grade === tank.grade);
-    return total * depArrOpenShare(peers, tank, state.setup.rob);
+    return total * depArrStockShare(peers, tank, state.setup.rob, 'fuel');
   }
   if (cat === 'lube'){
     const label = lubeKindToLabel(tank.kind);
     const total = Number(last.cumLube?.[label]) || 0;
     const peers = lubeTankList().filter(t => lubeKindToLabel(t.kind) === label);
-    return total * depArrOpenShare(peers, tank, state.setup.robLube);
+    return total * depArrStockShare(peers, tank, state.setup.robLube, 'lube');
   }
   /* Fresh water: prefer per-tank period cons from each watch. */
   let sum = 0;
@@ -21164,7 +21198,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v235';
+let androidInstallCacheName = 'noon-report-v236';
 
 /*
  * What the program is called.
