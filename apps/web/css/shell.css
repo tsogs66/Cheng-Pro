@@ -148,6 +148,17 @@ html.bright .nav-item:hover, html.bright .bottom-item:hover { background: rgba(1
 }
 html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba(138,90,26,0.12); }
 .sidebar-note { margin-top: auto; font-size: 0.72rem; color: var(--muted); line-height: 1.45; padding: 0 8px; }
+.sidebar-meta {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.sidebar-meta .ver { font-family: var(--mono); color: var(--text); font-weight: 600; }
+.sidebar-meta .email { font-family: var(--mono); color: var(--text); word-break: break-all; margin-top: 2px; }
+.sidebar-meta .email:empty, .sidebar-meta .ver:empty { display: none; }
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -365,6 +376,85 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 .home-meta { margin: 14px 0 0; font-size: 0.78rem; color: var(--muted); font-family: var(--mono); }
 @media (max-width: 900px) {
   .home-feature-list { grid-template-columns: 1fr; }
+}
+
+/* Home operational dashboard */
+.vessel-chip {
+  display: inline-flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 999px; background: rgba(18,34,56,.04); border: 1px solid var(--line);
+  margin-bottom: 14px; font-size: 13px;
+}
+html:not(.bright) .vessel-chip { background: rgba(255,255,255,.04); }
+.vessel-chip span { text-transform: uppercase; letter-spacing: .08em; font-size: 10px; color: var(--muted); }
+.vessel-chip strong { font-size: 15px; color: var(--text); }
+.vessel-chip em { font-style: normal; font-family: var(--mono); color: var(--muted); font-size: 12px; }
+.section-head .sub { font-size: 12px; color: var(--muted); }
+.toggle-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.toggle-row button {
+  border: 1px solid var(--line-strong, var(--line)); background: transparent; color: var(--text);
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+}
+.toggle-row button.on { background: var(--brass); color: #fff8ee; border-color: var(--brass); }
+.gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; }
+.gauge-box { text-align: center; padding: 8px 2px 2px; }
+.gauge-box svg.analog-gauge { width: 100%; max-width: 170px; height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28)); }
+.gauge-value { font-family: var(--mono); font-size: 16px; color: var(--brass); font-weight: 600; }
+.gauge-cap { font-size: 9px; color: var(--muted); font-family: var(--mono); }
+.gauge-label { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-top: 2px; font-weight: 600; }
+.cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.cards-row .card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  background: rgba(18,34,56,.02);
+}
+html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
+.cards-row .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.cards-row .card .value { font-size: 1.25rem; font-weight: 650; color: var(--text); }
+.cards-row .card .unit { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+.cards-row .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.cat-fuel { background: #8a5a1a; }
+.tg-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.tg-card {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  background: var(--panel); min-width: 0;
+}
+.tg-name { font-size: 11.5px; font-weight: 700; min-height: 2.4em; color: var(--text); }
+.tg-art {
+  height: 72px; border-radius: 6px;
+  background: linear-gradient(180deg, rgba(31,122,114,.08), rgba(31,122,114,.22));
+  position: relative; overflow: hidden;
+}
+.tg-art .fill {
+  position: absolute; left: 18%; right: 18%; bottom: 10px; border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, #c99a53, #8a5a1a);
+}
+.tg-art .shell {
+  position: absolute; left: 16%; right: 16%; top: 8px; bottom: 8px;
+  border: 2px solid var(--muted); border-radius: 4px; background: transparent;
+}
+.tg-pct { position: absolute; right: 6px; top: 4px; font-size: 12px; font-weight: 800; color: var(--text); }
+.tg-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px;
+  font-size: 11px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums;
+}
+.tg-stats b { color: var(--text); font-weight: 600; }
+@keyframes voyage-wave { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -48; } }
+@keyframes voyage-sea-chop {
+  0%,100% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-8px) translateY(var(--chop-y, 3px)); }
+}
+@keyframes voyage-ship-bob {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.voyage-wave { animation: voyage-wave 5s linear infinite; stroke-dasharray: 24 8; }
+.voyage-sea-local { animation: voyage-sea-chop var(--sea-dur,2.8s) ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.voyage-ship { animation: voyage-ship-bob 3.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  .voyage-wave, .voyage-sea-local, .voyage-ship { animation: none !important; }
+}
+@media (max-width: 900px) {
+  .tg-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
 /* Voyage / Tank / e-ORB full embed inside AIO shell — bottom nav stays visible */
