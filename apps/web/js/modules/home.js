@@ -138,8 +138,7 @@ window.ChengProModules.home = {
 
     if (hasTanks && active) {
       try {
-        const tankId = await resolveTankVesselId(active);
-        const bundle = tankId ? await loadTankBundle(tankId) : null;
+        const bundle = await loadTankBundleForActive(active);
         if (Dash && bundle) {
           Dash.renderFuelTankOverview(
             root.querySelector('#homeFuelSummary'),
@@ -151,7 +150,7 @@ window.ChengProModules.home = {
           const summary = root.querySelector('#homeFuelSummary');
           if (summary) summary.innerHTML = '';
           if (grid) {
-            grid.innerHTML = `<div class="hint">No Tank Chief vessel matches ${esc(active.name || active.id)} yet. Open Tank Chief once for this ship.</div>`;
+            grid.innerHTML = `<div class="hint">No Tank Chief vessel matches ${esc(active.name || active.id)} yet (tried IMO / name ignoring MV). Open Tank Chief once for this ship.</div>`;
           }
         }
       } catch (err) {
@@ -196,17 +195,46 @@ async function listTankVessels() {
   return [];
 }
 
-/** Map AIO shell vessel → Tank folder id via IMO, then slug/name. */
+/** Candidate Tank folder ids for a shell vessel (legacy mv- prefix + slugify). */
+function tankIdCandidates(active) {
+  if (!active) return [];
+  const out = [];
+  const push = (id) => {
+    const s = String(id || '').trim();
+    if (!s || out.includes(s)) return;
+    out.push(s);
+  };
+  push(active.id);
+  push(active.voyageSlug);
+  push(active.slug);
+  if (active.id && /^mv-/i.test(active.id)) push(active.id.replace(/^mv-/i, ''));
+  else if (active.id) push('mv-' + active.id);
+  const slugFn = window.ChengProVoyageBridge && ChengProVoyageBridge.slugify;
+  if (typeof slugFn === 'function' && active.name) {
+    const core = slugFn(active.name);
+    push(core);
+    push('mv-' + core);
+  }
+  return out;
+}
+
+/**
+ * Map AIO shell vessel → Tank folder id via IMO, then slug/name (ignore MV),
+ * then legacy mv- folder aliases.
+ */
 async function resolveTankVesselId(active) {
   if (!active) return null;
   const vessels = await listTankVessels();
-  if (!vessels.length) return active.id || null;
-  if (window.ChengProVoyageBridge && typeof ChengProVoyageBridge.resolveFromList === 'function') {
+  if (vessels.length && window.ChengProVoyageBridge
+      && typeof ChengProVoyageBridge.resolveFromList === 'function') {
     const match = ChengProVoyageBridge.resolveFromList(vessels, active);
     if (match && match.id) return match.id;
   }
-  if (vessels.some((v) => v.id === active.id)) return active.id;
-  return null;
+  for (const id of tankIdCandidates(active)) {
+    if (vessels.some((v) => v.id === id)) return id;
+  }
+  /* List empty / unresolved — still try active id and aliases on load. */
+  return active.id || null;
 }
 
 async function loadTankBundle(vesselId) {
@@ -221,6 +249,30 @@ async function loadTankBundle(vesselId) {
   if (window.ChengProApi && ChengProApi.api) {
     return ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
   }
+  return null;
+}
+
+/** Resolve then try alias folder ids until a Tank bundle loads. */
+async function loadTankBundleForActive(active) {
+  if (!active) return null;
+  const tried = new Set();
+  const ordered = [];
+  const primary = await resolveTankVesselId(active);
+  if (primary) ordered.push(primary);
+  for (const id of tankIdCandidates(active)) ordered.push(id);
+
+  let lastErr = null;
+  for (const id of ordered) {
+    if (!id || tried.has(id)) continue;
+    tried.add(id);
+    try {
+      const bundle = await loadTankBundle(id);
+      if (bundle && (bundle.vessel || bundle.tanks)) return bundle;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr;
   return null;
 }
 
