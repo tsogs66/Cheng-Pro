@@ -18406,16 +18406,18 @@ function renderVoyageProgress(animateShip){
   const currentKw = lastRow && lastRow.kwEst!=null ? lastRow.kwEst : null;
   const currentMcr = lastRow && lastRow.mcrPct!=null ? lastRow.mcrPct : null;
   const avgSpeed = perf.avgSpeedShip;
-  // Prefer the latest entry's weather; if blank (common on short port ops), walk back.
+  // Latest report wind first (dir / BF); sea may come from the same or an older row.
   let wx = {};
+  let wxSea = {};
   for (let i = rows.length - 1; i >= 0; i--){
     const w = rows[i] && rows[i].weather;
     if (!w) continue;
-    if (w.windDir || w.windBft!=null || w.seaState!=null || w.swellDir){
-      wx = w;
-      break;
-    }
+    if ((w.windDir || w.windBft!=null) && !(wx.windDir || wx.windBft!=null)) wx = w;
+    if ((w.seaState!=null || w.swellDir) && wxSea.seaState==null && !wxSea.swellDir) wxSea = w;
+    if ((wx.windDir || wx.windBft!=null) && (wxSea.seaState!=null || wxSea.swellDir)) break;
   }
+  if (!(wx.windDir || wx.windBft!=null)) wx = wxSea || {};
+  else if (wx.seaState==null && wxSea.seaState!=null) wx = Object.assign({}, wx, { seaState: wxSea.seaState, swellDir: wx.swellDir || wxSea.swellDir });
   const windDir = wx.windDir || '';
   const windBft = (wx.windBft!=null && wx.windBft!=='') ? Number(wx.windBft) : null;
   const seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
@@ -18536,12 +18538,19 @@ function renderVoyageProgress(animateShip){
       <path d="${localSea2}" fill="none" stroke="var(--teal)" stroke-width="1.2" opacity="${0.16 + Math.min(0.25, seaEff*0.03)}"/>
     </g>`;
 
-  // Curved wind swooshes + separate rain, clipped to sky above the sea (approved sample).
+  // Curved wind swooshes + separate rain, clipped to sky above the sea.
+  // Report windDir is meteorological FROM; animate along blow-TO (opposite).
   const skyH = 188;
   const skyTop = y - skyH;
   const skyBottom = y - 10;
-  const angleForDir = windAngle!=null ? windAngle : 270; // default FROM west → blow right
-  const windDirX = Math.sin(angleForDir * Math.PI / 180) >= 0 ? 1 : -1;
+  const angleFrom = windAngle!=null ? windAngle : 270; // default FROM west
+  const blowToDeg = (angleFrom + 180) % 360;
+  const blowSin = Math.sin(blowToDeg * Math.PI / 180);
+  const windDirX = blowSin >= 0 ? 1 : -1;
+  /* Mid-range knots by Beaufort — motion tempo relative to BF 2 (~5 kn). */
+  const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
+  const bfIdx = Math.max(0, Math.min(12, Math.round(bftEff)));
+  const windSpeed = (BF_KN[bfIdx] || 5) / 5; // 1.0 at BF2; ~7.4 at BF8
 
   function rnd(seed){
     let t = (seed * 9301 + 49297) % 233280;
@@ -18555,18 +18564,15 @@ function renderVoyageProgress(animateShip){
     const b = bend;
     const b2 = bend * 0.55;
     if (kind === 0){
-      /* Deep C-arc: rises then settles into the blow. */
       return `M 0 0
         C ${L * 0.18} ${b * 0.15}  ${L * 0.32} ${b}  ${L * 0.52} ${b * 0.92}
         C ${L * 0.72} ${b * 0.78}  ${L * 0.88} ${b * 0.25}  ${L} ${b * 0.08}`;
     }
     if (kind === 1){
-      /* S-curve: opposite mid bend, still ends pointing downwind. */
       return `M 0 0
         C ${L * 0.2} ${b}  ${L * 0.38} ${b * 1.05}  ${L * 0.5} ${b * 0.2}
         C ${L * 0.62} ${-b2}  ${L * 0.82} ${-b2 * 0.4}  ${L} ${b * 0.05}`;
     }
-    /* Sickle: long sweep with a hooked tip curling into the direction. */
     return `M 0 ${b * 0.35}
       C ${L * 0.15} ${b * 0.9}  ${L * 0.4} ${b * 1.15}  ${L * 0.62} ${b * 0.55}
       C ${L * 0.78} ${b * 0.15}  ${L * 0.92} ${-b * 0.2}  ${L * 1.05} ${-b * 0.35}
@@ -18581,26 +18587,29 @@ function renderVoyageProgress(animateShip){
   function windLayer(xL, xR, count){
     const parts = [];
     const dir = windDirX;
+    const speed = Math.max(0.45, windSpeed);
     for (let i = 0; i < count; i++){
       const sx = rndRange(i * 17 + 3, xL, xR);
       const sy = rndRange(i * 31 + 11, skyTop + 14, skyBottom - 48);
-      const len = rndRange(i * 13 + 5, 36, 72);
-      const thick = rndRange(i * 19 + 2, 1.1, 1.9);
-      const op = rndRange(i * 23 + 7, 0.38, 0.68);
-      const dur = rndRange(i * 29 + 9, 2.8, 5.6);
+      /* Half previous tail length/bend; tempo scales with Beaufort. */
+      const len = rndRange(i * 13 + 5, 18, 36);
+      const thick = rndRange(i * 19 + 2, 0.9, 1.5);
+      const opBase = rndRange(i * 23 + 7, 0.32, 0.62);
+      const op = Math.min(0.85, opBase * (0.75 + 0.05 * bftEff));
+      const dur = Math.max(0.7, Math.min(7, rndRange(i * 29 + 9, 4.5, 7.0) / speed));
       const delay = (-rndRange(i * 41 + 1, 0, dur)).toFixed(2);
-      const travel = rndRange(i * 37 + 4, 130, 280) * dir;
-      const bob = rndRange(i * 43 + 6, -8, 12);
-      const bend = rndRange(i * 47 + 8, 10, 24) * (rnd(i * 51) > 0.5 ? 1 : -1);
+      const travel = rndRange(i * 37 + 4, 70, 140) * speed * dir;
+      const bob = rndRange(i * 43 + 6, -6, 9);
+      const bend = rndRange(i * 47 + 8, 5, 12) * (rnd(i * 51) > 0.5 ? 1 : -1);
       const kind = Math.floor(rnd(i * 57 + 9) * 3);
       const d = windPath(dir, len, bend, kind);
       const d2 = windPath(dir, len * 0.82, bend * 0.72, kind);
       const tipX = len * dir * (kind === 2 ? 1.18 : 1);
       const tipY = kind === 2 ? -bend * 0.18 : bend * 0.08;
-      const arrow = windArrow(dir, tipX, tipY, rndRange(i * 61 + 3, 4.5, 7.5));
+      const arrow = windArrow(dir, tipX, tipY, rndRange(i * 61 + 3, 2.25, 3.75));
       const midX = len * dir * 0.55;
       const midY = bend * (kind === 1 ? 0.2 : 0.7);
-      const midArrow = windArrow(dir, midX, midY, 3.5);
+      const midArrow = windArrow(dir, midX, midY, 1.75);
       parts.push(`<g transform="translate(${sx.toFixed(1)}, ${sy.toFixed(1)})" opacity="${op.toFixed(2)}">
         <g>
           <animateTransform attributeName="transform" type="translate"
@@ -18611,10 +18620,10 @@ function renderVoyageProgress(animateShip){
           <path d="${d}" fill="none" stroke="var(--paper)" stroke-width="${thick.toFixed(2)}"
             stroke-linecap="round" stroke-linejoin="round"/>
           <path d="${d2}" fill="none" stroke="var(--paper-dim)" stroke-width="${(thick * 0.45).toFixed(2)}"
-            stroke-linecap="round" opacity="0.55" transform="translate(0, ${(bend > 0 ? 5 : -5)})"/>
-          <path d="${arrow}" fill="none" stroke="var(--paper)" stroke-width="${Math.max(1.6, thick * 0.85).toFixed(2)}"
+            stroke-linecap="round" opacity="0.55" transform="translate(0, ${(bend > 0 ? 2.5 : -2.5)})"/>
+          <path d="${arrow}" fill="none" stroke="var(--paper)" stroke-width="${Math.max(1.2, thick * 0.85).toFixed(2)}"
             stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="${midArrow}" fill="none" stroke="var(--paper)" stroke-width="1.3"
+          <path d="${midArrow}" fill="none" stroke="var(--paper)" stroke-width="1.1"
             stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
         </g>
       </g>`);
@@ -18624,14 +18633,15 @@ function renderVoyageProgress(animateShip){
   function rainLayer(xL, xR, count){
     const parts = [];
     const lean = windDirX * (6 + bftEff * 1.2);
+    const speed = Math.max(0.45, windSpeed);
     for (let i = 0; i < count; i++){
       const sx = rndRange(i * 53 + 8, xL - 10, xR + 10);
       const sy = rndRange(i * 59 + 14, skyTop - 20, skyBottom - 50);
       const dropH = rndRange(i * 61 + 3, 4.5, 9.5);
       const dropW = rndRange(i * 67 + 5, 0.9, 1.7);
       const fall = Math.max(30, skyBottom - sy - 4);
-      const drift = windDirX * fall * rndRange(i * 71 + 2, 0.12, 0.32);
-      const dur = rndRange(i * 73 + 9, 0.85, 1.85);
+      const drift = windDirX * fall * rndRange(i * 71 + 2, 0.12, 0.32) * Math.min(1.8, 0.7 + speed * 0.15);
+      const dur = Math.max(0.45, Math.min(2.2, rndRange(i * 73 + 9, 0.85, 1.85) / speed));
       const delay = (-rndRange(i * 79 + 4, 0, dur * 2.5)).toFixed(2);
       const op = rndRange(i * 83 + 6, 0.35, 0.7);
       parts.push(`<g transform="translate(${sx.toFixed(1)}, ${sy.toFixed(1)}) rotate(${lean.toFixed(1)})">
@@ -18654,8 +18664,8 @@ function renderVoyageProgress(animateShip){
 
   const weatherSvg = (bftEff >= 1)
     ? weatherSky(x0, x1, {
-        windN: 18 + Math.round(bftEff),
-        rainN: 70 + Math.round(bftEff * 8),
+        windN: Math.round(8 + bftEff * 3),
+        rainN: 40 + Math.round(bftEff * 10),
       })
     : '';
 

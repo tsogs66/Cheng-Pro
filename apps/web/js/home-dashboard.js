@@ -83,28 +83,30 @@
   }
 
   function windLayer(ctx, xL, xR, count) {
-    const { windDirX, skyTop, skyBottom } = ctx;
+    const { windDirX, skyTop, skyBottom, bftEff, windSpeed } = ctx;
     const parts = [];
+    const speed = Math.max(0.45, windSpeed || 1);
     for (let i = 0; i < count; i++) {
       const sx = rndRange(i * 17 + 3, xL, xR);
       const sy = rndRange(i * 31 + 11, skyTop + 14, skyBottom - 48);
-      const len = rndRange(i * 13 + 5, 36, 72);
-      const thick = rndRange(i * 19 + 2, 1.1, 1.9);
-      const op = rndRange(i * 23 + 7, 0.38, 0.68);
-      const dur = rndRange(i * 29 + 9, 2.8, 5.6);
+      const len = rndRange(i * 13 + 5, 18, 36);
+      const thick = rndRange(i * 19 + 2, 0.9, 1.5);
+      const opBase = rndRange(i * 23 + 7, 0.32, 0.62);
+      const op = Math.min(0.85, opBase * (0.75 + 0.05 * (bftEff || 2)));
+      const dur = Math.max(0.7, Math.min(7, rndRange(i * 29 + 9, 4.5, 7.0) / speed));
       const delay = (-rndRange(i * 41 + 1, 0, dur)).toFixed(2);
-      const travel = rndRange(i * 37 + 4, 130, 280) * windDirX;
-      const bob = rndRange(i * 43 + 6, -8, 12);
-      const bend = rndRange(i * 47 + 8, 10, 24) * (rnd(i * 51) > 0.5 ? 1 : -1);
+      const travel = rndRange(i * 37 + 4, 70, 140) * speed * windDirX;
+      const bob = rndRange(i * 43 + 6, -6, 9);
+      const bend = rndRange(i * 47 + 8, 5, 12) * (rnd(i * 51) > 0.5 ? 1 : -1);
       const kind = Math.floor(rnd(i * 57 + 9) * 3);
       const d = windPath(windDirX, len, bend, kind);
       const d2 = windPath(windDirX, len * 0.82, bend * 0.72, kind);
       const tipX = len * windDirX * (kind === 2 ? 1.18 : 1);
       const tipY = kind === 2 ? -bend * 0.18 : bend * 0.08;
-      const arrow = windArrow(windDirX, tipX, tipY, rndRange(i * 61 + 3, 4.5, 7.5));
+      const arrow = windArrow(windDirX, tipX, tipY, rndRange(i * 61 + 3, 2.25, 3.75));
       const midX = len * windDirX * 0.55;
       const midY = bend * (kind === 1 ? 0.2 : 0.7);
-      const midArrow = windArrow(windDirX, midX, midY, 3.5);
+      const midArrow = windArrow(windDirX, midX, midY, 1.75);
       parts.push(`<g transform="translate(${sx.toFixed(1)}, ${sy.toFixed(1)})" opacity="${op.toFixed(2)}">
         <g>
           <animateTransform attributeName="transform" type="translate"
@@ -115,10 +117,10 @@
           <path d="${d}" fill="none" stroke="var(--paper)" stroke-width="${thick.toFixed(2)}"
             stroke-linecap="round" stroke-linejoin="round"/>
           <path d="${d2}" fill="none" stroke="var(--paper-dim)" stroke-width="${(thick * 0.45).toFixed(2)}"
-            stroke-linecap="round" opacity="0.55" transform="translate(0, ${(bend > 0 ? 5 : -5)})"/>
-          <path d="${arrow}" fill="none" stroke="var(--paper)" stroke-width="${Math.max(1.6, thick * 0.85).toFixed(2)}"
+            stroke-linecap="round" opacity="0.55" transform="translate(0, ${(bend > 0 ? 2.5 : -2.5)})"/>
+          <path d="${arrow}" fill="none" stroke="var(--paper)" stroke-width="${Math.max(1.2, thick * 0.85).toFixed(2)}"
             stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="${midArrow}" fill="none" stroke="var(--paper)" stroke-width="1.3"
+          <path d="${midArrow}" fill="none" stroke="var(--paper)" stroke-width="1.1"
             stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
         </g>
       </g>`);
@@ -127,17 +129,18 @@
   }
 
   function rainLayer(ctx, xL, xR, count) {
-    const { windDirX, skyTop, skyBottom, bftEff } = ctx;
+    const { windDirX, skyTop, skyBottom, bftEff, windSpeed } = ctx;
     const parts = [];
     const lean = windDirX * (6 + bftEff * 1.2);
+    const speed = Math.max(0.45, windSpeed || 1);
     for (let i = 0; i < count; i++) {
       const sx = rndRange(i * 53 + 8, xL - 10, xR + 10);
       const sy = rndRange(i * 59 + 14, skyTop - 20, skyBottom - 50);
       const dropH = rndRange(i * 61 + 3, 4.5, 9.5);
       const dropW = rndRange(i * 67 + 5, 0.9, 1.7);
       const fall = Math.max(30, skyBottom - sy - 4);
-      const drift = windDirX * fall * rndRange(i * 71 + 2, 0.12, 0.32);
-      const dur = rndRange(i * 73 + 9, 0.85, 1.85);
+      const drift = windDirX * fall * rndRange(i * 71 + 2, 0.12, 0.32) * Math.min(1.8, 0.7 + speed * 0.15);
+      const dur = Math.max(0.45, Math.min(2.2, rndRange(i * 73 + 9, 0.85, 1.85) / speed));
       const delay = (-rndRange(i * 79 + 4, 0, dur * 2.5)).toFixed(2);
       const op = rndRange(i * 83 + 6, 0.35, 0.7);
       parts.push(`<g transform="translate(${sx.toFixed(1)}, ${sy.toFixed(1)}) rotate(${lean.toFixed(1)})">
@@ -188,9 +191,12 @@
     const seaEff = seaState != null ? seaState : Math.min(9, Math.max(1, Math.round(bftEff * 0.7)));
     const skyTop = y - 188;
     const skyBottom = y - 10;
-    const angleForDir = windAngle != null ? windAngle : 270;
-    const windDirX = Math.sin(angleForDir * Math.PI / 180) >= 0 ? 1 : -1;
-    const ctx = { windDirX, skyTop, skyBottom, bftEff };
+    const angleFrom = windAngle != null ? windAngle : 270;
+    const blowToDeg = (angleFrom + 180) % 360;
+    const windDirX = Math.sin(blowToDeg * Math.PI / 180) >= 0 ? 1 : -1;
+    const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
+    const windSpeed = (BF_KN[Math.max(0, Math.min(12, Math.round(bftEff)))] || 5) / 5;
+    const ctx = { windDirX, skyTop, skyBottom, bftEff, windSpeed };
     const chopY = 2 + seaEff * 0.9;
     const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
     const localAmp = 3 + seaEff * 1.1;
@@ -208,9 +214,9 @@
     const wxRange = full ? [x0, x1] : [shipX - 90, shipX + 90];
     const weather = bftEff >= 1
       ? `<g clip-path="url(#homeSkyAboveSea)" pointer-events="none">${
-          windLayer(ctx, wxRange[0], wxRange[1], full ? 18 + Math.round(bftEff) : 10)
+          windLayer(ctx, wxRange[0], wxRange[1], full ? Math.round(8 + bftEff * 3) : Math.round(6 + bftEff * 2))
         }${
-          rainLayer(ctx, wxRange[0], wxRange[1], full ? 70 + Math.round(bftEff * 8) : 28)
+          rainLayer(ctx, wxRange[0], wxRange[1], full ? 40 + Math.round(bftEff * 10) : 20 + Math.round(bftEff * 4))
         }</g>`
       : '';
     const dep = esc(snap.departPort || 'Departure');
