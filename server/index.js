@@ -109,7 +109,8 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-/* Shell-friendly vessel list from tank store (shared ship folders) */
+/* Shell-friendly vessel list from tank store (shared ship folders).
+ * License-email scope is applied by the middleware above (same plane as /tanks/api). */
 app.get('/api/status', (req, res) => {
   try {
     const store = require('../modules/tanks/server/store');
