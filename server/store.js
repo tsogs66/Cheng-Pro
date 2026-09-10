@@ -56,7 +56,14 @@ function now() {
 }
 
 function slugify(name) {
-  return String(name || 'vessel')
+  /* Strip MV / M/V / M.V. so shell folder ids match Tank / Voyage. */
+  let core = String(name || 'vessel').trim();
+  let prev = '';
+  while (core !== prev) {
+    prev = core;
+    core = core.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+  }
+  return String(core || 'vessel')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')

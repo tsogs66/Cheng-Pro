@@ -300,28 +300,38 @@
     } catch { /* ignore */ }
   }
 
+  function folderIdKey(id) {
+    return String(id || '')
+      .toLowerCase()
+      .replace(/^m-?v-/, '')
+      .replace(/^-+/, '');
+  }
+
   function findMatch(list, patch) {
     const imo = normalizeImo(patch.imo);
     const slug = patch.voyageSlug || patch.slug || patch.id || slugify(patch.name);
     const slugCore = slugify(patch.name || patch.vesselName);
+    const slugKeys = new Set(
+      [slug, slugCore, folderIdKey(slug), folderIdKey(slugCore), folderIdKey(patch.id)]
+        .filter(Boolean)
+    );
     /* 1) IMO is authoritative when both sides have it. */
     if (imo) {
       const byImo = list.find((v) => normalizeImo(v.imo) === imo);
       if (byImo) return byImo;
     }
-    /* 2) Slug / folder id (MV vs M/V now slugify to the same core). */
-    const bySlug = list.find((v) =>
-      v.id === slug || v.id === slugCore
-      || v.voyageSlug === slug || v.voyageSlug === slugCore
-      || v.slug === slug || v.slug === slugCore
-    );
+    /* 2) Slug / folder id (MV vs M/V now slugify to the same core; also ignore legacy mv- prefix). */
+    const bySlug = list.find((v) => {
+      const keys = [v.id, v.voyageSlug, v.slug, folderIdKey(v.id), folderIdKey(v.slug), folderIdKey(v.voyageSlug)];
+      return keys.some((k) => k && (slugKeys.has(k) || slugKeys.has(folderIdKey(k))));
+    });
     if (bySlug) return bySlug;
     /* 3) Voyage registry id when present. */
     const byVoyageId = list.find((v) => v.voyageRegistryId && v.voyageRegistryId === patch.voyageRegistryId);
     if (byVoyageId) return byVoyageId;
     /* 4) Exact folder / shell id. */
     if (patch.id) {
-      const byId = list.find((v) => v.id === patch.id);
+      const byId = list.find((v) => v.id === patch.id || folderIdKey(v.id) === folderIdKey(patch.id));
       if (byId) return byId;
     }
     /* 5) Name ignoring MV / M/V / M.V. prefixes and punctuation. */
