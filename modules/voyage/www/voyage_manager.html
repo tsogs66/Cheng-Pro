@@ -2990,7 +2990,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" type="button" id="btnExportWeeklyAbstract">Export Weekly Abstract (CSV)</button>
       </div>
       <div class="table-scroll" id="depArrRobTable"></div>
-      <div class="hint">Opening = Vessel Data Opening ROB (voyage baseline). Present = current ROB from the latest log entry. Received uses the same book rules as the ROB tab (hand receipts + stamped Received, no double-count). Consumed = Opening + Received − Present.</div>
+      <div class="hint">Opening = Vessel Data Opening ROB. Received = Receipts / bunkering entries only (each receipt once; never re-adds stamped log Received). Consumed = voyage log consumption including unit/grade overrides (not a raw flowmeter re-sum alone). Present = latest log saved ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed.</div>
       <div class="hint"><strong>Recalculate Dep / Arr ROB</strong> after you change Vessel Data Opening ROB, bunkering / receipts, or log consumption. It saves the current Opening ROB, rebuilds the voyage ROB chain from that baseline, and refreshes this table. Use Undo Recalculate if that was a mistake.</div>
       <div class="hint" id="depArrRobRecalcStatus" role="status" aria-live="polite"></div>
     </div>
@@ -12310,57 +12310,135 @@ function renderRunningHoursStrip(rows, perf){
 }
 
 /**
- * Voyage-total Received for Dep/Arr (Opening → Present). Same book rules as robAsOf:
- * hand-logged receipts + stamped summary Received; rob-survey mirrors only when the
- * entry has no stamp yet (never double-count mirror + stamp).
+ * Dep/Arr tank match for receipts: tankId preferred; otherwise exact tank name only.
+ * Never match by grade alone — that broadcast one bunker across every tank of the grade
+ * and inflated Received / Consumed by ~N×.
+ */
+function receiptMatchesTankStrict(r, tank, categories){
+  const cats = Array.isArray(categories) ? categories : [categories];
+  if (!r || !tank || !cats.includes(r.category)) return false;
+  if (r.tankId) return r.tankId === tank.id;
+  return r.type === tank.name;
+}
+
+/**
+ * Voyage-total Received for Dep/Arr: Receipts store only (never re-add stamped
+ * entry.robReceived). Prefer hand-logged Receipts; use rob-survey mirrors only
+ * when that tank has no hand receipt — Save Report writes mirrors from the
+ * Received column, so counting hand + stamp/mirror ballooned bunkers.
+ * Tank match is strict (tankId or exact name, never grade broadcast).
  */
 function voyageReceivedQty(tank, categories){
   const cats = Array.isArray(categories) ? categories : [categories];
-  const stampCat = cats.includes('fuel') && !cats.includes('fw') && !cats.includes('lube')
-    ? 'fuel'
-    : (cats.includes('fw') ? 'fw' : 'lube');
-  let hand = 0, surveyFallback = 0;
+  const catArg = cats.length === 1 ? cats[0] : cats;
+  let hand = 0, survey = 0;
   for (const r of (state.receipts || [])){
-    if (!receiptMatchesTank(r, tank, cats.length === 1 ? cats[0] : cats)) continue;
+    if (!receiptMatchesTankStrict(r, tank, catArg)) continue;
     const qty = Number(r.qty) || 0;
-    if (r.source === 'rob-survey'){
-      if (!entryHasStampedReceived(r.surveyEntryId, tank.id, stampCat)) surveyFallback += qty;
-    } else {
-      hand += qty;
+    if (r.source === 'rob-survey') survey += qty;
+    else hand += qty;
+  }
+  return hand > 0 ? hand : survey;
+}
+
+/** Opening-share among peer tanks (stable voyage attribution for grade/kind totals). */
+function depArrOpenShare(peers, tank, openStore){
+  if (!peers.length) return 0;
+  let total = 0, mine = 0;
+  peers.forEach(p=>{
+    const v = tankRobValue(openStore, p) || 0;
+    total += v;
+    if (p.id === tank.id) mine = v;
+  });
+  if (total > 0) return mine / total;
+  return 1 / peers.length;
+}
+
+/**
+ * Voyage consumption for one tank from the derived log (unitOverride / consOverride
+ * already applied in computeDerived). Not a separate flowmeter re-read.
+ */
+function voyageConsumedFromLog(tank, cat, rows){
+  if (!rows || !rows.length) return 0;
+  const last = rows[rows.length - 1];
+  if (cat === 'fuel'){
+    const total = Number(last.cumFuel?.[tank.grade]) || 0;
+    const peers = fuelTankList().filter(t => t.grade === tank.grade);
+    return total * depArrOpenShare(peers, tank, state.setup.rob);
+  }
+  if (cat === 'lube'){
+    const label = lubeKindToLabel(tank.kind);
+    const total = Number(last.cumLube?.[label]) || 0;
+    const peers = lubeTankList().filter(t => lubeKindToLabel(t.kind) === label);
+    return total * depArrOpenShare(peers, tank, state.setup.robLube);
+  }
+  /* Fresh water: prefer per-tank period cons from each watch. */
+  let sum = 0;
+  for (const row of rows){
+    if (row.fwConsByTank && row.fwConsByTank[tank.id] != null){
+      sum += Number(row.fwConsByTank[tank.id]) || 0;
+      continue;
+    }
+    const first = fwTankList()[0];
+    if (first && tank.id === first.id && row.lubeByType && row.lubeByType['FRESH WATER'] != null){
+      sum += Number(row.lubeByType['FRESH WATER']) || 0;
     }
   }
-  let stamped = 0;
-  for (const e of (state.entries || [])){
-    if (!e) continue;
-    const map = stampCat === 'fuel' ? e.robReceived : e.robReceivedLube;
-    if (map && map[tank.id] != null) stamped += Number(map[tank.id]) || 0;
+  return sum;
+}
+
+/** Present ROB for Dep/Arr: saved log ROB when available, else Opening + Received − Consumed. */
+function depArrPresentRob(tank, cat, open, received, consumed, lastEntry){
+  if (lastEntry && lastEntry.robSurvey){
+    if (cat === 'fuel' && lastEntry.robSurvey.measured && lastEntry.robSurvey.measured[tank.id] != null){
+      return Number(lastEntry.robSurvey.measured[tank.id]);
+    }
+    if (cat !== 'fuel' && lastEntry.robSurvey.measuredLube && lastEntry.robSurvey.measuredLube[tank.id] != null){
+      return Number(lastEntry.robSurvey.measuredLube[tank.id]);
+    }
   }
-  return hand + surveyFallback + stamped;
+  if (cat === 'fw' && lastEntry){
+    if (lastEntry.fwRobByTank && lastEntry.fwRobByTank[tank.id] != null){
+      return Number(lastEntry.fwRobByTank[tank.id]);
+    }
+    const first = fwTankList()[0];
+    if (first && tank.id === first.id && lastEntry.fwRob != null){
+      return Number(lastEntry.fwRob);
+    }
+  }
+  return open + received - consumed;
 }
 
 function depArrRobRows(consByFuel, consByLube){
-  /* Opening = Vessel Data Opening ROB; Present = latest-log current ROB. */
-  const {rob, robLube} = currentROB(consByFuel, consByLube);
+  /* Opening / Received / Consumed from vessel opening + receipts + log overrides;
+     Present prefers saved log ROB, else book identity. Do not use currentROB()
+     (flowmeter book rebuild) — that re-added stamped Received on top of receipts. */
+  void consByFuel; void consByLube;
+  const { rows: derivedRows } = computeDerived();
+  const lastRow = derivedRows.length ? derivedRows[derivedRows.length - 1] : null;
+  const lastEntry = lastRow
+    ? (state.entries || []).find(e => e.id === lastRow.id)
+    : null;
   const rows = [];
   fuelTankList().forEach(t=>{
     const open = tankRobValue(state.setup.rob, t) || 0;
     const received = voyageReceivedQty(t, 'fuel');
-    const present = rob[t.id] ?? 0;
-    const consumed = open + received - present;
+    const consumed = voyageConsumedFromLog(t, 'fuel', derivedRows);
+    const present = depArrPresentRob(t, 'fuel', open, received, consumed, lastEntry);
     rows.push({ id:t.id, label:t.name, unit:'MT', open, received, consumed, present, cat:'fuel' });
   });
   lubeTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
     const received = voyageReceivedQty(t, 'lube');
-    const present = robLube[t.id] ?? 0;
-    const consumed = open + received - present;
+    const consumed = voyageConsumedFromLog(t, 'lube', derivedRows);
+    const present = depArrPresentRob(t, 'lube', open, received, consumed, lastEntry);
     rows.push({ id:t.id, label:t.name, unit:'L', open, received, consumed, present, cat:'lube' });
   });
   fwTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
-    const received = voyageReceivedQty(t, ['fw','lube']);
-    const present = robLube[t.id] ?? 0;
-    const consumed = open + received - present;
+    const received = voyageReceivedQty(t, 'fw');
+    const consumed = voyageConsumedFromLog(t, 'fw', derivedRows);
+    const present = depArrPresentRob(t, 'fw', open, received, consumed, lastEntry);
     rows.push({ id:t.id, label:t.name, unit:'m³', open, received, consumed, present, cat:'fw' });
   });
   /* Insert totals after each group: lube total after the last lube, water after the last fw. */
@@ -20891,7 +20969,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v227';
+let androidInstallCacheName = 'noon-report-v228';
 
 /*
  * What the program is called.
