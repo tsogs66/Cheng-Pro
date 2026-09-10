@@ -125,7 +125,8 @@
   }
   html.bright{
     --ink:#f4f1ea; --panel:#ffffff; --panel2:#f7f5ef;
-    --paper:#122238; --paper-dim:#4a5568;
+    /* Match AIO shell muted for labels/hints on cream. */
+    --paper:#122238; --paper-dim:#3d4a5c;
     --brass:#8a5a1a; --brass-dim:#a67c3a; --brass-bright:#b8862d;
     --teal:#1f7a72; --alert:#b33a22; --good:#2f7a45;
     --line:rgba(18,34,56,0.12); --line-strong:rgba(18,34,56,0.28);
@@ -136,7 +137,7 @@
     --nav-item-bg:rgba(18,34,56,0.04);
     --nav-active-bg:rgba(138,90,26,0.14);
     --calc-bg:rgba(18,34,56,0.05);
-    --muted:#4a5568;
+    --muted:#3d4a5c;
   }
   html.bright body{
     background:linear-gradient(180deg, #efebe3 0%, #f7f5ef 40%, #ffffff 100%);
@@ -202,6 +203,32 @@
     letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; white-space:nowrap;
   }
   html.bright .theme-toggle{background:rgba(18,34,56,0.06);}
+  /* Bright-mode contrast — small uppercase labels match AIO shell weight. */
+  html.bright .field label,
+  html.bright .stat .lbl,
+  html.bright .gauge-label,
+  html.bright .cons-basis .cb-lbl,
+  html.bright .cii-card .lbl,
+  html.bright .ref-item .rl,
+  html.bright .fo-table th,
+  html.bright .bunker-table th,
+  html.bright .login-field span{
+    color:#2a3544;
+  }
+  html.bright .hint,
+  html.bright .footer-note,
+  html.bright .bunker-formula,
+  html.bright .empty-row td,
+  html.bright .login-note,
+  html.bright .login-sub{
+    color:var(--paper-dim);
+  }
+  html.bright .field input,
+  html.bright .field select,
+  html.bright .field textarea,
+  html.bright .login-field input{
+    color:var(--paper);
+  }
   .theme-toggle:hover{border-color:var(--brass); color:var(--paper);}
   .theme-fab{ display:none !important; }
   @media (max-width:900px){
