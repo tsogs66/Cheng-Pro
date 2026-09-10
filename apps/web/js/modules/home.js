@@ -49,8 +49,8 @@ window.ChengProModules.home = {
 
       <section class="panel" id="homeGaugesPanel">
         <div class="section-head">
-          <h2>Consumption vs ROB</h2>
-          <div class="sub">Voyage opening ROB · dials match Voyage Chief</div>
+          <h2>Calculated ROB</h2>
+          <div class="sub">Opening vs Present from Voyage log</div>
         </div>
         <div class="gauge-grid" id="fuelDualGauges"></div>
         <p class="hint" id="homeGaugeHint" style="margin-top:8px"></p>
@@ -113,7 +113,7 @@ window.ChengProModules.home = {
       const hint = root.querySelector('#homeGaugeHint');
       if (hint) {
         hint.textContent = voyageSnap.entryCount
-          ? 'Current needle uses opening ROB, or the latest bunker-survey measured figures when present. Open Voyage Chief for live consumption-chain ROB.'
+          ? 'Present ROB and used follow Voyage Calculated ROB (saved survey / Opening + Received − Consumed), not a raw flowmeter rebuild.'
           : 'Showing voyage opening ROB (no log entries yet).';
       }
     }

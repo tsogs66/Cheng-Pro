@@ -417,7 +417,9 @@
       const cap = tankCap(snap.capacity, t) || 1;
       const startVal = tankRob(snap.robStart, t);
       const curVal = tankRob(snap.robCurrent, t);
-      const used = Math.max(0, startVal - curVal);
+      const used = (snap.robUsed && snap.robUsed[t.id] != null)
+        ? Math.max(0, Number(snap.robUsed[t.id]) || 0)
+        : Math.max(0, startVal - curVal);
       return `<div class="gauge-box">${dualGaugeSVG(startVal / cap, curVal / cap, gaugeColor(t))}
         <div class="gauge-value">${fmtFuel(curVal)}</div>
         <div class="gauge-cap">start ${fmtFuel(startVal)} · used ${fmtFuel(used)} MT</div>
