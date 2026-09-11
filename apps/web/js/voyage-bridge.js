@@ -607,8 +607,9 @@
 
   /**
    * Fuel Calculated ROB for Home: Opening / Received / Present / Consumed.
-   * Present prefers saved survey measured ROB; otherwise Opening + Received −
-   * saved log consumption (unitOverride / consOverride / misc — not a meter rebuild).
+   * Same grade book as Voyage Dep/Arr (LSFO path for every fuel): unitOverride or
+   * meter Δ, misc + boiler/incinerator distillate extras, per-grade consOverride.
+   * Present prefers survey measured ROB when saved.
    */
   /** Credit bunker/lube/FW receipts to one tank — tankId preferred; name only if tankId missing (never grade). */
   function homeFuelReceiptQty(receipts, tank) {
@@ -655,30 +656,90 @@
     return 1 / peers.length;
   }
 
-  /** Saved period consumption by grade (overrides + misc only — no flowmeter deltas). */
-  function homeSavedFuelConsByGrade(entries) {
-    const grades = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
-    for (const e of entries || []) {
-      const ov = e.consOverride || {};
-      const gradeKeys = Object.keys(grades);
-      const hasGradeOv = gradeKeys.some((g) => ov[g] != null && ov[g] !== '');
-      if (hasGradeOv) {
-        gradeKeys.forEach((g) => {
-          if (ov[g] != null && ov[g] !== '') grades[g] += Number(ov[g]) || 0;
-        });
-        continue;
+  /**
+   * Period fuel consumption by grade — same book as Voyage Dep/Arr / Calculated ROB:
+   * unitOverride (or single-meter Δ×SG), plus misc + boiler/incinerator distillate extras,
+   * with consOverride applied per grade (grade key or tank id), never all-or-nothing.
+   * LSFO and LSMGO (and HFO / MDO/MGO) share this path.
+   */
+  const HOME_FUEL_GRADES = ['HFO', 'LSFO', 'MDO/MGO', 'LSMGO'];
+  const HOME_EXTRA_DO_GRADES = ['MDO/MGO', 'LSMGO'];
+
+  function homeOverrideForGrade(override, grade, tanks) {
+    if (!override) return null;
+    if (override[grade] != null && override[grade] !== '') return override[grade];
+    for (const t of tanks || []) {
+      if ((t.grade === grade || t.name === grade)
+          && override[t.id] != null && override[t.id] !== '') {
+        return override[t.id];
       }
-      const u = e.unitOverride || {};
+    }
+    return null;
+  }
+
+  function homeMeterDelta(curr, prev, roll) {
+    if (curr == null || prev == null || isNaN(Number(curr)) || isNaN(Number(prev))) return null;
+    let d = Number(curr) - Number(prev);
+    if (d < 0) d += (Number(roll) || 1e8);
+    return d;
+  }
+
+  function homeLitresToMt(litres, sg) {
+    if (litres == null || sg == null || isNaN(Number(sg))) return null;
+    return (Number(litres) * Number(sg)) / 1000;
+  }
+
+  /** ME / GE / BLR MT for one period: typed unitOverride, else single-meter Δ. */
+  function homeUnitMt(entry, prev, key) {
+    const unit = entry && entry[key];
+    if (!unit) return null;
+    const ovKey = key === 'me' ? 'ME' : key === 'ge' ? 'GE' : 'BLR';
+    const u = entry.unitOverride || {};
+    if (u[ovKey] != null && u[ovKey] !== '' && !isNaN(Number(u[ovKey]))) {
+      return Number(u[ovKey]);
+    }
+    if (!prev || !prev[key]) return null;
+    const d = homeMeterDelta(unit.meter, prev[key].meter);
+    return homeLitresToMt(d, unit.sg);
+  }
+
+  function homeSavedFuelConsByGrade(entries, fuelTanks, carryover) {
+    const grades = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
+    const list = (entries || []).slice()
+      .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+    let prev = carryover || null;
+    for (const e of list) {
+      const raw = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
       const add = (type, mt) => {
-        if (mt == null || isNaN(Number(mt)) || !type || grades[type] == null) return;
-        grades[type] += Number(mt) || 0;
+        if (mt == null || isNaN(Number(mt)) || !type || raw[type] == null) return;
+        raw[type] += Number(mt) || 0;
       };
-      add(e.me && e.me.type, u.ME);
-      add(e.ge && e.ge.type, u.GE);
-      add(e.blr && e.blr.type, u.BLR);
+      if (prev) {
+        add(e.me && e.me.type, homeUnitMt(e, prev, 'me'));
+        add(e.ge && e.ge.type, homeUnitMt(e, prev, 'ge'));
+        add(e.blr && e.blr.type, homeUnitMt(e, prev, 'blr'));
+      } else {
+        /* No prior reading — still honor typed unit overrides alone. */
+        const u = e.unitOverride || {};
+        add(e.me && e.me.type, u.ME);
+        add(e.ge && e.ge.type, u.GE);
+        add(e.blr && e.blr.type, u.BLR);
+      }
       const misc = e.miscCons || {};
-      grades['MDO/MGO'] += Number(misc['MDO/MGO']) || 0;
-      grades['LSMGO'] += Number(misc['LSMGO']) || 0;
+      raw['MDO/MGO'] += Number(misc['MDO/MGO']) || 0;
+      raw['LSMGO'] += Number(misc['LSMGO']) || 0;
+      const blrExtra = e.blrExtraCons || {};
+      const incExtra = e.incExtraCons || {};
+      HOME_EXTRA_DO_GRADES.forEach((t) => {
+        raw[t] += Number(blrExtra[t]) || 0;
+        raw[t] += Number(incExtra[t]) || 0;
+      });
+      const ov = e.consOverride || {};
+      HOME_FUEL_GRADES.forEach((g) => {
+        const o = homeOverrideForGrade(ov, g, fuelTanks);
+        grades[g] += o != null ? Number(o) || 0 : raw[g];
+      });
+      prev = e;
     }
     return grades;
   }
@@ -689,7 +750,7 @@
     const robCurrent = {};
     const robUsed = {};
     const list = Array.isArray(entries) ? entries : [];
-    const consByGrade = homeSavedFuelConsByGrade(list);
+    const consByGrade = homeSavedFuelConsByGrade(list, fuelTanks, setup && setup.carryover);
 
     for (const t of fuelTanks) {
       const open = Number(robStart[t.id]) || 0;
@@ -720,7 +781,7 @@
 
   /**
    * Lightweight voyage snapshot for the AIO Home dashboard (progress + Calculated ROB).
-   * Fuel gauges use Opening / Received / saved Present & consumption — not a flowmeter rebuild.
+   * Fuel gauges use Opening / Received / Present & consumption from the Voyage Calculated ROB book.
    */
   async function readHomeSnapshot(activeVessel) {
     const empty = {
@@ -868,6 +929,8 @@
     slugify,
     normalizeImo,
     normalizeVesselName,
+    buildHomeCalculatedRob,
+    homeSavedFuelConsByGrade,
     HINT_KEY,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
