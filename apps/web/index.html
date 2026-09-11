@@ -22,9 +22,13 @@
         document.documentElement.classList.add('bright');
       }
     } catch (_e) {}
+    /* Android shell: full-width home + floating nav (set early when possible). */
     try {
-      if (localStorage.getItem('chengpro_sidebar_collapsed') === '1') {
-        document.documentElement.classList.add('sidebar-collapsed');
+      var ua = navigator.userAgent || '';
+      var cap = window.Capacitor;
+      var plat = (cap && cap.getPlatform) ? String(cap.getPlatform()) : '';
+      if (/Android/i.test(ua) || plat === 'android') {
+        document.documentElement.classList.add('aio-android-nav');
       }
     } catch (_e) {}
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
@@ -79,10 +83,10 @@
         <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
         <span class="app-version" id="appVersion" title="Build version"></span>
         <span id="healthDot" class="health-dot" title="Server"></span>
-        <button type="button" class="icon-btn sidebar-toggle" id="sidebarToggle" aria-label="Hide menu" aria-expanded="true" title="Hide menu">☰</button>
       </div>
     </header>
     <button type="button" class="theme-toggle theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+    <button type="button" class="nav-fab" id="navFab" aria-label="Open menu" aria-expanded="false" title="Menu" hidden>☰</button>
 
     <div class="body">
       <aside class="sidebar" id="sidebar">

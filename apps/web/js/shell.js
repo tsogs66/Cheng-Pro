@@ -3,10 +3,9 @@
   const activeSelect = document.getElementById('activeVessel');
   const healthDot = document.getElementById('healthDot');
   const menuBtn = document.getElementById('menuBtn');
-  const sidebarToggle = document.getElementById('sidebarToggle');
+  const navFab = document.getElementById('navFab');
   const sidebar = document.getElementById('sidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
-  const SIDEBAR_COLLAPSE_KEY = 'chengpro_sidebar_collapsed';
   const toastEl = document.getElementById('toast');
   let current = 'home';
   let toastTimer = null;
@@ -21,11 +20,21 @@
   function closeSidebar() {
     sidebar.classList.remove('open');
     backdrop.hidden = true;
+    if (navFab) {
+      navFab.setAttribute('aria-expanded', 'false');
+      navFab.setAttribute('aria-label', 'Open menu');
+      navFab.title = 'Menu';
+    }
   }
 
   function openSidebar() {
     sidebar.classList.add('open');
     backdrop.hidden = false;
+    if (navFab) {
+      navFab.setAttribute('aria-expanded', 'true');
+      navFab.setAttribute('aria-label', 'Close menu');
+      navFab.title = 'Close menu';
+    }
   }
 
   async function fillVesselSelect() {
@@ -115,6 +124,34 @@
     } catch (e) {
       setFullscreenEmbed(false);
       main.innerHTML = `<section class="panel"><p class="empty">${escapeHtml(e.message)}</p></section>`;
+    }
+  }
+
+  /** True on Android APK / Android browser — floating nav, full-width home. */
+  function isAndroidNav() {
+    try {
+      const cap = window.Capacitor;
+      const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
+      if (plat === 'android') return true;
+    } catch { /* ignore */ }
+    try {
+      if (window.ChengLicense && typeof ChengLicense.detectSeat === 'function'
+          && ChengLicense.detectSeat() === 'android') {
+        return true;
+      }
+    } catch { /* ignore */ }
+    const ua = navigator.userAgent || '';
+    return /Android/i.test(ua);
+  }
+
+  function applyAndroidNavShell() {
+    const on = isAndroidNav();
+    document.documentElement.classList.toggle('aio-android-nav', on);
+    document.body.classList.toggle('aio-android-nav', on);
+    if (navFab) navFab.hidden = !on;
+    if (!on) {
+      document.documentElement.classList.remove('sidebar-collapsed');
+      closeSidebar();
     }
   }
 
@@ -231,38 +268,16 @@
     el.addEventListener('click', () => navigate(el.dataset.module));
   });
 
-  function isDesktopNav() {
-    return window.matchMedia('(min-width: 901px)').matches;
-  }
-
-  function setSidebarCollapsed(collapsed) {
-    document.documentElement.classList.toggle('sidebar-collapsed', !!collapsed);
-    try { localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch (_e) {}
-    if (sidebarToggle) {
-      sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      sidebarToggle.setAttribute('aria-label', collapsed ? 'Show menu' : 'Hide menu');
-      sidebarToggle.title = collapsed ? 'Show menu' : 'Hide menu';
-    }
-  }
-
   function toggleNavMenu() {
-    if (isDesktopNav()) {
-      setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
-      return;
-    }
+    /* Windows / desktop: left sidebar is always visible — no toggle. */
+    if (!isAndroidNav() && window.matchMedia('(min-width: 901px)').matches) return;
     if (sidebar.classList.contains('open')) closeSidebar();
     else openSidebar();
   }
 
-  try {
-    if (localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1') setSidebarCollapsed(true);
-    else setSidebarCollapsed(false);
-  } catch (_e) {
-    setSidebarCollapsed(false);
-  }
-
+  applyAndroidNavShell();
   menuBtn?.addEventListener('click', toggleNavMenu);
-  sidebarToggle?.addEventListener('click', toggleNavMenu);
+  navFab?.addEventListener('click', toggleNavMenu);
   backdrop.addEventListener('click', closeSidebar);
 
   document.getElementById('brandHome')?.addEventListener('click', () => navigate('home'));

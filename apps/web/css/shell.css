@@ -195,32 +195,72 @@ html.bright .btn.primary:hover {
 }
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
-/* Top-right menu control — always available in the sticky topbar. */
-.sidebar-toggle {
-  display: inline-flex !important;
-  flex-shrink: 0;
-  background: rgba(0,0,0,0.18);
+/*
+ * Android-only floating menu (FAB). Windows / desktop keep the left sidebar.
+ * Home stays full-width on Android; tap outside (backdrop) closes the drawer.
+ */
+.nav-fab {
+  display: none;
+  position: fixed;
+  top: calc(12px + var(--safe-top, env(safe-area-inset-top, 0px)));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 60;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(201,154,83,0.45);
+  background: rgba(10, 20, 32, 0.92);
+  color: var(--brass, #c99a53);
+  font-size: 1.25rem;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-html.bright .sidebar-toggle { background: rgba(18,34,56,0.06); }
-.sidebar-toggle:hover { border-color: var(--brass); color: var(--brass); }
-html.sidebar-collapsed .sidebar-toggle { color: var(--brass); border-color: rgba(201,154,83,0.45); }
+html.bright .nav-fab {
+  background: rgba(255,255,255,0.94);
+  color: #8a5a1a;
+  border-color: rgba(138,90,26,0.35);
+  box-shadow: 0 8px 24px rgba(18,34,56,0.18);
+}
+.nav-fab[aria-expanded="true"] {
+  border-color: var(--brass, #c99a53);
+  color: var(--text);
+}
 
-/* Desktop: collapse left nav to maximize main content. */
-@media (min-width: 901px) {
-  html.sidebar-collapsed .body {
-    grid-template-columns: 0 1fr;
-  }
-  html.sidebar-collapsed .sidebar {
-    visibility: hidden;
-    pointer-events: none;
-    overflow: hidden;
-    padding: 0;
-    border: 0;
-    width: 0;
-    min-width: 0;
-  }
+html.aio-android-nav .nav-fab:not([hidden]) { display: inline-flex; }
+html.aio-android-nav .menu-btn { display: none !important; }
+html.aio-android-nav .bottom-nav { display: none !important; }
+html.aio-android-nav {
+  --bottom-h: 0px;
 }
+html.aio-android-nav .body {
+  grid-template-columns: 1fr;
+}
+html.aio-android-nav .sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(300px, 86vw);
+  z-index: 50;
+  transform: translateX(-105%);
+  transition: transform 0.2s ease;
+  padding-bottom: calc(24px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+  background: rgba(8,18,30,0.97);
+  box-shadow: 8px 0 28px rgba(0,0,0,0.45);
+}
+html.bright.aio-android-nav .sidebar { background: rgba(255,255,255,0.98); }
+html.aio-android-nav .sidebar.open { transform: translateX(0); }
+html.aio-android-nav .sidebar-backdrop:not([hidden]) {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(4,10,18,0.55);
+  z-index: 45;
+}
+html.aio-fullscreen-embed.aio-android-nav .nav-fab { display: none !important; }
 
 .icon-btn, .menu-btn {
   width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
