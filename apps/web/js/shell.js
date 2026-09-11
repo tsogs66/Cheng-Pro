@@ -218,22 +218,24 @@
 
   function resolveAppVersion() {
     const stamped = String(window.CHENG_PRO_VERSION || '').replace(/^v/i, '').trim();
-    const topVer = document.getElementById('appVersion');
-    const fromDom = ((topVer && topVer.textContent) || '').replace(/^v/i, '').trim();
-    if (fromDom && !/^bundled$/i.test(fromDom)) return fromDom;
-    if (stamped) return stamped;
-    return fromDom || '';
+    return stamped || '';
   }
 
   function updateSidebarMeta() {
     const verEl = document.getElementById('sidebarVersion');
+    const regEl = document.getElementById('sidebarRegistered');
     const authorEl = document.getElementById('sidebarAuthor');
-    const topVer = document.getElementById('appVersion');
     const ver = resolveAppVersion();
-    if (ver && topVer && (!topVer.textContent || /^v?bundled$/i.test(topVer.textContent.trim()))) {
-      topVer.textContent = 'v' + ver;
-    }
     if (verEl) verEl.textContent = ver ? ('v' + ver) : '';
+    if (regEl) {
+      let email = '';
+      try {
+        if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
+          email = String(ChengLicense.licenseEmail() || '').trim();
+        }
+      } catch (_e) { /* ignore */ }
+      regEl.textContent = email ? ('registered: ' + email) : '';
+    }
     if (authorEl) {
       authorEl.textContent = window.CHENG_PRO_AUTHOR || 'ts0gs · Marvin C. Endozo';
     }
@@ -316,6 +318,7 @@
   window.addEventListener('chengpro:toast', (e) => showToast(e.detail));
   window.addEventListener('chengpro:license-changed', async () => {
     applyLicenseNav();
+    updateSidebarMeta();
     try {
       await ChengPro.vessel.refresh();
     } catch { /* ignore */ }
@@ -358,15 +361,6 @@
       const health = await withTimeout(ChengPro.api.fetch('/api/health'), 8000, 'Health check');
       healthDot.classList.toggle('ok', !!health.ok);
       healthDot.classList.toggle('bad', !health.ok);
-      const verEl = document.getElementById('appVersion');
-      if (verEl) {
-        let ver = health.version || health.appVersion || '';
-        ver = String(ver).replace(/^v/i, '').trim();
-        if (!ver || /^bundled$/i.test(ver)) {
-          ver = String(window.CHENG_PRO_VERSION || '').replace(/^v/i, '').trim();
-        }
-        if (ver) verEl.textContent = 'v' + ver;
-      }
       updateSidebarMeta();
     } catch {
       healthDot.classList.add('bad');
