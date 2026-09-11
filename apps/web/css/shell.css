@@ -154,7 +154,10 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
 }
 .sidebar-meta .ver { font-family: var(--mono); color: var(--text); font-weight: 600; }
 .sidebar-meta .author { font-family: var(--mono); color: var(--muted); word-break: break-word; margin-top: 2px; }
-.sidebar-meta .author:empty, .sidebar-meta .ver:empty { display: none; }
+.sidebar-meta .registered {
+  font-family: var(--mono); color: var(--muted); word-break: break-word; margin-top: 2px; font-size: 0.7rem;
+}
+.sidebar-meta .author:empty, .sidebar-meta .ver:empty, .sidebar-meta .registered:empty { display: none; }
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -458,6 +461,11 @@ html:not(.bright) .vessel-chip { background: rgba(255,255,255,.04); }
   border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer;
 }
 .toggle-row button.on { background: var(--brass); color: #fff8ee; border-color: var(--brass); }
+.toggle-row button.home-action {
+  border-color: rgba(201,154,83,0.4); color: var(--brass, #c99a53); font-weight: 600;
+}
+.toggle-row button.home-action:hover { border-color: var(--brass); color: var(--text); }
+.home-tank-actions { margin-top: -2px; margin-bottom: 12px; }
 .home-voyage-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

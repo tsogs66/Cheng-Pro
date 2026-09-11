@@ -10,6 +10,8 @@ window.ChengProModules.home = {
        Only hide when a valid seat explicitly excludes Voyage/Tanks. */
     const hasVoyage = moduleSoftAllowed('voyage');
     const hasTanks = moduleSoftAllowed('tanks');
+    const hasConsPlan = moduleSoftAllowed('bunkerplan');
+    const hasBunkerPlan = moduleSoftAllowed('bunkeringplan');
     const Dash = window.ChengProHomeDashboard;
 
     root.innerHTML = `
@@ -19,12 +21,7 @@ window.ChengProModules.home = {
           <button type="button" class="btn primary" data-go="vessel">Set up this vessel</button>
         </div>
         <p class="hint" style="margin-top:10px">Start with the ship name and IMO. Home becomes an operational dashboard once a vessel is active.</p>
-      </section>` : `
-      <div class="vessel-chip">
-        <span>Working vessel</span>
-        <strong>${active ? esc(active.name) : 'None selected'}</strong>
-        ${active?.imo ? `<em>${esc(active.imo)}</em>` : ''}
-      </div>`}
+      </section>` : ''}
 
       <section class="panel" id="homeVoyagePanel">
         <div class="section-head">
@@ -35,12 +32,11 @@ window.ChengProModules.home = {
         <div class="toggle-row" id="homeWxToggle">
           <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
           <button type="button" data-wx="local" title="Weather only near the ship">Ship-local weather</button>
+          <button type="button" class="home-action" id="goVoyageFromHome" title="Open Voyage Chief">Voyage Chief</button>
+          ${hasConsPlan ? '<button type="button" class="home-action" id="goConsPlanFromHome" title="Open Consumption Plan">Consumption Plan</button>' : ''}
         </div>
         <div id="voyageProgressViz"></div>
-        <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>
-        <div class="form-actions" style="margin-top:10px">
-          <button type="button" class="btn" id="goVoyageFromHome">Open Voyage Chief</button>
-        </div>` : `
+        <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>` : `
         <p class="home-warn">Voyage Chief is not on this license — ask the office to include it on your ChEng AIO key.</p>`}
       </section>
 
@@ -58,11 +54,12 @@ window.ChengProModules.home = {
           <div class="sub">Fuel tanks only</div>
         </div>
         ${hasTanks ? `
+        <div class="toggle-row home-tank-actions">
+          <button type="button" class="home-action" id="goTanksFromHome" title="Open Tank Chief">Tank Chief</button>
+          ${hasBunkerPlan ? '<button type="button" class="home-action" id="goBunkerPlanFromHome" title="Open Bunkering Plan">Bunkering Plan</button>' : ''}
+        </div>
         <div class="cards-row" id="homeFuelSummary"></div>
-        <div class="tg-grid" id="homeFuelGrid"></div>
-        <div class="form-actions" style="margin-top:10px">
-          <button type="button" class="btn" id="goTanksFromHome">Open Tank Chief</button>
-        </div>` : `
+        <div class="tg-grid" id="homeFuelGrid"></div>` : `
         <p class="home-warn">Tank Chief is not on this license — ask the office to include it on your ChEng AIO key.</p>`}
       </section>
     `;
@@ -73,6 +70,10 @@ window.ChengProModules.home = {
     });
     root.querySelector('#goVoyageFromHome')?.addEventListener('click', () => ChengPro.openVoyage());
     root.querySelector('#goTanksFromHome')?.addEventListener('click', () => ChengPro.openTanks());
+    root.querySelector('#goConsPlanFromHome')?.addEventListener('click', () =>
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'bunkerplan' })));
+    root.querySelector('#goBunkerPlanFromHome')?.addEventListener('click', () =>
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'bunkeringplan' })));
 
     let wxMode = 'full';
     let voyageSnap = null;
