@@ -435,30 +435,48 @@
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
   }
 
+  function isDistillateFuel(tank) {
+    const g = String((tank && tank.fuelGrade) || '').toLowerCase();
+    return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
+  }
+
+  function fuelFamilyTotals(tanks, readings) {
+    const out = {
+      heavy: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+      distillate: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+    };
+    for (const t of tanks) {
+      const bucket = isDistillateFuel(t) ? out.distillate : out.heavy;
+      bucket.count += 1;
+      bucket.capacity += Number(t.capacity) || 0;
+      const r = readings[t.id];
+      if (r && r.result) {
+        bucket.volume += Number(r.result.volumeObserved) || 0;
+        bucket.weight += Number(r.result.weightMT) || 0;
+        bucket.withReading += 1;
+      }
+    }
+    return out;
+  }
+
   function renderFuelTankOverview(summaryEl, gridEl, bundle) {
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
-    let capacity = 0;
-    let volume = 0;
-    let weight = 0;
-    let withReading = 0;
-    for (const t of tanks) {
-      capacity += Number(t.capacity) || 0;
-      const r = readings[t.id];
-      if (r && r.result) {
-        volume += Number(r.result.volumeObserved) || 0;
-        weight += Number(r.result.weightMT) || 0;
-        withReading += 1;
-      }
-    }
-    const pct = capacity ? (volume / capacity) * 100 : 0;
+    const fam = fuelFamilyTotals(tanks, readings);
+    const withReading = fam.heavy.withReading + fam.distillate.withReading;
+    const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {
       summaryEl.innerHTML = `
-        <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>Fuel Oil Volume</div>
-          <div class="value">${fmtNum(volume, 3)}<span class="unit">m³ / ${fmtNum(capacity, 3)}</span></div>
-          <div class="sub">${withReading}/${tanks.length} logged · ${fmtNum(pct, 3)}% full</div></div>
-        <div class="card"><div class="label">Fuel Weight</div>
-          <div class="value">${fmtNum(weight, 3)}<span class="unit">MT</span></div></div>
+        <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>HFO / VLSFO Volume</div>
+          <div class="value">${fmtNum(fam.heavy.volume, 3)}<span class="unit">m³ / ${fmtNum(fam.heavy.capacity, 3)}</span></div>
+          <div class="sub">${fam.heavy.withReading}/${fam.heavy.count} logged · ${fmtNum(pct(fam.heavy), 3)}% full</div></div>
+        <div class="card"><div class="label">HFO / VLSFO Weight</div>
+          <div class="value">${fmtNum(fam.heavy.weight, 3)}<span class="unit">MT</span></div></div>
+        <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>MDO / MGO / LSMGO Volume</div>
+          <div class="value">${fmtNum(fam.distillate.volume, 3)}<span class="unit">m³ / ${fmtNum(fam.distillate.capacity, 3)}</span></div>
+          <div class="sub">${fam.distillate.withReading}/${fam.distillate.count} logged · ${fmtNum(pct(fam.distillate), 3)}% full</div></div>
+        <div class="card"><div class="label">MDO / MGO / LSMGO Weight</div>
+          <div class="value">${fmtNum(fam.distillate.weight, 3)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label">Fuel Readings</div>
           <div class="value">${withReading}<span class="unit">/ ${tanks.length}</span></div></div>`;
     }
@@ -467,7 +485,17 @@
       gridEl.innerHTML = `<div class="hint">No fuel tanks on this vessel in Tank Chief yet.</div>`;
       return;
     }
-    gridEl.innerHTML = tanks.map((t) => {
+    const ordered = tanks.slice().sort((a, b) => {
+      const ad = isDistillateFuel(a) ? 1 : 0;
+      const bd = isDistillateFuel(b) ? 1 : 0;
+      if (ad !== bd) return ad - bd;
+      const an = a.tankNo == null ? 1e9 : Number(a.tankNo);
+      const bn = b.tankNo == null ? 1e9 : Number(b.tankNo);
+      if (an !== bn) return an - bn;
+      const sideRank = (s) => (s === 'port' ? 0 : s === 'starboard' ? 1 : 2);
+      return sideRank(a.side) - sideRank(b.side) || String(a.name || '').localeCompare(String(b.name || ''));
+    });
+    gridEl.innerHTML = ordered.map((t) => {
       const r = readings[t.id];
       const fill = r?.result?.fillPercent;
       const vol = r?.result?.volumeObserved;
@@ -485,6 +513,7 @@
       </div>`;
     }).join('');
   }
+
 
   root.ChengProHomeDashboard = {
     renderVoyageProgressViz,
