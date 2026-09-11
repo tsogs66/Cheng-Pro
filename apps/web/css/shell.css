@@ -194,6 +194,34 @@ html.bright .btn.primary:hover {
   filter: brightness(1.08);
 }
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
+
+/* Top-right menu control — always available in the sticky topbar. */
+.sidebar-toggle {
+  display: inline-flex !important;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.18);
+  cursor: pointer;
+}
+html.bright .sidebar-toggle { background: rgba(18,34,56,0.06); }
+.sidebar-toggle:hover { border-color: var(--brass); color: var(--brass); }
+html.sidebar-collapsed .sidebar-toggle { color: var(--brass); border-color: rgba(201,154,83,0.45); }
+
+/* Desktop: collapse left nav to maximize main content. */
+@media (min-width: 901px) {
+  html.sidebar-collapsed .body {
+    grid-template-columns: 0 1fr;
+  }
+  html.sidebar-collapsed .sidebar {
+    visibility: hidden;
+    pointer-events: none;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    width: 0;
+    min-width: 0;
+  }
+}
+
 .icon-btn, .menu-btn {
   width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
   color: var(--text); display: none; align-items: center; justify-content: center;

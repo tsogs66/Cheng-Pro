@@ -3,8 +3,10 @@
   const activeSelect = document.getElementById('activeVessel');
   const healthDot = document.getElementById('healthDot');
   const menuBtn = document.getElementById('menuBtn');
+  const sidebarToggle = document.getElementById('sidebarToggle');
   const sidebar = document.getElementById('sidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
+  const SIDEBAR_COLLAPSE_KEY = 'chengpro_sidebar_collapsed';
   const toastEl = document.getElementById('toast');
   let current = 'home';
   let toastTimer = null;
@@ -229,10 +231,38 @@
     el.addEventListener('click', () => navigate(el.dataset.module));
   });
 
-  menuBtn.addEventListener('click', () => {
+  function isDesktopNav() {
+    return window.matchMedia('(min-width: 901px)').matches;
+  }
+
+  function setSidebarCollapsed(collapsed) {
+    document.documentElement.classList.toggle('sidebar-collapsed', !!collapsed);
+    try { localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch (_e) {}
+    if (sidebarToggle) {
+      sidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      sidebarToggle.setAttribute('aria-label', collapsed ? 'Show menu' : 'Hide menu');
+      sidebarToggle.title = collapsed ? 'Show menu' : 'Hide menu';
+    }
+  }
+
+  function toggleNavMenu() {
+    if (isDesktopNav()) {
+      setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
+      return;
+    }
     if (sidebar.classList.contains('open')) closeSidebar();
     else openSidebar();
-  });
+  }
+
+  try {
+    if (localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1') setSidebarCollapsed(true);
+    else setSidebarCollapsed(false);
+  } catch (_e) {
+    setSidebarCollapsed(false);
+  }
+
+  menuBtn?.addEventListener('click', toggleNavMenu);
+  sidebarToggle?.addEventListener('click', toggleNavMenu);
   backdrop.addEventListener('click', closeSidebar);
 
   document.getElementById('brandHome')?.addEventListener('click', () => navigate('home'));
