@@ -1213,7 +1213,7 @@ const BunkerReports = (() => {
          dump into Tank's dashboard (no in-iframe way back to the plan). */
       if (typeof isBunkerOpsEmbed === 'function' && isBunkerOpsEmbed()) {
         if (requestAioNavigate('home')) return;
-        showToast('Use the ChEng AIO Home control to leave Bunkering Plan');
+        showToast('Use the Dashboard control to leave Bunkering Plan');
         return;
       }
       navigate('dashboard');
