@@ -116,14 +116,9 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
 }
 html.bright .theme-toggle { background: rgba(18,34,56,0.06); }
 .theme-toggle:hover { border-color: var(--brass); color: var(--text); }
-/* Fixed bottom-left on phone — never overlaps Menu (top-left) or health/version chrome (top-right). */
+/* Fixed phone FAB removed — theme lives on home topbar or beside Dashboard. */
 .theme-fab {
-  position: fixed;
-  left: max(12px, env(safe-area-inset-left, 0px));
-  bottom: calc(14px + var(--bottom-h) + env(safe-area-inset-bottom, 0px));
-  z-index: 55;
-  display: none;
-  box-shadow: var(--shadow);
+  display: none !important;
 }
 .health-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; flex-shrink: 0; }
 .health-dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(95,158,110,0.18); }
@@ -199,12 +194,16 @@ html.bright .btn.primary:hover {
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
 /*
- * Theme lives in the topbar (left of brand). Android menu button sits in
- * topbar-meta on the right. Drawer opens from the right; FAB hides while open.
+ * Theme: home topbar only (left of brand). Android menu sits in topbar-meta
+ * on the right. When Dashboard FAB shows (fullscreen embeds), theme sits
+ * beside it — same control cluster, not a separate floating Bright.
  */
 .theme-topbar {
-  display: inline-flex;
+  display: none;
   flex-shrink: 0;
+}
+html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
+  display: inline-flex;
 }
 .nav-fab {
   display: none;
@@ -332,8 +331,12 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .brand-text strong { font-size: 1rem; }
   .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  /* Bright stays in the top bar on phone — left of brand; menu on the right */
-  .theme-topbar { display: inline-flex; padding: 6px 10px; font-size: 11px; }
+  /* Bright on home topbar only (left of brand); menu on the right */
+  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
+    display: inline-flex;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
   .theme-fab { display: none !important; }
   :root { --bottom-h: 56px; }
   .home-hero h1 { font-size: 1.55rem; }
@@ -595,14 +598,23 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
 
 /* Full-screen program embed on Android/mobile (portrait + landscape) — hide AIO chrome.
    Windows desktop keeps topbar/sidebar (see shell.js wantsMobileFullscreenEmbed). */
-.aio-home-fab {
+.aio-return-fabs {
   display: none;
   position: fixed;
-  /* Top-right: must not cover Voyage/Tank brand logo (top-left) or Menu */
   top: max(10px, env(safe-area-inset-top, 0px));
   right: max(10px, env(safe-area-inset-right, 0px));
   left: auto;
   z-index: 90;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.aio-home-fab,
+.aio-return-fabs .aio-theme-fab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: static;
   min-width: 48px;
   min-height: 40px;
   padding: 8px 10px;
@@ -620,7 +632,17 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
 }
-html.bright .aio-home-fab {
+/* Match Dashboard chrome — do not keep the pill .theme-toggle look here. */
+.aio-return-fabs .aio-theme-fab.theme-toggle {
+  border-radius: 10px;
+  letter-spacing: 0.06em;
+  font-family: var(--display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+html.bright .aio-home-fab,
+html.bright .aio-return-fabs .aio-theme-fab {
   background: rgba(255, 255, 255, 0.94);
   color: var(--brass);
 }
@@ -661,10 +683,8 @@ html.aio-fullscreen-embed .eorb-embed-frame {
   min-height: 100dvh !important;
   height: 100dvh;
 }
-html.aio-fullscreen-embed .aio-home-fab:not([hidden]) {
+html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* About / guide */

@@ -85,8 +85,6 @@
         <button type="button" class="icon-btn nav-fab" id="navFab" aria-label="Open menu" aria-expanded="false" title="Menu" hidden>☰</button>
       </div>
     </header>
-    <button type="button" class="theme-toggle theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
-
     <div class="body">
       <aside class="sidebar" id="sidebar">
         <nav class="nav" id="mainNav">
@@ -119,7 +117,10 @@
       <button type="button" class="bottom-item" data-module="eorb">e-ORB</button>
       <button type="button" class="bottom-item" data-module="performance">Perf</button>
     </nav>
-    <button type="button" class="aio-home-fab" id="aioHomeFab" hidden title="Back to Dashboard" aria-label="Back to Dashboard">DASHBOARD</button>
+    <div class="aio-return-fabs" id="aioReturnFabs" hidden>
+      <button type="button" class="theme-toggle aio-theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+      <button type="button" class="aio-home-fab" id="aioHomeFab" title="Back to Dashboard" aria-label="Back to Dashboard">DASHBOARD</button>
+    </div>
   </div>
 
   <div class="toast" id="toast" hidden></div>

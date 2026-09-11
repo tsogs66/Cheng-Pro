@@ -236,9 +236,14 @@
   }
   /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
   html.chengaio-embed .masthead{
-    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
+    padding-right:max(148px, calc(132px + env(safe-area-inset-right, 0px)));
   }
   html.chengaio-embed .status-row{align-items:flex-end;}
+  /* Theme only lives in AIO chrome (home topbar / beside Dashboard). */
+  html.chengaio-embed .theme-toggle,
+  html.chengaio-embed .theme-fab {
+    display: none !important;
+  }
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
