@@ -201,12 +201,17 @@ html.use-bottom-nav .sidebar-backdrop { display: none !important; }
 html.use-bottom-nav .main {
   padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(64px + env(safe-area-inset-bottom, 0px));
 }
-/* Room for ChEng AIO Home FAB (top-right) when embedded */
+/* Room for ChEng AIO Bright + Dashboard FABs (top-right) when embedded */
 html.chengaio-embed .main {
   padding-top: calc(52px + env(safe-area-inset-top, 0px));
 }
 html.use-bottom-nav.chengaio-embed .main {
   padding-top: calc(52px + env(safe-area-inset-top, 0px));
+}
+/* Theme only lives in AIO chrome when embedded — not in Tank sidebar/More/FAB. */
+html.chengaio-embed .theme-toggle,
+html.chengaio-embed .theme-fab {
+  display: none !important;
 }
 
 /* ChEng AIO → Bunkering Plan: iframe shows only bunker-plan — no Tank nav chrome. */

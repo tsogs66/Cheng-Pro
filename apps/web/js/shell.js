@@ -97,11 +97,13 @@
       closeSidebar();
       const embedded = !!main.querySelector('.aio-embed-wrap');
       setFullscreenEmbed(embedded);
+      syncThemeChrome();
       return;
     }
     current = next;
     setNavActive(current);
     closeSidebar();
+    syncThemeChrome();
     const mod = window.ChengProModules[current];
     if (!mod) {
       setFullscreenEmbed(false);
@@ -180,13 +182,22 @@
     return false;
   }
 
+  function syncThemeChrome() {
+    const onHome = current === 'home';
+    document.documentElement.classList.toggle('aio-on-home', onHome);
+    document.body.classList.toggle('aio-on-home', onHome);
+  }
+
   function setFullscreenEmbed(on) {
     const active = !!on && wantsMobileFullscreenEmbed();
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
     if (active) closeSidebar();
+    const cluster = document.getElementById('aioReturnFabs');
+    if (cluster) cluster.hidden = !active;
     const fab = document.getElementById('aioHomeFab');
     if (fab) fab.hidden = !active;
+    syncThemeChrome();
   }
 
   function applyLicenseNav() {

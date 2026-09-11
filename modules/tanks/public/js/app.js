@@ -495,14 +495,17 @@ function renderMoreNav() {
   host.appendChild(mk('settings', 'Backup / Sync', '⇅'));
   host.appendChild(mk('about', 'About', 'ℹ'));
 
-  const themeBtn = document.createElement('button');
-  themeBtn.type = 'button';
-  themeBtn.className = 'theme-toggle no-print';
-  themeBtn.setAttribute('data-theme-toggle', '');
-  themeBtn.textContent = document.documentElement.classList.contains('bright') ? 'Night' : 'Bright';
-  themeBtn.title = 'Day / bright mode for sunlight';
-  host.appendChild(themeBtn);
-  if (window.MarineTheme) MarineTheme.bind(host);
+  /* Theme chrome lives in ChEng AIO (home topbar / beside Dashboard). */
+  if (!isAioEmbedded()) {
+    const themeBtn = document.createElement('button');
+    themeBtn.type = 'button';
+    themeBtn.className = 'theme-toggle no-print';
+    themeBtn.setAttribute('data-theme-toggle', '');
+    themeBtn.textContent = document.documentElement.classList.contains('bright') ? 'Night' : 'Bright';
+    themeBtn.title = 'Day / bright mode for sunlight';
+    host.appendChild(themeBtn);
+    if (window.MarineTheme) MarineTheme.bind(host);
+  }
 
   const sw = document.getElementById('bn-vessel-switcher');
   if (sw) {
@@ -649,14 +652,17 @@ function renderNav() {
     + Branding.AUTHORS.map((a) => `<b>${a}</b>`).join('');
   nav.appendChild(credit);
 
-  const themeBtn = document.createElement('button');
-  themeBtn.type = 'button';
-  themeBtn.className = 'theme-toggle no-print';
-  themeBtn.setAttribute('data-theme-toggle', '');
-  themeBtn.textContent = document.documentElement.classList.contains('bright') ? 'Night' : 'Bright';
-  themeBtn.title = 'Day / bright mode for sunlight';
-  nav.appendChild(themeBtn);
-  if (window.MarineTheme) MarineTheme.bind(nav);
+  /* Theme chrome lives in ChEng AIO (home topbar / beside Dashboard). */
+  if (!isAioEmbedded()) {
+    const themeBtn = document.createElement('button');
+    themeBtn.type = 'button';
+    themeBtn.className = 'theme-toggle no-print';
+    themeBtn.setAttribute('data-theme-toggle', '');
+    themeBtn.textContent = document.documentElement.classList.contains('bright') ? 'Night' : 'Bright';
+    themeBtn.title = 'Day / bright mode for sunlight';
+    nav.appendChild(themeBtn);
+    if (window.MarineTheme) MarineTheme.bind(nav);
+  }
 
   document.getElementById('vessel-switcher').onchange = async (e) => {
     const id = e.target.value;
