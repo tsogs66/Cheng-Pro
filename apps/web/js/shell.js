@@ -19,8 +19,11 @@
 
   function closeSidebar() {
     sidebar.classList.remove('open');
+    document.documentElement.classList.remove('aio-nav-open');
     backdrop.hidden = true;
     if (navFab) {
+      navFab.hidden = !isAndroidNav();
+      navFab.classList.remove('is-drawer-open');
       navFab.setAttribute('aria-expanded', 'false');
       navFab.setAttribute('aria-label', 'Open menu');
       navFab.title = 'Menu';
@@ -29,8 +32,12 @@
 
   function openSidebar() {
     sidebar.classList.add('open');
+    document.documentElement.classList.add('aio-nav-open');
     backdrop.hidden = false;
     if (navFab) {
+      /* Hide while drawer is open so it does not sit on top of the menu panel. */
+      navFab.classList.add('is-drawer-open');
+      navFab.hidden = true;
       navFab.setAttribute('aria-expanded', 'true');
       navFab.setAttribute('aria-label', 'Close menu');
       navFab.title = 'Close menu';

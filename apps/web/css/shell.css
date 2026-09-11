@@ -67,7 +67,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 .topbar {
   position: sticky; top: 0; z-index: 40;
-  display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+  display: grid; grid-template-columns: auto auto minmax(0,1fr) auto;
   gap: 12px; align-items: center;
   min-height: calc(var(--topbar-h) + var(--safe-top));
   padding: calc(10px + var(--safe-top)) 16px 10px;
@@ -199,44 +199,37 @@ html.bright .btn.primary:hover {
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
 /*
- * Android-only floating menu (FAB). Windows / desktop keep the left sidebar.
- * FAB sits below the topbar so it never covers Bright/Night. Drawer opens from
- * the right; tap outside (backdrop) closes it.
+ * Theme lives in the topbar (left of brand). Android menu button sits in
+ * topbar-meta on the right. Drawer opens from the right; FAB hides while open.
  */
+.theme-topbar {
+  display: inline-flex;
+  flex-shrink: 0;
+}
 .nav-fab {
   display: none;
-  position: fixed;
-  top: calc(var(--topbar-h) + var(--safe-top, env(safe-area-inset-top, 0px)) + 10px);
-  right: max(12px, env(safe-area-inset-right, 0px));
-  z-index: 60;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   border: 1px solid rgba(201,154,83,0.45);
-  background: rgba(10, 20, 32, 0.92);
+  background: rgba(0,0,0,0.18);
   color: var(--brass, #c99a53);
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  backdrop-filter: blur(10px);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
-html.bright .nav-fab {
-  background: rgba(255,255,255,0.94);
-  color: #8a5a1a;
-  border-color: rgba(138,90,26,0.35);
-  box-shadow: 0 8px 24px rgba(18,34,56,0.18);
-}
-.nav-fab[aria-expanded="true"] {
-  border-color: var(--brass, #c99a53);
-  color: var(--text);
-}
+html.bright .nav-fab { background: rgba(18,34,56,0.06); color: #8a5a1a; }
+.nav-fab:hover { border-color: var(--brass); color: var(--text); }
 
 html.aio-android-nav .nav-fab:not([hidden]) { display: inline-flex; }
+html.aio-android-nav .nav-fab.is-drawer-open,
+html.aio-nav-open .nav-fab { display: none !important; }
 html.aio-android-nav .menu-btn { display: none !important; }
+html.aio-android-nav .theme-fab { display: none !important; }
 html.aio-android-nav .bottom-nav { display: none !important; }
 html.aio-android-nav {
   --bottom-h: 0px;
@@ -248,7 +241,7 @@ html.aio-android-nav .sidebar {
   position: fixed;
   inset: 0 0 0 auto;
   width: min(300px, 86vw);
-  z-index: 50;
+  z-index: 55;
   transform: translateX(105%);
   transition: transform 0.2s ease;
   padding-bottom: calc(24px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
@@ -262,9 +255,10 @@ html.aio-android-nav .sidebar-backdrop:not([hidden]) {
   position: fixed;
   inset: 0;
   background: rgba(4,10,18,0.55);
-  z-index: 45;
+  z-index: 50;
 }
-html.aio-fullscreen-embed.aio-android-nav .nav-fab { display: none !important; }
+html.aio-fullscreen-embed.aio-android-nav .nav-fab,
+html.aio-fullscreen-embed .theme-topbar { display: none !important; }
 
 .icon-btn, .menu-btn {
   width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
@@ -293,7 +287,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 .bottom-nav { display: none; }
 .sidebar-backdrop { display: none; }
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: auto 1fr auto; }
+  .topbar { grid-template-columns: auto auto 1fr auto; }
   .vessel-switcher { grid-column: 1 / -1; }
   .vessel-switcher select { max-width: none; }
   .body { grid-template-columns: 1fr; }
@@ -338,8 +332,8 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .brand-text strong { font-size: 1rem; }
   .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  /* Bright stays in the top bar on phone — FAB was covering Home on the bottom nav */
-  .topbar-meta .theme-toggle { display: inline-flex; padding: 6px 10px; font-size: 11px; }
+  /* Bright stays in the top bar on phone — left of brand; menu on the right */
+  .theme-topbar { display: inline-flex; padding: 6px 10px; font-size: 11px; }
   .theme-fab { display: none !important; }
   :root { --bottom-h: 56px; }
   .home-hero h1 { font-size: 1.55rem; }
@@ -470,8 +464,8 @@ html:not(.bright) .vessel-chip { background: rgba(255,255,255,.04); }
 .home-voyage-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 4px;
 }
 .home-voyage-strip .stat {
   background: transparent;
@@ -484,18 +478,18 @@ html:not(.bright) .vessel-chip { background: rgba(255,255,255,.04); }
 html.bright .home-voyage-strip .stat { background: transparent; }
 .home-voyage-strip .stat .num {
   font-family: var(--mono);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   color: var(--text);
   font-weight: 600;
   word-break: break-word;
-  line-height: 1.25;
+  line-height: 1.15;
 }
 .home-voyage-strip .stat .lbl {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 @media (max-width: 560px) {
   .home-voyage-strip { grid-template-columns: 1fr; gap: 10px; }
