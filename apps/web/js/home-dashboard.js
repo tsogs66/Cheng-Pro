@@ -253,39 +253,42 @@
     const upperHull = `M ${shipX - 44} ${y + 9} L ${shipX - 44} ${y + 4} L ${shipX + 24} ${y + 4} L ${shipX + 46} ${y + 9} Z`;
     const lowerHull = `M ${shipX - 44} ${y + 18} L ${shipX - 44} ${y + 9} L ${shipX + 46} ${y + 9} L ${shipX + 24} ${y + 18} Z`;
     const speedTxt = snap.lastSpeed != null ? `${fmt(snap.lastSpeed, 1)} kn` : '';
-    const cx = 852, cy = 40, r = 24;
-    const needleSvgDeg = blowToDeg - 90;
+    const cx = 852, cy = 42, r = 28;
     const fromLabel = windDir || (windAngle != null ? String(Math.round(windAngle)) + '°' : '—');
-    let compassTicks = '';
-    for (let d = 0; d < 360; d += 30) {
-      const rad = (d - 90) * Math.PI / 180;
-      const major = d % 90 === 0;
-      const r0 = major ? r - 5 : r - 3;
-      compassTicks += `<line x1="${cx + Math.cos(rad) * r0}" y1="${cy + Math.sin(rad) * r0}" x2="${cx + Math.cos(rad) * r}" y2="${cy + Math.sin(rad) * r}" stroke="var(--paper-dim)" stroke-width="${major ? 1.4 : 0.8}" opacity="${major ? 0.85 : 0.45}"/>`;
-    }
-    const compassSvg = `<g class="voyage-compass" pointer-events="none">
-      <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" fill="#e0b56a" font-family="monospace" font-size="9" font-weight="600">FROM ${esc(fromLabel)}</text>
-      <circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="rgba(8,16,28,0.72)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1.1" opacity="0.7"/>
-      ${compassTicks}
-      <text x="${cx}" y="${cy - r + 10}" text-anchor="middle" fill="var(--brass)" font-family="Georgia,serif" font-size="9" font-weight="700">N</text>
-      <text x="${cx + r - 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">E</text>
-      <text x="${cx}" y="${cy + r - 2}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">S</text>
-      <text x="${cx - r + 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Georgia,serif" font-size="8" font-weight="600">W</text>
-      <g transform="rotate(${needleSvgDeg} ${cx} ${cy})">
-        <line x1="${cx}" y1="${cy}" x2="${cx + r - 6}" y2="${cy}" stroke="#e0b56a" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M ${cx + r - 2} ${cy} L ${cx + r - 10} ${cy - 4.5} L ${cx + r - 10} ${cy + 4.5} Z" fill="#e0b56a"/>
-        <circle cx="${cx}" cy="${cy}" r="2.4" fill="#e0b56a" stroke="#8a6b3c" stroke-width="0.8"/>
+    /* Bow = diagram North. Wind FROM rotates around the ship (met degrees, N=0 CW). */
+    const windFromDeg = windAngle != null ? windAngle : 0;
+    const shipWindSvg = `<g class="voyage-ship-wind" pointer-events="none">
+      <text x="${cx}" y="${cy - r - 7}" text-anchor="middle" fill="#e0b56a" font-family="monospace" font-size="9" font-weight="600">FROM ${esc(fromLabel)}</text>
+      <circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="rgba(8,16,28,0.78)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1" opacity="0.55"/>
+      <!-- Top-view vessel: bow toward North (up) -->
+      <path d="M ${cx} ${cy - 17}
+        L ${cx + 7.5} ${cy - 2}
+        L ${cx + 8} ${cy + 8}
+        L ${cx + 6} ${cy + 16}
+        L ${cx - 6} ${cy + 16}
+        L ${cx - 8} ${cy + 8}
+        L ${cx - 7.5} ${cy - 2} Z"
+        fill="#1a2a3d" stroke="var(--brass)" stroke-width="1.2"/>
+      <path d="M ${cx} ${cy - 17} L ${cx + 5} ${cy - 1} L ${cx - 5} ${cy - 1} Z" fill="#7a1f2b" stroke="var(--ink)" stroke-width="0.6"/>
+      <rect x="${cx - 4}" y="${cy + 1}" width="8" height="6" rx="1" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.7"/>
+      <rect x="${cx - 2.2}" y="${cy + 9}" width="4.4" height="4" rx="0.6" fill="#0d0d0d" stroke="var(--brass)" stroke-width="0.6"/>
+      <line x1="${cx}" y1="${cy - 17}" x2="${cx}" y2="${cy - 20.5}" stroke="var(--brass)" stroke-width="1.2" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy - r + 9}" text-anchor="middle" fill="var(--brass)" font-family="Georgia,serif" font-size="8" font-weight="700">BOW</text>
+      <!-- Wind FROM: shaft from rim toward hull, tip at ship -->
+      <g transform="rotate(${windFromDeg} ${cx} ${cy})">
+        <line x1="${cx}" y1="${cy - r + 3}" x2="${cx}" y2="${cy - 12}" stroke="#e0b56a" stroke-width="2" stroke-linecap="round"/>
+        <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
       </g>
     </g>`;
     el.innerHTML = `
-      <svg viewBox="0 0 900 340" class="home-voyage-svg" style="width:100%;height:auto;max-height:360px;background:rgba(18,34,56,.03);border-radius:12px">
+      <svg viewBox="0 0 900 268" class="home-voyage-svg" style="width:100%;height:auto;max-height:280px;background:rgba(18,34,56,.03);border-radius:12px">
         <defs><clipPath id="homeSkyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
         <g class="voyage-wave"><path d="${wave1}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.28"/></g>
         <g class="voyage-wave" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
         ${sea}
         ${weather}
-        ${compassSvg}
+        ${shipWindSvg}
         <line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="var(--line-strong)" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>
         <line x1="${x0}" y1="${y}" x2="${shipX}" y2="${y}" stroke="var(--brass)" stroke-width="3" stroke-linecap="round"/>
         <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
@@ -305,8 +308,8 @@
         ${badgeSvg}
         ${speedTxt ? `<text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="monospace" font-size="11" font-weight="600">${speedTxt}</text>` : ''}
         <text x="${(shipX + x1) / 2}" y="${y - 18}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(Math.max(0, total - traveled), 0)} nm to go</text>
-        <text x="${shipX}" y="${y + 48}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="13" font-weight="600">${fmt(traveled, 0)} nm</text>
-        <text x="${shipX}" y="${y + 64}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
+        <text x="${shipX}" y="${y + 34}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
+        <text x="${shipX}" y="${y + 46}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
       </svg>`;
   }
 
