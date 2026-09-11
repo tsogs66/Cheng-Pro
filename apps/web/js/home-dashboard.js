@@ -38,7 +38,7 @@
   }
   function fmtFuel(n) {
     if (n == null || isNaN(n)) return '—';
-    return Number(n).toFixed(1);
+    return Number(n).toFixed(3);
   }
   function esc(s) {
     return String(s ?? '')
@@ -452,10 +452,10 @@
     if (summaryEl) {
       summaryEl.innerHTML = `
         <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>Fuel Oil Volume</div>
-          <div class="value">${fmtNum(volume, 1)}<span class="unit">m³ / ${fmtNum(capacity, 0)}</span></div>
-          <div class="sub">${withReading}/${tanks.length} logged · ${fmtNum(pct, 1)}% full</div></div>
+          <div class="value">${fmtNum(volume, 3)}<span class="unit">m³ / ${fmtNum(capacity, 3)}</span></div>
+          <div class="sub">${withReading}/${tanks.length} logged · ${fmtNum(pct, 3)}% full</div></div>
         <div class="card"><div class="label">Fuel Weight</div>
-          <div class="value">${fmtNum(weight, 1)}<span class="unit">MT</span></div></div>
+          <div class="value">${fmtNum(weight, 3)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label">Fuel Readings</div>
           <div class="value">${withReading}<span class="unit">/ ${tanks.length}</span></div></div>`;
     }
@@ -477,8 +477,8 @@
           <div class="fill" style="height:${fillH}%"></div>
           <div class="tg-pct">${fill != null ? Math.round(fill) + '%' : '—'}</div>
         </div>
-        <div class="tg-stats"><span>Vol</span><b>${vol != null ? fmtNum(vol, 1) + ' m³' : '—'}</b>
-          <span>MT</span><b>${mt != null ? fmtNum(mt, 1) : '—'}</b></div>
+        <div class="tg-stats"><span>Vol</span><b>${vol != null ? fmtNum(vol, 3) + ' m³' : '—'}</b>
+          <span>MT</span><b>${mt != null ? fmtNum(mt, 3) : '—'}</b></div>
       </div>`;
     }).join('');
   }

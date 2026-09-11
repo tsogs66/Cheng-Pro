@@ -27,6 +27,8 @@ check('renderVsSurvey uses surveyCalculatedBook', /function renderVsSurvey\([\s\
 check('recordRobSurvey uses surveyCalculatedBook', /function recordRobSurvey\([\s\S]{0,500}surveyCalculatedBook/.test(HTML));
 check('Apply Survey stamps Received before sync', /stampRobReceivedOnEntry\(entry\)[\s\S]{0,200}syncRobSurveyReceivedReceipts/.test(HTML));
 check('status copy says Calculated is before Received', HTML.includes('Calculated is the book before today'));
+check('surveyCalculatedBook uses previous closing not asOf-minus-recv', HTML.includes('previous report\'s closing ROB'));
+check('renderVsSurvey uses live Calculated not stale stamp', HTML.includes('Always use live book-before-Received'));
 
 console.log('');
 if (failures) {

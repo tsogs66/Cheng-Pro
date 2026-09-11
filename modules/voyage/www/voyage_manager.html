@@ -3071,7 +3071,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h3 class="sub">Fresh Water</h3>
       <div class="gauge-grid cols4" id="fwDualGauges"></div>
       <div class="stat-strip cols3" id="fwTotalSummaryStrip" style="margin-top:14px;"></div>
-      <div class="hint">Opening tick = Vessel Data Opening ROB. Present needle and “used” follow the same book as the R.O.B. tab: bunkers once (Receipts or Summary Received, never both), consumption shared by Opening+Received stock, Present = Opening + Received − Consumed (or survey measured when saved).</div>
+      <div class="hint">Opening tick = Vessel Data Opening ROB. Present needle and “used” follow the Dep / Arr book: saved log ROB when available (survey measured / FW ROB), otherwise Opening + Received − Consumed from the voyage log (unit/grade overrides included — not a raw flowmeter re-sum alone).</div>
       <div class="hint">Fresh water is in m³. When more than one tank is fitted, the total is the sum of those tanks.</div>
     </div>
   </div>
@@ -8655,20 +8655,52 @@ function entryReceivedOrMirrorQty(entryId, tankId, cat){
  * add (Measured ≈ Calculated+Received), which then raised every later Previous.
  */
 function surveyCalculatedBook(entryId){
-  const asOf = robAsOfEntry(entryId) || { rob:{}, robLube:{} };
-  const rob = { ...(asOf.rob || {}) };
-  const robLube = { ...(asOf.robLube || {}) };
-  fuelTankList().forEach(t=>{
-    const q = entryReceivedOrMirrorQty(entryId, t.id, 'fuel');
-    if (q) rob[t.id] = (Number(rob[t.id]) || 0) - q;
+  /* Book before today's Received = previous report's closing ROB, less this
+     report's consumption only. Do NOT start from robAsOfEntry(this) and subtract
+     Received: robAsOf on a surveyed entry re-bases to Measured and zeroes the
+     consumption delta (same-row survey), which froze wrong Calculated stamps
+     (e.g. LSFO ≈ Present + 3×Received, GE = Previous with no burn). */
+  const { rows } = computeDerived();
+  const idx = rows.findIndex(r => r.id === entryId);
+  if (idx < 0) return { rob:{}, robLube:{} };
+  const row = rows[idx];
+  const prevRow = idx > 0 ? rows[idx - 1] : null;
+  const prevAsOf = prevRow
+    ? (robAsOfComputedRow(prevRow, rows) || { rob:{}, robLube:{} })
+    : {
+        rob: Object.assign({}, (state.setup && state.setup.rob) || {}),
+        robLube: Object.assign({}, (state.setup && state.setup.robLube) || {})
+      };
+  const rob = Object.assign({}, prevAsOf.rob || {});
+  const robLube = Object.assign({}, prevAsOf.robLube || {});
+  const prevCumFuel = (prevRow && prevRow.cumFuel) || {};
+  const prevCumLube = (prevRow && prevRow.cumLube) || {};
+  FUEL_TYPES.forEach(g => {
+    const delta = Math.max(0, (Number(row.cumFuel && row.cumFuel[g]) || 0) - (Number(prevCumFuel[g]) || 0));
+    if (delta) deductGradeConsumption(rob, fuelTankList(), g, 'grade', delta);
   });
-  lubeTankList().forEach(t=>{
-    const q = entryReceivedOrMirrorQty(entryId, t.id, 'lube');
-    if (q) robLube[t.id] = (Number(robLube[t.id]) || 0) - q;
+  [
+    ['cylHigh', 'CYL HIGH'],
+    ['cylLow', 'CYL LOW'],
+    ['meSys', 'ME SYS OIL'],
+    ['geSys', 'GE SYS OIL']
+  ].forEach(([kind, label]) => {
+    const delta = Math.max(0, (Number(row.cumLube && row.cumLube[label]) || 0) - (Number(prevCumLube[label]) || 0));
+    if (delta) deductLubeConsumption(robLube, kind, delta);
   });
-  fwTankList().forEach(t=>{
-    const q = entryReceivedOrMirrorQty(entryId, t.id, 'fw');
-    if (q) robLube[t.id] = (Number(robLube[t.id]) || 0) - q;
+  /* FW: keep prior closing, then apply this report's tank ROB / consumption when known. */
+  fwTankList().forEach(t => {
+    if (row.fwByTank && row.fwByTank[t.id] != null) {
+      /* Sounded FW ROB on this report already includes received/consumed — for
+         Calculated (before Received) prefer prior closing less this report's cons. */
+      const prevFw = Number(robLube[t.id]);
+      const cons = row.fwConsByTank && row.fwConsByTank[t.id] != null
+        ? Number(row.fwConsByTank[t.id]) || 0
+        : 0;
+      if (Number.isFinite(prevFw)) robLube[t.id] = prevFw - cons;
+    } else if (t === fwTankList()[0] && row.fwConsD != null && Number.isFinite(Number(robLube[t.id]))) {
+      robLube[t.id] = Number(robLube[t.id]) - (Number(row.fwConsD) || 0);
+    }
   });
   return { rob, robLube };
 }
@@ -8760,9 +8792,10 @@ function renderVsSurvey(){
   body.innerHTML = rows.map(({t, cat, store})=>{
     /* With a survey applied the calculated column would echo the measurement, which
        tells the reader nothing. Show what the book said when it was taken. */
-    const book = sv
-      ? (store==='rob' ? sv.calculated?.[t.id] : sv.calculatedLube?.[t.id])
-      : (store==='rob' ? calc.rob?.[t.id] : calc.robLube?.[t.id]);
+    /* Always use live book-before-Received so a bad stamp from an older build
+       cannot keep showing (e.g. LSFO Present+3×Received). Stamped calculated
+       remains on the survey record for audit. */
+    const book = store==='rob' ? calc.rob?.[t.id] : calc.robLube?.[t.id];
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
     const bookNum = book == null ? null : Number(book);
     const diff = (meas!=null && bookNum!=null) ? meas - bookNum : null;
@@ -21198,7 +21231,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v236';
+let androidInstallCacheName = 'noon-report-v237';
 
 /*
  * What the program is called.

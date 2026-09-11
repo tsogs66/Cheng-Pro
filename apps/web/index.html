@@ -22,6 +22,11 @@
         document.documentElement.classList.add('bright');
       }
     } catch (_e) {}
+    try {
+      if (localStorage.getItem('chengpro_sidebar_collapsed') === '1') {
+        document.documentElement.classList.add('sidebar-collapsed');
+      }
+    } catch (_e) {}
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
     (function lockMobileViewport() {
       const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
@@ -74,6 +79,7 @@
         <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
         <span class="app-version" id="appVersion" title="Build version"></span>
         <span id="healthDot" class="health-dot" title="Server"></span>
+        <button type="button" class="icon-btn sidebar-toggle" id="sidebarToggle" aria-label="Hide menu" aria-expanded="true" title="Hide menu">☰</button>
       </div>
     </header>
     <button type="button" class="theme-toggle theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>

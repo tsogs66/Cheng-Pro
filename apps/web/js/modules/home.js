@@ -38,9 +38,6 @@ window.ChengProModules.home = {
         </div>
         <div id="voyageProgressViz"></div>
         <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>
-        <p class="hint" id="homeVoyageEtaHint" style="margin-top:8px" hidden>
-          Distance To Go, Days To Go and ETA use Total Voyage Distance minus distance run, divided by the last entry’s speed (voyage average if needed).
-        </p>
         <div class="form-actions" style="margin-top:10px">
           <button type="button" class="btn" id="goVoyageFromHome">Open Voyage Chief</button>
         </div>` : `
@@ -53,7 +50,6 @@ window.ChengProModules.home = {
           <div class="sub">Opening vs Present from Voyage log</div>
         </div>
         <div class="gauge-grid" id="fuelDualGauges"></div>
-        <p class="hint" id="homeGaugeHint" style="margin-top:8px"></p>
       </section>
 
       <section class="panel" id="homeTanksPanel">
@@ -85,7 +81,6 @@ window.ChengProModules.home = {
       const viz = root.querySelector('#voyageProgressViz');
       const sub = root.querySelector('#homeVoyageSub');
       const strip = root.querySelector('#homeVoyageProgressStrip');
-      const etaHint = root.querySelector('#homeVoyageEtaHint');
       if (!hasVoyage || !Dash) return;
       if (!voyageSnap || !voyageSnap.ok) {
         if (sub) sub.textContent = 'No Voyage Chief data on this device yet';
@@ -93,7 +88,6 @@ window.ChengProModules.home = {
           viz.innerHTML = `<div class="hint">Open Voyage Chief once for this vessel to populate progress and weather.</div>`;
         }
         if (Dash.renderVoyageProgressStrip) Dash.renderVoyageProgressStrip(strip, null);
-        if (etaHint) etaHint.hidden = true;
         const gauges = root.querySelector('#fuelDualGauges');
         if (gauges) gauges.innerHTML = `<div class="hint">Open Voyage Chief to load fuel ROB gauges.</div>`;
         return;
@@ -108,14 +102,7 @@ window.ChengProModules.home = {
       }
       Dash.renderVoyageProgressViz(viz, voyageSnap, wxMode);
       if (Dash.renderVoyageProgressStrip) Dash.renderVoyageProgressStrip(strip, voyageSnap);
-      if (etaHint) etaHint.hidden = false;
       Dash.renderFuelGauges(root.querySelector('#fuelDualGauges'), voyageSnap);
-      const hint = root.querySelector('#homeGaugeHint');
-      if (hint) {
-        hint.textContent = voyageSnap.entryCount
-          ? 'Present ROB and used follow Voyage Calculated ROB (saved survey / Opening + Received − Consumed), not a raw flowmeter rebuild.'
-          : 'Showing voyage opening ROB (no log entries yet).';
-      }
     }
 
     root.querySelectorAll('#homeWxToggle [data-wx]').forEach((btn) => {
