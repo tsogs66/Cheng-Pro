@@ -67,7 +67,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 .topbar {
   position: sticky; top: 0; z-index: 40;
-  display: grid; grid-template-columns: auto auto minmax(0,1fr) auto;
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto;
   gap: 12px; align-items: center;
   min-height: calc(var(--topbar-h) + var(--safe-top));
   padding: calc(10px + var(--safe-top)) 16px 10px;
@@ -194,9 +194,8 @@ html.bright .btn.primary:hover {
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
 /*
- * Theme: home topbar only (left of brand). Android menu sits in topbar-meta
- * on the right. When Dashboard FAB shows (fullscreen embeds), theme sits
- * beside it — same control cluster, not a separate floating Bright.
+ * Theme: home only, in topbar-meta left of the health dot (then menu).
+ * When Dashboard FAB shows (fullscreen embeds), theme sits beside it.
  */
 .theme-topbar {
   display: none;
@@ -286,7 +285,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
 .bottom-nav { display: none; }
 .sidebar-backdrop { display: none; }
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: auto auto 1fr auto; }
+  .topbar { grid-template-columns: auto 1fr auto; }
   .vessel-switcher { grid-column: 1 / -1; }
   .vessel-switcher select { max-width: none; }
   .body { grid-template-columns: 1fr; }
@@ -331,7 +330,7 @@ table.data th { color: var(--muted); font-size: 0.72rem; text-transform: upperca
   .brand-text strong { font-size: 1rem; }
   .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  /* Bright on home topbar only (left of brand); menu on the right */
+  /* Bright on home only — left of health dot / menu on the right */
   html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
     display: inline-flex;
     padding: 6px 10px;
