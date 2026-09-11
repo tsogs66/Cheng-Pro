@@ -263,16 +263,74 @@ const FuelReport = (() => {
     </div>`;
   }
 
+  /** AIO-only: Voyage Chief Calculated ROB is available on the parent shell. */
+  function showVoyageRobButton() {
+    try {
+      return typeof isAioEmbedded === 'function' && isAioEmbedded();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** Map Voyage fuel grade labels onto Fuel Oil Report logbook keys. */
+  function logbookIdForVoyageGrade(grade) {
+    const g = String(grade || '').trim().toUpperCase();
+    if (g === 'HFO' || (g.includes('HFO') && !g.includes('LS'))) return 'hfo';
+    if (g === 'LSFO' || g.includes('VLSFO') || g.includes('LSFO')) return 'lsfo';
+    if (g === 'LSMGO' || g.includes('LSMGO')) return 'lsmgo';
+    if (g === 'MDO/MGO' || g.includes('MDO') || g.includes('MGO') || g === 'MO/MGO') return 'mdo';
+    return null;
+  }
+
   /**
-   * Copy each grade's current TOTAL ACTUAL (tank ROB from soundings) into the
-   * matching LOGBOOK ROB field — same source as the Actual column beside it.
+   * Read Voyage Chief present ROB (Calculated ROB book) from the AIO shell.
+   * Returns { hfo, lsfo, mdo, lsmgo } MT totals, or null when unavailable.
    */
-  function fillLogbookFromCurrentRob() {
-    const c = recompute();
+  async function readVoyageRobByLogbookGrade() {
+    try {
+      const parentWin = window.parent;
+      if (!parentWin || parentWin === window) return null;
+      const bridge = parentWin.ChengProVoyageBridge;
+      if (!bridge || typeof bridge.readHomeSnapshot !== 'function') return null;
+      let vessel = null;
+      try {
+        vessel = parentWin.ChengPro && parentWin.ChengPro.vessel
+          && typeof parentWin.ChengPro.vessel.getActive === 'function'
+          ? parentWin.ChengPro.vessel.getActive()
+          : null;
+      } catch (_) { /* cross-origin or missing */ }
+      const snap = await bridge.readHomeSnapshot(vessel);
+      if (!snap || !snap.ok) return null;
+      const rob = snap.robCurrent || {};
+      const tanks = Array.isArray(snap.fuelTanks) ? snap.fuelTanks : [];
+      const out = { hfo: null, lsfo: null, mdo: null, lsmgo: null };
+      for (const t of tanks) {
+        const key = logbookIdForVoyageGrade(t.grade || t.name);
+        if (!key) continue;
+        const v = Number(rob[t.id]);
+        if (!Number.isFinite(v)) continue;
+        out[key] = (out[key] == null ? 0 : out[key]) + v;
+      }
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * AIO only — fill LOGBOOK ROB from Voyage Chief Calculated ROB (not tank soundings).
+   */
+  async function fillLogbookFromVoyageRob() {
+    const rob = await readVoyageRobByLogbookGrade();
+    if (!rob) {
+      showToast('Voyage ROB unavailable — open Voyage Chief for this vessel first');
+      return;
+    }
     let filled = 0;
-    for (const grade of c.grades || []) {
-      if (grade.actualMT == null || !Number.isFinite(Number(grade.actualMT))) continue;
-      const val = n(grade.actualMT, 3);
+    for (const grade of Core.FUEL_TYPES) {
+      const mt = rob[grade.id];
+      if (mt == null || !Number.isFinite(Number(mt))) continue;
+      const val = n(mt, 3);
       view.form.logbook[grade.id] = val;
       const input = document.querySelector(`[data-logbook="${grade.id}"]`);
       if (input) input.value = val;
@@ -281,8 +339,8 @@ const FuelReport = (() => {
     view.dirty = true;
     refreshComputed();
     showToast(filled
-      ? `Logbook filled from current ROB (${filled} fuel type${filled === 1 ? '' : 's'})`
-      : 'No tank ROB to fill — sound tanks first');
+      ? `Logbook filled from Voyage ROB (${filled} fuel type${filled === 1 ? '' : 's'})`
+      : 'No Voyage ROB figures for this vessel');
   }
 
   function renderGradesPanel() {
@@ -296,10 +354,13 @@ const FuelReport = (() => {
         <div class="fr-grade-row"><span>LOGBOOK − ACTUAL</span>
           <b data-fr-grade="${g.id}.differenceMT"></b></div>
       </div>`).join('');
+    const robBtn = showVoyageRobButton()
+      ? `<button type="button" class="btn small" id="fr-fill-logbook-rob">Get current ROB</button>`
+      : '';
     return `<div class="form-panel no-print">
       <div class="section-title" style="margin-top:0">
         <span>Totals vs log book</span>
-        <button type="button" class="btn small" id="fr-fill-logbook-rob">Get current ROB</button>
+        ${robBtn}
       </div>
       <div class="fr-grades">${cells}</div>
     </div>`;
@@ -585,7 +646,7 @@ const FuelReport = (() => {
     });
 
     document.getElementById('fr-fill-logbook-rob')?.addEventListener('click', () => {
-      fillLogbookFromCurrentRob();
+      fillLogbookFromVoyageRob();
     });
 
     document.getElementById('fr-print-save').onclick = () => saveReport({ snapshot: true, print: true });
