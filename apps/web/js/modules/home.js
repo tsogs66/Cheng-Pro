@@ -30,10 +30,9 @@ window.ChengProModules.home = {
         </div>
         ${hasVoyage ? `
         <div class="toggle-row" id="homeWxToggle">
-          <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
-          <button type="button" data-wx="local" title="Weather only near the ship">Ship-local weather</button>
           <button type="button" class="home-action" id="goVoyageFromHome" title="Open Voyage Chief">Voyage Chief</button>
           ${hasConsPlan ? '<button type="button" class="home-action" id="goConsPlanFromHome" title="Open Consumption Plan">Consumption Plan</button>' : ''}
+          <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
         </div>
         <div id="voyageProgressViz"></div>
         <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>` : `
