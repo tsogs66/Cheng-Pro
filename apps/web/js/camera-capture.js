@@ -1,15 +1,12 @@
 /**
  * Take a picture from the device camera — Android and Windows.
  *
- * Used wherever a photo (not signature/stamp) or a BDN document scan is
- * attached. Prefer a live getUserMedia preview when the browser allows it
- * (desktop Windows webcam, Android Chrome). If that fails — permission denied,
- * insecure context, or no camera API — fall back to a hidden file input with
- * capture="environment", which opens the system camera on Android and a file
- * picker on Windows.
- *
- * Signature / stamp / logo uploads must not use this helper: those stay as
- * choose-file or draw-on-screen only.
+ * Used for photos and BDN document scans, and for Vessel Setup signature /
+ * stamp capture when the user chooses Take photo. Prefer a live getUserMedia
+ * preview when the browser allows it (desktop Windows webcam, Android Chrome).
+ * If that fails — permission denied, insecure context, or no camera API — fall
+ * back to a hidden file input with capture="environment", which opens the
+ * system camera on Android and a file picker on Windows.
  */
 (function (root) {
   'use strict';

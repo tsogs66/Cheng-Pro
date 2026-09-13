@@ -26,10 +26,11 @@ window.ChengProModules.vessel = {
         <div class="section-head">
           <div>
             <h2>Vessel Setup</h2>
-            <p>Shared ship identity for Voyage Chief and Tank Chief (name, IMO, call sign, flag, company, type, DWT).
-               Opening ROB and voyage ops stay in Voyage; tanks stay in Tank Chief.
-               Matching uses <strong>IMO first</strong>, then vessel name — <code>MV</code> / <code>M/V</code> / <code>M.V.</code> prefixes are ignored.
-               Put the same IMO on both programs, then tap <strong>Import from Voyage Chief</strong>.</p>
+            <p>Shared ship identity for Voyage Chief and Tank Chief (name, IMO, call sign, flag, company, type, DWT,
+               Chief Engineer, signature and vessel stamp). Both embedded programs read vessel data from this screen —
+               standalone Voyage Chief and Tank Chief keep their own vessel setup. Matching uses <strong>IMO first</strong>,
+               then vessel name — <code>MV</code> / <code>M/V</code> / <code>M.V.</code> prefixes are ignored.
+               Select the active vessel in the fleet register below.</p>
           </div>
         </div>
         <form id="vesselForm">
@@ -75,12 +76,7 @@ window.ChengProModules.vessel = {
           <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
           ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
           <button type="button" class="btn" id="newVessel">New vessel</button>
-          <button type="button" class="btn" id="importVoyage">Import from Voyage Chief</button>
-          <button type="button" class="btn" id="openPerf">Performance Calc</button>
-          <button type="button" class="btn" id="openTanks">Open in Tank Chief</button>
-          <button type="button" class="btn" id="openVoyage">Open in Voyage Chief</button>
         </div>
-        <p class="hint" id="voyageImportStatus" style="margin-top:10px"></p>
       </section>
       <section class="panel">
         <div class="section-head">
@@ -125,32 +121,6 @@ window.ChengProModules.vessel = {
         <p class="hint">Create and save the vessel first, then upload the Chief Engineer signature and vessel stamp here — the same assets Tank Chief printouts use.</p>`;
     }
 
-    root.querySelector('#openTanks').addEventListener('click', () => ChengPro.openTanks());
-    root.querySelector('#openVoyage').addEventListener('click', () => ChengPro.openVoyage());
-    root.querySelector('#openPerf').addEventListener('click', () =>
-      window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'performance' })));
-
-    root.querySelector('#importVoyage')?.addEventListener('click', async () => {
-      const status = root.querySelector('#voyageImportStatus');
-      if (!window.ChengProVoyageBridge) {
-        toast('Voyage bridge not loaded');
-        return;
-      }
-      status.textContent = 'Reading Voyage Chief data on this device…';
-      try {
-        const result = await ChengProVoyageBridge.importIntoChengPro({ setActive: true });
-        status.textContent = result.message;
-        toast(result.message);
-        await ChengPro.vessel.refresh();
-        window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
-      } catch (e) {
-        const msg = e.message || 'Import failed';
-        status.textContent = /nothing registered/i.test(msg)
-          ? 'On-device database failed to start (update ChEng AIO). ' + msg
-          : msg;
-        toast(status.textContent);
-      }
-    });
 
     root.querySelector('#saveVessel').addEventListener('click', async () => {
       const form = root.querySelector('#vesselForm');
@@ -257,6 +227,7 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
           Remove background and trim to the signature</label>
         <div class="hint" id="sig-for"></div>
         <div class="btn-row">
+          <button type="button" class="btn small" id="sig-photo">Take photo</button>
           <button type="button" class="btn small" id="sig-draw">Sign on screen</button>
           <button type="button" class="btn small" id="sig-recut" style="display:none">Remove background now</button>
           <button type="button" class="btn small danger" id="sig-remove" style="display:none">Remove signature</button>
@@ -276,6 +247,7 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
           Remove background and trim to the mark</label>
         <p class="hint" style="margin:0">Leave the box unticked for a stamp that already has a transparent background.</p>
         <div class="btn-row">
+          <button type="button" class="btn small" id="logo-photo">Take photo</button>
           <button type="button" class="btn small" id="logo-recut" style="display:none">Remove background now</button>
           <button type="button" class="btn small danger" id="logo-remove" style="display:none">Remove stamp</button>
         </div>
@@ -349,7 +321,25 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
     if (track) track.scrollIntoView({ block: 'nearest' });
   };
 
-  panel.querySelector('#sig-draw').onclick = async () => {
+  if (window.ChengCamera && ChengCamera.wireTakePictureButton) {
+    ChengCamera.wireTakePictureButton(panel.querySelector('#sig-photo'), {
+      fileInput: panel.querySelector('#sig-file'),
+      title: 'Chief Engineer signature',
+      basename: 'cheng-signature',
+    });
+    ChengCamera.wireTakePictureButton(panel.querySelector('#logo-photo'), {
+      fileInput: panel.querySelector('#logo-file'),
+      title: 'Vessel stamp',
+      basename: 'vessel-stamp',
+    });
+  } else {
+    const sp = panel.querySelector('#sig-photo');
+    const lp = panel.querySelector('#logo-photo');
+    if (sp) sp.style.display = 'none';
+    if (lp) lp.style.display = 'none';
+  }
+
+    panel.querySelector('#sig-draw').onclick = async () => {
     const name = getChEngName();
     if (!name) {
       toast('Enter the Chief Engineer name first — signatures are filed under it');

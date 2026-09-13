@@ -124,11 +124,13 @@ window.ChengProModules.home = {
     if (hasTanks && active) {
       try {
         const bundle = await loadTankBundleForActive(active);
+        const fuelReport = bundle ? await loadFuelReportForBundle(bundle, active) : null;
         if (Dash && bundle) {
           Dash.renderFuelTankOverview(
             root.querySelector('#homeFuelSummary'),
             root.querySelector('#homeFuelGrid'),
-            bundle
+            bundle,
+            fuelReport
           );
         } else if (Dash) {
           const grid = root.querySelector('#homeFuelGrid');
@@ -234,6 +236,45 @@ async function resolveTankVesselId(active) {
   }
   /* List empty / unresolved — still try active id and aliases on load. */
   return active.id || null;
+}
+
+
+async function loadFuelReport(vesselId) {
+  if (!vesselId) return null;
+  applyTankOfflineScope();
+  if (window.ChengProApi && ChengProApi.api) {
+    try {
+      const viaApi = await ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report');
+      if (viaApi && (viaApi.computed || viaApi.sections || viaApi.form)) return viaApi;
+    } catch { /* fall through */ }
+  }
+  if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
+    try {
+      await LocalApi.start();
+      applyTankOfflineScope();
+      const res = await LocalApi.handle('GET', '/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report');
+      if (res.status < 400 && res.body) return res.body;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+/** Prefer the resolved tank folder id from the loaded bundle when asking for Monitoring totals. */
+async function loadFuelReportForBundle(bundle, active) {
+  const ids = [];
+  if (bundle && bundle.vessel && bundle.vessel.id) ids.push(bundle.vessel.id);
+  if (bundle && bundle.id) ids.push(bundle.id);
+  for (const id of tankIdCandidates(active || {})) ids.push(id);
+  const tried = new Set();
+  for (const id of ids) {
+    if (!id || tried.has(id)) continue;
+    tried.add(id);
+    try {
+      const report = await loadFuelReport(id);
+      if (report) return report;
+    } catch { /* try next */ }
+  }
+  return null;
 }
 
 async function loadTankBundle(vesselId) {

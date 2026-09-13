@@ -240,6 +240,10 @@
   }
   html.chengaio-embed .status-row{align-items:flex-end;}
 
+  /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
+  html.chengaio-embed #vesselSelectionPanel,
+  html.chengaio-embed #vesselIdentityPanel{display:none !important;}
+
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
     font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.06em; text-transform:uppercase;
@@ -2052,7 +2056,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Test Fleet loads four scenario vessels for formula checks: <strong>M/V HARBOUR KEY</strong> (port ops), <strong>M/V ROADSTEAD</strong> (anchorage/drifting), <strong>M/V CIRCUMNAV</strong> (full voyage), <strong>M/V PACIFIC TRADER</strong> (three succeeding voyages 40/41/42). Re-running replaces only those four ships' data — your other vessels are left alone.</div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="vesselIdentityPanel">
       <h2>Vessel</h2>
       <div class="form-grid cols2">
         <div class="field"><label>Vessel Name</label><input id="s_vesselName"></div>
@@ -21332,7 +21336,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v242';
+let androidInstallCacheName = 'noon-report-v244';
 
 /*
  * What the program is called.
@@ -22013,6 +22017,18 @@ async function buildFullDatabaseBackup(){
   }, { source: 'program' });
 }
 
+
+/** Accept a native Voyage DB backup, or the Voyage half of a ChEng AIO suite file. */
+function unwrapVoyageBackupPayload(payload){
+  if (payload && payload.format === 'cheng-aio-suite-v1') {
+    if (!payload.voyage || typeof payload.voyage !== 'object') {
+      throw new Error('This ChEng AIO suite file has no Voyage Chief database. Open it in ChEng AIO Backup, or use a Voyage-only backup (noon-report-db-v1).');
+    }
+    return payload.voyage;
+  }
+  return payload;
+}
+
 function isFullDatabaseBackup(payload){
   return !!(payload && payload.format === DB_BACKUP_FORMAT && payload.stores && typeof payload.stores === 'object');
 }
@@ -22066,6 +22082,7 @@ async function writeStoreRows(storeName, rows){
 }
 
 async function restoreFullDatabase(payload){
+  payload = unwrapVoyageBackupPayload(payload);
   if (!isFullDatabaseBackup(payload)) throw new Error('Not a full database backup (expected format noon-report-db-v1).');
   return withActivity('db-restore', 'Restoring the database on this device…', async ({ update })=>{
   await ensureDB();
@@ -22102,6 +22119,7 @@ async function restoreFullDatabase(payload){
 }
 
 async function mergeFullDatabase(payload){
+  payload = unwrapVoyageBackupPayload(payload);
   if (!isFullDatabaseBackup(payload)) throw new Error('Not a full database backup (expected format noon-report-db-v1).');
   return withActivity('db-merge', 'Merging a backup into this device…', async ({ update })=>{
   await ensureDB();
@@ -22233,6 +22251,11 @@ function matchVesselForImport(payload){
 }
 
 async function importVesselExport(payload, options = {}){
+  if (payload && payload.format === 'cheng-aio-suite-v1') {
+    throw new Error('This is a ChEng AIO entire-program suite, not a single-vessel export. '
+      + 'Use Backup Entire Database / Restore (or Merge) to load the Voyage half, '
+      + 'or export a vessel with “Export Active Vessel” (noon-report-vessel-v1).');
+  }
   if (!isVesselExport(payload)){
     throw new Error('Not a vessel export (expected format ' + VESSEL_EXPORT_FORMAT + ').');
   }
@@ -22626,7 +22649,7 @@ document.getElementById('fileDbRestore')?.addEventListener('change', async (ev)=
   if (!file) return;
   try{
     setDbBackupStatus('Reading backup for restore…');
-    const payload = await readJsonFileInput(file);
+    const payload = unwrapVoyageBackupPayload(await readJsonFileInput(file));
     if (!isFullDatabaseBackup(payload)){
       throw new Error('This file is not a full database backup. Use “Backup Entire Database” to create one (format noon-report-db-v1). Active-leg JSON cannot restore the whole DB.');
     }
@@ -22652,7 +22675,7 @@ document.getElementById('fileDbMerge')?.addEventListener('change', async (ev)=>{
   if (!file) return;
   try{
     setDbBackupStatus('Reading backup for merge…');
-    const payload = await readJsonFileInput(file);
+    const payload = unwrapVoyageBackupPayload(await readJsonFileInput(file));
     if (!isFullDatabaseBackup(payload)){
       throw new Error('This file is not a full database backup. Use “Backup Entire Database” first (format noon-report-db-v1).');
     }
@@ -24919,27 +24942,31 @@ function applyEorbLicenseVisibility(){
 }
 
 /**
- * Vessel identity stays editable here (flag registry changes, corrections, etc.).
- * ChEng AIO still mirrors hub values on load; chiefs can override locally when needed.
+ * When embedded in ChEng AIO, vessel selection + identity UI are hidden —
+ * AIO Vessel Setup is the single hub (CSS: html.chengaio-embed).
+ * Standalone keeps full Vessel Data editing.
  */
 function applyChengAioVesselHubLock(alreadyLocked){
   const hub = isChengAioEmbedded();
-  ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (el.tagName === 'SELECT') el.disabled = false;
-    else el.readOnly = false;
-    el.title = hub
-      ? 'Editable here for corrections (e.g. flag registry change). AIO Vessel Setup may re-apply hub values on next load.'
-      : '';
-  });
-  const saveBtn = document.getElementById('btnSaveVesselIdentity');
-  if (saveBtn) saveBtn.hidden = false;
-  const idNote = document.getElementById('vesselIdentityNote');
-  if (idNote) {
-    idNote.textContent = hub
-      ? 'Ship identity is editable for corrections (name, IMO, call sign, flag, company, DWT). Prefer AIO → Vessel Setup for fleet-wide changes; local edits apply to this device’s voyage data.'
-      : 'Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel. Edit here if details change (e.g. flag registry).';
+  const sel = document.getElementById('vesselSelectionPanel');
+  const ident = document.getElementById('vesselIdentityPanel');
+  if (sel) sel.hidden = !!hub;
+  if (ident) ident.hidden = !!hub;
+  /* Standalone: leave fields editable. Embedded panels are hidden above. */
+  if (!hub) {
+    ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === 'SELECT') el.disabled = false;
+      else el.readOnly = false;
+      el.title = '';
+    });
+    const saveBtn = document.getElementById('btnSaveVesselIdentity');
+    if (saveBtn) saveBtn.hidden = false;
+    const idNote = document.getElementById('vesselIdentityNote');
+    if (idNote) {
+      idNote.textContent = 'Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel. Edit here if details change (e.g. flag registry).';
+    }
   }
   void alreadyLocked;
 }
