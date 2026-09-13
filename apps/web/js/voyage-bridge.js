@@ -883,6 +883,14 @@
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
+      const lastEntry = entries.length ? entries[entries.length - 1] : null;
+      const lastRpm = lastEntry && lastEntry.rpm != null && lastEntry.rpm !== '' ? Number(lastEntry.rpm) : null;
+      const lastSlip = lastEntry && lastEntry.slip != null && lastEntry.slip !== '' ? Number(lastEntry.slip) : null;
+      const lastKw = lastEntry && lastEntry.kwEst != null && lastEntry.kwEst !== '' ? Number(lastEntry.kwEst) : null;
+      const lastMcrPct = lastEntry && lastEntry.mcrPct != null && lastEntry.mcrPct !== '' ? Number(lastEntry.mcrPct) : null;
+      const shipStatus = (lastKw > 0 || (lastEntry && lastEntry.distanceShip > 0)) ? 'UNDERWAY'
+        : (lastEntry ? 'PORT' : 'UNDERWAY');
+
       return {
         ok: true,
         registry: reg,
@@ -906,6 +914,11 @@
         robUsed,
         lastSpeed: progress.lastSpeed,
         avgSpeed: progress.avgSpeed,
+        lastRpm,
+        lastSlip,
+        lastKw,
+        lastMcrPct,
+        shipStatus,
         entryCount: entries.length,
       };
     } finally {

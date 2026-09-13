@@ -198,7 +198,7 @@
     </g>`;
   }
 
-  function renderVoyageProgressViz(el, snap, bfSample) {
+  function renderVoyageProgressViz(el, snap) {
     if (!el) return;
     const total = snap && snap.totalDistance;
     if (total == null || !(total > 0)) {
@@ -215,11 +215,6 @@
     const windDir = wx.windDir || '';
     let windBft = wx.windBft != null && wx.windBft !== '' ? Number(wx.windBft) : null;
     let seaState = wx.seaState != null && wx.seaState !== '' ? Number(wx.seaState) : null;
-    /* Beaufort samples drive both wind and a matching Douglas sea for a coherent preview. */
-    if (bfSample != null && !isNaN(bfSample)) {
-      windBft = Number(bfSample);
-      seaState = null;
-    }
     const windAngle = windAngleDeg(windDir);
     const bftEff = windBft != null ? windBft : (windDir ? 3 : 2);
     const seaEff = seaState != null ? seaState : Math.min(9, Math.max(0, Math.round(bftEff * 0.7)));
@@ -287,6 +282,15 @@
     const upperHull = `M ${shipX - 44} ${y + 9} L ${shipX - 44} ${y + 4} L ${shipX + 24} ${y + 4} L ${shipX + 46} ${y + 9} Z`;
     const lowerHull = `M ${shipX - 44} ${y + 18} L ${shipX - 44} ${y + 9} L ${shipX + 46} ${y + 9} L ${shipX + 24} ${y + 18} Z`;
     const speedTxt = snap.lastSpeed != null ? `${fmt(snap.lastSpeed, 1)} kn` : '';
+    const rpmTxt = snap.lastRpm != null && isFinite(snap.lastRpm) ? `${fmt(snap.lastRpm, 0)} RPM` : '';
+    const slipTxt = snap.lastSlip != null && isFinite(snap.lastSlip) ? `Slip ${fmt(snap.lastSlip, 1)}%` : '';
+    const kwTxt = snap.lastKw != null && isFinite(snap.lastKw) ? `${fmt(snap.lastKw, 0)} kW` : '';
+    const mcrTxt = snap.lastMcrPct != null && isFinite(snap.lastMcrPct) ? `${fmt(snap.lastMcrPct, 0)}% MCR` : '';
+    const avgTxt = snap.avgSpeed != null && isFinite(snap.avgSpeed) ? `Average Speed: ${fmt(snap.avgSpeed, 1)} kn` : '';
+    const underway = snap.shipStatus !== 'PORT' && snap.shipStatus !== 'ANCHORED' && snap.shipStatus !== 'DRIFTING';
+    const statusTitle = snap.shipStatus === 'ANCHORED' ? 'AT ANCHOR'
+      : (snap.shipStatus === 'PORT' ? 'AT PORT'
+        : (snap.shipStatus === 'DRIFTING' ? 'DRIFTING' : ''));
     const cx = 852, cy = 42, r = 28;
     const fromLabel = windDir || (windAngle != null ? String(Math.round(windAngle)) + '°' : '—');
     /* Bow = diagram North. Wind FROM rotates around the ship (met degrees, N=0 CW). */
@@ -316,7 +320,7 @@
       </g>
     </g>`;
     el.innerHTML = `
-      <svg viewBox="0 0 900 268" class="home-voyage-svg" style="width:100%;height:auto;max-height:280px;background:rgba(18,34,56,.03);border-radius:12px">
+      <svg viewBox="0 0 900 300" class="home-voyage-svg" style="width:100%;height:auto;max-height:320px;background:rgba(18,34,56,.03);border-radius:12px">
         <defs><clipPath id="homeSkyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
         <g class="voyage-wave"><path d="${wave1}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.28"/></g>
         <g class="voyage-wave" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
@@ -340,10 +344,19 @@
           <rect x="${shipX - 31}" y="${y - 25}" width="6" height="9" fill="var(--ink)"/>
         </g>
         ${badgeSvg}
+        ${underway ? `
+        ${rpmTxt ? `<text x="${shipX}" y="${y - 70}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${rpmTxt}</text>` : ''}
         ${speedTxt ? `<text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="monospace" font-size="11" font-weight="600">${speedTxt}</text>` : ''}
+        ${slipTxt ? `<text x="${shipX}" y="${y - 42}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${slipTxt}</text>` : ''}
+        ` : (statusTitle ? `
+        <text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
+        ` : '')}
         <text x="${(shipX + x1) / 2}" y="${y - 18}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(Math.max(0, total - traveled), 0)} nm to go</text>
-        <text x="${shipX}" y="${y + 34}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
-        <text x="${shipX}" y="${y + 46}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
+        ${underway && kwTxt ? `<text x="${shipX}" y="${y + 34}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="11" font-weight="600">${kwTxt}</text>` : ''}
+        ${underway && mcrTxt ? `<text x="${shipX}" y="${y + 48}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
+        <text x="${shipX}" y="${y + (underway && kwTxt ? 64 : 34)}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
+        <text x="${shipX}" y="${y + (underway && kwTxt ? 78 : 46)}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
+        ${avgTxt ? `<text x="450" y="${y + (underway && kwTxt ? 96 : 64)}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
       </svg>`;
   }
 
