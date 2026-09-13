@@ -196,7 +196,7 @@
       root.innerHTML = `
         <section class="panel backup-page">
           <h1>Backup &amp; Restore</h1>
-          <p class="hint">Export or import vessel databases offline. On the phone the file is written to <strong>Downloads/ChEngAIO</strong>; on desktop you are asked where to save it. If a share sheet opens instead, choose <strong>Save to Files / Drive / USB</strong> — dismissing it writes nothing.</p>
+          <p class="hint">Export or import vessel databases offline. On the phone the file is written to <strong>Downloads/ChEngAIO</strong>; on desktop you are asked where to save it. If a share sheet opens instead, choose <strong>Save to Files / Drive / USB</strong> — dismissing it writes nothing. A Tank-only or Voyage-only file restores in the standalone app of the same name. An entire-program suite (<code>cheng-aio-suite-v1</code>) also restores in standalone Tank Chief or Voyage Chief — each app takes its own half.</p>
           <p class="hint">Tank Chief data on this screen comes from <strong>${esc(tankSourceLabel())}</strong> — the same database Tank Chief itself is set to (Tank Chief → Backup / Sync).</p>
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'}</p>
 

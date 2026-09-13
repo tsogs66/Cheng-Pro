@@ -21,12 +21,22 @@ Do **not** delete Vessel Setup from standalone Voyage Chief or Tank Chief.
 
 ## Backups
 
-| Source backup | ChEng AIO behaviour |
-|---------------|---------------------|
-| `noon-report-*-v1` (Voyage) | Import identity into shell vessel; voyage ops stay in Voyage store |
-| `vessel-fuel-tms-backup` (Tank) | Import / match by IMO; tank data stays in Tank store |
-| AIO shell vessel | Source of truth while using the suite |
+| Source backup | Behaviour |
+|---------------|-----------|
+| `noon-report-db-v1` / `noon-report-vessel-v1` (Voyage) | Native Voyage formats. AIO may import identity into the shell vessel; voyage ops stay in the Voyage store. Standalone Voyage Chief restores these files unchanged. |
+| `vessel-fuel-tms-backup` (Tank) | Native Tank format. AIO may match by IMO; tank data stays in the Tank store. Standalone Tank Chief restores these files unchanged. |
+| AIO shell vessel | Source of truth for shared identity while using the suite. |
+| `cheng-aio-suite-v1` (AIO entire-program) | Wrapper with `tank` + `voyage` halves. Standalone Tank Chief restores `suite.tank`; standalone Voyage Chief restores `suite.voyage`. |
 
 ## Active vessel
 
 One `activeVesselId` in the shell. Embedded Voyage and Tank follow it. Standalone apps keep their own fleet pickers.
+
+## Standalone backup compatibility
+
+Vessel Setup centralization in ChEng AIO does **not** change backup formats.
+
+- Standalone **Tank Chief** still exports/imports `vessel-fuel-tms-backup` and still has its own Vessel Setup when not embedded.
+- Standalone **Voyage Chief** still exports/imports `noon-report-db-v1` / `noon-report-vessel-v1` and still has its own Vessel Data when not embedded.
+- Files produced inside ChEng AIO for Tank or Voyage use those same native formats, so they open in the standalone apps.
+- Entire-program suite files (`cheng-aio-suite-v1`) can also be opened in a standalone app: Tank reads `suite.tank`, Voyage reads `suite.voyage` (same native payloads as single-program backups).

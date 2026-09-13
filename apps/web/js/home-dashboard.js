@@ -482,9 +482,46 @@
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
   }
 
+  function isDistillateFuelType(fuelType) {
+    const g = String(fuelType || '').toLowerCase();
+    return g === 'mdo' || g === 'mgo' || g === 'lsmgo' || g === 'do' || g === 'distillate';
+  }
+
   function isDistillateFuel(tank) {
     const g = String((tank && tank.fuelGrade) || '').toLowerCase();
     return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
+  }
+
+  /**
+   * Prefer Tank Monitoring (fuel-report) totals: measured volume + weight by air,
+   * bucketed by the fuel currently carried (HFO tanks holding distillate count
+   * under distillate — matching Monitoring section placement).
+   */
+  function fuelFamilyTotalsFromReport(fuelReport) {
+    const out = {
+      heavy: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+      distillate: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+    };
+    const computed = fuelReport && (fuelReport.computed || fuelReport);
+    const sections = (computed && computed.sections) || [];
+    const rows = [];
+    for (const section of sections) {
+      const distillate = section.id === 'do' || section.id === 'distillate';
+      const bucket = distillate ? out.distillate : out.heavy;
+      for (const row of section.rows || []) {
+        rows.push({ row, distillate });
+        bucket.count += 1;
+        bucket.capacity += Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
+        const vol = row.measuredM3;
+        const wt = row.weightAirMT;
+        if (vol != null || wt != null) {
+          bucket.volume += Number(vol) || 0;
+          bucket.weight += Number(wt) || 0;
+          bucket.withReading += 1;
+        }
+      }
+    }
+    return { fam: out, rows };
   }
 
   function fuelFamilyTotals(tanks, readings) {
@@ -492,11 +529,11 @@
       heavy: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
       distillate: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
     };
-    for (const t of tanks) {
-      const bucket = isDistillateFuel(t) ? out.distillate : out.heavy;
+    for (const tank of tanks) {
+      const bucket = isDistillateFuel(tank) ? out.distillate : out.heavy;
       bucket.count += 1;
-      bucket.capacity += Number(t.capacity) || 0;
-      const r = readings[t.id];
+      bucket.capacity += Number(tank.capacity) || 0;
+      const r = readings[tank.id];
       if (r && r.result) {
         bucket.volume += Number(r.result.volumeObserved) || 0;
         bucket.weight += Number(r.result.weightMT) || 0;
@@ -506,10 +543,11 @@
     return out;
   }
 
-  function renderFuelTankOverview(summaryEl, gridEl, bundle) {
+  function renderFuelTankOverview(summaryEl, gridEl, bundle, fuelReport) {
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
-    const fam = fuelFamilyTotals(tanks, readings);
+    const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport) : null;
+    const fam = fromReport ? fromReport.fam : fuelFamilyTotals(tanks, readings);
     const withReading = fam.heavy.withReading + fam.distillate.withReading;
     const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {
@@ -517,17 +555,42 @@
         <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>HFO / VLSFO Volume</div>
           <div class="value">${fmtNum(fam.heavy.volume, 3)}<span class="unit">m³ / ${fmtNum(fam.heavy.capacity, 3)}</span></div>
           <div class="sub">${fam.heavy.withReading}/${fam.heavy.count} logged · ${fmtNum(pct(fam.heavy), 3)}% full</div></div>
-        <div class="card"><div class="label">HFO / VLSFO Weight</div>
+        <div class="card"><div class="label">HFO / VLSFO Weight (air)</div>
           <div class="value">${fmtNum(fam.heavy.weight, 3)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>MDO / MGO / LSMGO Volume</div>
           <div class="value">${fmtNum(fam.distillate.volume, 3)}<span class="unit">m³ / ${fmtNum(fam.distillate.capacity, 3)}</span></div>
           <div class="sub">${fam.distillate.withReading}/${fam.distillate.count} logged · ${fmtNum(pct(fam.distillate), 3)}% full</div></div>
-        <div class="card"><div class="label">MDO / MGO / LSMGO Weight</div>
+        <div class="card"><div class="label">MDO / MGO / LSMGO Weight (air)</div>
           <div class="value">${fmtNum(fam.distillate.weight, 3)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label">Fuel Readings</div>
-          <div class="value">${withReading}<span class="unit">/ ${tanks.length}</span></div></div>`;
+          <div class="value">${withReading}<span class="unit">/ ${fromReport ? (fam.heavy.count + fam.distillate.count) : tanks.length}</span></div></div>`;
     }
     if (!gridEl) return;
+    if (fromReport && fromReport.rows.length) {
+      const ordered = fromReport.rows.slice().sort((a, b) => {
+        if (a.distillate !== b.distillate) return a.distillate ? 1 : -1;
+        return String(a.row.name || '').localeCompare(String(b.row.name || ''));
+      });
+      gridEl.innerHTML = ordered.map(({ row, distillate }) => {
+        const vol = row.measuredM3;
+        const mt = row.weightAirMT;
+        const cap = Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
+        const fill = (vol != null && cap > 0) ? (Number(vol) / cap) * 100 : null;
+        const fillH = fill != null ? Math.max(8, Math.min(85, fill * 0.55)) : 8;
+        const moved = row.moved || row.sectionMismatch ? ' · carried grade' : '';
+        return `<div class="tg-card">
+          <div class="tg-name">${esc(row.name || row.tankId)}${moved ? `<span class="hint">${moved}</span>` : ''}</div>
+          <div class="tg-art">
+            <div class="shell"></div>
+            <div class="fill" style="height:${fillH}%"></div>
+            <div class="tg-pct">${fill != null ? Math.round(fill) + '%' : '—'}</div>
+          </div>
+          <div class="tg-stats"><span>Vol</span><b>${vol != null ? fmtNum(vol, 3) + ' m³' : '—'}</b>
+            <span>Air</span><b>${mt != null ? fmtNum(mt, 3) + ' MT' : '—'}</b></div>
+        </div>`;
+      }).join('');
+      return;
+    }
     if (!tanks.length) {
       gridEl.innerHTML = `<div class="hint">No fuel tanks on this vessel in Tank Chief yet.</div>`;
       return;
@@ -542,14 +605,14 @@
       const sideRank = (s) => (s === 'port' ? 0 : s === 'starboard' ? 1 : 2);
       return sideRank(a.side) - sideRank(b.side) || String(a.name || '').localeCompare(String(b.name || ''));
     });
-    gridEl.innerHTML = ordered.map((t) => {
-      const r = readings[t.id];
+    gridEl.innerHTML = ordered.map((tank) => {
+      const r = readings[tank.id];
       const fill = r?.result?.fillPercent;
       const vol = r?.result?.volumeObserved;
       const mt = r?.result?.weightMT;
       const fillH = fill != null ? Math.max(8, Math.min(85, fill * 0.55)) : 8;
       return `<div class="tg-card">
-        <div class="tg-name">${esc(t.name)}</div>
+        <div class="tg-name">${esc(tank.name)}</div>
         <div class="tg-art">
           <div class="shell"></div>
           <div class="fill" style="height:${fillH}%"></div>
@@ -560,7 +623,6 @@
       </div>`;
     }).join('');
   }
-
 
   root.ChengProHomeDashboard = {
     renderVoyageProgressViz,
