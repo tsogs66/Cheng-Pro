@@ -50,7 +50,7 @@ function requireVoyage(req, res, next) {
 const { parseScopedEntitlement } = require('./license-scope');
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/shell') && !req.path.startsWith('/api/status')
-      && req.path !== '/api/admin/users') {
+      && req.path !== '/api/admin/users' && req.path !== '/api/admin/inventory') {
     return next();
   }
   try {
@@ -79,6 +79,75 @@ app.get('/api/admin/users', (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+
+app.get('/api/admin/inventory', (req, res) => {
+  try {
+    const store = require('../modules/tanks/server/store');
+    const voyageInventory = require('../modules/tanks/server/voyage-inventory');
+    if (!store.isMasterScope || !store.isMasterScope()) {
+      return res.status(403).json({ error: 'Forbidden — master license required' });
+    }
+    let licenses = [];
+    try {
+      const license = require('./license/store');
+      licenses = license.listLicenses({});
+    } catch (e) {
+      licenses = [];
+    }
+    const users = store.listUserDatabases().map((u) => {
+      let vessels = [];
+      try {
+        vessels = store.runWithUserScope(
+          { email: u.emailSlug, master: true, actAs: u.emailSlug },
+          () => store.listVessels()
+        );
+      } catch (_) {
+        vessels = [];
+      }
+      return {
+        emailSlug: u.emailSlug,
+        vesselCount: u.vesselCount,
+        vessels: (vessels || []).map((v) => ({
+          id: v.id,
+          name: v.name,
+          imo: v.imo,
+          updatedAt: v.updatedAt,
+        })),
+      };
+    });
+    let rootVessels = [];
+    try {
+      rootVessels = store.runWithUserScope(
+        { email: null, master: false, actAs: null },
+        () => store.listVessels()
+      );
+    } catch (_) {
+      rootVessels = [];
+    }
+    const voyageLegs = voyageInventory.listAllVoyageLegs().map((leg) => ({
+      ownerSlug: leg.ownerSlug,
+      vesselSlug: leg.vesselSlug,
+      voyageNo: leg.voyageNo,
+      condition: leg.condition,
+      updatedAt: leg.updatedAt,
+    }));
+    res.json({
+      licenses,
+      users,
+      rootVessels: (rootVessels || []).map((v) => ({
+        id: v.id,
+        name: v.name,
+        imo: v.imo,
+        updatedAt: v.updatedAt,
+      })),
+      voyageLegs,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 /* ---------- Combined health ---------- */
 app.get('/api/health', async (req, res) => {

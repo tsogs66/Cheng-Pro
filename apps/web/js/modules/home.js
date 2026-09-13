@@ -31,6 +31,7 @@ window.ChengProModules.home = {
         ${hasVoyage ? `
         <div class="toggle-row" id="homeWxToggle">
           <button type="button" class="home-action" id="goVoyageFromHome" title="Open Voyage Chief">Voyage Chief</button>
+          <button type="button" class="home-action" id="goLogEntryFromHome" title="Open Log Entry">Log Entry</button>
           ${hasConsPlan ? '<button type="button" class="home-action" id="goConsPlanFromHome" title="Open Consumption Plan">Consumption Plan</button>' : ''}
           <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
         </div>
@@ -44,6 +45,9 @@ window.ChengProModules.home = {
           <h2>Calculated ROB</h2>
           <div class="sub">Opening vs Present from Voyage log</div>
         </div>
+        <div class="toggle-row" style="margin-bottom:8px">
+          <button type="button" class="home-action" id="goRobFromHome" title="Open Voyage Chief ROB">ROB</button>
+        </div>
         <div class="gauge-grid" id="fuelDualGauges"></div>
       </section>
 
@@ -55,6 +59,7 @@ window.ChengProModules.home = {
         ${hasTanks ? `
         <div class="toggle-row home-tank-actions">
           <button type="button" class="home-action" id="goTanksFromHome" title="Open Tank Chief">Tank Chief</button>
+          <button type="button" class="home-action" id="goMonitoringFromHome" title="Open Monitoring">Monitoring</button>
           ${hasBunkerPlan ? '<button type="button" class="home-action" id="goBunkerPlanFromHome" title="Open Bunkering Plan">Bunkering Plan</button>' : ''}
         </div>
         <div class="cards-row" id="homeFuelSummary"></div>
@@ -68,7 +73,10 @@ window.ChengProModules.home = {
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: btn.dataset.go }));
     });
     root.querySelector('#goVoyageFromHome')?.addEventListener('click', () => ChengPro.openVoyage());
+    root.querySelector('#goLogEntryFromHome')?.addEventListener('click', () => ChengPro.openVoyage({ page: 'entry' }));
+    root.querySelector('#goRobFromHome')?.addEventListener('click', () => ChengPro.openVoyage({ page: 'rob' }));
     root.querySelector('#goTanksFromHome')?.addEventListener('click', () => ChengPro.openTanks());
+    root.querySelector('#goMonitoringFromHome')?.addEventListener('click', () => ChengPro.openTanks({ page: 'fuel-report' }));
     root.querySelector('#goConsPlanFromHome')?.addEventListener('click', () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'bunkerplan' })));
     root.querySelector('#goBunkerPlanFromHome')?.addEventListener('click', () =>

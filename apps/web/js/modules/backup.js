@@ -212,6 +212,42 @@
             <p class="hint" id="bk-suite-status">Ready.</p>
           </div>
 
+
+          <div class="form-panel" style="margin-bottom:16px">
+            <h2>Server vessel library</h2>
+            <p class="hint">Vessels stored on this ChEng AIO server (name + IMO). Import ship particulars only, plus the latest voyage leg when one exists, into <strong>your</strong> server account and this device.</p>
+            <div class="btn-row">
+              <button type="button" class="btn" id="bk-lib-refresh">Refresh list</button>
+            </div>
+            <div id="bk-lib-list" class="hint" style="margin-top:10px">Loading…</div>
+            <p class="hint" id="bk-lib-status" style="margin-top:8px">Ready.</p>
+          </div>
+
+          <div class="form-panel" style="margin-bottom:16px">
+            <h2>Server sync settings</h2>
+            <p class="hint">Peer sync URL/token and database transport for Tank Chief. These are the same settings formerly under Tank Chief → Backup / Sync.</p>
+            <div class="grid-2">
+              <div class="field"><label>Peer sync URL</label>
+                <input id="bk-sync-url" placeholder="http://192.168.1.50:8080 or :3080"></div>
+              <div class="field"><label>Sync API token</label>
+                <input id="bk-sync-token" type="password" placeholder="Optional — required when peer uses SYNC_API_TOKEN"></div>
+            </div>
+            <div class="field" style="margin-top:8px"><label>Database on this device</label>
+              <select id="bk-api-transport">
+                <option value="local">On this device — works with no network</option>
+                <option value="server">On the server that served this page</option>
+              </select>
+            </div>
+            <div class="btn-row" style="margin-top:10px">
+              <button type="button" class="btn" id="bk-sync-save">Save settings</button>
+              <button type="button" class="btn" id="bk-sync-probe">Test connection</button>
+              <button type="button" class="btn" id="bk-sync-pull">Pull from peer</button>
+              <button type="button" class="btn primary" id="bk-sync-push">Push to peer</button>
+              <button type="button" class="btn" id="bk-sync-flush">Flush offline queue</button>
+            </div>
+            <p class="hint" id="bk-sync-status" style="margin-top:8px">Ready.</p>
+          </div>
+
           <div class="backup-grid">
             <div class="form-panel">
               <h2>Tank Chief — vessel database</h2>
@@ -520,6 +556,224 @@
           toast(e.message || 'Import failed');
         }
       };
+
+
+      /* ---------- Server vessel library + sync settings ---------- */
+      const libStatus = root.querySelector('#bk-lib-status');
+      const libList = root.querySelector('#bk-lib-list');
+      const syncStatus = root.querySelector('#bk-sync-status');
+      const setLib = (t) => { if (libStatus) libStatus.textContent = t; };
+      const setSync = (t) => { if (syncStatus) syncStatus.textContent = t; };
+
+      async function serverTankApi(path, options = {}) {
+        return ChengProApi.api('/tanks' + path, options);
+      }
+
+      async function refreshVesselLibrary() {
+        if (!libList) return;
+        libList.textContent = 'Loading vessel list from server…';
+        try {
+          const data = await serverTankApi('/api/vessel-library');
+          const vessels = (data && data.vessels) || [];
+          if (!vessels.length) {
+            libList.innerHTML = '<p class="hint">No vessels on the server yet.</p>';
+            setLib('No vessels found.');
+            return;
+          }
+          libList.innerHTML = `<div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
+            <thead><tr><th>Vessel</th><th>IMO</th><th>Owner</th><th></th></tr></thead>
+            <tbody>${vessels.map((v) => {
+              const name = esc(v.name || v.vesselId || '—');
+              const imo = esc(v.imo || '—');
+              const owner = esc(v.ownerSlug || 'server');
+              return `<tr>
+                <td>${name}</td>
+                <td>${imo}</td>
+                <td>${owner}</td>
+                <td><button type="button" class="btn" data-lib-import="${esc(v.vesselId)}" data-lib-owner="${esc(v.ownerSlug || '')}">Import particulars + latest leg</button></td>
+              </tr>`;
+            }).join('')}</tbody></table></div>`;
+          libList.querySelectorAll('[data-lib-import]').forEach((btn) => {
+            btn.onclick = async () => {
+              const vesselId = btn.getAttribute('data-lib-import');
+              const ownerSlug = btn.getAttribute('data-lib-owner') || null;
+              if (!confirm(`Import ship particulars for ${vesselId} into your account (server + this device)? Latest voyage leg will be copied when available.`)) return;
+              setLib('Importing…');
+              try {
+                const res = await serverTankApi('/api/vessel-library/import', {
+                  method: 'POST',
+                  body: JSON.stringify({ ownerSlug: ownerSlug || null, vesselId }),
+                });
+                /* Mirror into local Tank DB when this device is on local transport. */
+                if (usingLocalTank() && res && res.vessel) {
+                  try {
+                    await tankRequest('/api/vessels', {
+                      method: 'POST',
+                      body: JSON.stringify(res.vessel),
+                    });
+                  } catch (localErr) {
+                    console.warn('Local vessel mirror:', localErr);
+                  }
+                }
+                try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+                /* Push voyage leg into Voyage Chief IndexedDB when present. */
+                if (res.voyageLeg && res.voyageLeg.data) {
+                  try {
+                    await voyagePost('import-vessel', {
+                      payload: {
+                        format: 'noon-report-vessel-v1',
+                        vessel: {
+                          id: res.vessel && res.vessel.id,
+                          name: (res.vessel && res.vessel.name) || vesselId,
+                          slug: res.voyageLeg.vesselSlug,
+                          imo: res.vessel && res.vessel.imo,
+                        },
+                        setup: { vesselName: (res.vessel && res.vessel.name) || vesselId },
+                        stores: {
+                          voyageLegs: [{
+                            id: `${res.voyageLeg.voyageNo}-${res.voyageLeg.condition}`,
+                            voyageNumber: res.voyageLeg.voyageNo,
+                            condition: res.voyageLeg.condition,
+                            updatedAt: res.voyageLeg.updatedAt,
+                            snapshot: res.voyageLeg.data,
+                          }],
+                        },
+                      },
+                      mode: 'merge',
+                    }, root);
+                  } catch (voyErr) {
+                    console.warn('Voyage leg local import:', voyErr);
+                  }
+                }
+                setLib(res.message || 'Imported.');
+                toast(res.message || 'Vessel imported');
+                refreshVesselLibrary();
+              } catch (e) {
+                setLib(e.message || 'Import failed');
+                toast(e.message || 'Import failed');
+              }
+            };
+          });
+          setLib(`${vessels.length} vessel(s) on server.`);
+        } catch (e) {
+          libList.textContent = e.message || 'Could not load vessel library (is the server reachable?)';
+          setLib(e.message || 'Failed');
+        }
+      }
+
+      root.querySelector('#bk-lib-refresh')?.addEventListener('click', () => refreshVesselLibrary());
+      refreshVesselLibrary();
+
+      async function loadSyncSettings() {
+        try {
+          const s = await tankRequest('/api/settings');
+          const urlEl = root.querySelector('#bk-sync-url');
+          const tokEl = root.querySelector('#bk-sync-token');
+          const trEl = root.querySelector('#bk-api-transport');
+          if (urlEl) urlEl.value = s.syncUrl || '';
+          if (tokEl) tokEl.value = s.syncApiToken || '';
+          if (trEl) trEl.value = tankTransport();
+          setSync('Loaded from ' + tankSourceLabel() + '.');
+        } catch (e) {
+          setSync(e.message || 'Could not load sync settings');
+        }
+      }
+      loadSyncSettings();
+
+      root.querySelector('#bk-sync-save')?.addEventListener('click', async () => {
+        try {
+          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
+          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
+          await tankRequest('/api/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ syncUrl, syncApiToken, syncEnabled: true }),
+          });
+          const tr = root.querySelector('#bk-api-transport').value;
+          if (tr === 'local' || tr === 'server') {
+            try { localStorage.setItem(TRANSPORT_KEY, tr); } catch (_) { /* ignore */ }
+          }
+          setSync('Sync settings saved.');
+          toast('Sync settings saved');
+        } catch (e) {
+          setSync(e.message || 'Save failed');
+          toast(e.message || 'Save failed');
+        }
+      });
+
+      root.querySelector('#bk-sync-probe')?.addEventListener('click', async () => {
+        try {
+          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
+          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
+          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          setSync('Testing peer…');
+          const res = await tankRequest('/api/sync/probe', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl, syncApiToken }),
+          });
+          setSync(res.hint || res.message || 'Peer reachable');
+          toast(res.hint || 'Peer OK');
+        } catch (e) {
+          setSync(e.message || 'Probe failed');
+          toast(e.message || 'Probe failed');
+        }
+      });
+
+      root.querySelector('#bk-sync-pull')?.addEventListener('click', async () => {
+        try {
+          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
+          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
+          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          setSync('Pulling from peer…');
+          const res = await tankRequest('/api/sync/pull', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl, syncApiToken }),
+          });
+          try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+          setSync(res.message || 'Pull complete');
+          toast(res.message || 'Pull complete');
+        } catch (e) {
+          setSync(e.message || 'Pull failed');
+          toast(e.message || 'Pull failed');
+        }
+      });
+
+      root.querySelector('#bk-sync-push')?.addEventListener('click', async () => {
+        try {
+          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
+          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
+          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          setSync('Pushing to peer…');
+          const res = await tankRequest('/api/sync/push', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl, syncApiToken }),
+          });
+          setSync(res.message || 'Push complete');
+          toast(res.message || 'Push complete');
+        } catch (e) {
+          setSync(e.message || 'Push failed');
+          toast(e.message || 'Push failed');
+        }
+      });
+
+      root.querySelector('#bk-sync-flush')?.addEventListener('click', async () => {
+        try {
+          setSync('Flushing offline queue…');
+          if (typeof LocalApi !== 'undefined' && LocalApi.flush) {
+            await LocalApi.flush();
+          } else {
+            await tankRequest('/api/sync/push', {
+              method: 'POST',
+              body: JSON.stringify({}),
+            });
+          }
+          setSync('Offline queue flushed.');
+          toast('Offline queue flushed');
+        } catch (e) {
+          setSync(e.message || 'Flush failed');
+          toast(e.message || 'Flush failed');
+        }
+      });
+
 
       ensureVoyageFrame(root);
     },

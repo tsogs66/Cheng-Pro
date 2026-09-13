@@ -63,6 +63,16 @@ window.ChengProModules.license = {
           </div>
         </div>
 
+
+        <div id="licServerInventory" hidden>
+          <h3 class="subhead">Server inventory</h3>
+          <p class="hint">Activated licenses, vessels in each user database, and voyage legs saved on this server. Visible with a master license.</p>
+          <div class="btn-row" style="margin-bottom:8px">
+            <button type="button" class="btn" id="btnLicInventoryRefresh">Refresh inventory</button>
+          </div>
+          <div id="licInventoryBody" class="hint">Loading…</div>
+        </div>
+
         <h3 class="subhead">Activate with license key</h3>
         <form id="licActivate" class="grid-2">
           <div class="field"><label>Email</label><input name="email" type="email" required placeholder="you@company.com" value="${escapeHtml(ent?.email || '')}"></div>
@@ -194,6 +204,83 @@ window.ChengProModules.license = {
         status.textContent = e.message;
       }
     };
+
+    const invWrap = root.querySelector('#licServerInventory');
+    const invBody = root.querySelector('#licInventoryBody');
+    async function refreshServerInventory() {
+      if (!invWrap || !invBody) return;
+      if (!(L.isMaster && L.isMaster(ent))) {
+        invWrap.hidden = true;
+        return;
+      }
+      invWrap.hidden = false;
+      invBody.textContent = 'Loading server inventory…';
+      try {
+        const data = await ChengProApi.api('/api/admin/inventory');
+        const licenses = data.licenses || [];
+        const users = data.users || [];
+        const rootVessels = data.rootVessels || [];
+        const legs = data.voyageLegs || [];
+        const esc = escapeHtml;
+        let html = '';
+        html += `<h4 style="margin:12px 0 6px">Activated licenses (${licenses.length})</h4>`;
+        if (!licenses.length) html += `<p class="hint">No licenses issued on this server yet.</p>`;
+        else {
+          html += `<div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px"><thead><tr>
+            <th>Email</th><th>SKU</th><th>Plan</th><th>Seats</th><th>Expires</th></tr></thead><tbody>`;
+          for (const lic of licenses) {
+            const seats = [];
+            if (lic.seats && lic.seats.android) seats.push('Android');
+            if (lic.seats && lic.seats.windows) seats.push('Windows');
+            html += `<tr>
+              <td>${esc(lic.email || '—')}</td>
+              <td>${esc(lic.sku || '—')}</td>
+              <td>${esc(lic.plan || '—')}</td>
+              <td>${esc(seats.join(', ') || 'none bound')}</td>
+              <td>${esc(lic.expiresAt ? String(lic.expiresAt).slice(0, 10) : (lic.plan === 'lifetime' ? 'lifetime' : '—'))}</td>
+            </tr>`;
+          }
+          html += `</tbody></table></div>`;
+        }
+        html += `<h4 style="margin:16px 0 6px">User databases &amp; vessels</h4>`;
+        if (!users.length && !rootVessels.length) html += `<p class="hint">No scoped user databases yet.</p>`;
+        for (const u of users) {
+          html += `<p style="margin:8px 0 4px"><strong>${esc(u.emailSlug)}</strong> — ${u.vessels ? u.vessels.length : (u.vesselCount || 0)} vessel(s)</p>`;
+          if (u.vessels && u.vessels.length) {
+            html += `<ul style="margin:0 0 8px 18px">${u.vessels.map((v) =>
+              `<li>${esc(v.name || v.id)}${v.imo ? ' · IMO ' + esc(v.imo) : ''}</li>`).join('')}</ul>`;
+          }
+        }
+        if (rootVessels.length) {
+          html += `<p style="margin:8px 0 4px"><strong>(server root)</strong> — ${rootVessels.length} vessel(s)</p>`;
+          html += `<ul style="margin:0 0 8px 18px">${rootVessels.map((v) =>
+            `<li>${esc(v.name || v.id)}${v.imo ? ' · IMO ' + esc(v.imo) : ''}</li>`).join('')}</ul>`;
+        }
+        html += `<h4 style="margin:16px 0 6px">Voyage legs on server (${legs.length})</h4>`;
+        if (!legs.length) html += `<p class="hint">No voyage legs uploaded yet.</p>`;
+        else {
+          html += `<div style="overflow:auto;max-height:240px"><table class="data-table" style="width:100%;font-size:13px"><thead><tr>
+            <th>Owner</th><th>Vessel</th><th>Voyage</th><th>Cond</th><th>Updated</th></tr></thead><tbody>`;
+          const sorted = legs.slice().sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+          for (const leg of sorted.slice(0, 200)) {
+            html += `<tr>
+              <td>${esc(leg.ownerSlug || 'root')}</td>
+              <td>${esc(leg.vesselSlug || '—')}</td>
+              <td>${esc(leg.voyageNo || '—')}</td>
+              <td>${esc(leg.condition || '—')}</td>
+              <td>${esc(leg.updatedAt ? String(leg.updatedAt).slice(0, 19).replace('T', ' ') : '—')}</td>
+            </tr>`;
+          }
+          html += `</tbody></table></div>`;
+        }
+        invBody.innerHTML = html;
+      } catch (e) {
+        invBody.textContent = e.message || 'Could not load inventory';
+      }
+    }
+    root.querySelector('#btnLicInventoryRefresh')?.addEventListener('click', () => refreshServerInventory());
+    refreshServerInventory();
+
   },
 };
 
