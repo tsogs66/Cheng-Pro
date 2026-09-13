@@ -261,7 +261,7 @@
     const wxLines = [];
     if (bfTxt) wxLines.push({ text: bfTxt, fill: '#e0b56a', size: 11, weight: 600 });
     if (bfName) wxLines.push({ text: bfName, fill: '#f4f0e6', size: 10, weight: 500 });
-    if (wxNote) wxLines.push({ text: wxNote, fill: '#f4f0e6', size: 10, weight: 500 });
+    if (wxNote && wxNote !== bfName) wxLines.push({ text: wxNote, fill: '#f4f0e6', size: 10, weight: 500 });
     if (seaTxt) wxLines.push({ text: seaTxt, fill: '#7ed4cb', size: 10, weight: 500 });
     const wxWidth = wxLines.length
       ? Math.max(118, Math.min(280, Math.ceil(Math.max(...wxLines.map((l) => l.text.length)) * 6.6) + 20))
