@@ -18897,7 +18897,7 @@ function renderVoyageProgress(animateShip){
   const wxLines = [];
   if (bfTxt) wxLines.push({ text: bfTxt + (knTxt ? ' · ' + knTxt : ''), fill: wxBrass, size: 11, weight: 600 });
   if (bfName) wxLines.push({ text: bfName, fill: wxInk, size: 10, weight: 500 });
-  if (wxNote) wxLines.push({ text: wxNote, fill: wxInk, size: 10, weight: 500 });
+  if (wxNote && wxNote !== bfName) wxLines.push({ text: wxNote, fill: wxInk, size: 10, weight: 500 });
   if (seaTxt) wxLines.push({ text: seaTxt, fill: wxTeal, size: 10, weight: 500 });
   const wxCharW = 6.6;
   const wxPadX = 10;
