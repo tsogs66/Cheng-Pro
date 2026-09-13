@@ -263,6 +263,11 @@
   .voyage-bf-samples button{padding:5px 10px; font-size:10px;}
   .voyage-bf-samples button.on{background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600;}
 
+  /* Inside ChEng AIO: live weather only — Home owns the Beaufort preview samples. */
+  html.chengaio-embed #voyageBfSamples,
+  html.chengaio-embed #voyageProgressFootnote{display:none !important;}
+
+
 
   .grid{display:grid; grid-template-columns:1.5fr 1fr; gap:20px; align-items:start;}
   @media (max-width:960px){ .grid{grid-template-columns:1fr;} }
@@ -3010,7 +3015,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div id="voyageProgressViz"></div>
       <div class="stat-strip" id="voyageProgressStrip" style="margin-top:14px;"></div>
-      <div class="hint">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
+      <div class="hint" id="voyageProgressFootnote">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
     </div>
     <div class="panel">
       <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
@@ -18597,7 +18602,7 @@ function renderVoyageProgress(animateShip){
   let windBft = (wx.windBft!=null && wx.windBft!=='') ? Number(wx.windBft) : null;
   let seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
   /* Beaufort samples drive both wind and a matching Douglas sea for a coherent preview. */
-  if (voyageProgressBfSample != null && !isNaN(voyageProgressBfSample)){
+  if (!isChengAioEmbedded() && voyageProgressBfSample != null && !isNaN(voyageProgressBfSample)){
     windBft = voyageProgressBfSample;
     seaState = null;
   }
@@ -18854,34 +18859,30 @@ function renderVoyageProgress(animateShip){
     : '';
 
   function compassRoseSvg(){
-    const cx = 852, cy = 40, r = 24;
-    const toDeg = blowToDeg;
-    /* SVG: 0° = east, clockwise; meteo 0° = north. Convert meteo→SVG rotate. */
-    const needleSvgDeg = toDeg - 90;
+    /* AIO Home–style compass: top-view ship (bow = N) + wind FROM arrow. */
+    const cx = 852, cy = 42, r = 28;
     const fromLabel = windDir || (windAngle!=null ? String(Math.round(windAngle)) + '°' : '—');
-    const tick = (deg, major)=>{
-      const rad = (deg - 90) * Math.PI / 180;
-      const r0 = major ? r - 5 : r - 3;
-      const r1 = r;
-      const x0t = cx + Math.cos(rad) * r0, y0t = cy + Math.sin(rad) * r0;
-      const x1t = cx + Math.cos(rad) * r1, y1t = cy + Math.sin(rad) * r1;
-      return `<line x1="${x0t}" y1="${y0t}" x2="${x1t}" y2="${y1t}" stroke="var(--paper-dim)" stroke-width="${major?1.4:0.8}" opacity="${major?0.85:0.45}"/>`;
-    };
-    let ticks = '';
-    for (let d = 0; d < 360; d += 30) ticks += tick(d, d % 90 === 0);
-    return `<g class="voyage-compass" pointer-events="none">
-      <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" fill="#e0b56a" font-family="'IBM Plex Mono',monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
-      <circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="rgba(8,16,28,0.72)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1.1" opacity="0.7"/>
-      ${ticks}
-      <text x="${cx}" y="${cy - r + 10}" text-anchor="middle" fill="var(--brass)" font-family="Oswald,sans-serif" font-size="9" font-weight="700">N</text>
-      <text x="${cx + r - 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">E</text>
-      <text x="${cx}" y="${cy + r - 2}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">S</text>
-      <text x="${cx - r + 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">W</text>
-      <g transform="rotate(${needleSvgDeg} ${cx} ${cy})">
-        <line x1="${cx}" y1="${cy}" x2="${cx + r - 6}" y2="${cy}" stroke="#e0b56a" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M ${cx + r - 2} ${cy} L ${cx + r - 10} ${cy - 4.5} L ${cx + r - 10} ${cy + 4.5} Z" fill="#e0b56a"/>
-        <circle cx="${cx}" cy="${cy}" r="2.4" fill="#e0b56a" stroke="#8a6b3c" stroke-width="0.8"/>
+    const windFromDeg = windAngle!=null ? windAngle : 0;
+    return `<g class="voyage-ship-wind" pointer-events="none">
+      <text x="${cx}" y="${cy - r - 7}" text-anchor="middle" fill="#e0b56a" font-family="'IBM Plex Mono',monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
+      <circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="rgba(8,16,28,0.78)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1" opacity="0.55"/>
+      <path d="M ${cx} ${cy - 17}
+        L ${cx + 7.5} ${cy - 2}
+        L ${cx + 8} ${cy + 8}
+        L ${cx + 6} ${cy + 16}
+        L ${cx - 6} ${cy + 16}
+        L ${cx - 8} ${cy + 8}
+        L ${cx - 7.5} ${cy - 2} Z"
+        fill="#1a2a3d" stroke="var(--brass)" stroke-width="1.2"/>
+      <path d="M ${cx} ${cy - 17} L ${cx + 5} ${cy - 1} L ${cx - 5} ${cy - 1} Z" fill="#7a1f2b" stroke="var(--ink)" stroke-width="0.6"/>
+      <rect x="${cx - 4}" y="${cy + 1}" width="8" height="6" rx="1" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.7"/>
+      <rect x="${cx - 2.2}" y="${cy + 9}" width="4.4" height="4" rx="0.6" fill="#0d0d0d" stroke="var(--brass)" stroke-width="0.6"/>
+      <line x1="${cx}" y1="${cy - 17}" x2="${cx}" y2="${cy - 20.5}" stroke="var(--brass)" stroke-width="1.2" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy - r + 9}" text-anchor="middle" fill="var(--brass)" font-family="Oswald,sans-serif" font-size="8" font-weight="700">BOW</text>
+      <g transform="rotate(${windFromDeg} ${cx} ${cy})">
+        <line x1="${cx}" y1="${cy - r + 3}" x2="${cx}" y2="${cy - 12}" stroke="#e0b56a" stroke-width="2" stroke-linecap="round"/>
+        <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
       </g>
     </g>`;
   }
@@ -21331,7 +21332,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v241';
+let androidInstallCacheName = 'noon-report-v242';
 
 /*
  * What the program is called.
