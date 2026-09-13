@@ -29,11 +29,20 @@ window.ChengProModules.home = {
           <div class="sub" id="homeVoyageSub">${hasVoyage ? 'Loading…' : 'Voyage not on this license'}</div>
         </div>
         ${hasVoyage ? `
-        <div class="toggle-row" id="homeWxToggle">
+        <div class="toggle-row" id="homeVoyageActions">
           <button type="button" class="home-action" id="goVoyageFromHome" title="Open Voyage Chief">Voyage Chief</button>
           <button type="button" class="home-action" id="goLogEntryFromHome" title="Open Log Entry">Log Entry</button>
           ${hasConsPlan ? '<button type="button" class="home-action" id="goConsPlanFromHome" title="Open Consumption Plan">Consumption Plan</button>' : ''}
-          <button type="button" class="on" data-wx="full" title="Wind + rain across full voyage line">Full-track wind + rain</button>
+        </div>
+        <div class="home-bf-samples" id="homeBfSamples" role="group" aria-label="Beaufort weather samples">
+          <span class="home-bf-samples-label">Beaufort samples</span>
+          <button type="button" data-bf-sample="0" title="Calm — no wind particles">BF 0</button>
+          <button type="button" data-bf-sample="3" title="Gentle breeze — wind only">BF 3</button>
+          <button type="button" data-bf-sample="5" title="Fresh breeze — drizzle">BF 5</button>
+          <button type="button" data-bf-sample="8" title="Gale — driving rain">BF 8</button>
+          <button type="button" data-bf-sample="10" title="Storm">BF 10</button>
+          <button type="button" data-bf-sample="12" title="Hurricane">BF 12</button>
+          <button type="button" class="on" data-bf-sample="" title="Use live log weather">Live</button>
         </div>
         <div id="voyageProgressViz"></div>
         <div class="home-voyage-strip" id="homeVoyageProgressStrip" hidden></div>` : `
@@ -82,7 +91,7 @@ window.ChengProModules.home = {
     root.querySelector('#goBunkerPlanFromHome')?.addEventListener('click', () =>
       window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'bunkeringplan' })));
 
-    let wxMode = 'full';
+    let bfSample = null;
     let voyageSnap = null;
 
     function paintVoyage() {
@@ -108,17 +117,18 @@ window.ChengProModules.home = {
           sub.textContent = 'Set voyage distance in Voyage Setup';
         }
       }
-      Dash.renderVoyageProgressViz(viz, voyageSnap, wxMode);
+      Dash.renderVoyageProgressViz(viz, voyageSnap, bfSample);
       if (Dash.renderVoyageProgressStrip) Dash.renderVoyageProgressStrip(strip, voyageSnap);
       Dash.renderFuelGauges(root.querySelector('#fuelDualGauges'), voyageSnap);
     }
 
-    root.querySelectorAll('#homeWxToggle [data-wx]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        wxMode = btn.dataset.wx;
-        root.querySelectorAll('#homeWxToggle [data-wx]').forEach((b) => b.classList.toggle('on', b === btn));
-        paintVoyage();
-      });
+    root.querySelector('#homeBfSamples')?.addEventListener('click', (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('[data-bf-sample]');
+      if (!btn) return;
+      const raw = btn.getAttribute('data-bf-sample');
+      bfSample = (raw === '' || raw == null) ? null : Number(raw);
+      root.querySelectorAll('#homeBfSamples [data-bf-sample]').forEach((b) => b.classList.toggle('on', b === btn));
+      paintVoyage();
     });
 
     if (hasVoyage && window.ChengProVoyageBridge && typeof ChengProVoyageBridge.readHomeSnapshot === 'function') {
