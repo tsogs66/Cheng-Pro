@@ -18595,13 +18595,15 @@ function renderVoyageProgress(animateShip){
   else if (wx.seaState==null && wxSea.seaState!=null) wx = Object.assign({}, wx, { seaState: wxSea.seaState, swellDir: wx.swellDir || wxSea.swellDir });
   const windDir = wx.windDir || '';
   let windBft = (wx.windBft!=null && wx.windBft!=='') ? Number(wx.windBft) : null;
+  let seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
+  /* Beaufort samples drive both wind and a matching Douglas sea for a coherent preview. */
   if (voyageProgressBfSample != null && !isNaN(voyageProgressBfSample)){
     windBft = voyageProgressBfSample;
+    seaState = null;
   }
-  const seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
   const windAngle = voyageWindAngleDeg(windDir);
   const bftEff = windBft!=null ? windBft : (windDir ? 3 : 2);
-  const seaEff = seaState!=null ? seaState : Math.min(9, Math.max(1, Math.round(bftEff * 0.7)));
+  const seaEff = seaState!=null ? seaState : Math.min(9, Math.max(0, Math.round(bftEff * 0.7)));
 
   // Status: port mooring, anchorage (anchor only), drifting (wave motion), or underway.
   const PORT_OPS = new Set([
@@ -18887,7 +18889,8 @@ function renderVoyageProgress(animateShip){
 
   const bfTxt = windBft!=null ? `BF ${fmt(windBft,0)}${windDir ? ' · '+windDir : ''}` : (windDir ? windDir : '');
   const bfName = voyageBfLabel(windBft);
-  const seaTxt = seaState!=null ? `Sea ${fmt(seaState,0)}${voyageSeaLabel(seaState) ? ' · '+voyageSeaLabel(seaState) : ''}` : '';
+  /* Always show Douglas sea — log value when present, else derived from Beaufort (incl. samples). */
+  const seaTxt = `Sea ${fmt(seaEff,0)}${voyageSeaLabel(seaEff) ? ' · '+voyageSeaLabel(seaEff) : ''}`;
   const wxNote = (bfProfile && bfProfile.weatherNote) ? bfProfile.weatherNote : '';
   const knTxt = (bfProfile && bfProfile.knots!=null) ? `~${fmt(bfProfile.knots,0)} kn` : '';
   /* Badge uses a fixed dark fill — do NOT use theme --teal/--brass (they go dark in bright mode and become unreadable). */
@@ -21328,7 +21331,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v240';
+let androidInstallCacheName = 'noon-report-v241';
 
 /*
  * What the program is called.

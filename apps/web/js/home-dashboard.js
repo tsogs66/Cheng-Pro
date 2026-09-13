@@ -214,11 +214,15 @@
     const wx = snap.weather || {};
     const windDir = wx.windDir || '';
     let windBft = wx.windBft != null && wx.windBft !== '' ? Number(wx.windBft) : null;
-    if (bfSample != null && !isNaN(bfSample)) windBft = Number(bfSample);
-    const seaState = wx.seaState != null && wx.seaState !== '' ? Number(wx.seaState) : null;
+    let seaState = wx.seaState != null && wx.seaState !== '' ? Number(wx.seaState) : null;
+    /* Beaufort samples drive both wind and a matching Douglas sea for a coherent preview. */
+    if (bfSample != null && !isNaN(bfSample)) {
+      windBft = Number(bfSample);
+      seaState = null;
+    }
     const windAngle = windAngleDeg(windDir);
     const bftEff = windBft != null ? windBft : (windDir ? 3 : 2);
-    const seaEff = seaState != null ? seaState : Math.min(9, Math.max(1, Math.round(bftEff * 0.7)));
+    const seaEff = seaState != null ? seaState : Math.min(9, Math.max(0, Math.round(bftEff * 0.7)));
     const skyTop = y - 188;
     const skyBottom = y - 10;
     const angleFrom = windAngle != null ? windAngle : 270;
@@ -255,9 +259,8 @@
       : (windDir || '');
     const bfName = bfLabel(windBft);
     const wxNote = bfProfile.weatherNote || '';
-    const seaTxt = seaState != null
-      ? `Sea ${fmt(seaState, 0)}${seaLabel(seaState) ? ' · ' + seaLabel(seaState) : ''}`
-      : '';
+    /* Always show Douglas sea — log value when present, else derived from Beaufort (incl. samples). */
+    const seaTxt = `Sea ${fmt(seaEff, 0)}${seaLabel(seaEff) ? ' · ' + seaLabel(seaEff) : ''}`;
     const wxLines = [];
     if (bfTxt) wxLines.push({ text: bfTxt, fill: '#e0b56a', size: 11, weight: 600 });
     if (bfName) wxLines.push({ text: bfName, fill: '#f4f0e6', size: 10, weight: 500 });
