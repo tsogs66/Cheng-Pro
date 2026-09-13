@@ -260,6 +260,13 @@
   .panel h2{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:0.1em; text-transform:uppercase; color:var(--brass); margin:0 0 16px; display:flex; align-items:center; gap:8px;}
   .panel h2::after{content:''; flex:1; height:1px; background:var(--line);}
   .panel h3.sub{font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--teal); margin:18px 0 10px;}
+  .voyage-progress-head{display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px; margin-bottom:8px;}
+  .voyage-progress-head h2{margin:0;}
+  .voyage-progress-route{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim); margin-top:4px;}
+  .voyage-wx-toggle{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .voyage-wx-toggle button{padding:6px 12px; font-size:10px;}
+  .voyage-wx-toggle button.on{background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600;}
+
 
   .grid{display:grid; grid-template-columns:1.5fr 1fr; gap:20px; align-items:start;}
   @media (max-width:960px){ .grid{grid-template-columns:1fr;} }
@@ -2989,7 +2996,16 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <!-- SUMMARY -->
   <div class="page active" id="page-summary">
     <div class="panel">
-      <h2>Voyage Progress</h2>
+      <div class="voyage-progress-head">
+        <div>
+          <h2>Voyage Progress</h2>
+          <div class="voyage-progress-route" id="voyageProgressRoute"></div>
+        </div>
+        <div class="voyage-wx-toggle" id="voyageWxToggle" role="group" aria-label="Weather track display">
+          <button type="button" class="ghost small" data-wx="local" title="Wind + rain near the ship only">Local wind + rain</button>
+          <button type="button" class="ghost small on" data-wx="full" title="Wind + rain across the full voyage line">Full-track wind + rain</button>
+        </div>
+      </div>
       <div id="voyageProgressViz"></div>
       <div class="stat-strip" id="voyageProgressStrip" style="margin-top:14px;"></div>
       <div class="hint">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
@@ -18467,6 +18483,17 @@ function voyageSeaLabel(sea){
   return labels[i] || '';
 }
 
+let voyageProgressWxMode = 'full';
+document.getElementById('voyageWxToggle')?.addEventListener('click', (ev)=>{
+  const btn = ev.target && ev.target.closest && ev.target.closest('[data-wx]');
+  if (!btn) return;
+  voyageProgressWxMode = btn.getAttribute('data-wx') || 'full';
+  document.querySelectorAll('#voyageWxToggle [data-wx]').forEach((b)=>{
+    b.classList.toggle('on', b === btn);
+  });
+  renderVoyageProgress(false);
+});
+
 function renderVoyageProgress(animateShip){
   const box = document.getElementById('voyageProgressViz');
   if (!box) return;
@@ -18488,6 +18515,16 @@ function renderVoyageProgress(animateShip){
   const shipFromPx = animateShip ? (x0 - shipX) : 0;
   const depPort = state.setup.departPort || 'Departure';
   const arrPort = state.setup.arrivePort || 'Arrival';
+  const routeEl = document.getElementById('voyageProgressRoute');
+  if (routeEl){
+    const totalNm = Number(totalDistance);
+    if (totalNm > 0){
+      routeEl.textContent = `${depPort} → ${arrPort} · ${totalNm.toLocaleString(undefined,{maximumFractionDigits:0})} nm`;
+    } else {
+      routeEl.textContent = `${depPort} → ${arrPort}`;
+    }
+  }
+
 
   const currentSpeed = lastRow && lastRow.speedShip!=null ? lastRow.speedShip : null;
   const currentRpm = lastRow && lastRow.rpm!=null ? lastRow.rpm : null;
@@ -18611,8 +18648,9 @@ function renderVoyageProgress(animateShip){
   const chopY = 2 + seaEff * 0.9 + (isDrifting ? 2 : 0);
   const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
   const localAmp = 3 + seaEff * 1.1 + (isDrifting ? 3 : 0);
-  const chopXL = isUnderway ? x0 : (shipX - 70);
-  const chopXR = isUnderway ? x1 : (shipX + 70);
+  const wxFull = voyageProgressWxMode !== 'local';
+  const chopXL = (wxFull && isUnderway) ? x0 : (shipX - 70);
+  const chopXR = (wxFull && isUnderway) ? x1 : (shipX + 70);
   let localSea = `M ${chopXL} ${y+20}`;
   for (let x = chopXL; x <= chopXR; x += 14){
     localSea += ` q 7 ${localAmp} 14 0`;
@@ -18751,10 +18789,12 @@ function renderVoyageProgress(animateShip){
     return `<g clip-path="url(#skyAboveSea)" pointer-events="none">${windLayer(xL, xR, windN)}${rainLayer(xL, xR, rainN)}</g>`;
   }
 
+  const wxLeft = wxFull ? x0 : (shipX - 90);
+  const wxRight = wxFull ? x1 : (shipX + 90);
   const weatherSvg = (bftEff >= 1)
-    ? weatherSky(x0, x1, {
-        windN: Math.round(8 + bftEff * 3),
-        rainN: 40 + Math.round(bftEff * 10),
+    ? weatherSky(wxLeft, wxRight, {
+        windN: Math.round((wxFull ? 8 : 6) + bftEff * (wxFull ? 3 : 2)),
+        rainN: (wxFull ? 40 : 20) + Math.round(bftEff * (wxFull ? 10 : 4)),
       })
     : '';
 
@@ -18904,14 +18944,10 @@ function renderVoyageProgress(animateShip){
       <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
       <circle cx="${x1}" cy="${y}" r="7" fill="none" stroke="var(--paper-dim)" stroke-width="2"/>
 
-      ${nearDep ? '' : `
       <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${depPort}</text>
       <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">0 nm</text>
-      `}
-      ${nearArr ? '' : `
       <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${arrPort}</text>
-      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(totalDistance, 2)} nm</text>
-      `}
+      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
 
       <g class="${shipAnimClass}">
         ${isUnderway ? `<path class="voyage-wake" d="M ${shipX-44} ${y+14} q -10 4 -22 2" fill="none" stroke="var(--paper-dim)" stroke-width="1.5"/>` : ''}
