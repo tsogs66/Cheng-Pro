@@ -9,13 +9,42 @@
     N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5,
     S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
   };
+  /* WMO Beaufort force names — gale (8), storm (10), hurricane (12). */
   const BF_LABELS = [
     'Calm', 'Light air', 'Light breeze', 'Gentle breeze', 'Moderate breeze', 'Fresh breeze',
     'Strong breeze', 'Near gale', 'Gale', 'Strong gale', 'Storm', 'Violent storm', 'Hurricane',
   ];
+  const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
   const SEA_LABELS = [
     'Glassy', 'Rippled', 'Wavelets', 'Slight', 'Moderate', 'Rough', 'Very rough', 'High', 'Very high', 'Phenomenal',
   ];
+
+  /** Wind particles, precipitation and mid-range knots keyed to Beaufort — rain is not always on. */
+  function beaufortProfile(bft) {
+    const n = Math.max(0, Math.min(12, Math.round(Number(bft) || 0)));
+    const label = BF_LABELS[n];
+    const knots = BF_KN[n];
+    const windN = n === 0 ? 0 : Math.round(3 + n * 2.2 + n * n * 0.45);
+    let precip = 'none';
+    let rainN = 0;
+    let weatherNote = 'Fair';
+    if (n >= 12) {
+      precip = 'hurricane'; rainN = 170; weatherNote = 'Hurricane — torrential rain & spray';
+    } else if (n >= 10) {
+      precip = 'storm'; rainN = 110 + (n - 10) * 25; weatherNote = 'Storm — heavy rain & spray';
+    } else if (n >= 8) {
+      precip = 'gale'; rainN = 65 + (n - 8) * 18; weatherNote = 'Gale — driving rain';
+    } else if (n >= 6) {
+      precip = 'rain'; rainN = 32 + (n - 6) * 14; weatherNote = 'Rain';
+    } else if (n >= 5) {
+      precip = 'drizzle'; rainN = 16; weatherNote = 'Drizzle';
+    } else if (n >= 1) {
+      weatherNote = 'Fair';
+    } else {
+      weatherNote = 'Calm';
+    }
+    return { bft: n, label, knots, windN, rainN, precip, weatherNote };
+  }
 
   const GAUGE_GEOM = { cx: 80, cy: 78, r: 58, startDeg: -135, sweepDeg: 270 };
   let gaugeUid = 0;
@@ -169,7 +198,7 @@
     </g>`;
   }
 
-  function renderVoyageProgressViz(el, snap, mode) {
+  function renderVoyageProgressViz(el, snap, bfSample) {
     if (!el) return;
     const total = snap && snap.totalDistance;
     if (total == null || !(total > 0)) {
@@ -184,7 +213,8 @@
     const shipX = x0 + pct * (x1 - x0);
     const wx = snap.weather || {};
     const windDir = wx.windDir || '';
-    const windBft = wx.windBft != null && wx.windBft !== '' ? Number(wx.windBft) : null;
+    let windBft = wx.windBft != null && wx.windBft !== '' ? Number(wx.windBft) : null;
+    if (bfSample != null && !isNaN(bfSample)) windBft = Number(bfSample);
     const seaState = wx.seaState != null && wx.seaState !== '' ? Number(wx.seaState) : null;
     const windAngle = windAngleDeg(windDir);
     const bftEff = windBft != null ? windBft : (windDir ? 3 : 2);
@@ -194,8 +224,9 @@
     const angleFrom = windAngle != null ? windAngle : 270;
     const blowToDeg = (angleFrom + 180) % 360;
     const windDirX = Math.sin(blowToDeg * Math.PI / 180) >= 0 ? 1 : -1;
-    const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
-    const windSpeed = ((BF_KN[Math.max(0, Math.min(12, Math.round(bftEff)))] || 5) / 5) * 0.5;
+    const bfProfile = beaufortProfile(bftEff);
+    /* Animation tempo from Beaufort mid-range knots (WMO), relative to BF 2 (~5 kn). */
+    const windSpeed = ((bfProfile.knots || 5) / 5) * 0.5;
     const ctx = { windDirX, skyTop, skyBottom, bftEff, windSpeed };
     const chopY = 2 + seaEff * 0.9;
     const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
@@ -207,33 +238,33 @@
       wave1 += ` q 12 ${trackAmp} 24 0`;
       wave2 += ` q 12 ${trackAmp * 0.85} 24 0`;
     }
-    const full = mode !== 'local';
-    const sea = full
-      ? seaChop(x0, x1, y, localAmp, chopY, seaDur)
-      : seaChop(shipX - 70, shipX + 70, y, localAmp, chopY, seaDur);
-    const wxRange = full ? [x0, x1] : [shipX - 90, shipX + 90];
-    const weather = bftEff >= 1
+    /* Full-track weather always — Beaufort profile drives wind density and precip. */
+    const sea = seaChop(x0, x1, y, localAmp, chopY, seaDur);
+    const weather = (bfProfile.windN > 0 || bfProfile.rainN > 0)
       ? `<g clip-path="url(#homeSkyAboveSea)" pointer-events="none">${
-          windLayer(ctx, wxRange[0], wxRange[1], full ? Math.round(8 + bftEff * 3) : Math.round(6 + bftEff * 2))
+          windLayer(ctx, x0, x1, bfProfile.windN)
         }${
-          rainLayer(ctx, wxRange[0], wxRange[1], full ? 40 + Math.round(bftEff * 10) : 20 + Math.round(bftEff * 4))
+          rainLayer(ctx, x0, x1, bfProfile.rainN)
         }</g>`
       : '';
     const dep = esc(snap.departPort || 'Departure');
     const arr = esc(snap.arrivePort || 'Arrival');
+    const knTxt = bfProfile.knots != null ? `~${fmt(bfProfile.knots, 0)} kn` : '';
     const bfTxt = windBft != null
-      ? `BF ${fmt(windBft, 0)}${windDir ? ' · ' + windDir : ''}`
+      ? `BF ${fmt(windBft, 0)}${windDir ? ' · ' + windDir : ''}${knTxt ? ' · ' + knTxt : ''}`
       : (windDir || '');
     const bfName = bfLabel(windBft);
+    const wxNote = bfProfile.weatherNote || '';
     const seaTxt = seaState != null
       ? `Sea ${fmt(seaState, 0)}${seaLabel(seaState) ? ' · ' + seaLabel(seaState) : ''}`
       : '';
     const wxLines = [];
     if (bfTxt) wxLines.push({ text: bfTxt, fill: '#e0b56a', size: 11, weight: 600 });
     if (bfName) wxLines.push({ text: bfName, fill: '#f4f0e6', size: 10, weight: 500 });
+    if (wxNote && wxNote !== bfName) wxLines.push({ text: wxNote, fill: '#f4f0e6', size: 10, weight: 500 });
     if (seaTxt) wxLines.push({ text: seaTxt, fill: '#7ed4cb', size: 10, weight: 500 });
     const wxWidth = wxLines.length
-      ? Math.max(118, Math.min(200, Math.ceil(Math.max(...wxLines.map((l) => l.text.length)) * 6.6) + 20))
+      ? Math.max(118, Math.min(280, Math.ceil(Math.max(...wxLines.map((l) => l.text.length)) * 6.6) + 20))
       : 0;
     const wxHeight = wxLines.length ? Math.max(22, 8 + wxLines.length * 14) : 0;
     let badgeX = shipX + 60;
