@@ -126,7 +126,7 @@
       if (opts && opts.robOnly) q.set('robOnly', String(opts.robOnly));
       return url + (url.includes('?') ? '&' : '?') + q.toString();
     },
-    openTanks: () => {
+    openTanks: (opts) => {
       if (window.ChengLicense && !ChengLicense.moduleAllowed('tanks')) {
         window.dispatchEvent(new CustomEvent('chengpro:toast', {
           detail: 'Tank Chief is not on this license — ask the office to include it on your ChEng AIO key.',
@@ -135,12 +135,15 @@
         return;
       }
       try { localStorage.setItem('chengAioEmbedded', '1'); } catch { /* ignore */ }
+      if (opts && opts.page) {
+        try { sessionStorage.setItem('chengAioPendingTankPage', String(opts.page)); } catch { /* ignore */ }
+      }
       /* Stay in the AIO shell so bottom nav (Home) remains available. */
       if (root.ChengProModules && root.ChengProModules.tanks) {
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'tanks' }));
         return;
       }
-      window.location.href = root.ChengPro.tankEmbedUrl();
+      window.location.href = root.ChengPro.tankEmbedUrl(opts || {});
     },
     voyageEmbedUrl: (opts) => {
       const base = (window.ChengProBundled && ChengProBundled.isBundledClient())
@@ -168,6 +171,9 @@
         if (opts && opts.page === 'orb') {
           window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'eorb' }));
           return;
+        }
+        if (opts && opts.page && opts.page !== 'orb') {
+          try { sessionStorage.setItem('chengAioPendingVoyagePage', String(opts.page)); } catch { /* ignore */ }
         }
         if (root.ChengProModules.voyage) {
           window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'voyage' }));

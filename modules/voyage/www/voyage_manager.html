@@ -25647,6 +25647,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
           document.body.style.paddingBottom = '0';
         }
       }
+      else if (qsPage === 'entry') switchTab('entry');
+      else if (qsPage === 'rob') switchTab('rob');
       else if (qsPage === 'data') switchTab('data');
       else if (qsPage === 'setup') switchTab('setup');
       /* Hiding the tab is not one of the navigation choices. Chained onto them

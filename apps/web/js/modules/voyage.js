@@ -63,8 +63,13 @@ window.ChengProModules.voyage = {
       bindLicenseNav(root);
       return;
     }
+    let voyagePage = null;
+    try {
+      voyagePage = sessionStorage.getItem('chengAioPendingVoyagePage');
+      sessionStorage.removeItem('chengAioPendingVoyagePage');
+    } catch { /* ignore */ }
     renderEmbed(root, {
-      src: ChengPro.voyageEmbedUrl(),
+      src: ChengPro.voyageEmbedUrl(voyagePage ? { page: voyagePage } : {}),
       title: 'Voyage Chief',
     });
   },
@@ -78,8 +83,13 @@ window.ChengProModules.tanks = {
       bindLicenseNav(root);
       return;
     }
+    let tankPage = null;
+    try {
+      tankPage = sessionStorage.getItem('chengAioPendingTankPage');
+      sessionStorage.removeItem('chengAioPendingTankPage');
+    } catch { /* ignore */ }
     renderEmbed(root, {
-      src: ChengPro.tankEmbedUrl(),
+      src: ChengPro.tankEmbedUrl(tankPage ? { page: tankPage } : {}),
       title: 'Tank Chief',
     });
   },
