@@ -361,7 +361,7 @@
   }
   .nv-leg-overlay.open{display:flex;}
   .nv-leg-dialog{
-    width:min(420px, 100%); background:var(--panel, #152033); color:var(--text, #e8eef8);
+    width:min(560px, 100%); background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
   }
@@ -369,6 +369,7 @@
   .nv-leg-dialog h3{margin:0 0 6px; font-size:16px;}
   .nv-leg-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
   .nv-leg-dialog .form-grid{display:grid; gap:10px; margin-bottom:14px;}
+  .nv-leg-dialog .field-dist{max-width:180px;}
   .nv-leg-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
   .nv-leg-dialog .field input{
     width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px;
@@ -2313,13 +2314,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div id="nvLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="nvLegTitle" hidden>
       <div class="nv-leg-dialog">
         <h3 id="nvLegTitle">New Voyage Leg</h3>
-        <p class="hint">Current arrival becomes departure. Enter the next destination and distance. Condition toggles L↔B; ballast starts the next voyage number, laden keeps this number. Date/time come from the last log entry. Time zone and Chief Engineer stay the same.</p>
+        <p class="hint">Enter destination port and distance to travel. Previous voyage will automatically be saved and new voyage leg will be created carrying current ROB and other details as starting value.</p>
         <div class="form-grid">
-          <div class="field">
+          <div class="field field-dest">
             <label for="nvLegDestination">Destination (arrival)</label>
             <input id="nvLegDestination" type="text" autocomplete="off" placeholder="e.g. SINGAPORE">
           </div>
-          <div class="field">
+          <div class="field field-dist">
             <label for="nvLegDistance">Distance (nm)</label>
             <input id="nvLegDistance" type="number" step="0.1" min="0" placeholder="e.g. 2280">
           </div>
