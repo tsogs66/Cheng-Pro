@@ -354,31 +354,65 @@
      scrolling the page underneath, which is what a touch device does by default. */
   .sigpad-wrap{margin-top:12px; display:flex; flex-direction:column; gap:8px; max-width:460px;}
   .sigpad-title{font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--paper-dim);}
-  /* Log Entry → New Voyage Leg dialog */
+  /* Log Entry → New Voyage Leg dialog
+     Destination must read large on phone/tablet: nearly full viewport width,
+     single-column stack, and touch-sized inputs (16px+ avoids mobile zoom). */
   .nv-leg-overlay{
     position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
-    padding:16px; background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
+    padding:max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px));
+    background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
   }
   .nv-leg-overlay.open{display:flex;}
   .nv-leg-dialog{
-    width:min(560px, 100%); background:var(--panel, #152033); color:var(--text, #e8eef8);
+    width:min(720px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box;
+    background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
   }
   html.bright .nv-leg-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
   .nv-leg-dialog h3{margin:0 0 6px; font-size:16px;}
   .nv-leg-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
-  .nv-leg-dialog .form-grid{display:grid; gap:10px; margin-bottom:14px;}
-  .nv-leg-dialog .field-dist{max-width:180px;}
+  .nv-leg-dialog .form-grid{
+    display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:14px;
+  }
+  .nv-leg-dialog .field{min-width:0; width:100%;}
+  .nv-leg-dialog .field-dest{width:100%;}
+  .nv-leg-dialog .field-dist{width:100%; max-width:220px;}
   .nv-leg-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
   .nv-leg-dialog .field input{
-    width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px;
+    display:block; width:100%; max-width:100%; box-sizing:border-box;
+    min-height:48px; font-size:16px; padding:12px 14px; border-radius:8px;
     border:1px solid var(--line,#2a3550); background:transparent; color:inherit;
+  }
+  .nv-leg-dialog .field-dest input{
+    min-height:52px; font-size:17px; padding:14px 16px;
   }
   .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
+  @media (max-width:900px){
+    .nv-leg-overlay{
+      padding:max(8px, env(safe-area-inset-top, 0px)) 8px max(8px, env(safe-area-inset-bottom, 0px));
+      align-items:flex-start; padding-top:max(12px, env(safe-area-inset-top, 0px));
+    }
+    .nv-leg-dialog{
+      width:calc(100vw - 16px); max-width:none; margin:0 auto;
+      padding:18px 14px 16px; border-radius:10px;
+    }
+    .nv-leg-dialog .field-dist{max-width:none; width:100%;}
+    .nv-leg-dialog .field-dest input{
+      min-height:56px; font-size:18px; padding:16px 16px;
+    }
+    .nv-leg-dialog .field-dist input{
+      min-height:52px; font-size:17px; padding:14px 16px;
+    }
+  }
+  @media (min-width:601px) and (max-width:1100px){
+    /* Tablet: use most of the screen; destination stays full dialog width */
+    .nv-leg-dialog{width:min(860px, calc(100vw - 32px));}
+    .nv-leg-dialog .field-dest input{min-height:54px; font-size:18px;}
+  }
   /* Paper white, whatever the app theme: the ink is the near-black it will print
      in, and it has to be legible while it is being drawn. */
   .sigpad{
@@ -897,6 +931,12 @@
       padding:7px 8px;
       border-radius:5px;
     }
+    .nv-leg-dialog .field input{
+      min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
+    }
+    .nv-leg-dialog .field-dest input{
+      min-height:56px !important; font-size:18px !important; padding:16px !important;
+    }
     .field textarea, textarea{min-height:72px; line-height:1.35;}
     .pf-input{width:100%; max-width:100%; min-height:36px; font-size:16px; padding:6px;}
 
@@ -1094,6 +1134,16 @@
   html.compact-phone textarea{
     font-size:16px !important; min-height:36px; padding:6px 7px;
   }
+  /* New Voyage destination must stay large on compact Android phones — the
+     compact-phone rules above shrink every .field input to 36px. */
+  html.compact-phone .nv-leg-dialog .field input,
+  .nv-leg-dialog .field input{
+    min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
+  }
+  html.compact-phone .nv-leg-dialog .field-dest input,
+  .nv-leg-dialog .field-dest input{
+    min-height:56px !important; font-size:18px !important; padding:16px !important;
+  }
   html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
   html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
@@ -1134,6 +1184,12 @@
     .field label{font-size:9px;}
     .field input,.field select,.field textarea,textarea{
       font-size:14px !important; min-height:36px; padding:6px 8px;
+    }
+    .nv-leg-dialog .field input{
+      min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
+    }
+    .nv-leg-dialog .field-dest input{
+      min-height:56px !important; font-size:18px !important; padding:16px !important;
     }
     .table-scroll{max-height:min(42vh, 280px); -webkit-overflow-scrolling:touch;}
     .bottom-nav{
@@ -21540,7 +21596,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v250';
+let androidInstallCacheName = 'noon-report-v251';
 
 /*
  * What the program is called.
