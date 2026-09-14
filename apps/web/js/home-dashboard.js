@@ -803,7 +803,7 @@
       (isDist ? distillate : heavy).push(tank);
     });
 
-    const rows = [
+    const cols = [
       { key: 'hfo-port', title: 'HFO / VLSFO — Port', tanks: arrangeFuelSideRow(heavy, 'port') },
       { key: 'hfo-stbd', title: 'HFO / VLSFO — Starboard', tanks: arrangeFuelSideRow(heavy, 'starboard') },
       { key: 'dist-port', title: 'MDO / MGO / LSMGO — Port', tanks: arrangeFuelSideRow(distillate, 'port') },
@@ -811,13 +811,13 @@
     ];
 
     gridEl.className = 'tg-schematic';
-    gridEl.innerHTML = rows.map((row) => {
-      const cards = row.tanks.length
-        ? row.tanks.map((tank) => renderHomeTankCard(tank, readings[tank.id], reportById[tank.id] || null)).join('')
+    gridEl.innerHTML = cols.map((col) => {
+      const cards = col.tanks.length
+        ? col.tanks.map((tank) => renderHomeTankCard(tank, readings[tank.id], reportById[tank.id] || null)).join('')
         : '<div class="tg-schematic-empty">—</div>';
-      return `<div class="tg-schematic-row" data-row="${esc(row.key)}">
-        <div class="tg-schematic-head">${esc(row.title)}</div>
-        <div class="tg-schematic-row-tanks">${cards}</div>
+      return `<div class="tg-schematic-col" data-col="${esc(col.key)}">
+        <div class="tg-schematic-head">${esc(col.title)}</div>
+        <div class="tg-schematic-col-tanks">${cards}</div>
       </div>`;
     }).join('');
   }

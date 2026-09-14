@@ -522,14 +522,16 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
 .cards-row .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .cat-fuel { background: #8a5a1a; }
-/* Vessel tank overview — Tank Chief graphical style (4-row schematic) */
+/* Vessel tank overview — Tank Chief graphical style (4-column schematic) */
 .tg-schematic {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  /* Tablet + Windows (portrait & landscape): four side columns. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-top: 4px;
+  align-items: start;
 }
-.tg-schematic-row {
+.tg-schematic-col {
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--line);
@@ -539,29 +541,28 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
   flex-direction: column;
   gap: 6px;
 }
-html:not(.bright) .tg-schematic-row { background: rgba(255, 255, 255, 0.03); }
+html:not(.bright) .tg-schematic-col { background: rgba(255, 255, 255, 0.03); }
 .tg-schematic-head {
   font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--text);
 }
-.tg-schematic-row-tanks {
-  display: grid;
-  /* Tablet + Windows (portrait & landscape): four tanks across. */
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.tg-schematic-col-tanks {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
-.tg-schematic-row-tanks .tg-card {
+.tg-schematic-col-tanks .tg-card {
   padding: 6px 6px 5px;
   gap: 3px;
   border-radius: 8px;
 }
-.tg-schematic-row-tanks .tg-name {
+.tg-schematic-col-tanks .tg-name {
   font-size: 10px;
   min-height: 2em;
   line-height: 1.2;
 }
-.tg-schematic-row-tanks .tg-pct { font-size: 11px; }
-.tg-schematic-row-tanks .tg-stats {
+.tg-schematic-col-tanks .tg-pct { font-size: 11px; }
+.tg-schematic-col-tanks .tg-stats {
   font-size: 10px;
   gap: 0 6px;
 }
@@ -570,13 +571,13 @@ html:not(.bright) .tg-schematic-row { background: rgba(255, 255, 255, 0.03); }
   padding: 12px 8px; text-align: center;
   border: 1px dashed var(--line); border-radius: 8px;
 }
-/* Android / narrow phones: two tanks across. Tablets stay at four. */
+/* Android / narrow phones: two columns. Tablets stay at four. */
 @media (max-width: 600px) {
-  .tg-schematic-row-tanks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tg-schematic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-/* Phone landscape (short + narrow): two across. Tablets stay at four. */
+/* Phone landscape (short + narrow): two columns. Tablets stay at four. */
 @media (max-height: 430px) and (max-width: 600px) {
-  .tg-schematic-row-tanks {
+  .tg-schematic {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -627,7 +628,7 @@ html.bright .tg-stats { color: #3d4a5c; }
 html.bright .tg-chip { color: #122238; }
 html.bright .tg-void { fill: rgba(18, 34, 56, 0.06); }
 html.bright .tg-shell { stroke: #5a6a80; }
-html.bright .tg-schematic-row {
+html.bright .tg-schematic-col {
   background: #ffffff;
   border-color: rgba(18, 34, 56, 0.16);
 }
