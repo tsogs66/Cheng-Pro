@@ -783,6 +783,110 @@
    * Lightweight voyage snapshot for the AIO Home dashboard (progress + Calculated ROB).
    * Fuel gauges use Opening / Received / Present & consumption from the Voyage Calculated ROB book.
    */
+
+  const NM_METERS = 1852;
+
+  function meterDeltaSafe(curr, prev, rollover){
+    if (curr == null || prev == null || isNaN(curr) || isNaN(prev)) return null;
+    let d = curr - prev;
+    if (d < 0) d = (curr + (rollover || 1e8)) - prev;
+    return d;
+  }
+
+  function engineDistanceNm(pitchM, dailyRevs, rpm, hrs){
+    if (pitchM > 0 && dailyRevs != null && !isNaN(dailyRevs) && dailyRevs >= 0){
+      return (pitchM * dailyRevs) / NM_METERS;
+    }
+    if (pitchM > 0 && rpm != null && !isNaN(rpm) && hrs > 0){
+      return rpm * (pitchM * 60 / NM_METERS) * hrs;
+    }
+    return null;
+  }
+
+  /**
+   * Slip / kW / %MCR are computed in Voyage Chief for display and are not always
+   * persisted on saved entries. Recompute them here for the Home voyage progress.
+   */
+  function deriveLastEntryPerf(setup, entries){
+    const list = Array.isArray(entries) ? entries : [];
+    const last = list.length ? list[list.length - 1] : null;
+    if (!last){
+      return { lastRpm: null, lastSlip: null, lastKw: null, lastMcrPct: null, shipStatus: 'UNDERWAY' };
+    }
+
+    const pitch = Number(setup && setup.pitch) || 0;
+    const mcrRpm = Number(setup && setup.mcrRpm) || 1;
+    const mcrKw = Number(setup && setup.mcrKw) || 0;
+    const exp = (setup && setup.propLawExp != null && isFinite(Number(setup.propLawExp)))
+      ? Number(setup.propLawExp) : 3;
+
+    let lastRpm = last.rpm != null && last.rpm !== '' ? Number(last.rpm) : null;
+    let lastSlip = last.slip != null && last.slip !== '' ? Number(last.slip) : null;
+    let lastKw = last.kwEst != null && last.kwEst !== '' ? Number(last.kwEst) : null;
+    let lastMcrPct = last.mcrPct != null && last.mcrPct !== '' ? Number(last.mcrPct) : null;
+
+    let prev = list.length >= 2 ? list[list.length - 2] : null;
+    if (!prev && setup && setup.carryover) prev = setup.carryover;
+
+    let hrs = null;
+    if (prev && prev.datetime && last.datetime){
+      hrs = elapsedShipHours(prev.datetime, last.datetime, last.clockChangeMin);
+    }
+
+    let dailyRevs = null;
+    if (prev && last.revCounter != null && prev.revCounter != null){
+      const fm = (setup && setup.flowmeters) || {};
+      const digits = (fm.rc && fm.rc.digits) || 8;
+      dailyRevs = meterDeltaSafe(Number(last.revCounter), Number(prev.revCounter), Math.pow(10, digits));
+    }
+    if ((lastRpm == null || !isFinite(lastRpm)) && dailyRevs != null && hrs > 0){
+      lastRpm = dailyRevs / (hrs * 60);
+    }
+
+    if (lastRpm != null && isFinite(lastRpm) && mcrRpm > 0){
+      if (lastMcrPct == null || !isFinite(lastMcrPct)){
+        lastMcrPct = Math.pow(lastRpm / mcrRpm, exp) * 100;
+      }
+      if (lastKw == null || !isFinite(lastKw)){
+        const shaftKw = last.shaftKw != null ? Number(last.shaftKw)
+          : (last.report && last.report.shaftKw != null ? Number(last.report.shaftKw) : null);
+        if (shaftKw != null && isFinite(shaftKw) && shaftKw > 0) lastKw = shaftKw;
+        else lastKw = Math.pow(lastRpm / mcrRpm, exp) * mcrKw;
+      }
+    }
+
+    if ((lastSlip == null || !isFinite(lastSlip)) && pitch > 0){
+      const distEngine = engineDistanceNm(pitch, dailyRevs, lastRpm, hrs);
+      const distShip = last.distanceShip != null && last.distanceShip !== '' ? Number(last.distanceShip) : null;
+      if (distEngine != null && distEngine > 0 && distShip != null && isFinite(distShip)){
+        lastSlip = ((distEngine - distShip) / distEngine) * 100;
+      }
+    }
+
+    const PORT_OPS = new Set([
+      'DEPARTURE - STANDBY','DEPARTURE - LAST LINE','DEPARTURE - PORT','DEPARTURE - PILOT ONBOARD',
+      'NOON - AT PORT','ARRIVAL - STANDBY','ARRIVAL - FIRST LINE','ARRIVAL - FINISHED ENGINE',
+      'END OF SEA PASSAGE','SHIFTING STATIONS','BUNKERING','BUNKER SURVEY',
+      'CARGO - LOADING','CARGO - DISCHARGING','IDLE IN PORT'
+    ]);
+    const ANCHOR_OPS = new Set(['NOON - ANCHORAGE','DEPARTURE - ANCHORAGE','ARRIVAL - ANCHORAGE']);
+    const DRIFT_OPS = new Set(['DRIFTING - START','DRIFTING - END','NOON - DRIFTING','DRIFTING']);
+    let shipStatus = 'UNDERWAY';
+    const op = last.operation || '';
+    if (ANCHOR_OPS.has(op)) shipStatus = 'ANCHORED';
+    else if (DRIFT_OPS.has(op)) shipStatus = 'DRIFTING';
+    else if (PORT_OPS.has(op)) shipStatus = 'PORT';
+    else if (!(lastKw > 0) && !(Number(last.distanceShip) > 0)) shipStatus = 'PORT';
+
+    return {
+      lastRpm: lastRpm != null && isFinite(lastRpm) ? lastRpm : null,
+      lastSlip: lastSlip != null && isFinite(lastSlip) ? lastSlip : null,
+      lastKw: lastKw != null && isFinite(lastKw) ? lastKw : null,
+      lastMcrPct: lastMcrPct != null && isFinite(lastMcrPct) ? lastMcrPct : null,
+      shipStatus,
+    };
+  }
+
   async function readHomeSnapshot(activeVessel) {
     const empty = {
       ok: false,
@@ -883,13 +987,12 @@
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
-      const lastEntry = entries.length ? entries[entries.length - 1] : null;
-      const lastRpm = lastEntry && lastEntry.rpm != null && lastEntry.rpm !== '' ? Number(lastEntry.rpm) : null;
-      const lastSlip = lastEntry && lastEntry.slip != null && lastEntry.slip !== '' ? Number(lastEntry.slip) : null;
-      const lastKw = lastEntry && lastEntry.kwEst != null && lastEntry.kwEst !== '' ? Number(lastEntry.kwEst) : null;
-      const lastMcrPct = lastEntry && lastEntry.mcrPct != null && lastEntry.mcrPct !== '' ? Number(lastEntry.mcrPct) : null;
-      const shipStatus = (lastKw > 0 || (lastEntry && lastEntry.distanceShip > 0)) ? 'UNDERWAY'
-        : (lastEntry ? 'PORT' : 'UNDERWAY');
+      const perf = deriveLastEntryPerf(setup, entries);
+      const lastRpm = perf.lastRpm;
+      const lastSlip = perf.lastSlip;
+      const lastKw = perf.lastKw;
+      const lastMcrPct = perf.lastMcrPct;
+      const shipStatus = perf.shipStatus;
 
       return {
         ok: true,
@@ -938,6 +1041,7 @@
     findMatch,
     resolveFromList,
     computeVoyageProgressMetrics,
+    deriveLastEntryPerf,
     elapsedShipHours,
     slugify,
     normalizeImo,

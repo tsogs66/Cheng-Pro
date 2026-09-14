@@ -363,15 +363,15 @@
     const arrNameY = nearArr ? (y - 98) : (y - 46);
     const arrNmY = nearArr ? (y - 82) : (y - 28);
 
-    /* Room under the hull for KW / nm / % (photo layout) + Average Speed.
+    /* Centered under-ship column: nm to go → power → nm sailed → % → Average Speed.
        Days at Sea / Days To Go / ETA live in #homeVoyageProgressStrip below the SVG. */
     const metricsX = crowdedEnd
       ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -48 : (nearDep ? 48 : 0))))
       : shipX;
     const underBase = crowdedEnd ? (y + 54) : (y + 48);
-    const togoY = crowdedEnd ? underBase : (y - 18);
-    const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
-    let row = crowdedEnd ? (underBase + 18) : underBase;
+    const togoY = underBase;
+    const togoX = metricsX;
+    let row = underBase + 18;
     const kwY = row;
     const mcrY = row + 18;
     row = (underway && kwTxt) ? (row + 40) : (row + 20);
@@ -416,7 +416,7 @@
         ${underway && mcrTxt ? `<text x="${metricsX}" y="${mcrY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
         <text x="${metricsX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
         <text x="${metricsX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
-        ${avgTxt ? `<text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
+        ${avgTxt ? `<text x="${metricsX}" y="${avgY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
       </svg>`;
   }
 
