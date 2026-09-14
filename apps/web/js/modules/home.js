@@ -242,10 +242,37 @@ async function resolveTankVesselId(active) {
 async function loadFuelReport(vesselId) {
   if (!vesselId) return null;
   applyTankOfflineScope();
+  function usable(report) {
+    if (!report) return null;
+    const computed = report.computed || report;
+    if (computed && Array.isArray(computed.sections) && computed.sections.length) return report;
+    if (Array.isArray(report.sections) && report.sections.length) return report;
+    return null;
+  }
+  function withFormOnly(report) {
+    if (!report) return null;
+    if (usable(report)) return usable(report);
+    if (report.form) return { form: report.form, computed: report.computed || null };
+    return null;
+  }
   if (window.ChengProApi && ChengProApi.api) {
     try {
       const viaApi = await ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report');
-      if (viaApi && (viaApi.computed || viaApi.sections || viaApi.form)) return viaApi;
+      const ok = usable(viaApi);
+      if (ok) return ok;
+      /* Form saved but not computed yet — ask the tanks module to compute. */
+      if (viaApi && viaApi.form) {
+        try {
+          const computed = await ChengProApi.api(
+            '/tanks/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report/compute',
+            { method: 'POST', body: { form: viaApi.form } }
+          );
+          const wrapped = computed && (computed.computed || computed);
+          if (usable({ computed: wrapped })) return { form: viaApi.form, computed: wrapped };
+        } catch { /* fall through */ }
+        return { form: viaApi.form, computed: viaApi.computed || null };
+      }
+      return withFormOnly(viaApi);
     } catch { /* fall through */ }
   }
   if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
@@ -253,7 +280,22 @@ async function loadFuelReport(vesselId) {
       await LocalApi.start();
       applyTankOfflineScope();
       const res = await LocalApi.handle('GET', '/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report');
-      if (res.status < 400 && res.body) return res.body;
+      const ok = usable(res && res.body);
+      if (res.status < 400 && ok) return ok;
+      if (res.status < 400 && res.body && res.body.form) {
+        try {
+          const cRes = await LocalApi.handle(
+            'POST',
+            '/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report/compute',
+            { form: res.body.form }
+          );
+          const wrapped = cRes && cRes.body && (cRes.body.computed || cRes.body);
+          if (cRes.status < 400 && usable({ computed: wrapped })) {
+            return { form: res.body.form, computed: wrapped };
+          }
+        } catch { /* fall through */ }
+        return { form: res.body.form, computed: (res.body && res.body.computed) || null };
+      }
     } catch { /* ignore */ }
   }
   return null;
@@ -273,6 +315,10 @@ async function loadFuelReportForBundle(bundle, active) {
       const report = await loadFuelReport(id);
       if (report) return report;
     } catch { /* try next */ }
+  }
+  /* Last resort: vessel bundle may already carry a Monitoring form. */
+  if (bundle && bundle.fuelReport) {
+    return { form: bundle.fuelReport, computed: bundle.fuelReport.computed || null };
   }
   return null;
 }

@@ -324,7 +324,14 @@
     fillVesselSelect();
   });
 
-  window.addEventListener('chengpro:navigate', (e) => navigate(e.detail));
+  window.addEventListener('chengpro:navigate', (e) => {
+    const d = e && e.detail;
+    if (d && typeof d === 'object' && d.module) {
+      navigate(String(d.module), { force: !!d.force });
+    } else {
+      navigate(d);
+    }
+  });
   /* Tank / Voyage embeds postMessage when MAIN MENU (etc.) needs the AIO shell. */
   window.addEventListener('message', (e) => {
     const d = e && e.data;

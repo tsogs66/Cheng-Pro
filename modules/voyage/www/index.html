@@ -236,14 +236,13 @@
   }
   /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
   html.chengaio-embed .masthead{
-    padding-right:max(148px, calc(132px + env(safe-area-inset-right, 0px)));
+    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
   }
   html.chengaio-embed .status-row{align-items:flex-end;}
-  /* Theme only lives in AIO chrome (home topbar / beside Dashboard). */
-  html.chengaio-embed .theme-toggle,
-  html.chengaio-embed .theme-fab {
-    display: none !important;
-  }
+
+  /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
+  html.chengaio-embed #vesselSelectionPanel,
+  html.chengaio-embed #vesselIdentityPanel{display:none !important;}
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -260,6 +259,18 @@
   .panel h2{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:0.1em; text-transform:uppercase; color:var(--brass); margin:0 0 16px; display:flex; align-items:center; gap:8px;}
   .panel h2::after{content:''; flex:1; height:1px; background:var(--line);}
   .panel h3.sub{font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--teal); margin:18px 0 10px;}
+  .voyage-progress-head{display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px; margin-bottom:8px;}
+  .voyage-progress-head h2{margin:0;}
+  .voyage-progress-route{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim); margin-top:4px;}
+  .voyage-bf-samples{display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end; max-width:520px;}
+  .voyage-bf-samples-label{font-family:'Oswald',sans-serif; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-right:2px;}
+  .voyage-bf-samples button{padding:5px 10px; font-size:10px;}
+  .voyage-bf-samples button.on{background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600;}
+
+  /* Inside ChEng AIO: live weather only — Home owns the Beaufort preview samples. */
+  html.chengaio-embed #voyageBfSamples{display:none !important;}
+
+
 
   .grid{display:grid; grid-template-columns:1.5fr 1fr; gap:20px; align-items:start;}
   @media (max-width:960px){ .grid{grid-template-columns:1fr;} }
@@ -478,8 +489,9 @@
   .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:600;}
   .gauge-cap{font-size:9px; color:var(--paper-dim); font-family:'IBM Plex Mono',monospace;}
   .gauge-box .analog-gauge{filter:drop-shadow(0 8px 14px rgba(0,0,0,0.45));}
-  @keyframes voyage-wave{0%{transform:translateX(0)}100%{transform:translateX(-48px)}}
-  @keyframes voyage-ship-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  /* Match AIO Home voyage progress: dashed-stroke wave scroll, not translateX. */
+  @keyframes voyage-wave{from{stroke-dashoffset:0}to{stroke-dashoffset:-48}}
+  @keyframes voyage-ship-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
   @keyframes voyage-wake{0%{opacity:.35;stroke-dashoffset:0}100%{opacity:.05;stroke-dashoffset:-40}}
   @keyframes voyage-progress-fill{from{stroke-dasharray:0 2000}to{stroke-dasharray:var(--prog-len,800) 2000}}
   @keyframes voyage-ship-move{from{transform:translateX(var(--ship-from,0px))}to{transform:translateX(0)}}
@@ -511,8 +523,8 @@
     30%{opacity:.5}
     100%{opacity:0; transform:translate(var(--spray-x,12px), var(--spray-y,-10px))}
   }
-  .voyage-wave{animation:voyage-wave var(--wave-track-dur,6s) linear infinite;}
-  .voyage-wave.sea-rough{animation-duration:var(--wave-track-dur,3.2s);}
+  .voyage-wave{animation:voyage-wave 5s linear infinite; stroke-dasharray:24 8;}
+  .voyage-wave.sea-rough{animation-duration:3.2s;}
   .voyage-ship{animation:voyage-ship-bob 3.5s ease-in-out infinite, voyage-ship-move 1.4s ease-out forwards; transform-box:fill-box; transform-origin:center;}
   .voyage-ship.voyage-ship-static{animation:voyage-ship-bob 3.5s ease-in-out infinite;}
   .voyage-ship.voyage-ship-drift{
@@ -2044,7 +2056,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Test Fleet loads four scenario vessels for formula checks: <strong>M/V HARBOUR KEY</strong> (port ops), <strong>M/V ROADSTEAD</strong> (anchorage/drifting), <strong>M/V CIRCUMNAV</strong> (full voyage), <strong>M/V PACIFIC TRADER</strong> (three succeeding voyages 40/41/42). Re-running replaces only those four ships' data — your other vessels are left alone.</div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="vesselIdentityPanel">
       <h2>Vessel</h2>
       <div class="form-grid cols2">
         <div class="field"><label>Vessel Name</label><input id="s_vesselName"></div>
@@ -2989,10 +3001,24 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <!-- SUMMARY -->
   <div class="page active" id="page-summary">
     <div class="panel">
-      <h2>Voyage Progress</h2>
+      <div class="voyage-progress-head">
+        <div>
+          <h2>Voyage Progress</h2>
+          <div class="voyage-progress-route" id="voyageProgressRoute"></div>
+        </div>
+        <div class="voyage-bf-samples" id="voyageBfSamples" role="group" aria-label="Beaufort weather samples">
+          <span class="voyage-bf-samples-label">Beaufort samples</span>
+          <button type="button" class="ghost small" data-bf-sample="0" title="Calm — no wind particles">BF 0</button>
+          <button type="button" class="ghost small" data-bf-sample="3" title="Gentle breeze — wind only">BF 3</button>
+          <button type="button" class="ghost small" data-bf-sample="5" title="Fresh breeze — drizzle">BF 5</button>
+          <button type="button" class="ghost small" data-bf-sample="8" title="Gale — driving rain">BF 8</button>
+          <button type="button" class="ghost small" data-bf-sample="10" title="Storm">BF 10</button>
+          <button type="button" class="ghost small" data-bf-sample="12" title="Hurricane">BF 12</button>
+          <button type="button" class="ghost small on" data-bf-sample="" title="Use live log weather">Live</button>
+        </div>
+      </div>
       <div id="voyageProgressViz"></div>
-      <div class="stat-strip" id="voyageProgressStrip" style="margin-top:14px;"></div>
-      <div class="hint">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
+      <div class="stat-strip cols3" id="voyageProgressStrip" style="margin-top:10px;"></div>
     </div>
     <div class="panel">
       <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
@@ -3460,6 +3486,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Keep Data Persistent</strong> merges local and server entries for the same leg in chronological order (union both ways — missing entries are filled from the other side), then saves the merged result on both sides. Every action asks for confirmation first.</div>
       <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden).</div>
     </div>
+
+    <div class="panel" id="vesselLibraryPanel">
+      <h2>Server vessel library</h2>
+      <div class="hint">Vessels stored on this Voyage Chief sync server (name + IMO), across every license user’s database. Import ship particulars only, plus the latest voyage leg when one exists, into <strong>your</strong> server folder and this device.</div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="ghost small" id="btnVesselLibraryRefresh">Refresh list</button>
+      </div>
+      <div id="vesselLibraryList" class="hint" style="margin-top:10px;">Open Setup with a sync URL configured, then refresh.</div>
+      <div class="hint" id="vesselLibraryStatus" style="margin-top:8px;" role="status" aria-live="polite">Ready.</div>
+    </div>
+
     <!-- ARCHIVED (APP_FEATURES.installAndroid): install panels kept for future use -->
     <div class="panel" id="androidInstallPanel" hidden>
       <h2>Install on Android / tablet</h2>
@@ -18453,11 +18490,45 @@ function voyageWindAngleDeg(dir){
   return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
 }
 
+/* WMO Beaufort force names — gale (8), storm (10), hurricane (12). */
+const VOYAGE_BF_LABELS = [
+  'Calm','Light air','Light breeze','Gentle breeze','Moderate breeze','Fresh breeze',
+  'Strong breeze','Near gale','Gale','Strong gale','Storm','Violent storm','Hurricane'
+];
+const VOYAGE_BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
+
 function voyageBfLabel(bft){
-  const labels = ['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze','Fresh breeze','Strong breeze','Near gale','Gale','Strong gale','Storm','Violent storm','Hurricane'];
   if (bft==null || isNaN(bft)) return '';
   const i = Math.max(0, Math.min(12, Math.round(Number(bft))));
-  return labels[i] || '';
+  return VOYAGE_BF_LABELS[i] || '';
+}
+
+/** Wind particles, precipitation and mid-range knots keyed to Beaufort — rain is not always on. */
+function voyageBeaufortProfile(bft){
+  const n = Math.max(0, Math.min(12, Math.round(Number(bft) || 0)));
+  const label = VOYAGE_BF_LABELS[n];
+  const knots = VOYAGE_BF_KN[n];
+  /* Particle count grows with force (calm = none). */
+  const windN = n === 0 ? 0 : Math.round(3 + n * 2.2 + n * n * 0.45);
+  let precip = 'none';
+  let rainN = 0;
+  let weatherNote = 'Fair';
+  if (n >= 12){
+    precip = 'hurricane'; rainN = 170; weatherNote = 'Hurricane — torrential rain & spray';
+  } else if (n >= 10){
+    precip = 'storm'; rainN = 110 + (n - 10) * 25; weatherNote = 'Storm — heavy rain & spray';
+  } else if (n >= 8){
+    precip = 'gale'; rainN = 65 + (n - 8) * 18; weatherNote = 'Gale — driving rain';
+  } else if (n >= 6){
+    precip = 'rain'; rainN = 32 + (n - 6) * 14; weatherNote = 'Rain';
+  } else if (n >= 5){
+    precip = 'drizzle'; rainN = 16; weatherNote = 'Drizzle';
+  } else if (n >= 1){
+    weatherNote = 'Fair';
+  } else {
+    weatherNote = 'Calm';
+  }
+  return { bft: n, label, knots, windN, rainN, precip, weatherNote };
 }
 
 function voyageSeaLabel(sea){
@@ -18466,6 +18537,19 @@ function voyageSeaLabel(sea){
   const i = Math.max(0, Math.min(9, Math.round(Number(sea))));
   return labels[i] || '';
 }
+
+/** null = live log weather; number = Beaufort sample override for the progress viz. */
+let voyageProgressBfSample = null;
+document.getElementById('voyageBfSamples')?.addEventListener('click', (ev)=>{
+  const btn = ev.target && ev.target.closest && ev.target.closest('[data-bf-sample]');
+  if (!btn) return;
+  const raw = btn.getAttribute('data-bf-sample');
+  voyageProgressBfSample = (raw === '' || raw == null) ? null : Number(raw);
+  document.querySelectorAll('#voyageBfSamples [data-bf-sample]').forEach((b)=>{
+    b.classList.toggle('on', b === btn);
+  });
+  renderVoyageProgress(false);
+});
 
 function renderVoyageProgress(animateShip){
   const box = document.getElementById('voyageProgressViz');
@@ -18480,7 +18564,7 @@ function renderVoyageProgress(animateShip){
     return;
   }
 
-  const y = 130;
+  const y = 160; /* Match AIO Home voyage progress baseline */
   const pct = Math.max(0, Math.min(1, traveled/totalDistance));
   const togo = Math.max(0, totalDistance - traveled);
   const x0 = 70, x1 = 830;
@@ -18488,6 +18572,16 @@ function renderVoyageProgress(animateShip){
   const shipFromPx = animateShip ? (x0 - shipX) : 0;
   const depPort = state.setup.departPort || 'Departure';
   const arrPort = state.setup.arrivePort || 'Arrival';
+  const routeEl = document.getElementById('voyageProgressRoute');
+  if (routeEl){
+    const totalNm = Number(totalDistance);
+    if (totalNm > 0){
+      routeEl.textContent = `${depPort} → ${arrPort} · ${totalNm.toLocaleString(undefined,{maximumFractionDigits:0})} nm`;
+    } else {
+      routeEl.textContent = `${depPort} → ${arrPort}`;
+    }
+  }
+
 
   const currentSpeed = lastRow && lastRow.speedShip!=null ? lastRow.speedShip : null;
   const currentRpm = lastRow && lastRow.rpm!=null ? lastRow.rpm : null;
@@ -18495,6 +18589,8 @@ function renderVoyageProgress(animateShip){
   const currentKw = lastRow && lastRow.kwEst!=null ? lastRow.kwEst : null;
   const currentMcr = lastRow && lastRow.mcrPct!=null ? lastRow.mcrPct : null;
   const avgSpeed = perf.avgSpeedShip;
+  /* Days at Sea / Days To Go / ETA are in #voyageProgressStrip below this SVG. */
+
   // Latest report wind first (dir / BF); sea may come from the same or an older row.
   let wx = {};
   let wxSea = {};
@@ -18508,11 +18604,16 @@ function renderVoyageProgress(animateShip){
   if (!(wx.windDir || wx.windBft!=null)) wx = wxSea || {};
   else if (wx.seaState==null && wxSea.seaState!=null) wx = Object.assign({}, wx, { seaState: wxSea.seaState, swellDir: wx.swellDir || wxSea.swellDir });
   const windDir = wx.windDir || '';
-  const windBft = (wx.windBft!=null && wx.windBft!=='') ? Number(wx.windBft) : null;
-  const seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
+  let windBft = (wx.windBft!=null && wx.windBft!=='') ? Number(wx.windBft) : null;
+  let seaState = (wx.seaState!=null && wx.seaState!=='') ? Number(wx.seaState) : null;
+  /* Beaufort samples drive both wind and a matching Douglas sea for a coherent preview. */
+  if (!isChengAioEmbedded() && voyageProgressBfSample != null && !isNaN(voyageProgressBfSample)){
+    windBft = voyageProgressBfSample;
+    seaState = null;
+  }
   const windAngle = voyageWindAngleDeg(windDir);
   const bftEff = windBft!=null ? windBft : (windDir ? 3 : 2);
-  const seaEff = seaState!=null ? seaState : Math.min(9, Math.max(1, Math.round(bftEff * 0.7)));
+  const seaEff = seaState!=null ? seaState : Math.min(9, Math.max(0, Math.round(bftEff * 0.7)));
 
   // Status: port mooring, anchorage (anchor only), drifting (wave motion), or underway.
   const PORT_OPS = new Set([
@@ -18607,12 +18708,12 @@ function renderVoyageProgress(animateShip){
   const statusExtras = isPort ? portExtras : (isAnchored ? anchorExtras : '');
 
   // Local / full-track sea chop — amplitude/tempo from Douglas sea state (+ Beaufort).
-  // Underway: full-track chop like the approved sample; port/anchor/drift stay ship-local.
+  /* Full-track sea chop always — same geometry/opacity as AIO Home voyage progress. */
   const chopY = 2 + seaEff * 0.9 + (isDrifting ? 2 : 0);
   const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
   const localAmp = 3 + seaEff * 1.1 + (isDrifting ? 3 : 0);
-  const chopXL = isUnderway ? x0 : (shipX - 70);
-  const chopXR = isUnderway ? x1 : (shipX + 70);
+  const chopXL = x0;
+  const chopXR = x1;
   let localSea = `M ${chopXL} ${y+20}`;
   for (let x = chopXL; x <= chopXR; x += 14){
     localSea += ` q 7 ${localAmp} 14 0`;
@@ -18623,8 +18724,8 @@ function renderVoyageProgress(animateShip){
   }
   const seaAround = `
     <g class="voyage-sea-local" style="--chop-y:${chopY}px; --sea-dur:${seaDur}s;">
-      <path d="${localSea}" fill="none" stroke="var(--teal)" stroke-width="${1.4 + Math.min(2, seaEff*0.15)}" opacity="${0.28 + Math.min(0.35, seaEff*0.04)}"/>
-      <path d="${localSea2}" fill="none" stroke="var(--teal)" stroke-width="1.2" opacity="${0.16 + Math.min(0.25, seaEff*0.03)}"/>
+      <path d="${localSea}" fill="none" stroke="var(--teal)" stroke-width="1.8" opacity="0.45"/>
+      <path d="${localSea2}" fill="none" stroke="var(--teal)" stroke-width="1.2" opacity="0.28"/>
     </g>`;
 
   // Curved wind swooshes + separate rain, clipped to sky above the sea.
@@ -18637,9 +18738,9 @@ function renderVoyageProgress(animateShip){
   const blowSin = Math.sin(blowToDeg * Math.PI / 180);
   const windDirX = blowSin >= 0 ? 1 : -1;
   /* Mid-range knots by Beaufort — tempo relative to BF 2 (~5 kn), then halved. */
-  const BF_KN = [0.5, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 68];
   const bfIdx = Math.max(0, Math.min(12, Math.round(bftEff)));
-  const windSpeed = ((BF_KN[bfIdx] || 5) / 5) * 0.5; // half previous scale (~0.5 at BF2)
+  /* Animation tempo from Beaufort mid-range knots (WMO), relative to BF 2 (~5 kn). */
+  const windSpeed = ((VOYAGE_BF_KN[bfIdx] || 5) / 5) * 0.5;
 
   function rnd(seed){
     let t = (seed * 9301 + 49297) % 233280;
@@ -18751,42 +18852,42 @@ function renderVoyageProgress(animateShip){
     return `<g clip-path="url(#skyAboveSea)" pointer-events="none">${windLayer(xL, xR, windN)}${rainLayer(xL, xR, rainN)}</g>`;
   }
 
-  const weatherSvg = (bftEff >= 1)
-    ? weatherSky(x0, x1, {
-        windN: Math.round(8 + bftEff * 3),
-        rainN: 40 + Math.round(bftEff * 10),
+  /* Full-track weather always — Beaufort profile drives wind density and precip. */
+  const wxLeft = x0;
+  const wxRight = x1;
+  const bfProfile = voyageBeaufortProfile(bftEff);
+  const weatherSvg = (bfProfile.windN > 0 || bfProfile.rainN > 0)
+    ? weatherSky(wxLeft, wxRight, {
+        windN: bfProfile.windN,
+        rainN: bfProfile.rainN,
       })
     : '';
 
   function compassRoseSvg(){
-    const cx = 852, cy = 40, r = 24;
-    const toDeg = blowToDeg;
-    /* SVG: 0° = east, clockwise; meteo 0° = north. Convert meteo→SVG rotate. */
-    const needleSvgDeg = toDeg - 90;
+    /* Match AIO Home compass exactly: top-view ship (bow = N) + wind FROM arrow. */
+    const cx = 852, cy = 42, r = 28;
     const fromLabel = windDir || (windAngle!=null ? String(Math.round(windAngle)) + '°' : '—');
-    const tick = (deg, major)=>{
-      const rad = (deg - 90) * Math.PI / 180;
-      const r0 = major ? r - 5 : r - 3;
-      const r1 = r;
-      const x0t = cx + Math.cos(rad) * r0, y0t = cy + Math.sin(rad) * r0;
-      const x1t = cx + Math.cos(rad) * r1, y1t = cy + Math.sin(rad) * r1;
-      return `<line x1="${x0t}" y1="${y0t}" x2="${x1t}" y2="${y1t}" stroke="var(--paper-dim)" stroke-width="${major?1.4:0.8}" opacity="${major?0.85:0.45}"/>`;
-    };
-    let ticks = '';
-    for (let d = 0; d < 360; d += 30) ticks += tick(d, d % 90 === 0);
-    return `<g class="voyage-compass" pointer-events="none">
-      <text x="${cx}" y="${cy - r - 6}" text-anchor="middle" fill="#e0b56a" font-family="'IBM Plex Mono',monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
-      <circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="rgba(8,16,28,0.72)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1.1" opacity="0.7"/>
-      ${ticks}
-      <text x="${cx}" y="${cy - r + 10}" text-anchor="middle" fill="var(--brass)" font-family="Oswald,sans-serif" font-size="9" font-weight="700">N</text>
-      <text x="${cx + r - 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">E</text>
-      <text x="${cx}" y="${cy + r - 2}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">S</text>
-      <text x="${cx - r + 6}" y="${cy + 3}" text-anchor="middle" fill="var(--paper-dim)" font-family="Oswald,sans-serif" font-size="8" font-weight="600">W</text>
-      <g transform="rotate(${needleSvgDeg} ${cx} ${cy})">
-        <line x1="${cx}" y1="${cy}" x2="${cx + r - 6}" y2="${cy}" stroke="#e0b56a" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M ${cx + r - 2} ${cy} L ${cx + r - 10} ${cy - 4.5} L ${cx + r - 10} ${cy + 4.5} Z" fill="#e0b56a"/>
-        <circle cx="${cx}" cy="${cy}" r="2.4" fill="#e0b56a" stroke="#8a6b3c" stroke-width="0.8"/>
+    const windFromDeg = windAngle!=null ? windAngle : 0;
+    return `<g class="voyage-ship-wind" pointer-events="none">
+      <text x="${cx}" y="${cy - r - 7}" text-anchor="middle" fill="#e0b56a" font-family="monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
+      <circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="rgba(8,16,28,0.78)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1" opacity="0.55"/>
+      <path d="M ${cx} ${cy - 17}
+        L ${cx + 7.5} ${cy - 2}
+        L ${cx + 8} ${cy + 8}
+        L ${cx + 6} ${cy + 16}
+        L ${cx - 6} ${cy + 16}
+        L ${cx - 8} ${cy + 8}
+        L ${cx - 7.5} ${cy - 2} Z"
+        fill="#1a2a3d" stroke="var(--brass)" stroke-width="1.2"/>
+      <path d="M ${cx} ${cy - 17} L ${cx + 5} ${cy - 1} L ${cx - 5} ${cy - 1} Z" fill="#7a1f2b" stroke="var(--ink)" stroke-width="0.6"/>
+      <rect x="${cx - 4}" y="${cy + 1}" width="8" height="6" rx="1" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.7"/>
+      <rect x="${cx - 2.2}" y="${cy + 9}" width="4.4" height="4" rx="0.6" fill="#0d0d0d" stroke="var(--brass)" stroke-width="0.6"/>
+      <line x1="${cx}" y1="${cy - 17}" x2="${cx}" y2="${cy - 20.5}" stroke="var(--brass)" stroke-width="1.2" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy - r + 9}" text-anchor="middle" fill="var(--brass)" font-family="Georgia,serif" font-size="8" font-weight="700">BOW</text>
+      <g transform="rotate(${windFromDeg} ${cx} ${cy})">
+        <line x1="${cx}" y1="${cy - r + 3}" x2="${cx}" y2="${cy - 12}" stroke="#e0b56a" stroke-width="2" stroke-linecap="round"/>
+        <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
       </g>
     </g>`;
   }
@@ -18794,19 +18895,23 @@ function renderVoyageProgress(animateShip){
 
   const bfTxt = windBft!=null ? `BF ${fmt(windBft,0)}${windDir ? ' · '+windDir : ''}` : (windDir ? windDir : '');
   const bfName = voyageBfLabel(windBft);
-  const seaTxt = seaState!=null ? `Sea ${fmt(seaState,0)}${voyageSeaLabel(seaState) ? ' · '+voyageSeaLabel(seaState) : ''}` : '';
+  /* Always show Douglas sea — log value when present, else derived from Beaufort (incl. samples). */
+  const seaTxt = `Sea ${fmt(seaEff,0)}${voyageSeaLabel(seaEff) ? ' · '+voyageSeaLabel(seaEff) : ''}`;
+  const wxNote = (bfProfile && bfProfile.weatherNote) ? bfProfile.weatherNote : '';
+  const knTxt = (bfProfile && bfProfile.knots!=null) ? `~${fmt(bfProfile.knots,0)} kn` : '';
   /* Badge uses a fixed dark fill — do NOT use theme --teal/--brass (they go dark in bright mode and become unreadable). */
   const wxInk = '#f4f0e6';
   const wxBrass = '#e0b56a';
   const wxTeal = '#7ed4cb';
   const wxLines = [];
-  if (bfTxt) wxLines.push({ text: bfTxt, fill: wxBrass, size: 11, weight: 600 });
+  if (bfTxt) wxLines.push({ text: bfTxt + (knTxt ? ' · ' + knTxt : ''), fill: wxBrass, size: 11, weight: 600 });
   if (bfName) wxLines.push({ text: bfName, fill: wxInk, size: 10, weight: 500 });
+  if (wxNote && wxNote !== bfName) wxLines.push({ text: wxNote, fill: wxInk, size: 10, weight: 500 });
   if (seaTxt) wxLines.push({ text: seaTxt, fill: wxTeal, size: 10, weight: 500 });
   const wxCharW = 6.6;
   const wxPadX = 10;
   const wxWidth = wxLines.length
-    ? Math.max(118, Math.min(200, Math.ceil(Math.max(...wxLines.map(l => l.text.length)) * wxCharW) + wxPadX * 2))
+    ? Math.max(118, Math.min(280, Math.ceil(Math.max(...wxLines.map(l => l.text.length)) * wxCharW) + wxPadX * 2))
     : 0;
   const wxLineH = 14;
   const wxHeight = wxLines.length ? Math.max(22, 8 + wxLines.length * wxLineH) : 0;
@@ -18864,21 +18969,21 @@ function renderVoyageProgress(animateShip){
     </g>
   ` : '';
 
-  /* Stack below-hull copy under the keel / quay so it never clips the ship */
+  /* Stack below-hull copy under the keel / quay — photo layout with room for KW / nm / %. */
   const metricsX = crowdedEnd
     ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -36 : (nearDep ? 36 : 0))))
     : shipX;
-  const stackTop = crowdedEnd ? (y + 58) : (y + 42);
+  const stackTop = crowdedEnd ? (y + 58) : (y + 50);
   const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
   const togoY = crowdedEnd ? stackTop : (y - 18);
   /* When crowded, "nm to go" is first in the under-ship stack; otherwise it sits on the remaining track */
   let row = crowdedEnd ? (stackTop + 16) : stackTop;
   const powerY = row;          /* KW or Engine idle */
-  const powerSubY = row + 14;  /* % MCR (underway only) */
-  row = isUnderway ? (row + 30) : (row + 16);
+  const powerSubY = row + 16;  /* % MCR (underway only) */
+  row = isUnderway ? (row + 34) : (row + 18);
   const distY = row;
   const pctY = row + 16;
-  const avgY = Math.min(292, pctY + 22);
+  const avgY = Math.min(318, pctY + 24);
 
   const statusPort = (nearArr || nearDep) ? (nearArr ? arrPort : depPort) : '';
   const statusX = shipX;
@@ -18889,10 +18994,10 @@ function renderVoyageProgress(animateShip){
   const waveClass = (seaEff >= 4 || isDrifting) ? 'voyage-wave sea-rough' : 'voyage-wave';
 
   box.innerHTML = `
-    <svg viewBox="0 0 900 300" style="width:100%; height:auto; max-height:320px; --prog-len:${progLen}; --ship-from:${shipFromPx}px; --wave-track-dur:${trackDur}s;">
+    <svg viewBox="0 0 900 340" style="width:100%; height:auto; max-height:360px; --prog-len:${progLen}; --ship-from:${shipFromPx}px;">
       <defs><clipPath id="skyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
       <g class="${waveClass}"><path d="${wave1}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.28"/></g>
-      <g class="${waveClass}" style="animation-delay:-${(trackDur/2).toFixed(2)}s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
+      <g class="${waveClass}" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
       ${seaAround}
       ${driftRipples}
       ${weatherSvg}
@@ -18904,14 +19009,10 @@ function renderVoyageProgress(animateShip){
       <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
       <circle cx="${x1}" cy="${y}" r="7" fill="none" stroke="var(--paper-dim)" stroke-width="2"/>
 
-      ${nearDep ? '' : `
-      <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${depPort}</text>
-      <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">0 nm</text>
-      `}
-      ${nearArr ? '' : `
-      <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${arrPort}</text>
-      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(totalDistance, 2)} nm</text>
-      `}
+      <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${depPort}</text>
+      <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
+      <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arrPort}</text>
+      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
 
       <g class="${shipAnimClass}">
         ${isUnderway ? `<path class="voyage-wake" d="M ${shipX-44} ${y+14} q -10 4 -22 2" fill="none" stroke="var(--paper-dim)" stroke-width="1.5"/>` : ''}
@@ -18932,8 +19033,8 @@ function renderVoyageProgress(animateShip){
       <text x="${shipX}" y="${y-56}" text-anchor="middle" fill="var(--teal)" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="600">${currentSpeed!=null ? fmt(currentSpeed,2)+' kn' : '—'}</text>
       <text x="${shipX}" y="${y-42}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">Slip ${currentSlip!=null ? fmt(currentSlip,2)+'%' : '—'}</text>
       ` : `
-      <text x="${statusX}" y="${statusTopY}" text-anchor="middle" fill="${statusColor}" font-family="Oswald, sans-serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
-      ${statusPort ? `<text x="${statusX}" y="${statusPortY}" text-anchor="middle" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="14" font-weight="600">${statusPort}</text>` : ''}
+      <text x="${statusX}" y="${statusTopY}" text-anchor="middle" fill="${statusColor}" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
+      ${statusPort ? `<text x="${statusX}" y="${statusPortY}" text-anchor="middle" fill="var(--paper)" font-family="Georgia,serif" font-size="14" font-weight="600">${statusPort}</text>` : ''}
       `}
 
       <text x="${togoX}" y="${togoY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(togo, 2)} nm to go</text>
@@ -18947,7 +19048,7 @@ function renderVoyageProgress(animateShip){
       <text x="${metricsX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="'IBM Plex Mono', monospace" font-size="13" font-weight="600">${fmt(traveled, 2)} nm</text>
       <text x="${metricsX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">${fmt(pct*100, 2)}% complete</text>
 
-      <text x="${(x0+x1)/2}" y="${avgY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
+      <text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
     </svg>
   `;
   _lastVoyageShipPct = pct;
@@ -21236,7 +21337,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v237';
+let androidInstallCacheName = 'noon-report-v246';
 
 /*
  * What the program is called.
@@ -21287,6 +21388,167 @@ function showAppVersion(){
   const setup = document.getElementById('setupAppVersionLabel');
   if (setup) setup.textContent = ver ? ('v' + ver) : 'unknown';
 }
+
+/* ---------- Server vessel library (per-user DB copy) ---------- */
+function setVesselLibraryStatus(msg){
+  const el = document.getElementById('vesselLibraryStatus');
+  if (el) el.textContent = msg || '';
+}
+
+async function fetchVesselLibrary(){
+  const base = syncApiBase();
+  if (!base) throw new Error('Configure the Sync Server URL first.');
+  const { body } = await fetchSyncJson(base + '/api/vessel-library', {
+    headers: syncRequestHeaders()
+  });
+  return (body && body.vessels) || [];
+}
+
+async function importVesselLibraryEntry(ownerSlug, vesselId){
+  const base = syncApiBase();
+  if (!base) throw new Error('Configure the Sync Server URL first.');
+  const { body } = await fetchSyncJson(base + '/api/vessel-library/import', {
+    method: 'POST',
+    headers: syncRequestHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ownerSlug: ownerSlug || null, vesselId })
+  });
+  return body;
+}
+
+function applyParticularsToSetup(setup, particulars){
+  const s = setup || defaultSetupTemplate();
+  const p = particulars || {};
+  const map = [
+    ['vesselName','vesselName'], ['imoNo','imoNo'], ['callSign','callSign'],
+    ['flag','flag'], ['company','company'], ['dwt','dwt'], ['chEng','chEng'],
+    ['pitch','pitch'], ['mcrRpm','mcrRpm'], ['mcrKw','mcrKw'],
+    ['csrRpm','csrRpm'], ['csrKw','csrKw'], ['sfoc100','sfoc100'], ['sfoc85','sfoc85'],
+    ['lcvRef','lcvRef'], ['lcvActual','lcvActual'], ['geArrangement','geArrangement'],
+    ['generatorCount','generatorCount'], ['meCylinderCount','meCylinderCount'],
+    ['turboCount','turboCount']
+  ];
+  for (const [from, to] of map){
+    if (p[from] != null && p[from] !== '') s[to] = p[from];
+  }
+  if (p.imo != null && p.imo !== '' && !s.imoNo) s.imoNo = p.imo;
+  if (p.callSign != null && p.callSign !== '' && !s.callSign) s.callSign = p.callSign;
+  if (p.capacity && typeof p.capacity === 'object') s.capacity = { ...(s.capacity||{}), ...p.capacity };
+  if (p.capacityLube && typeof p.capacityLube === 'object') s.capacityLube = { ...(s.capacityLube||{}), ...p.capacityLube };
+  if (Array.isArray(p.fuelTanks) && p.fuelTanks.length) s.fuelTanks = JSON.parse(JSON.stringify(p.fuelTanks));
+  if (Array.isArray(p.lubeTanks) && p.lubeTanks.length) s.lubeTanks = JSON.parse(JSON.stringify(p.lubeTanks));
+  if (Array.isArray(p.fwTanks) && p.fwTanks.length) s.fwTanks = JSON.parse(JSON.stringify(p.fwTanks));
+  if (Array.isArray(p.generators) && p.generators.length) s.generators = JSON.parse(JSON.stringify(p.generators));
+  if (p.flowmeters && typeof p.flowmeters === 'object') s.flowmeters = JSON.parse(JSON.stringify(p.flowmeters));
+  if (p.defaults && typeof p.defaults === 'object') s.defaults = { ...(s.defaults||{}), ...p.defaults };
+  return s;
+}
+
+async function mirrorVesselLibraryImportLocally(result){
+  if (!result || !result.vessel) return null;
+  const name = result.vessel.name || result.particulars?.vesselName || result.vessel.slug || 'Imported vessel';
+  const slug = result.vessel.slug || result.vessel.id || vesselSlugFromName(name);
+  let vessel = (state.vessels || []).find(v => v.slug === slug || v.name === name);
+  if (!vessel){
+    vessel = await createNewVessel(name);
+  }
+  if (!vessel) throw new Error('Could not create local vessel');
+  vessel.slug = slug;
+  vessel.name = name;
+  await saveVesselRegistry();
+
+  const metaAll = await dbGetAll('meta');
+  const setupRow = metaAll.find(m => m.key === `setup:${vessel.id}`);
+  let setup = migrateSetup(setupRow ? setupRow.value : defaultSetupTemplate({ vesselName: name }));
+  setup = applyParticularsToSetup(setup, result.particulars || {});
+  setup.vesselName = name;
+  setup.sync = { ...(setup.sync || {}), vesselId: slug, apiToken: '', serverUrl: (ensureSyncConfig().serverUrl || '') };
+  await dbPut('meta', { key: `setup:${vessel.id}`, value: setup });
+
+  const leg = result.voyageLeg;
+  if (leg && leg.data){
+    const payload = leg.data;
+    const packSrc = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+    const pack = {
+      setup: migrateSetup(packSrc.setup || setup),
+      entries: Array.isArray(packSrc.entries) ? packSrc.entries : [],
+      receipts: Array.isArray(packSrc.receipts) ? packSrc.receipts : [],
+      documents: Array.isArray(packSrc.documents) ? packSrc.documents : [],
+      abstracts: Array.isArray(packSrc.abstracts) ? packSrc.abstracts : [],
+      printHistory: Array.isArray(packSrc.printHistory) ? packSrc.printHistory : []
+    };
+    pack.setup.vesselName = pack.setup.vesselName || name;
+    pack.setup.sync = { ...(pack.setup.sync || {}), vesselId: slug, apiToken: '' };
+    await saveVoyageLegToLibrary(vessel.id, leg.voyageNo, leg.condition, pack);
+    try { await activateVoyageLeg(vessel.id, leg.voyageNo, leg.condition); }
+    catch (err) { console.warn('activate imported leg', err); }
+  } else {
+    await dbPut('meta', { key: 'activeVesselId', value: vessel.id });
+    await loadVesselFromDb(vessel.id);
+  }
+  renderVesselSelector();
+  render();
+  renderSyncUi();
+  try { await renderVoyageLibrary(); } catch (_) {}
+  return vessel;
+}
+
+async function refreshVesselLibraryPanel(){
+  const list = document.getElementById('vesselLibraryList');
+  if (!list) return;
+  list.textContent = 'Loading vessel list from sync server…';
+  setVesselLibraryStatus('Loading…');
+  try {
+    const vessels = await fetchVesselLibrary();
+    if (!vessels.length){
+      list.innerHTML = '<p class="hint">No vessels on the sync server yet.</p>';
+      setVesselLibraryStatus('No vessels found.');
+      return;
+    }
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    list.innerHTML = `<div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
+      <thead><tr><th>Vessel</th><th>IMO</th><th>Owner</th><th></th></tr></thead>
+      <tbody>${vessels.map(v => {
+        const name = esc(v.name || v.vesselId || '—');
+        const imo = esc(v.imo || '—');
+        const owner = esc(v.ownerSlug || 'server');
+        const vid = esc(v.vesselId || '');
+        const own = esc(v.ownerSlug || '');
+        return `<tr>
+          <td>${name}</td><td>${imo}</td><td>${owner}</td>
+          <td><button type="button" class="ghost small" data-vlib-import="${vid}" data-vlib-owner="${own}">Import particulars + latest leg</button></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
+    list.querySelectorAll('[data-vlib-import]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const vesselId = btn.getAttribute('data-vlib-import');
+        const ownerSlug = btn.getAttribute('data-vlib-owner') || null;
+        if (!confirm(`Import ship particulars for ${vesselId} into your account (server + this device)? Latest voyage leg will be copied when available.`)) return;
+        setVesselLibraryStatus('Importing…');
+        btn.disabled = true;
+        try {
+          const res = await importVesselLibraryEntry(ownerSlug, vesselId);
+          await mirrorVesselLibraryImportLocally(res);
+          setVesselLibraryStatus(res.message || 'Imported.');
+          refreshVesselLibraryPanel();
+        } catch (err) {
+          setVesselLibraryStatus(err.message || 'Import failed');
+          alert(err.message || 'Import failed');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+    setVesselLibraryStatus(`${vessels.length} vessel(s) on server.`);
+  } catch (err) {
+    list.textContent = err.message || 'Could not load vessel library.';
+    setVesselLibraryStatus(err.message || 'Failed');
+  }
+}
+
+document.getElementById('btnVesselLibraryRefresh')?.addEventListener('click', () => {
+  refreshVesselLibraryPanel();
+});
+
 showAppVersion();
 
 function parseSemverParts(v){
@@ -21756,6 +22018,18 @@ async function buildFullDatabaseBackup(){
   }, { source: 'program' });
 }
 
+
+/** Accept a native Voyage DB backup, or the Voyage half of a ChEng AIO suite file. */
+function unwrapVoyageBackupPayload(payload){
+  if (payload && payload.format === 'cheng-aio-suite-v1') {
+    if (!payload.voyage || typeof payload.voyage !== 'object') {
+      throw new Error('This ChEng AIO suite file has no Voyage Chief database. Open it in ChEng AIO Backup, or use a Voyage-only backup (noon-report-db-v1).');
+    }
+    return payload.voyage;
+  }
+  return payload;
+}
+
 function isFullDatabaseBackup(payload){
   return !!(payload && payload.format === DB_BACKUP_FORMAT && payload.stores && typeof payload.stores === 'object');
 }
@@ -21809,6 +22083,7 @@ async function writeStoreRows(storeName, rows){
 }
 
 async function restoreFullDatabase(payload){
+  payload = unwrapVoyageBackupPayload(payload);
   if (!isFullDatabaseBackup(payload)) throw new Error('Not a full database backup (expected format noon-report-db-v1).');
   return withActivity('db-restore', 'Restoring the database on this device…', async ({ update })=>{
   await ensureDB();
@@ -21845,6 +22120,7 @@ async function restoreFullDatabase(payload){
 }
 
 async function mergeFullDatabase(payload){
+  payload = unwrapVoyageBackupPayload(payload);
   if (!isFullDatabaseBackup(payload)) throw new Error('Not a full database backup (expected format noon-report-db-v1).');
   return withActivity('db-merge', 'Merging a backup into this device…', async ({ update })=>{
   await ensureDB();
@@ -21976,6 +22252,11 @@ function matchVesselForImport(payload){
 }
 
 async function importVesselExport(payload, options = {}){
+  if (payload && payload.format === 'cheng-aio-suite-v1') {
+    throw new Error('This is a ChEng AIO entire-program suite, not a single-vessel export. '
+      + 'Use Backup Entire Database / Restore (or Merge) to load the Voyage half, '
+      + 'or export a vessel with “Export Active Vessel” (noon-report-vessel-v1).');
+  }
   if (!isVesselExport(payload)){
     throw new Error('Not a vessel export (expected format ' + VESSEL_EXPORT_FORMAT + ').');
   }
@@ -22369,7 +22650,7 @@ document.getElementById('fileDbRestore')?.addEventListener('change', async (ev)=
   if (!file) return;
   try{
     setDbBackupStatus('Reading backup for restore…');
-    const payload = await readJsonFileInput(file);
+    const payload = unwrapVoyageBackupPayload(await readJsonFileInput(file));
     if (!isFullDatabaseBackup(payload)){
       throw new Error('This file is not a full database backup. Use “Backup Entire Database” to create one (format noon-report-db-v1). Active-leg JSON cannot restore the whole DB.');
     }
@@ -22395,7 +22676,7 @@ document.getElementById('fileDbMerge')?.addEventListener('change', async (ev)=>{
   if (!file) return;
   try{
     setDbBackupStatus('Reading backup for merge…');
-    const payload = await readJsonFileInput(file);
+    const payload = unwrapVoyageBackupPayload(await readJsonFileInput(file));
     if (!isFullDatabaseBackup(payload)){
       throw new Error('This file is not a full database backup. Use “Backup Entire Database” first (format noon-report-db-v1).');
     }
@@ -24662,27 +24943,31 @@ function applyEorbLicenseVisibility(){
 }
 
 /**
- * Vessel identity stays editable here (flag registry changes, corrections, etc.).
- * ChEng AIO still mirrors hub values on load; chiefs can override locally when needed.
+ * When embedded in ChEng AIO, vessel selection + identity UI are hidden —
+ * AIO Vessel Setup is the single hub (CSS: html.chengaio-embed).
+ * Standalone keeps full Vessel Data editing.
  */
 function applyChengAioVesselHubLock(alreadyLocked){
   const hub = isChengAioEmbedded();
-  ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (el.tagName === 'SELECT') el.disabled = false;
-    else el.readOnly = false;
-    el.title = hub
-      ? 'Editable here for corrections (e.g. flag registry change). AIO Vessel Setup may re-apply hub values on next load.'
-      : '';
-  });
-  const saveBtn = document.getElementById('btnSaveVesselIdentity');
-  if (saveBtn) saveBtn.hidden = false;
-  const idNote = document.getElementById('vesselIdentityNote');
-  if (idNote) {
-    idNote.textContent = hub
-      ? 'Ship identity is editable for corrections (name, IMO, call sign, flag, company, DWT). Prefer AIO → Vessel Setup for fleet-wide changes; local edits apply to this device’s voyage data.'
-      : 'Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel. Edit here if details change (e.g. flag registry).';
+  const sel = document.getElementById('vesselSelectionPanel');
+  const ident = document.getElementById('vesselIdentityPanel');
+  if (sel) sel.hidden = !!hub;
+  if (ident) ident.hidden = !!hub;
+  /* Standalone: leave fields editable. Embedded panels are hidden above. */
+  if (!hub) {
+    ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === 'SELECT') el.disabled = false;
+      else el.readOnly = false;
+      el.title = '';
+    });
+    const saveBtn = document.getElementById('btnSaveVesselIdentity');
+    if (saveBtn) saveBtn.hidden = false;
+    const idNote = document.getElementById('vesselIdentityNote');
+    if (idNote) {
+      idNote.textContent = 'Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel. Edit here if details change (e.g. flag registry).';
+    }
   }
   void alreadyLocked;
 }
@@ -25638,6 +25923,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       const qsPage = new URLSearchParams(location.search).get('page');
       const wantOrb = qsPage === 'orb' || /[?&]page=orb\b/.test(location.search);
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
+      else if (qsPage === 'entry' || qsPage === 'log' || qsPage === 'logentry') switchTab('entry');
+      else if (qsPage === 'rob') switchTab('rob');
       else if (qsPage === 'bunkerplan'){
         switchTab('bunkerplan');
         if (isChengAioEmbedded()){

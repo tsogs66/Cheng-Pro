@@ -16,7 +16,7 @@
 
   function moduleUrl(name) {
     if (name === 'tanks') return asset('tanks/index.html');
-    if (name === 'voyage') return asset('voyage/index.html');
+    if (name === 'voyage') return asset('voyage/voyage_manager.html');
     return asset(name);
   }
 
