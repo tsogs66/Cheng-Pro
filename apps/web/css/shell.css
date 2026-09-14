@@ -522,41 +522,122 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
 .cards-row .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .cat-fuel { background: #8a5a1a; }
-.tg-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+/* Vessel tank overview — Tank Chief graphical style (4-column schematic) */
+.tg-schematic {
+  display: grid;
+  /* Tablet + Windows (portrait & landscape): four side columns. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+  align-items: start;
+}
+.tg-schematic-col {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(18, 34, 56, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+html:not(.bright) .tg-schematic-col { background: rgba(255, 255, 255, 0.03); }
+.tg-schematic-head {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text);
+}
+.tg-schematic-col-tanks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tg-schematic-col-tanks .tg-card {
+  padding: 6px 6px 5px;
+  gap: 3px;
+  border-radius: 8px;
+}
+.tg-schematic-col-tanks .tg-name {
+  font-size: 10px;
+  min-height: 2em;
+  line-height: 1.2;
+}
+.tg-schematic-col-tanks .tg-pct { font-size: 11px; }
+.tg-schematic-col-tanks .tg-stats {
+  font-size: 10px;
+  gap: 0 6px;
+}
+.tg-schematic-empty {
+  font-size: 12px; color: var(--muted);
+  padding: 12px 8px; text-align: center;
+  border: 1px dashed var(--line); border-radius: 8px;
+}
+/* Android / narrow phones: two columns. Tablets stay at four. */
+@media (max-width: 600px) {
+  .tg-schematic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Phone landscape (short + narrow): two columns. Tablets stay at four. */
+@media (max-height: 430px) and (max-width: 600px) {
+  .tg-schematic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .tg-card {
-  border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 8px;
   background: var(--panel-solid, var(--panel)); min-width: 0;
   color: var(--text);
+  display: flex; flex-direction: column; gap: 6px;
 }
-.tg-name { font-size: 11.5px; font-weight: 700; min-height: 2.4em; color: var(--text); }
+.tg-name {
+  font-size: 11.5px; font-weight: 700; line-height: 1.25;
+  min-height: 2.4em; overflow: hidden; color: var(--text);
+}
+.tg-art { position: relative; }
+.tg-svg { display: block; width: 100%; height: auto; --tg-ink: #93a1b8; }
+.tg-pct {
+  position: absolute; right: 4px; top: 4px;
+  font-size: 13px; font-weight: 800; color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.tg-void { fill: rgba(255, 255, 255, 0.04); }
+.tg-shell { fill: none; stroke: #8b9ab4; stroke-width: 2.4; stroke-linejoin: round; }
+.tg-safe { stroke: #d98c2b; stroke-width: 1.2; stroke-dasharray: 4 3; opacity: 0.85; }
+.tg-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px;
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.tg-chip {
+  font-weight: 700; color: var(--text); font-size: 10px;
+  letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 5px;
+}
+.tg-chip::before {
+  content: ''; width: 9px; height: 9px; border-radius: 2px;
+  background: var(--tg-chip); border: 1px solid rgba(255, 255, 255, 0.35);
+}
 html.bright .tg-card {
   background: #ffffff;
   border-color: rgba(18, 34, 56, 0.16);
   color: #122238;
 }
 html.bright .tg-name { color: #122238; }
-html.bright .tg-pct { color: #122238; text-shadow: 0 1px 2px rgba(255,255,255,.8); }
+html.bright .tg-pct {
+  color: #122238;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
 html.bright .tg-stats { color: #3d4a5c; }
-html.bright .tg-stats b { color: #122238; }
-.tg-art {
-  height: 72px; border-radius: 6px;
-  background: linear-gradient(180deg, rgba(31,122,114,.08), rgba(31,122,114,.22));
-  position: relative; overflow: hidden;
+html.bright .tg-chip { color: #122238; }
+html.bright .tg-void { fill: rgba(18, 34, 56, 0.06); }
+html.bright .tg-shell { stroke: #5a6a80; }
+html.bright .tg-schematic-col {
+  background: #ffffff;
+  border-color: rgba(18, 34, 56, 0.16);
 }
-.tg-art .fill {
-  position: absolute; left: 18%; right: 18%; bottom: 10px; border-radius: 2px 2px 0 0;
-  background: linear-gradient(180deg, #c99a53, #8a5a1a);
+html.bright .tg-schematic-head { color: #122238; }
+html.bright .tg-schematic-empty {
+  color: #3d4a5c;
+  border-color: rgba(18, 34, 56, 0.16);
 }
-.tg-art .shell {
-  position: absolute; left: 16%; right: 16%; top: 8px; bottom: 8px;
-  border: 2px solid var(--muted); border-radius: 4px; background: transparent;
-}
-.tg-pct { position: absolute; right: 6px; top: 4px; font-size: 12px; font-weight: 800; color: var(--text); }
-.tg-stats {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px;
-  font-size: 11px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums;
-}
-.tg-stats b { color: var(--text); font-weight: 600; }
+
 @keyframes voyage-wave { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -48; } }
 @keyframes voyage-sea-chop {
   0%,100% { transform: translateX(0) translateY(0); }
