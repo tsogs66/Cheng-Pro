@@ -18920,11 +18920,13 @@ function renderVoyageProgress(animateShip){
   const statusColor = isAnchored ? 'var(--brass)' : (isDrifting ? 'var(--paper)' : 'var(--teal)');
 
   // Keep end labels / under-ship metrics clear of hull extras + weather badge.
-  const nearDep = (shipX - x0) < 140;
-  const nearArr = (x1 - shipX) < 140;
   const gapToArr = x1 - shipX;
   const gapToDep = shipX - x0;
-  const crowdedEnd = gapToArr <= 150 || gapToDep <= 150 || !isUnderway;
+  const nearDep = gapToDep < 180;
+  const nearArr = gapToArr < 180;
+  const veryNearArr = gapToArr < 100;
+  const veryNearDep = gapToDep < 100;
+  const crowdedEnd = gapToArr <= 180 || gapToDep <= 180 || !isUnderway;
 
   /* Status / speed sit above the ship — keep weather beside the hull, never on it.
      Each side is taken only when it genuinely fits: clamping a preferred side into
@@ -18948,7 +18950,7 @@ function renderVoyageProgress(animateShip){
     const fitsLeft = leftX >= minX;
     const fitsRight = rightX <= maxX;
     /* Prefer the port side when alongside (clear of the rope) or when close to the
-       arrival marker; otherwise take whichever side has more open track. */
+       arrival marker / compass; otherwise take whichever side has more open track. */
     const wantLeft = isPort || nearArr || (!nearDep && gapToArr <= gapToDep);
     if (wantLeft && fitsLeft) weatherBadgeX = leftX;
     else if (!wantLeft && fitsRight) weatherBadgeX = rightX;
@@ -18957,6 +18959,11 @@ function renderVoyageProgress(animateShip){
     /* Canvas is 900 wide against a ≤200 badge and a 104 hull, so one side always
        fits; this only guards a future narrower layout. */
     else weatherBadgeX = Math.max(minX, Math.min(maxX, shipX - wxWidth / 2));
+    /* Keep weather clear of the top-right compass rose (~852,42). */
+    if (weatherBadgeX + wxWidth > 800 && weatherBadgeY < 78) {
+      if (fitsLeft) weatherBadgeX = leftX;
+      else weatherBadgeY = Math.max(78, weatherBadgeY);
+    }
   }
   let weatherTextSvg = '';
   wxLines.forEach((line, i)=>{
@@ -18969,24 +18976,34 @@ function renderVoyageProgress(animateShip){
     </g>
   ` : '';
 
-  /* Stack below-hull copy under the keel / quay — photo layout with room for KW / nm / %. */
+  /* RPM / kn / slip stack: nudge away from the crowded end so it does not sit on Magdalla / Zhuhai. */
+  const perfX = nearArr
+    ? Math.max(x0 + 90, shipX - (veryNearArr ? 72 : 48))
+    : (nearDep ? Math.min(x1 - 90, shipX + (veryNearDep ? 72 : 48)) : shipX);
+  /* End-port labels: raise above the RPM stack when the ship is near that end. */
+  const depNameY = nearDep ? (y - 98) : (y - 46);
+  const depNmY = nearDep ? (y - 82) : (y - 28);
+  const arrNameY = nearArr ? (y - 98) : (y - 46);
+  const arrNmY = nearArr ? (y - 82) : (y - 28);
+
+  /* Stack below-hull copy under the keel / quay — roomy gaps for KW / nm / %. */
   const metricsX = crowdedEnd
-    ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -36 : (nearDep ? 36 : 0))))
+    ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -48 : (nearDep ? 48 : 0))))
     : shipX;
-  const stackTop = crowdedEnd ? (y + 58) : (y + 50);
+  const stackTop = crowdedEnd ? (y + 54) : (y + 48);
   const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
   const togoY = crowdedEnd ? stackTop : (y - 18);
   /* When crowded, "nm to go" is first in the under-ship stack; otherwise it sits on the remaining track */
-  let row = crowdedEnd ? (stackTop + 16) : stackTop;
+  let row = crowdedEnd ? (stackTop + 18) : stackTop;
   const powerY = row;          /* KW or Engine idle */
-  const powerSubY = row + 16;  /* % MCR (underway only) */
-  row = isUnderway ? (row + 34) : (row + 18);
+  const powerSubY = row + 18;  /* % MCR (underway only) */
+  row = isUnderway ? (row + 40) : (row + 20);
   const distY = row;
-  const pctY = row + 16;
-  const avgY = Math.min(318, pctY + 24);
+  const pctY = row + 18;
+  const avgY = Math.min(328, pctY + 26);
 
   const statusPort = (nearArr || nearDep) ? (nearArr ? arrPort : depPort) : '';
-  const statusX = shipX;
+  const statusX = perfX;
   const statusPortY = y - 52;
   const statusTopY = y - 70;
 
@@ -19009,10 +19026,10 @@ function renderVoyageProgress(animateShip){
       <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
       <circle cx="${x1}" cy="${y}" r="7" fill="none" stroke="var(--paper-dim)" stroke-width="2"/>
 
-      <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${depPort}</text>
-      <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
-      <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arrPort}</text>
-      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
+      <text x="${x0}" y="${depNameY}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${depPort}</text>
+      <text x="${x0}" y="${depNmY}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
+      <text x="${x1}" y="${arrNameY}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arrPort}</text>
+      <text x="${x1}" y="${arrNmY}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
 
       <g class="${shipAnimClass}">
         ${isUnderway ? `<path class="voyage-wake" d="M ${shipX-44} ${y+14} q -10 4 -22 2" fill="none" stroke="var(--paper-dim)" stroke-width="1.5"/>` : ''}
@@ -19029,9 +19046,9 @@ function renderVoyageProgress(animateShip){
       ${weatherLabel}
 
       ${isUnderway ? `
-      <text x="${shipX}" y="${y-70}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">${currentRpm!=null ? fmt(currentRpm, 2)+' RPM' : '—'}</text>
-      <text x="${shipX}" y="${y-56}" text-anchor="middle" fill="var(--teal)" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="600">${currentSpeed!=null ? fmt(currentSpeed,2)+' kn' : '—'}</text>
-      <text x="${shipX}" y="${y-42}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">Slip ${currentSlip!=null ? fmt(currentSlip,2)+'%' : '—'}</text>
+      <text x="${perfX}" y="${y-70}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">${currentRpm!=null ? fmt(currentRpm, 2)+' RPM' : '—'}</text>
+      <text x="${perfX}" y="${y-56}" text-anchor="middle" fill="var(--teal)" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="600">${currentSpeed!=null ? fmt(currentSpeed,2)+' kn' : '—'}</text>
+      <text x="${perfX}" y="${y-42}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">Slip ${currentSlip!=null ? fmt(currentSlip,2)+'%' : '—'}</text>
       ` : `
       <text x="${statusX}" y="${statusTopY}" text-anchor="middle" fill="${statusColor}" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
       ${statusPort ? `<text x="${statusX}" y="${statusPortY}" text-anchor="middle" fill="var(--paper)" font-family="Georgia,serif" font-size="14" font-weight="600">${statusPort}</text>` : ''}
@@ -21337,7 +21354,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v246';
+let androidInstallCacheName = 'noon-report-v247';
 
 /*
  * What the program is called.
