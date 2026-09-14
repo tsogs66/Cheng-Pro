@@ -267,7 +267,7 @@
     const wxHeight = wxLines.length ? Math.max(22, 8 + wxLines.length * 14) : 0;
     let badgeX = shipX + 60;
     if (badgeX + wxWidth > 896) badgeX = Math.max(4, shipX - 70 - wxWidth);
-    const badgeY = y - Math.floor(wxHeight / 2);
+    let badgeY = y - Math.floor(wxHeight / 2);
     let badgeSvg = '';
     if (wxLines.length) {
       badgeSvg = `<g pointer-events="none">
@@ -319,14 +319,65 @@
         <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
       </g>
     </g>`;
+    const gapToArr = x1 - shipX;
+    const gapToDep = shipX - x0;
+    const nearDep = gapToDep < 180;
+    const nearArr = gapToArr < 180;
+    const veryNearArr = gapToArr < 100;
+    const veryNearDep = gapToDep < 100;
+    const crowdedEnd = gapToArr <= 180 || gapToDep <= 180 || !underway;
+
+    /* Reposition weather badge with arrival/compass awareness. */
+    {
+      const leftX = Math.max(4, shipX - 70 - wxWidth);
+      const rightX = shipX + 60;
+      const fitsLeft = leftX >= 4;
+      const fitsRight = rightX + wxWidth <= 896;
+      const wantLeft = nearArr || (!nearDep && gapToArr <= gapToDep);
+      if (wxLines.length) {
+        if (wantLeft && fitsLeft) badgeX = leftX;
+        else if (!wantLeft && fitsRight) badgeX = rightX;
+        else if (fitsRight) badgeX = rightX;
+        else badgeX = leftX;
+        if (badgeX + wxWidth > 800 && badgeY < 78) {
+          if (fitsLeft) badgeX = leftX;
+          else badgeY = Math.max(78, badgeY);
+        }
+        badgeSvg = `<g pointer-events="none">
+          <rect x="${badgeX}" y="${badgeY}" width="${wxWidth}" height="${wxHeight}" rx="5"
+            fill="rgba(8,16,28,0.92)" stroke="rgba(233,228,214,0.35)"/>
+          ${wxLines.map((line, i) =>
+            `<text x="${badgeX + 10}" y="${badgeY + 16 + i * 14}" fill="${line.fill}"
+              font-family="'IBM Plex Mono',monospace" font-size="${line.size}" font-weight="${line.weight}">${esc(line.text)}</text>`
+          ).join('')}
+        </g>`;
+      }
+    }
+
+    /* RPM / kn / slip: nudge away from Magdalla / Zhuhai when near that end. */
+    const perfX = nearArr
+      ? Math.max(x0 + 90, shipX - (veryNearArr ? 72 : 48))
+      : (nearDep ? Math.min(x1 - 90, shipX + (veryNearDep ? 72 : 48)) : shipX);
+    const depNameY = nearDep ? (y - 98) : (y - 46);
+    const depNmY = nearDep ? (y - 82) : (y - 28);
+    const arrNameY = nearArr ? (y - 98) : (y - 46);
+    const arrNmY = nearArr ? (y - 82) : (y - 28);
+
     /* Room under the hull for KW / nm / % (photo layout) + Average Speed.
        Days at Sea / Days To Go / ETA live in #homeVoyageProgressStrip below the SVG. */
-    const underBase = y + 50;
-    const kwY = underBase;
-    const mcrY = underBase + 16;
-    const distY = underBase + (underway && kwTxt ? 36 : 16);
-    const pctY = distY + 16;
-    const avgY = pctY + 22;
+    const metricsX = crowdedEnd
+      ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -48 : (nearDep ? 48 : 0))))
+      : shipX;
+    const underBase = crowdedEnd ? (y + 54) : (y + 48);
+    const togoY = crowdedEnd ? underBase : (y - 18);
+    const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
+    let row = crowdedEnd ? (underBase + 18) : underBase;
+    const kwY = row;
+    const mcrY = row + 18;
+    row = (underway && kwTxt) ? (row + 40) : (row + 20);
+    const distY = row;
+    const pctY = row + 18;
+    const avgY = Math.min(328, pctY + 26);
 
     el.innerHTML = `
       <svg viewBox="0 0 900 340" class="home-voyage-svg" style="width:100%;height:auto;max-height:360px;background:rgba(18,34,56,.03);border-radius:12px">
@@ -340,10 +391,10 @@
         <line x1="${x0}" y1="${y}" x2="${shipX}" y2="${y}" stroke="var(--brass)" stroke-width="3" stroke-linecap="round"/>
         <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
         <circle cx="${x1}" cy="${y}" r="7" fill="none" stroke="var(--paper-dim)" stroke-width="2"/>
-        <text x="${x0}" y="${y - 46}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${dep}</text>
-        <text x="${x0}" y="${y - 28}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
-        <text x="${x1}" y="${y - 46}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arr}</text>
-        <text x="${x1}" y="${y - 28}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(total, 0)} nm</text>
+        <text x="${x0}" y="${depNameY}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${dep}</text>
+        <text x="${x0}" y="${depNmY}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
+        <text x="${x1}" y="${arrNameY}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arr}</text>
+        <text x="${x1}" y="${arrNmY}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(total, 0)} nm</text>
         <g class="voyage-ship">
           <path d="${upperHull}" fill="#7a1f2b" stroke="var(--ink)" stroke-width="1"/>
           <path d="${lowerHull}" fill="#0d0d0d" stroke="var(--ink)" stroke-width="1"/>
@@ -354,17 +405,17 @@
         </g>
         ${badgeSvg}
         ${underway ? `
-        ${rpmTxt ? `<text x="${shipX}" y="${y - 70}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${rpmTxt}</text>` : ''}
-        ${speedTxt ? `<text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="monospace" font-size="11" font-weight="600">${speedTxt}</text>` : ''}
-        ${slipTxt ? `<text x="${shipX}" y="${y - 42}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${slipTxt}</text>` : ''}
+        ${rpmTxt ? `<text x="${perfX}" y="${y - 70}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${rpmTxt}</text>` : ''}
+        ${speedTxt ? `<text x="${perfX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="monospace" font-size="11" font-weight="600">${speedTxt}</text>` : ''}
+        ${slipTxt ? `<text x="${perfX}" y="${y - 42}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${slipTxt}</text>` : ''}
         ` : (statusTitle ? `
-        <text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
+        <text x="${perfX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
         ` : '')}
-        <text x="${(shipX + x1) / 2}" y="${y - 18}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(Math.max(0, total - traveled), 0)} nm to go</text>
-        ${underway && kwTxt ? `<text x="${shipX}" y="${kwY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="11" font-weight="600">${kwTxt}</text>` : ''}
-        ${underway && mcrTxt ? `<text x="${shipX}" y="${mcrY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
-        <text x="${shipX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
-        <text x="${shipX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
+        <text x="${togoX}" y="${togoY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(Math.max(0, total - traveled), 0)} nm to go</text>
+        ${underway && kwTxt ? `<text x="${metricsX}" y="${kwY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="11" font-weight="600">${kwTxt}</text>` : ''}
+        ${underway && mcrTxt ? `<text x="${metricsX}" y="${mcrY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
+        <text x="${metricsX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
+        <text x="${metricsX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
         ${avgTxt ? `<text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
       </svg>`;
   }
