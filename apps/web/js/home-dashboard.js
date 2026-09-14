@@ -28,16 +28,15 @@
     let precip = 'none';
     let rainN = 0;
     let weatherNote = 'Fair';
+    /* Rain / spray only from BF 7 (near gale) onward — lower forces are wind-only. */
     if (n >= 12) {
       precip = 'hurricane'; rainN = 170; weatherNote = 'Hurricane — torrential rain & spray';
     } else if (n >= 10) {
       precip = 'storm'; rainN = 110 + (n - 10) * 25; weatherNote = 'Storm — heavy rain & spray';
     } else if (n >= 8) {
       precip = 'gale'; rainN = 65 + (n - 8) * 18; weatherNote = 'Gale — driving rain';
-    } else if (n >= 6) {
-      precip = 'rain'; rainN = 32 + (n - 6) * 14; weatherNote = 'Rain';
-    } else if (n >= 5) {
-      precip = 'drizzle'; rainN = 16; weatherNote = 'Drizzle';
+    } else if (n >= 7) {
+      precip = 'rain'; rainN = 36; weatherNote = 'Near gale — rain';
     } else if (n >= 1) {
       weatherNote = 'Fair';
     } else {

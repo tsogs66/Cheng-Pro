@@ -3010,7 +3010,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <span class="voyage-bf-samples-label">Beaufort samples</span>
           <button type="button" class="ghost small" data-bf-sample="0" title="Calm — no wind particles">BF 0</button>
           <button type="button" class="ghost small" data-bf-sample="3" title="Gentle breeze — wind only">BF 3</button>
-          <button type="button" class="ghost small" data-bf-sample="5" title="Fresh breeze — drizzle">BF 5</button>
+          <button type="button" class="ghost small" data-bf-sample="5" title="Fresh breeze — wind only (no rain)">BF 5</button>
+          <button type="button" class="ghost small" data-bf-sample="7" title="Near gale — rain starts">BF 7</button>
           <button type="button" class="ghost small" data-bf-sample="8" title="Gale — driving rain">BF 8</button>
           <button type="button" class="ghost small" data-bf-sample="10" title="Storm">BF 10</button>
           <button type="button" class="ghost small" data-bf-sample="12" title="Hurricane">BF 12</button>
@@ -18513,16 +18514,15 @@ function voyageBeaufortProfile(bft){
   let precip = 'none';
   let rainN = 0;
   let weatherNote = 'Fair';
+  /* Rain / spray only from BF 7 (near gale) onward — lower forces are wind-only. */
   if (n >= 12){
     precip = 'hurricane'; rainN = 170; weatherNote = 'Hurricane — torrential rain & spray';
   } else if (n >= 10){
     precip = 'storm'; rainN = 110 + (n - 10) * 25; weatherNote = 'Storm — heavy rain & spray';
   } else if (n >= 8){
     precip = 'gale'; rainN = 65 + (n - 8) * 18; weatherNote = 'Gale — driving rain';
-  } else if (n >= 6){
-    precip = 'rain'; rainN = 32 + (n - 6) * 14; weatherNote = 'Rain';
-  } else if (n >= 5){
-    precip = 'drizzle'; rainN = 16; weatherNote = 'Drizzle';
+  } else if (n >= 7){
+    precip = 'rain'; rainN = 36; weatherNote = 'Near gale — rain';
   } else if (n >= 1){
     weatherNote = 'Fair';
   } else {
@@ -21354,7 +21354,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v248';
+let androidInstallCacheName = 'noon-report-v249';
 
 /*
  * What the program is called.
