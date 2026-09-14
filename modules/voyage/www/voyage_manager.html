@@ -20,7 +20,11 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
 <link href="fonts/fonts.css" rel="stylesheet">
-<script src="eorb.js"></script>
+<!-- Preload only the latin faces used on first paint; latin-ext waits for idle. -->
+<link rel="preload" href="fonts/Inter-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Oswald-700-latin.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Non-critical scripts load at end of body so the shell HTML/CSS can paint first.
+     ship_time / theme / license stay early (small; boot gate needs them). -->
 <script src="ship_time.js"></script>
 <script>
 /* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720).
@@ -102,8 +106,6 @@
   } catch (_e) {}
 </script>
 <script src="license.js"></script>
-<script src="save-file.js"></script>
-<script src="camera-capture.js"></script>
 <style>
   :root{
     --ink:#0a1420; --panel:#122238; --panel2:#0e1c30;
@@ -4191,6 +4193,9 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
 <div id="printArea"></div>
 
+<script src="eorb.js"></script>
+<script src="save-file.js"></script>
+<script src="camera-capture.js"></script>
 <script>
 /* ---------------- constants ---------------- */
 const FUEL_TYPES = ["HFO","LSFO","MDO/MGO","LSMGO"];
@@ -6281,6 +6286,7 @@ async function clearVesselPackData(vesselId){
 async function installTestFleet({ switchToFirst = true } = {}){
   return withActivity('test-fleet', 'Installing the test fleet on this device…', async ({ update })=>{
     const created = [];
+    const yieldPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     for (let i = 0; i < TEST_FLEET_VESSELS.length; i++){
       const spec = TEST_FLEET_VESSELS[i];
       update({
@@ -6301,9 +6307,25 @@ async function installTestFleet({ switchToFirst = true } = {}){
       const pack = spec.pack();
       await saveVesselPack(vessel.id, pack);
       created.push(vessel);
+      /* After the first vessel, paint so a cold install is not a blank wait. */
+      if (i === 0){
+        await saveVesselRegistry();
+        if (switchToFirst){
+          update({ label: `Loading ${created[0].name}…` });
+          await loadVesselFromDb(created[0].id);
+          await dbPut('meta', { key:'activeVesselId', value: created[0].id });
+        }
+        renderVesselSelector();
+        render();
+        applyEntryDefaults();
+        prefillFromLastEntry();
+        await yieldPaint();
+      } else {
+        await yieldPaint();
+      }
     }
     await saveVesselRegistry();
-    if (switchToFirst && created[0]){
+    if (switchToFirst && created[0] && state.activeVesselId !== created[0].id){
       update({ label: `Loading ${created[0].name}…` });
       await loadVesselFromDb(created[0].id);
       await dbPut('meta', { key:'activeVesselId', value: created[0].id });
@@ -21596,7 +21618,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v251';
+let androidInstallCacheName = 'noon-report-v252';
 
 /*
  * What the program is called.
@@ -26171,6 +26193,11 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
 
 (async function init(){
   try {
+    /* Let the static shell paint before any await (license / IDB / fleet). */
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
     /* Standalone EXE / portable: hard license gate. Skipped when embedded in ChEng AIO. */
     try {
       if (window.ChengLicense) await ChengLicense.ensureLicensed();
@@ -26223,18 +26250,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       }
     }catch(orbErr){ console.warn('e-ORB init', orbErr); }
 
-    /* One-time (per DATA_RECALC_VERSION) rebuild so existing voyages pick up formula fixes. */
-    const recalcMeta = metaAll.find(m => m.key === 'dataRecalcVersion');
-    const needRecalc = !recalcMeta || Number(recalcMeta.value) < DATA_RECALC_VERSION;
-    if (needRecalc){
-      try{
-        updateActivity('boot', { label: 'Recalculating voyage data…' });
-        await recalculateAllProgramData({ interactive: false });
-      } catch(recalcErr){
-        console.error('Auto recalculation failed:', recalcErr);
-      }
-    }
-
+    /* First paint with loaded vessel data — defer one-time formula rebuild so the
+       UI is usable while older voyages catch up in the background. */
     updateActivity('boot', { label: 'Refreshing the program…' });
     render();
     prefillFromLastEntry();
@@ -26242,6 +26259,19 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     await applyMirroredSyncCredentials();
     registerServiceWorker();
     renderSyncUi();
+
+    const recalcMeta = metaAll.find(m => m.key === 'dataRecalcVersion');
+    const needRecalc = !recalcMeta || Number(recalcMeta.value) < DATA_RECALC_VERSION;
+    if (needRecalc){
+      try{
+        updateActivity('boot', { label: 'Recalculating voyage data…' });
+        await recalculateAllProgramData({ interactive: false });
+        render();
+      } catch(recalcErr){
+        console.error('Auto recalculation failed:', recalcErr);
+      }
+    }
+
     /* Last, so a stored session can switch the active vessel over a loaded app. */
     try{ await initLoginGate(); }
     catch(gateErr){ console.error('Login gate failed to start', gateErr); showLoginGate(true); }

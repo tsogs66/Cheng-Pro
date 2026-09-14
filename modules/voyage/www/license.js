@@ -414,7 +414,10 @@
     const base = apiBase();
     if (!base) return null;
     try {
-      const res = await fetch(base + '/status');
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 2500) : null;
+      const res = await fetch(base + '/status', ctrl ? { signal: ctrl.signal } : undefined);
+      if (timer) clearTimeout(timer);
       const data = await res.json().catch(() => ({}));
       if (typeof data.enforce === 'boolean') {
         try { localStorage.setItem(ENFORCE_CACHE_KEY, data.enforce ? '1' : '0'); } catch { /* ignore */ }
@@ -615,15 +618,36 @@
   /**
    * Boot gate. Returns { ok, entitlement, reason, enforced, skipped }.
    * When enforce is on and not licensed, shows lock overlay (hard).
+   * Cached valid entitlements unlock immediately; /status refresh runs in the
+   * background so a slow license host cannot stall first paint.
    */
   async function ensureLicensed(opts) {
     const options = opts || {};
     if (isEmbeddedInAio() && productSku() !== 'cheng-aio') {
       return { ok: true, skipped: true, reason: 'embedded_aio' };
     }
-    await fetchStatus();
     let enforce = options.enforce != null ? !!options.enforce : enforceEnabled();
     /* Always require activation for standalone Voyage / Tank. */
+    if (options.enforce == null) {
+      const sku = productSku();
+      if (sku === 'voyage-chief' || sku === 'tank-chief') enforce = true;
+    }
+    const cached = loadEntitlement();
+    if (isValid(cached) && skuAllowed(cached)) {
+      hideLock();
+      /* Soft refresh — do not await; boot continues with the cached key. */
+      Promise.resolve()
+        .then(() => fetchStatus())
+        .then(async () => {
+          if (daysLeft(loadEntitlement()) <= 7 && navigator.onLine) {
+            try { await heartbeat(); } catch { /* keep cached grace */ }
+          }
+        })
+        .catch(() => {});
+      return { ok: true, entitlement: cached, enforced: enforce };
+    }
+    await fetchStatus();
+    enforce = options.enforce != null ? !!options.enforce : enforceEnabled();
     if (options.enforce == null) {
       const sku = productSku();
       if (sku === 'voyage-chief' || sku === 'tank-chief') enforce = true;
