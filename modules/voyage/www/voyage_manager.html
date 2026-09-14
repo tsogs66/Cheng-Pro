@@ -268,8 +268,7 @@
   .voyage-bf-samples button.on{background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600;}
 
   /* Inside ChEng AIO: live weather only — Home owns the Beaufort preview samples. */
-  html.chengaio-embed #voyageBfSamples,
-  html.chengaio-embed #voyageProgressFootnote{display:none !important;}
+  html.chengaio-embed #voyageBfSamples{display:none !important;}
 
 
 
@@ -490,8 +489,9 @@
   .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:600;}
   .gauge-cap{font-size:9px; color:var(--paper-dim); font-family:'IBM Plex Mono',monospace;}
   .gauge-box .analog-gauge{filter:drop-shadow(0 8px 14px rgba(0,0,0,0.45));}
-  @keyframes voyage-wave{0%{transform:translateX(0)}100%{transform:translateX(-48px)}}
-  @keyframes voyage-ship-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  /* Match AIO Home voyage progress: dashed-stroke wave scroll, not translateX. */
+  @keyframes voyage-wave{from{stroke-dashoffset:0}to{stroke-dashoffset:-48}}
+  @keyframes voyage-ship-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
   @keyframes voyage-wake{0%{opacity:.35;stroke-dashoffset:0}100%{opacity:.05;stroke-dashoffset:-40}}
   @keyframes voyage-progress-fill{from{stroke-dasharray:0 2000}to{stroke-dasharray:var(--prog-len,800) 2000}}
   @keyframes voyage-ship-move{from{transform:translateX(var(--ship-from,0px))}to{transform:translateX(0)}}
@@ -523,8 +523,8 @@
     30%{opacity:.5}
     100%{opacity:0; transform:translate(var(--spray-x,12px), var(--spray-y,-10px))}
   }
-  .voyage-wave{animation:voyage-wave var(--wave-track-dur,6s) linear infinite;}
-  .voyage-wave.sea-rough{animation-duration:var(--wave-track-dur,3.2s);}
+  .voyage-wave{animation:voyage-wave 5s linear infinite; stroke-dasharray:24 8;}
+  .voyage-wave.sea-rough{animation-duration:3.2s;}
   .voyage-ship{animation:voyage-ship-bob 3.5s ease-in-out infinite, voyage-ship-move 1.4s ease-out forwards; transform-box:fill-box; transform-origin:center;}
   .voyage-ship.voyage-ship-static{animation:voyage-ship-bob 3.5s ease-in-out infinite;}
   .voyage-ship.voyage-ship-drift{
@@ -3018,8 +3018,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
       <div id="voyageProgressViz"></div>
-      <div class="stat-strip" id="voyageProgressStrip" style="margin-top:14px;"></div>
-      <div class="hint" id="voyageProgressFootnote">Distance To Go, Days To Go and ETA are based on Total Voyage Distance (Voyage Setup → Voyage Specifics) minus cumulative distance run as of the last log entry, divided by that entry's own speed (falling back to the voyage average speed if the last entry has none).</div>
+      <div class="stat-strip cols3" id="voyageProgressStrip" style="margin-top:10px;"></div>
     </div>
     <div class="panel">
       <div class="panel-head" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
@@ -18565,7 +18564,7 @@ function renderVoyageProgress(animateShip){
     return;
   }
 
-  const y = 130;
+  const y = 160; /* Match AIO Home voyage progress baseline */
   const pct = Math.max(0, Math.min(1, traveled/totalDistance));
   const togo = Math.max(0, totalDistance - traveled);
   const x0 = 70, x1 = 830;
@@ -18590,6 +18589,8 @@ function renderVoyageProgress(animateShip){
   const currentKw = lastRow && lastRow.kwEst!=null ? lastRow.kwEst : null;
   const currentMcr = lastRow && lastRow.mcrPct!=null ? lastRow.mcrPct : null;
   const avgSpeed = perf.avgSpeedShip;
+  /* Days at Sea / Days To Go / ETA are in #voyageProgressStrip below this SVG. */
+
   // Latest report wind first (dir / BF); sea may come from the same or an older row.
   let wx = {};
   let wxSea = {};
@@ -18707,12 +18708,12 @@ function renderVoyageProgress(animateShip){
   const statusExtras = isPort ? portExtras : (isAnchored ? anchorExtras : '');
 
   // Local / full-track sea chop — amplitude/tempo from Douglas sea state (+ Beaufort).
-  // Underway: full-track chop like the approved sample; port/anchor/drift stay ship-local.
+  /* Full-track sea chop always — same geometry/opacity as AIO Home voyage progress. */
   const chopY = 2 + seaEff * 0.9 + (isDrifting ? 2 : 0);
   const seaDur = Math.max(1.1, 3.6 - seaEff * 0.22 - bftEff * 0.08);
   const localAmp = 3 + seaEff * 1.1 + (isDrifting ? 3 : 0);
-  const chopXL = isUnderway ? x0 : (shipX - 70);
-  const chopXR = isUnderway ? x1 : (shipX + 70);
+  const chopXL = x0;
+  const chopXR = x1;
   let localSea = `M ${chopXL} ${y+20}`;
   for (let x = chopXL; x <= chopXR; x += 14){
     localSea += ` q 7 ${localAmp} 14 0`;
@@ -18723,8 +18724,8 @@ function renderVoyageProgress(animateShip){
   }
   const seaAround = `
     <g class="voyage-sea-local" style="--chop-y:${chopY}px; --sea-dur:${seaDur}s;">
-      <path d="${localSea}" fill="none" stroke="var(--teal)" stroke-width="${1.4 + Math.min(2, seaEff*0.15)}" opacity="${0.28 + Math.min(0.35, seaEff*0.04)}"/>
-      <path d="${localSea2}" fill="none" stroke="var(--teal)" stroke-width="1.2" opacity="${0.16 + Math.min(0.25, seaEff*0.03)}"/>
+      <path d="${localSea}" fill="none" stroke="var(--teal)" stroke-width="1.8" opacity="0.45"/>
+      <path d="${localSea2}" fill="none" stroke="var(--teal)" stroke-width="1.2" opacity="0.28"/>
     </g>`;
 
   // Curved wind swooshes + separate rain, clipped to sky above the sea.
@@ -18863,12 +18864,12 @@ function renderVoyageProgress(animateShip){
     : '';
 
   function compassRoseSvg(){
-    /* AIO Home–style compass: top-view ship (bow = N) + wind FROM arrow. */
+    /* Match AIO Home compass exactly: top-view ship (bow = N) + wind FROM arrow. */
     const cx = 852, cy = 42, r = 28;
     const fromLabel = windDir || (windAngle!=null ? String(Math.round(windAngle)) + '°' : '—');
     const windFromDeg = windAngle!=null ? windAngle : 0;
     return `<g class="voyage-ship-wind" pointer-events="none">
-      <text x="${cx}" y="${cy - r - 7}" text-anchor="middle" fill="#e0b56a" font-family="'IBM Plex Mono',monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
+      <text x="${cx}" y="${cy - r - 7}" text-anchor="middle" fill="#e0b56a" font-family="monospace" font-size="9" font-weight="600">FROM ${fromLabel}</text>
       <circle cx="${cx}" cy="${cy}" r="${r + 4}" fill="rgba(8,16,28,0.78)" stroke="rgba(233,228,214,0.28)" stroke-width="1"/>
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--paper-dim)" stroke-width="1" opacity="0.55"/>
       <path d="M ${cx} ${cy - 17}
@@ -18883,7 +18884,7 @@ function renderVoyageProgress(animateShip){
       <rect x="${cx - 4}" y="${cy + 1}" width="8" height="6" rx="1" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.7"/>
       <rect x="${cx - 2.2}" y="${cy + 9}" width="4.4" height="4" rx="0.6" fill="#0d0d0d" stroke="var(--brass)" stroke-width="0.6"/>
       <line x1="${cx}" y1="${cy - 17}" x2="${cx}" y2="${cy - 20.5}" stroke="var(--brass)" stroke-width="1.2" stroke-linecap="round"/>
-      <text x="${cx}" y="${cy - r + 9}" text-anchor="middle" fill="var(--brass)" font-family="Oswald,sans-serif" font-size="8" font-weight="700">BOW</text>
+      <text x="${cx}" y="${cy - r + 9}" text-anchor="middle" fill="var(--brass)" font-family="Georgia,serif" font-size="8" font-weight="700">BOW</text>
       <g transform="rotate(${windFromDeg} ${cx} ${cy})">
         <line x1="${cx}" y1="${cy - r + 3}" x2="${cx}" y2="${cy - 12}" stroke="#e0b56a" stroke-width="2" stroke-linecap="round"/>
         <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
@@ -18968,21 +18969,21 @@ function renderVoyageProgress(animateShip){
     </g>
   ` : '';
 
-  /* Stack below-hull copy under the keel / quay so it never clips the ship */
+  /* Stack below-hull copy under the keel / quay — photo layout with room for KW / nm / %. */
   const metricsX = crowdedEnd
     ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -36 : (nearDep ? 36 : 0))))
     : shipX;
-  const stackTop = crowdedEnd ? (y + 58) : (y + 42);
+  const stackTop = crowdedEnd ? (y + 58) : (y + 50);
   const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
   const togoY = crowdedEnd ? stackTop : (y - 18);
   /* When crowded, "nm to go" is first in the under-ship stack; otherwise it sits on the remaining track */
   let row = crowdedEnd ? (stackTop + 16) : stackTop;
   const powerY = row;          /* KW or Engine idle */
-  const powerSubY = row + 14;  /* % MCR (underway only) */
-  row = isUnderway ? (row + 30) : (row + 16);
+  const powerSubY = row + 16;  /* % MCR (underway only) */
+  row = isUnderway ? (row + 34) : (row + 18);
   const distY = row;
   const pctY = row + 16;
-  const avgY = Math.min(292, pctY + 22);
+  const avgY = Math.min(318, pctY + 24);
 
   const statusPort = (nearArr || nearDep) ? (nearArr ? arrPort : depPort) : '';
   const statusX = shipX;
@@ -18993,10 +18994,10 @@ function renderVoyageProgress(animateShip){
   const waveClass = (seaEff >= 4 || isDrifting) ? 'voyage-wave sea-rough' : 'voyage-wave';
 
   box.innerHTML = `
-    <svg viewBox="0 0 900 300" style="width:100%; height:auto; max-height:320px; --prog-len:${progLen}; --ship-from:${shipFromPx}px; --wave-track-dur:${trackDur}s;">
+    <svg viewBox="0 0 900 340" style="width:100%; height:auto; max-height:360px; --prog-len:${progLen}; --ship-from:${shipFromPx}px;">
       <defs><clipPath id="skyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
       <g class="${waveClass}"><path d="${wave1}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.28"/></g>
-      <g class="${waveClass}" style="animation-delay:-${(trackDur/2).toFixed(2)}s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
+      <g class="${waveClass}" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
       ${seaAround}
       ${driftRipples}
       ${weatherSvg}
@@ -19008,10 +19009,10 @@ function renderVoyageProgress(animateShip){
       <circle cx="${x0}" cy="${y}" r="7" fill="var(--teal)"/>
       <circle cx="${x1}" cy="${y}" r="7" fill="none" stroke="var(--paper-dim)" stroke-width="2"/>
 
-      <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${depPort}</text>
-      <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">0 nm</text>
-      <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="15" font-weight="600">${arrPort}</text>
-      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
+      <text x="${x0}" y="${y-46}" text-anchor="start" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${depPort}</text>
+      <text x="${x0}" y="${y-28}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">0 nm</text>
+      <text x="${x1}" y="${y-46}" text-anchor="end" fill="var(--paper)" font-family="Georgia,serif" font-size="15" font-weight="600">${arrPort}</text>
+      <text x="${x1}" y="${y-28}" text-anchor="end" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(totalDistance, 0)} nm</text>
 
       <g class="${shipAnimClass}">
         ${isUnderway ? `<path class="voyage-wake" d="M ${shipX-44} ${y+14} q -10 4 -22 2" fill="none" stroke="var(--paper-dim)" stroke-width="1.5"/>` : ''}
@@ -19032,8 +19033,8 @@ function renderVoyageProgress(animateShip){
       <text x="${shipX}" y="${y-56}" text-anchor="middle" fill="var(--teal)" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="600">${currentSpeed!=null ? fmt(currentSpeed,2)+' kn' : '—'}</text>
       <text x="${shipX}" y="${y-42}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">Slip ${currentSlip!=null ? fmt(currentSlip,2)+'%' : '—'}</text>
       ` : `
-      <text x="${statusX}" y="${statusTopY}" text-anchor="middle" fill="${statusColor}" font-family="Oswald, sans-serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
-      ${statusPort ? `<text x="${statusX}" y="${statusPortY}" text-anchor="middle" fill="var(--paper)" font-family="Oswald, sans-serif" font-size="14" font-weight="600">${statusPort}</text>` : ''}
+      <text x="${statusX}" y="${statusTopY}" text-anchor="middle" fill="${statusColor}" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
+      ${statusPort ? `<text x="${statusX}" y="${statusPortY}" text-anchor="middle" fill="var(--paper)" font-family="Georgia,serif" font-size="14" font-weight="600">${statusPort}</text>` : ''}
       `}
 
       <text x="${togoX}" y="${togoY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">${fmt(togo, 2)} nm to go</text>
@@ -19047,7 +19048,7 @@ function renderVoyageProgress(animateShip){
       <text x="${metricsX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="'IBM Plex Mono', monospace" font-size="13" font-weight="600">${fmt(traveled, 2)} nm</text>
       <text x="${metricsX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">${fmt(pct*100, 2)}% complete</text>
 
-      <text x="${(x0+x1)/2}" y="${avgY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
+      <text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
     </svg>
   `;
   _lastVoyageShipPct = pct;
@@ -21336,7 +21337,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v244';
+let androidInstallCacheName = 'noon-report-v246';
 
 /*
  * What the program is called.
@@ -25922,6 +25923,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       const qsPage = new URLSearchParams(location.search).get('page');
       const wantOrb = qsPage === 'orb' || /[?&]page=orb\b/.test(location.search);
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
+      else if (qsPage === 'entry' || qsPage === 'log' || qsPage === 'logentry') switchTab('entry');
+      else if (qsPage === 'rob') switchTab('rob');
       else if (qsPage === 'bunkerplan'){
         switchTab('bunkerplan');
         if (isChengAioEmbedded()){

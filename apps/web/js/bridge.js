@@ -176,7 +176,12 @@
           try { sessionStorage.setItem('chengAioPendingVoyagePage', String(opts.page)); } catch { /* ignore */ }
         }
         if (root.ChengProModules.voyage) {
-          window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'voyage' }));
+          /* Remount when a deep-link page is requested so ?page=entry|rob is applied
+             even if Voyage Chief is already the active module. */
+          const force = !!(opts && opts.page && opts.page !== 'orb');
+          window.dispatchEvent(new CustomEvent('chengpro:navigate', {
+            detail: force ? { module: 'voyage', force: true } : 'voyage',
+          }));
           return;
         }
       }

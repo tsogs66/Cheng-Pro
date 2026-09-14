@@ -319,8 +319,17 @@
         <path d="M ${cx} ${cy - 9} L ${cx - 4} ${cy - 15.5} L ${cx + 4} ${cy - 15.5} Z" fill="#e0b56a"/>
       </g>
     </g>`;
+    /* Room under the hull for KW / nm / % (photo layout) + Average Speed.
+       Days at Sea / Days To Go / ETA live in #homeVoyageProgressStrip below the SVG. */
+    const underBase = y + 50;
+    const kwY = underBase;
+    const mcrY = underBase + 16;
+    const distY = underBase + (underway && kwTxt ? 36 : 16);
+    const pctY = distY + 16;
+    const avgY = pctY + 22;
+
     el.innerHTML = `
-      <svg viewBox="0 0 900 300" class="home-voyage-svg" style="width:100%;height:auto;max-height:320px;background:rgba(18,34,56,.03);border-radius:12px">
+      <svg viewBox="0 0 900 340" class="home-voyage-svg" style="width:100%;height:auto;max-height:360px;background:rgba(18,34,56,.03);border-radius:12px">
         <defs><clipPath id="homeSkyAboveSea"><rect x="0" y="0" width="900" height="${y - 8}"/></clipPath></defs>
         <g class="voyage-wave"><path d="${wave1}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.28"/></g>
         <g class="voyage-wave" style="animation-delay:-2.5s"><path d="${wave2}" fill="none" stroke="var(--teal)" stroke-width="1.5" opacity="0.16"/></g>
@@ -352,11 +361,11 @@
         <text x="${shipX}" y="${y - 56}" text-anchor="middle" fill="var(--teal)" font-family="Georgia,serif" font-size="13" font-weight="600" letter-spacing="0.06em">${statusTitle}</text>
         ` : '')}
         <text x="${(shipX + x1) / 2}" y="${y - 18}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${fmt(Math.max(0, total - traveled), 0)} nm to go</text>
-        ${underway && kwTxt ? `<text x="${shipX}" y="${y + 34}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="11" font-weight="600">${kwTxt}</text>` : ''}
-        ${underway && mcrTxt ? `<text x="${shipX}" y="${y + 48}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
-        <text x="${shipX}" y="${y + (underway && kwTxt ? 64 : 34)}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
-        <text x="${shipX}" y="${y + (underway && kwTxt ? 78 : 46)}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
-        ${avgTxt ? `<text x="450" y="${y + (underway && kwTxt ? 96 : 64)}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
+        ${underway && kwTxt ? `<text x="${shipX}" y="${kwY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="11" font-weight="600">${kwTxt}</text>` : ''}
+        ${underway && mcrTxt ? `<text x="${shipX}" y="${mcrY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${mcrTxt}</text>` : ''}
+        <text x="${shipX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="monospace" font-size="12" font-weight="600">${fmt(traveled, 0)} nm</text>
+        <text x="${shipX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="monospace" font-size="10">${(pct * 100).toFixed(1)}% complete</text>
+        ${avgTxt ? `<text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="monospace" font-size="11">${avgTxt}</text>` : ''}
       </svg>`;
   }
 
@@ -368,9 +377,11 @@
     if (!snap || !snap.ok) {
       el.innerHTML = '';
       el.hidden = true;
+      el.setAttribute('hidden', '');
       return;
     }
     el.hidden = false;
+    el.removeAttribute('hidden');
     const daysAtSea = snap.daysAtSea != null && isFinite(snap.daysAtSea)
       ? fmt(snap.daysAtSea, 2)
       : '0.00';
@@ -492,12 +503,70 @@
     return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
   }
 
+  /** Pull observed volume / air weight from a tank sounding when Monitoring left the cell blank. */
+  function readingVolWt(readings, tankId) {
+    const r = readings && tankId != null ? readings[tankId] : null;
+    const res = r && r.result;
+    if (!res) return { vol: null, wt: null };
+    return {
+      vol: res.volumeObserved != null ? Number(res.volumeObserved) : null,
+      wt: res.weightMT != null ? Number(res.weightMT) : null,
+    };
+  }
+
+  /**
+   * When Monitoring form exists but computed.sections is missing, still bucket by
+   * carried fuelType / pinned section so HFO tanks holding distillate land in MDO/MGO.
+   * Heavy tanks first (Monitoring order), then distillate — moved HFO tanks at the
+   * start of the distillate block (e.g. LS H.F.O. SERVICE).
+   */
+  function fuelFamilyTotalsFromForm(form, tanks, readings) {
+    const out = {
+      heavy: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+      distillate: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
+    };
+    const formRows = (form && form.rows) || {};
+    const heavyRows = [];
+    const distillateRows = [];
+    for (const tank of tanks || []) {
+      const fr = formRows[tank.id] || {};
+      const pinned = fr.section === 'do' || fr.section === 'fuel' ? fr.section : '';
+      const fuelType = fr.fuelType || tank.fuelGrade || '';
+      const homeDistillate = isDistillateFuel(tank);
+      const isDist = pinned === 'do'
+        ? true
+        : (pinned === 'fuel' ? false : isDistillateFuelType(fuelType));
+      const moved = isDist !== homeDistillate;
+      const fromReading = readingVolWt(readings, tank.id);
+      const row = {
+        tankId: tank.id,
+        name: tank.name || tank.id,
+        capacity100M3: tank.capacity,
+        measuredM3: fromReading.vol,
+        weightAirMT: fromReading.wt,
+        moved,
+        sectionMismatch: moved,
+        fuelType,
+      };
+      (isDist ? distillateRows : heavyRows).push({ row, distillate: isDist });
+      const bucket = isDist ? out.distillate : out.heavy;
+      bucket.count += 1;
+      bucket.capacity += Number(tank.capacity) || 0;
+      if (fromReading.vol != null || fromReading.wt != null) {
+        bucket.volume += Number(fromReading.vol) || 0;
+        bucket.weight += Number(fromReading.wt) || 0;
+        bucket.withReading += 1;
+      }
+    }
+    return { fam: out, rows: heavyRows.concat(distillateRows) };
+  }
+
   /**
    * Prefer Tank Monitoring (fuel-report) totals: measured volume + weight by air,
    * bucketed by the fuel currently carried (HFO tanks holding distillate count
-   * under distillate — matching Monitoring section placement).
+   * under distillate — matching Monitoring section placement and row order).
    */
-  function fuelFamilyTotalsFromReport(fuelReport) {
+  function fuelFamilyTotalsFromReport(fuelReport, readings, tanks) {
     const out = {
       heavy: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
       distillate: { capacity: 0, volume: 0, weight: 0, withReading: 0, count: 0 },
@@ -508,12 +577,19 @@
     for (const section of sections) {
       const distillate = section.id === 'do' || section.id === 'distillate';
       const bucket = distillate ? out.distillate : out.heavy;
-      for (const row of section.rows || []) {
+      for (const raw of section.rows || []) {
+        const fromReading = readingVolWt(readings, raw.tankId);
+        const vol = raw.measuredM3 != null ? Number(raw.measuredM3) : fromReading.vol;
+        const wt = raw.weightAirMT != null ? Number(raw.weightAirMT) : fromReading.wt;
+        const row = (vol !== raw.measuredM3 || wt !== raw.weightAirMT)
+          ? Object.assign({}, raw, {
+              measuredM3: vol,
+              weightAirMT: wt,
+            })
+          : raw;
         rows.push({ row, distillate });
         bucket.count += 1;
         bucket.capacity += Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
-        const vol = row.measuredM3;
-        const wt = row.weightAirMT;
         if (vol != null || wt != null) {
           bucket.volume += Number(vol) || 0;
           bucket.weight += Number(wt) || 0;
@@ -521,6 +597,9 @@
         }
       }
     }
+    if (rows.length) return { fam: out, rows };
+    const form = fuelReport && fuelReport.form;
+    if (form && tanks && tanks.length) return fuelFamilyTotalsFromForm(form, tanks, readings);
     return { fam: out, rows };
   }
 
@@ -546,8 +625,8 @@
   function renderFuelTankOverview(summaryEl, gridEl, bundle, fuelReport) {
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
-    const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport) : null;
-    const fam = fromReport ? fromReport.fam : fuelFamilyTotals(tanks, readings);
+    const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport, readings, tanks) : null;
+    const fam = (fromReport && fromReport.rows.length) ? fromReport.fam : fuelFamilyTotals(tanks, readings);
     const withReading = fam.heavy.withReading + fam.distillate.withReading;
     const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {
@@ -563,21 +642,19 @@
         <div class="card"><div class="label">MDO / MGO / LSMGO Weight (air)</div>
           <div class="value">${fmtNum(fam.distillate.weight, 3)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label">Fuel Readings</div>
-          <div class="value">${withReading}<span class="unit">/ ${fromReport ? (fam.heavy.count + fam.distillate.count) : tanks.length}</span></div></div>`;
+          <div class="value">${withReading}<span class="unit">/ ${fromReport && fromReport.rows.length ? (fam.heavy.count + fam.distillate.count) : tanks.length}</span></div></div>`;
     }
     if (!gridEl) return;
     if (fromReport && fromReport.rows.length) {
-      const ordered = fromReport.rows.slice().sort((a, b) => {
-        if (a.distillate !== b.distillate) return a.distillate ? 1 : -1;
-        return String(a.row.name || '').localeCompare(String(b.row.name || ''));
-      });
+      /* Keep Monitoring section order (HFO block, then distillate — including HFO tanks moved to distillate). */
+      const ordered = fromReport.rows;
       gridEl.innerHTML = ordered.map(({ row, distillate }) => {
         const vol = row.measuredM3;
         const mt = row.weightAirMT;
         const cap = Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
         const fill = (vol != null && cap > 0) ? (Number(vol) / cap) * 100 : null;
         const fillH = fill != null ? Math.max(8, Math.min(85, fill * 0.55)) : 8;
-        const moved = row.moved || row.sectionMismatch ? ' · carried grade' : '';
+        const moved = row.moved || row.sectionMismatch ? ' · from heavy / carried grade' : '';
         return `<div class="tg-card">
           <div class="tg-name">${esc(row.name || row.tankId)}${moved ? `<span class="hint">${moved}</span>` : ''}</div>
           <div class="tg-art">
