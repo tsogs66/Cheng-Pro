@@ -18987,14 +18987,14 @@ function renderVoyageProgress(animateShip){
   const arrNmY = nearArr ? (y - 82) : (y - 28);
 
   /* Stack below-hull copy under the keel / quay — roomy gaps for KW / nm / %. */
+  /* Centered under-ship column: nm to go → power → nm sailed → % → Average Speed */
   const metricsX = crowdedEnd
     ? Math.max(x0 + 60, Math.min(x1 - 60, shipX + (nearArr ? -48 : (nearDep ? 48 : 0))))
     : shipX;
   const stackTop = crowdedEnd ? (y + 54) : (y + 48);
-  const togoX = crowdedEnd ? metricsX : (shipX + x1) / 2;
-  const togoY = crowdedEnd ? stackTop : (y - 18);
-  /* When crowded, "nm to go" is first in the under-ship stack; otherwise it sits on the remaining track */
-  let row = crowdedEnd ? (stackTop + 18) : stackTop;
+  const togoX = metricsX;
+  const togoY = stackTop;
+  let row = stackTop + 18;
   const powerY = row;          /* KW or Engine idle */
   const powerSubY = row + 18;  /* % MCR (underway only) */
   row = isUnderway ? (row + 40) : (row + 20);
@@ -19065,7 +19065,7 @@ function renderVoyageProgress(animateShip){
       <text x="${metricsX}" y="${distY}" text-anchor="middle" fill="var(--brass)" font-family="'IBM Plex Mono', monospace" font-size="13" font-weight="600">${fmt(traveled, 2)} nm</text>
       <text x="${metricsX}" y="${pctY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="10">${fmt(pct*100, 2)}% complete</text>
 
-      <text x="${x0}" y="${avgY}" text-anchor="start" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
+      <text x="${metricsX}" y="${avgY}" text-anchor="middle" fill="var(--paper-dim)" font-family="'IBM Plex Mono', monospace" font-size="11">Average Speed: ${avgSpeed!=null ? fmt(avgSpeed,2)+' kn' : '—'}</text>
     </svg>
   `;
   _lastVoyageShipPct = pct;
@@ -21354,7 +21354,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v247';
+let androidInstallCacheName = 'noon-report-v248';
 
 /*
  * What the program is called.
@@ -24524,7 +24524,17 @@ function normalisePenNumericField(el){
   if (!el || el.dataset.vmNumeric !== '1' || el.readOnly || el.disabled) return;
   const raw = (el.value || '').trim();
   if (raw === ''){ el.classList.remove('input-invalid'); return; }
-  const cleaned = raw.replace(/\s+/g, '').replace(',', '.');
+  /* Non-numeric characters (comma, slash, letter…) count as the decimal point. */
+  let cleaned = '';
+  let seenDot = false;
+  let i = 0;
+  const compact = raw.replace(/\s+/g, '');
+  if (compact.charAt(0) === '-'){ cleaned = '-'; i = 1; }
+  for (; i < compact.length; i++){
+    const c = compact.charAt(i);
+    if (c >= '0' && c <= '9') cleaned += c;
+    else if (!seenDot){ cleaned += '.'; seenDot = true; }
+  }
   const n = parseFloat(cleaned);
   if (!isFinite(n) || !/^-?\d*\.?\d*$/.test(cleaned)){
     /* Keep the raw strokes on screen so the engineer can correct them. */
@@ -24569,6 +24579,72 @@ document.addEventListener('change', (e)=>{
 document.addEventListener('blur', (e)=>{
   if (e.target?.dataset?.vmNumeric === '1') normalisePenNumericField(e.target);
 }, true);
+
+/* Log Entry UX: select-all on focus/touch; non-digits → decimal (except remarks). */
+function isLogEntryRemarksField(el){
+  if (!el || !el.id) return false;
+  const id = String(el.id);
+  if (id === 'vs_remarks' || id === 'rep_remarks' || id === 'vs_surveyRemark') return true;
+  if (/remark/i.test(id)) return true;
+  return el.tagName === 'TEXTAREA' && /remark/i.test(el.getAttribute('name') || '');
+}
+function isLogEntryInput(el){
+  if (!el || !el.closest) return false;
+  if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return false;
+  if (el.closest('#page-entry') || el.closest('#page-reports')) return true;
+  return false;
+}
+function isLogEntryNumericInput(el){
+  if (!isLogEntryInput(el) || isLogEntryRemarksField(el)) return false;
+  if (el.readOnly || el.disabled) return false;
+  if (el.tagName === 'TEXTAREA') return false;
+  const t = (el.type || '').toLowerCase();
+  if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'submit' || t === 'file' || t === 'hidden') return false;
+  if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'color') return false;
+  if (el.dataset.vmNumeric === '1' || t === 'number') return true;
+  if (el.getAttribute('inputmode') === 'decimal' || el.getAttribute('inputmode') === 'numeric') return true;
+  /* Text-like number fields on the log entry form (calc outputs stay readonly). */
+  if (t === 'text' && el.id && /^vs_|^rep_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
+    return true;
+  }
+  return false;
+}
+/** Live typing: any non-digit (except leading minus) becomes a single decimal point. */
+function coerceLogEntryDecimalInput(el){
+  if (!isLogEntryNumericInput(el)) return;
+  const raw = el.value || '';
+  let out = '';
+  let seenDot = false;
+  let i = 0;
+  if (raw.charAt(0) === '-'){ out = '-'; i = 1; }
+  for (; i < raw.length; i++){
+    const c = raw.charAt(i);
+    if (c >= '0' && c <= '9') out += c;
+    else if (!seenDot){ out += '.'; seenDot = true; }
+  }
+  if (out !== raw){
+    const start = el.selectionStart;
+    el.value = out;
+    try{
+      const pos = Math.min(out.length, start != null ? start : out.length);
+      el.setSelectionRange(pos, pos);
+    }catch(_e){}
+  }
+}
+document.addEventListener('focusin', (e)=>{
+  const el = e.target;
+  if (!isLogEntryInput(el)) return;
+  if (el.tagName === 'INPUT'){
+    const t = (el.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'file' || t === 'hidden') return;
+  }
+  /* Select all so the next keystroke replaces the previous value (touch + mouse). */
+  setTimeout(()=>{ try{ el.select(); }catch(_e){} }, 0);
+}, true);
+document.addEventListener('input', (e)=>{
+  if (e.target && isLogEntryNumericInput(e.target)) coerceLogEntryDecimalInput(e.target);
+}, true);
+
 
 
 /* ============================================================================
