@@ -1,7 +1,26 @@
 /* Voyage Chief — service worker (offline cache)
  * ts0gs · Marvin C. Endozo
+ *
+ * Boot speed notes:
+ * - App HTML/JS use stale-while-revalidate so a warm cache paints immediately
+ *   while a fresh copy downloads in the background.
+ * - Install precaches a small critical shell first (waitUntil), then fills the
+ *   rest of the asset list without blocking activation.
  */
-const CACHE = 'noon-report-v251';
+const CACHE = 'noon-report-v252';
+const CRITICAL = [
+  './voyage_manager.html',
+  './ship_time.js',
+  './theme.js',
+  './license-config.js',
+  './license.js',
+  './sw.js',
+  './manifest.webmanifest',
+  './fonts/fonts.css',
+  './fonts/Inter-400-latin.woff2',
+  './fonts/Oswald-700-latin.woff2',
+  './icons/icon-192.png'
+];
 const PRECACHE = [
   './voyage_manager.html',
   './eorb.js',
@@ -17,23 +36,14 @@ const PRECACHE = [
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './fonts/IBMPlexMono-400-latin-ext.woff2',
   './fonts/IBMPlexMono-400-latin.woff2',
-  './fonts/IBMPlexMono-500-latin-ext.woff2',
   './fonts/IBMPlexMono-500-latin.woff2',
-  './fonts/IBMPlexMono-600-latin-ext.woff2',
   './fonts/IBMPlexMono-600-latin.woff2',
-  './fonts/Inter-400-latin-ext.woff2',
   './fonts/Inter-400-latin.woff2',
-  './fonts/Inter-500-latin-ext.woff2',
   './fonts/Inter-500-latin.woff2',
-  './fonts/Inter-600-latin-ext.woff2',
   './fonts/Inter-600-latin.woff2',
-  './fonts/Oswald-500-latin-ext.woff2',
   './fonts/Oswald-500-latin.woff2',
-  './fonts/Oswald-600-latin-ext.woff2',
   './fonts/Oswald-600-latin.woff2',
-  './fonts/Oswald-700-latin-ext.woff2',
   './fonts/Oswald-700-latin.woff2',
   './fonts/fonts.css'
 ];
@@ -45,23 +55,32 @@ async function notifyClients(message){
   });
 }
 
+async function cacheUrls(cache, urls, { notify = true } = {}){
+  const total = urls.length;
+  let done = 0;
+  if (notify) await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'start', done: 0, total, pct: 0 });
+  await Promise.all(urls.map(async (url) => {
+    try {
+      await cache.add(url);
+    } catch (_) {
+      /* optional assets must not block install */
+    }
+    done += 1;
+    if (notify) {
+      const pct = Math.round((done / total) * 100);
+      await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'file', url, done, total, pct });
+    }
+  }));
+  if (notify) await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'done', done: total, total, pct: 100 });
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then(async (cache) => {
-      const total = PRECACHE.length;
-      let done = 0;
-      await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'start', done: 0, total, pct: 0 });
-      for (const url of PRECACHE) {
-        try {
-          await cache.add(url);
-        } catch (_) {
-          /* optional assets (icons) should not block install */
-        }
-        done += 1;
-        const pct = Math.round((done / total) * 100);
-        await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'file', url, done, total, pct });
-      }
-      await notifyClients({ type: 'INSTALL_PROGRESS', phase: 'done', done: total, total, pct: 100 });
+      await cacheUrls(cache, CRITICAL, { notify: true });
+      /* Remainder fills in after the critical shell is ready. */
+      const rest = PRECACHE.filter((u) => !CRITICAL.includes(u));
+      cacheUrls(cache, rest, { notify: false }).catch(() => {});
       await self.skipWaiting();
     })
   );
@@ -75,6 +94,21 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+function matchCached(request){
+  const url = new URL(request.url);
+  return caches.match(request).then((hit) => {
+    if (hit) return hit;
+    if (url.search) return caches.match(url.origin + url.pathname);
+    return undefined;
+  });
+}
+
+function putInCache(request, response){
+  if (!response || !response.ok) return;
+  const copy = response.clone();
+  caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -86,39 +120,34 @@ self.addEventListener('fetch', (event) => {
 
   const dest = request.destination;
   const isAppCode = request.mode === 'navigate' || dest === 'document' || dest === 'script'
-    || /\/(voyage_manager\.html|ship_time\.js|eorb\.js|sw\.js)$/.test(url.pathname);
-  const matchCached = () => caches.match(request).then((hit) => {
-    if (hit) return hit;
-    /* Versioned script URLs (?v=) still hit the precache path. */
-    if (url.search) return caches.match(url.origin + url.pathname);
-    return undefined;
-  });
+    || /\/(voyage_manager\.html|ship_time\.js|eorb\.js|theme\.js|license(?:-config)?\.js|sw\.js)$/.test(url.pathname);
 
-  /* HTML/JS network-first when online so a new page never pairs with a stale ship_time.js.
-     Cache-first for the rest (icons, manifest) and for offline. */
+  /* Stale-while-revalidate for app HTML/JS: paint from cache immediately when
+     present, refresh in the background so the next visit is current. */
   if (isAppCode) {
-    event.respondWith(
-      fetch(request)
+    event.respondWith((async () => {
+      const cached = await matchCached(request);
+      const networkPromise = fetch(request)
         .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
+          putInCache(request, response);
           return response;
         })
-        .catch(() => matchCached())
-    );
+        .catch(() => undefined);
+      if (cached) {
+        networkPromise.catch(() => {});
+        return cached;
+      }
+      const network = await networkPromise;
+      return network || new Response('Offline', { status: 503, statusText: 'Offline' });
+    })());
     return;
   }
 
   event.respondWith(
-    matchCached().then((cached) => {
+    matchCached(request).then((cached) => {
       const network = fetch(request)
         .then((response) => {
-          if (response && response.ok && request.url.startsWith(self.location.origin)) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
-          }
+          putInCache(request, response);
           return response;
         })
         .catch(() => cached);
