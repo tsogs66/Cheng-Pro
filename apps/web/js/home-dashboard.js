@@ -672,6 +672,93 @@
     return out;
   }
 
+  function byTankNoThenName(a, b) {
+    const an = a.tankNo == null || a.tankNo === '' || Number.isNaN(Number(a.tankNo)) ? 1e9 : Number(a.tankNo);
+    const bn = b.tankNo == null || b.tankNo === '' || Number.isNaN(Number(b.tankNo)) ? 1e9 : Number(b.tankNo);
+    if (an !== bn) return an - bn;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  }
+
+  function byTankName(a, b) {
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  }
+
+  function tankSideKey(tank) {
+    return String((tank && tank.side) || '').toLowerCase();
+  }
+
+  function tankRoleOf(tank) {
+    if (typeof TankGraphics !== 'undefined' && typeof TankGraphics.roleOf === 'function') {
+      return TankGraphics.roleOf(tank);
+    }
+    return String((tank && tank.fuelRole) || 'storage').toLowerCase();
+  }
+
+  /** Port: numbered storage → settling → overflow. Starboard: numbered storage → service → other. */
+  function arrangeFuelSideRow(familyTanks, side) {
+    const numbered = familyTanks
+      .filter((t) => tankRoleOf(t) === 'storage' && tankSideKey(t) === side)
+      .sort(byTankNoThenName);
+
+    if (side === 'port') {
+      const settling = familyTanks.filter((t) => tankRoleOf(t) === 'settling').sort(byTankName);
+      const overflow = familyTanks.filter((t) => tankRoleOf(t) === 'overflow').sort(byTankName);
+      return numbered.concat(settling, overflow);
+    }
+
+    const service = familyTanks.filter((t) => tankRoleOf(t) === 'service').sort(byTankName);
+    const claimed = new Set(numbered.concat(service).map((t) => t.id));
+    for (const t of familyTanks) {
+      const r = tankRoleOf(t);
+      if (r === 'settling' || r === 'overflow') claimed.add(t.id);
+      if (r === 'storage' && tankSideKey(t) === 'port') claimed.add(t.id);
+    }
+    const other = familyTanks.filter((t) => !claimed.has(t.id)).sort(byTankNoThenName);
+    return numbered.concat(service, other);
+  }
+
+  function renderHomeTankCard(tank, reading, reportMeta) {
+    const r = reading || {};
+    const res = r.result || {};
+    let fill = res.fillPercent;
+    let vol = res.volumeObserved;
+    let mt = res.weightMT;
+    if (reportMeta && reportMeta.row) {
+      const row = reportMeta.row;
+      if (row.measuredM3 != null) vol = row.measuredM3;
+      if (row.weightAirMT != null) mt = row.weightAirMT;
+      const cap = Number(row.capacity100M3 != null ? row.capacity100M3 : (row.capacityM3 != null ? row.capacityM3 : tank.capacity)) || 0;
+      if (vol != null && cap > 0) fill = (Number(vol) / cap) * 100;
+    }
+    if (fill == null && vol != null && Number(tank.capacity) > 0) {
+      fill = (Number(vol) / Number(tank.capacity)) * 100;
+    }
+    const pct = fill != null && !Number.isNaN(Number(fill)) ? Number(fill) : null;
+    const role = tankRoleOf(tank);
+    const meaning = (typeof TankGraphics !== 'undefined' && TankGraphics.ROLE_MEANING && TankGraphics.ROLE_MEANING[role]) || role;
+    const moved = reportMeta && (reportMeta.row.moved || reportMeta.row.sectionMismatch);
+    const svg = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.tankSvg === 'function')
+      ? TankGraphics.tankSvg(tank, pct, { safeFill: 85 })
+      : '';
+    const chipColour = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.liquidColour === 'function')
+      ? TankGraphics.liquidColour(tank)
+      : '#c99a53';
+    const content = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.contentLabel === 'function')
+      ? TankGraphics.contentLabel(tank)
+      : (reportMeta && reportMeta.distillate ? 'MGO' : 'HFO');
+    const temp = r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + ' °C' : '– °C';
+    return `<div class="tg-card" title="${esc(tank.name || tank.id)} — ${esc(meaning)}${moved ? ' · counted under distillate this voyage' : ''}">
+      <div class="tg-name">${esc(tank.name || tank.id)}${moved ? '<span class="hint"> · moved</span>' : ''}</div>
+      <div class="tg-art">${svg}<div class="tg-pct">${pct != null ? Math.round(pct) + '%' : '—'}</div></div>
+      <div class="tg-stats">
+        <span class="tg-chip" style="--tg-chip:${chipColour}">${esc(String(content))}</span>
+        <span>${vol != null ? fmtNum(vol, 1) : '–'} m³</span>
+        <span>${temp}</span>
+        <span>${mt != null ? fmtNum(mt, 2) + ' MT' : '– MT'}</span>
+      </div>
+    </div>`;
+  }
+
   function renderFuelTankOverview(summaryEl, gridEl, bundle, fuelReport) {
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
@@ -695,58 +782,42 @@
           <div class="value">${withReading}<span class="unit">/ ${fromReport && fromReport.rows.length ? (fam.heavy.count + fam.distillate.count) : tanks.length}</span></div></div>`;
     }
     if (!gridEl) return;
-    if (fromReport && fromReport.rows.length) {
-      /* Keep Monitoring section order (HFO block, then distillate — including HFO tanks moved to distillate). */
-      const ordered = fromReport.rows;
-      gridEl.innerHTML = ordered.map(({ row, distillate }) => {
-        const vol = row.measuredM3;
-        const mt = row.weightAirMT;
-        const cap = Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
-        const fill = (vol != null && cap > 0) ? (Number(vol) / cap) * 100 : null;
-        const fillH = fill != null ? Math.max(8, Math.min(85, fill * 0.55)) : 8;
-        const moved = row.moved || row.sectionMismatch ? ' · from heavy / carried grade' : '';
-        return `<div class="tg-card">
-          <div class="tg-name">${esc(row.name || row.tankId)}${moved ? `<span class="hint">${moved}</span>` : ''}</div>
-          <div class="tg-art">
-            <div class="shell"></div>
-            <div class="fill" style="height:${fillH}%"></div>
-            <div class="tg-pct">${fill != null ? Math.round(fill) + '%' : '—'}</div>
-          </div>
-          <div class="tg-stats"><span>Vol</span><b>${vol != null ? fmtNum(vol, 3) + ' m³' : '—'}</b>
-            <span>Air</span><b>${mt != null ? fmtNum(mt, 3) + ' MT' : '—'}</b></div>
-        </div>`;
-      }).join('');
-      return;
-    }
     if (!tanks.length) {
+      gridEl.className = 'tg-schematic';
       gridEl.innerHTML = `<div class="hint">No fuel tanks on this vessel in Tank Chief yet.</div>`;
       return;
     }
-    const ordered = tanks.slice().sort((a, b) => {
-      const ad = isDistillateFuel(a) ? 1 : 0;
-      const bd = isDistillateFuel(b) ? 1 : 0;
-      if (ad !== bd) return ad - bd;
-      const an = a.tankNo == null ? 1e9 : Number(a.tankNo);
-      const bn = b.tankNo == null ? 1e9 : Number(b.tankNo);
-      if (an !== bn) return an - bn;
-      const sideRank = (s) => (s === 'port' ? 0 : s === 'starboard' ? 1 : 2);
-      return sideRank(a.side) - sideRank(b.side) || String(a.name || '').localeCompare(String(b.name || ''));
+
+    const reportById = Object.create(null);
+    if (fromReport && fromReport.rows.length) {
+      fromReport.rows.forEach(({ row, distillate }) => {
+        if (row && row.tankId) reportById[row.tankId] = { row, distillate };
+      });
+    }
+
+    const heavy = [];
+    const distillate = [];
+    tanks.forEach((tank) => {
+      const meta = reportById[tank.id];
+      const isDist = meta ? !!meta.distillate : isDistillateFuel(tank);
+      (isDist ? distillate : heavy).push(tank);
     });
-    gridEl.innerHTML = ordered.map((tank) => {
-      const r = readings[tank.id];
-      const fill = r?.result?.fillPercent;
-      const vol = r?.result?.volumeObserved;
-      const mt = r?.result?.weightMT;
-      const fillH = fill != null ? Math.max(8, Math.min(85, fill * 0.55)) : 8;
-      return `<div class="tg-card">
-        <div class="tg-name">${esc(tank.name)}</div>
-        <div class="tg-art">
-          <div class="shell"></div>
-          <div class="fill" style="height:${fillH}%"></div>
-          <div class="tg-pct">${fill != null ? Math.round(fill) + '%' : '—'}</div>
-        </div>
-        <div class="tg-stats"><span>Vol</span><b>${vol != null ? fmtNum(vol, 3) + ' m³' : '—'}</b>
-          <span>MT</span><b>${mt != null ? fmtNum(mt, 3) : '—'}</b></div>
+
+    const rows = [
+      { key: 'hfo-port', title: 'HFO / VLSFO — Port', tanks: arrangeFuelSideRow(heavy, 'port') },
+      { key: 'hfo-stbd', title: 'HFO / VLSFO — Starboard', tanks: arrangeFuelSideRow(heavy, 'starboard') },
+      { key: 'dist-port', title: 'MDO / MGO / LSMGO — Port', tanks: arrangeFuelSideRow(distillate, 'port') },
+      { key: 'dist-stbd', title: 'MDO / MGO / LSMGO — Starboard', tanks: arrangeFuelSideRow(distillate, 'starboard') },
+    ];
+
+    gridEl.className = 'tg-schematic';
+    gridEl.innerHTML = rows.map((row) => {
+      const cards = row.tanks.length
+        ? row.tanks.map((tank) => renderHomeTankCard(tank, readings[tank.id], reportById[tank.id] || null)).join('')
+        : '<div class="tg-schematic-empty">—</div>';
+      return `<div class="tg-schematic-row" data-row="${esc(row.key)}">
+        <div class="tg-schematic-head">${esc(row.title)}</div>
+        <div class="tg-schematic-row-tanks">${cards}</div>
       </div>`;
     }).join('');
   }
