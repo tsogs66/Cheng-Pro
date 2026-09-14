@@ -354,6 +354,30 @@
      scrolling the page underneath, which is what a touch device does by default. */
   .sigpad-wrap{margin-top:12px; display:flex; flex-direction:column; gap:8px; max-width:460px;}
   .sigpad-title{font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--paper-dim);}
+  /* Log Entry → New Voyage Leg dialog */
+  .nv-leg-overlay{
+    position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
+    padding:16px; background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
+  }
+  .nv-leg-overlay.open{display:flex;}
+  .nv-leg-dialog{
+    width:min(420px, 100%); background:var(--panel, #152033); color:var(--text, #e8eef8);
+    border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+  }
+  html.bright .nv-leg-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
+  .nv-leg-dialog h3{margin:0 0 6px; font-size:16px;}
+  .nv-leg-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
+  .nv-leg-dialog .form-grid{display:grid; gap:10px; margin-bottom:14px;}
+  .nv-leg-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
+  .nv-leg-dialog .field input{
+    width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px;
+    border:1px solid var(--line,#2a3550); background:transparent; color:inherit;
+  }
+  .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
+  .entry-select-row .field{flex:1 1 220px; min-width:0;}
+  .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
   /* Paper white, whatever the app theme: the ink is the near-black it will print
      in, and it has to be legible while it is being drawn. */
   .sigpad{
@@ -1908,33 +1932,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field span2"><label>Chief Engineer</label><input id="s_chEngVoyage" placeholder="Update at crew change"></div>
       </div>
       <div class="hint">Date &amp; Time (initial) and Time zone are the voyage-start reference for the first log entry — period hours are measured from this ship's-clock stamp. The time-zone list only labels the clock; use Change clocks on the log entry when the watch actually advances or retards time.</div>
-      <div class="hint">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward to the following voyages. Entries already saved keep the officer who was aboard when they were made, so their reports still print the correct signature.</div>
-
-      <h3 class="sub">Chief Engineer Signature</h3>
-      <div class="stamp-row">
-        <div class="stamp-preview" id="chEngSignaturePreview"></div>
-        <div class="stamp-controls">
-          <div class="field"><label>Signature image (PNG or JPG)</label><input type="file" accept="image/*" id="chEngSignatureFile"></div>
-          <label class="stamp-check"><input type="checkbox" id="chEngSignatureCutout" checked> Remove white background</label>
-          <div class="hint" id="chEngSignatureFor" style="margin:0;"></div>
-          <div class="btn-row" style="margin:0;">
-            <button type="button" class="ghost small" id="btnCutoutChEngSignature" style="display:none;">Remove white background now</button>
-            <button type="button" class="ghost small" id="btnRemoveChEngSignature" style="display:none;">Remove signature</button>
-          </div>
-        </div>
-      </div>
-      <div class="sigpad-wrap">
-        <div class="sigpad-title">Or sign here</div>
-        <canvas id="chEngSignaturePad" class="sigpad" aria-label="Sign here with a stylus, a fingertip or the mouse"></canvas>
-        <div class="btn-row" style="margin:0;">
-          <button type="button" class="ghost small" id="btnSigPadUndo">Undo stroke</button>
-          <button type="button" class="ghost small" id="btnSigPadClear">Clear</button>
-          <button type="button" class="small" id="btnSigPadSave">Use this signature</button>
-        </div>
-        <div class="hint" style="margin:0;">Sign with a stylus or a fingertip on a phone or tablet, or with the mouse on a desktop. A pressure-sensitive pen is followed stroke for stroke. Saved as ink on a transparent background, trimmed to the signature.</div>
-      </div>
-      <div class="hint">Printed on the signature line above the Chief Engineer's name on every document. Either sign in the box above, or sign on white paper and photograph it — the paper is made transparent and the image trimmed to the signature. Stored against the name above, so after a crew change each officer keeps their own signature and earlier reports still print theirs. Held on this device only.</div>
-      <div class="hint">Each voyage number <strong>starts as B (ballast)</strong> and <strong>ends as L (laden)</strong>. Only these two letters mark voyage condition — never any other. Legs are stored separately so the active log stays short.</div>
+      <div class="hint">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward. The signature is managed under Vessel Data. Entries already saved keep the officer who was aboard when they were made.</div>
+      <div class="hint">Each voyage number <strong>starts as B (ballast)</strong> and <strong>ends as L (laden)</strong>. Only these two letters mark voyage condition — never any other. Legs are stored separately so the active log stays short. From Log Entry you can start the next leg with <strong>New Voyage</strong> (destination + distance).</div>
     </div>
 
     <div class="panel">
@@ -2076,6 +2075,31 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" id="btnRegisterVessel" type="button">Register Vessel</button>
       </div>
       <div class="hint">Vessel name, company, Chief Engineer, DWT, IMO, call sign and flag are stored per vessel and used on printouts, CII and the e-ORB prefill. These fields stay editable so you can correct errors or record a flag-registry change. Opening ROB and voyage ops stay on this tab.</div>
+
+      <h3 class="sub">Chief Engineer Signature</h3>
+      <div class="stamp-row">
+        <div class="stamp-preview" id="chEngSignaturePreview"></div>
+        <div class="stamp-controls">
+          <div class="field"><label>Signature image (PNG or JPG)</label><input type="file" accept="image/*" id="chEngSignatureFile"></div>
+          <label class="stamp-check"><input type="checkbox" id="chEngSignatureCutout" checked> Remove white background</label>
+          <div class="hint" id="chEngSignatureFor" style="margin:0;"></div>
+          <div class="btn-row" style="margin:0;">
+            <button type="button" class="ghost small" id="btnCutoutChEngSignature" style="display:none;">Remove white background now</button>
+            <button type="button" class="ghost small" id="btnRemoveChEngSignature" style="display:none;">Remove signature</button>
+          </div>
+        </div>
+      </div>
+      <div class="sigpad-wrap">
+        <div class="sigpad-title">Or sign here</div>
+        <canvas id="chEngSignaturePad" class="sigpad" aria-label="Sign here with a stylus, a fingertip or the mouse"></canvas>
+        <div class="btn-row" style="margin:0;">
+          <button type="button" class="ghost small" id="btnSigPadUndo">Undo stroke</button>
+          <button type="button" class="ghost small" id="btnSigPadClear">Clear</button>
+          <button type="button" class="small" id="btnSigPadSave">Use this signature</button>
+        </div>
+        <div class="hint" style="margin:0;">Sign with a stylus or a fingertip on a phone or tablet, or with the mouse on a desktop. Saved as ink on a transparent background, trimmed to the signature. Stored against the Chief Engineer name above so each officer keeps their own mark on reprints.</div>
+      </div>
+      <div class="hint">Printed on the signature line above the Chief Engineer's name on every document. Held on this device only.</div>
 
       <h3 class="sub">Vessel Stamp</h3>
       <div class="stamp-row">
@@ -2274,13 +2298,37 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <div class="page" id="page-entry">
     <div class="panel">
       <h2>Edit a Previous Entry</h2>
-      <div class="form-grid cols3">
-        <div class="field span2">
+      <div class="entry-select-row">
+        <div class="field">
           <label>Select Entry</label>
           <select id="in_selectEntry"><option value="">— New Entry —</option></select>
         </div>
+        <div class="nv-leg-btn-wrap">
+          <button type="button" class="primary small" id="btnNewVoyageLeg" title="Archive this leg and start the next voyage from the last log entry">New Voyage</button>
+        </div>
       </div>
-      <div class="hint">Pick a saved entry to load it into the form below for editing. Saving will recalculate consumption and ROB for that entry and every entry after it.</div>
+      <div class="hint">Pick a saved entry to load it into the form below for editing. Saving will recalculate consumption and ROB for that entry and every entry after it. <strong>New Voyage</strong> asks for the next destination and distance, then archives this leg and opens the next one (same pipeline as Voyage Setup → Create New Voyage).</div>
+    </div>
+
+    <div id="nvLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="nvLegTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="nvLegTitle">New Voyage Leg</h3>
+        <p class="hint">Current arrival becomes departure. Enter the next destination and distance. Condition toggles L↔B; ballast starts the next voyage number, laden keeps this number. Date/time come from the last log entry. Time zone and Chief Engineer stay the same.</p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="nvLegDestination">Destination (arrival)</label>
+            <input id="nvLegDestination" type="text" autocomplete="off" placeholder="e.g. SINGAPORE">
+          </div>
+          <div class="field">
+            <label for="nvLegDistance">Distance (nm)</label>
+            <input id="nvLegDistance" type="number" step="0.1" min="0" placeholder="e.g. 2280">
+          </div>
+        </div>
+        <div class="nv-leg-actions">
+          <button type="button" class="ghost small" id="nvLegCancel">Cancel</button>
+          <button type="button" class="primary small" id="nvLegAccept">Create New Voyage</button>
+        </div>
+      </div>
     </div>
     <div class="panel" id="lastEntryPanel">
       <h2 id="lastEntryPanelTitle">Last Saved Entry — Reference</h2>
@@ -15556,65 +15604,94 @@ async function saveSetupFromForm(opts){
 }
 document.getElementById('btnSaveSetup').addEventListener('click', saveSetupFromForm);
 
-document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
-  if (state.entries.length===0){
+/** Increment the trailing digits of a voyage number (42 → 43, V025 → V026). */
+function bumpVoyageNumber(voyageNo){
+  const cur = String(voyageNo || '').trim();
+  if (!cur) return '1';
+  const m = cur.match(/^(.*?)(\d+)(\D*)$/);
+  if (!m) return cur + '1';
+  const next = String(Number(m[2]) + 1).padStart(m[2].length, '0');
+  return m[1] + next + m[3];
+}
+
+/**
+ * Create New Voyage pipeline (Voyage Setup button and Log Entry → New Voyage).
+ * Archives the active leg, downloads backup + abstract, then starts a fresh leg with
+ * last-entry carryover (ROB + flowmeters/counters). Departure ← previous arrival.
+ * When opts.arrivePort / opts.voyageDistance are set (Log Entry flow), those become
+ * the new arrival and distance instead of clearing arrival.
+ */
+async function createNewVoyageLeg(opts = {}){
+  if (state.entries.length === 0){
     alert('There are no log entries yet for this voyage.');
-    return;
+    return false;
   }
 
-  // Fail-safe: Voyage No., Ships Condition, and Date & Time must be filled in and must
-  // actually reflect a new voyage before this is allowed to proceed.
-  const newVoyageNo = document.getElementById('s_voyageNumber').value.trim();
-  const newCondition = document.getElementById('s_shipCondition').value;
-  const newDateTime = document.getElementById('s_initDateTime').value;
-  const oldVoyageNo = (state.setup.voyageNumber||'').trim();
+  const newVoyageNo = (opts.voyageNumber != null
+    ? String(opts.voyageNumber)
+    : document.getElementById('s_voyageNumber').value).trim();
+  const newCondition = normalizeCondition(opts.shipCondition != null
+    ? opts.shipCondition
+    : document.getElementById('s_shipCondition').value);
+  const newDateTime = opts.initDateTime != null
+    ? opts.initDateTime
+    : document.getElementById('s_initDateTime').value;
+  const oldVoyageNo = (state.setup.voyageNumber || '').trim();
   const oldCondition = state.setup.shipCondition;
   const oldDateTime = state.setup.initDateTime || '';
+  const newTzOffsetMin = opts.tzOffsetMin != null ? opts.tzOffsetMin : formVoyageTzOffsetMin();
+  /* Log Entry → New Voyage passes arrivePort/distance via opts. Voyage Setup
+     Create New Voyage keeps the old behaviour: departure ← arrival, arrival cleared,
+     distance left as the form already had it (not forced from the previous leg). */
+  const newArrivePort = opts.arrivePort != null ? String(opts.arrivePort).trim() : '';
+  const newDistance = opts.voyageDistance != null ? opts.voyageDistance : null;
 
   if (!newVoyageNo || !newCondition || !newDateTime){
     alert('Cannot create a new voyage: Voyage No., Ships Condition, and Date & Time must all be filled in first.');
-    return;
+    return false;
   }
-  const newTzOffsetMin = formVoyageTzOffsetMin();
-  if (newDateTime === oldDateTime){
-    alert('Cannot create a new voyage: Date & Time must be updated to reflect the new voyage before proceeding.');
-    return;
-  }
-  if (newVoyageNo === oldVoyageNo && newCondition === oldCondition){
-    alert('Cannot create a new voyage: Voyage No. and Ships Condition are both unchanged. Change at least one of them before proceeding.');
-    return;
-  }
-  /* Guidance: same voyage number progresses B → L; a new voyage number should start B. */
-  if (newVoyageNo === oldVoyageNo && normalizeCondition(oldCondition) === 'L' && normalizeCondition(newCondition) === 'B'){
-    alert('This voyage number already ended in L. Start a new Voyage No. in B, or load an existing leg from the Voyage Library.');
-    return;
-  }
-  if (newVoyageNo !== oldVoyageNo && normalizeCondition(newCondition) !== 'B'){
-    if (!confirm('New voyage numbers normally start in B. Continue with L anyway?')) return;
-  } else if (newVoyageNo === oldVoyageNo && normalizeCondition(oldCondition) === 'B' && normalizeCondition(newCondition) !== 'L'){
-    alert('To finish this voyage number, switch Ships Condition to L (voyages end laden).');
-    return;
+  if (!opts.fromLogEntry){
+    if (newDateTime === oldDateTime){
+      alert('Cannot create a new voyage: Date & Time must be updated to reflect the new voyage before proceeding.');
+      return false;
+    }
+    if (newVoyageNo === oldVoyageNo && newCondition === oldCondition){
+      alert('Cannot create a new voyage: Voyage No. and Ships Condition are both unchanged. Change at least one of them before proceeding.');
+      return false;
+    }
+    if (newVoyageNo === oldVoyageNo && normalizeCondition(oldCondition) === 'L' && newCondition === 'B'){
+      alert('This voyage number already ended in L. Start a new Voyage No. in B, or load an existing leg from the Voyage Library.');
+      return false;
+    }
+    if (newVoyageNo !== oldVoyageNo && newCondition !== 'B'){
+      if (!confirm('New voyage numbers normally start in B. Continue with L anyway?')) return false;
+    } else if (newVoyageNo === oldVoyageNo && normalizeCondition(oldCondition) === 'B' && newCondition !== 'L'){
+      alert('To finish this voyage number, switch Ships Condition to L (voyages end laden).');
+      return false;
+    }
   }
 
+  const destLine = newArrivePort
+    ? `\nNext route: ${(state.setup.arrivePort || '—')} → ${newArrivePort}`
+      + (newDistance != null && isFinite(newDistance) ? ` · ${newDistance} nm` : '')
+    : '';
   const ok = confirm(
     'Create New Voyage leg?\n\n' +
     `Current leg ${oldVoyageNo || '—'} / ${oldCondition} will be kept in the Voyage Library ` +
     `(and synced folder data/<vessel>/${slugVoyageNo(oldVoyageNo)}/${normalizeCondition(oldCondition)}.json).\n\n` +
-    `Next active leg: ${newVoyageNo} / ${newCondition}.\n\n` +
+    `Next active leg: ${newVoyageNo} / ${newCondition}.${destLine}\n\n` +
     'A backup JSON + Voyage Abstract CSV will download.\n' +
     'Last log ROB becomes Vessel Data Opening ROB for the new leg; meter carryover is taken from the last entry.\n\nContinue?'
   );
-  if (!ok) return;
+  if (!ok) return false;
 
   const {rows, consByFuel, consByLube} = computeDerived();
   const {rob, robLube} = currentROB(consByFuel, consByLube);
-  const last = sortedEntries()[sortedEntries().length-1];
+  const last = sortedEntries()[sortedEntries().length - 1];
+  const prevArrive = state.setup.arrivePort || '';
 
   await archiveActiveVoyageLeg();
 
-  // Auto-export a full backup of everything before this voyage is cleared, named with
-  // voyage no. + condition + execution timestamp (browsers can only save via a download
-  // prompt — there's no way for a web page to write directly into a folder on disk).
   const backupPayload = { setup: state.setup, entries: state.entries, receipts: state.receipts, documents: state.documents, exportedAt: new Date().toISOString() };
   const now = new Date();
   const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0')
@@ -15623,7 +15700,6 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
   const backupName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}.json`;
   try { await downloadJsonFile(backupName, backupPayload); } catch (_) { /* user cancelled share/picker */ }
 
-  // Also save + download a Voyage Abstract snapshot, same naming scheme with an "abstract" identifier
   const abstractName = `voyage-chief-backup_${safe(state.setup.voyageNumber)}_${safe(state.setup.shipCondition)}_${stamp}_abstract.csv`;
   const abstractRecord = {
     id: uid(), savedAt: new Date().toISOString(),
@@ -15635,7 +15711,6 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
   await dbPut('abstracts', abstractRecord);
   downloadAbstractCsv(abstractRecord);
 
-  // Backup/abstract filenames above used the OLD voyage identity; now apply the new one.
   state.setup.voyageNumber = newVoyageNo;
   state.setup.shipCondition = newCondition;
   state.setup.initDateTime = newDateTime;
@@ -15644,9 +15719,6 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
   state.setup.carryover = JSON.parse(JSON.stringify(last));
   state.setup.rob = rob;
   state.setup.robLube = robLube;
-  /* Keep Vessel Setup flowmeters in step with the carryover baseline so the
-     first entry of the new leg diffs against the same opening meters the chief
-     sees under Vessel Setup — not the previous voyage's start-of-leg meters. */
   {
     const fm = state.setup.flowmeters || {};
     const dig = (key, fallback=8) => (fm[key] && fm[key].digits != null) ? fm[key].digits : fallback;
@@ -15663,8 +15735,11 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
       fw: { reading: last.fwProd ?? null, digits: dig('fw') }
     };
   }
-  state.setup.departPort = state.setup.arrivePort;
-  state.setup.arrivePort = '';
+  state.setup.departPort = prevArrive;
+  state.setup.arrivePort = newArrivePort || '';
+  if (newDistance != null && isFinite(Number(newDistance))) {
+    state.setup.voyageDistance = Number(newDistance);
+  }
 
   state.entries = [];
   state.receipts = [];
@@ -15673,8 +15748,118 @@ document.getElementById('btnResetVoyage').addEventListener('click', async ()=>{
   await saveSetup();
   await renderVoyageLibrary();
   render();
-  switchTab('voyagesetup');
+  switchTab(opts.stayOnEntry ? 'entry' : 'voyagesetup');
   alert(`Started ${newVoyageNo} / ${newCondition}. Previous leg kept in Voyage Library. Downloaded "${backupName}" and "${abstractName}".`);
+  return true;
+}
+
+document.getElementById('btnResetVoyage').addEventListener('click', () => {
+  createNewVoyageLeg().catch(e => alert(e.message || String(e)));
+});
+
+function closeNewVoyageLegDialog(){
+  const overlay = document.getElementById('nvLegOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.hidden = true;
+}
+
+function openNewVoyageLegDialog(){
+  const last = sortedEntries()[sortedEntries().length - 1];
+  if (!last){
+    alert('There are no log entries yet for this voyage.');
+    return;
+  }
+  const overlay = document.getElementById('nvLegOverlay');
+  const dest = document.getElementById('nvLegDestination');
+  const dist = document.getElementById('nvLegDistance');
+  if (!overlay || !dest || !dist) return;
+  dest.value = '';
+  dist.value = state.setup.voyageDistance != null ? state.setup.voyageDistance : '';
+  overlay.hidden = false;
+  overlay.classList.add('open');
+  setTimeout(() => dest.focus(), 30);
+}
+
+async function acceptNewVoyageLegDialog(){
+  const last = sortedEntries()[sortedEntries().length - 1];
+  if (!last){
+    alert('There are no log entries yet for this voyage.');
+    return;
+  }
+  const destination = (document.getElementById('nvLegDestination')?.value || '').trim();
+  const distanceRaw = document.getElementById('nvLegDistance')?.value;
+  const distanceNm = parseFloat(distanceRaw);
+  if (!destination){
+    alert('Enter the next destination (arrival port).');
+    document.getElementById('nvLegDestination')?.focus();
+    return;
+  }
+  if (!isFinite(distanceNm) || distanceNm < 0){
+    alert('Enter a valid voyage distance in nautical miles.');
+    document.getElementById('nvLegDistance')?.focus();
+    return;
+  }
+
+  const oldCondition = normalizeCondition(state.setup.shipCondition);
+  const newCondition = oldCondition === 'L' ? 'B' : 'L';
+  const oldVoyageNo = (state.setup.voyageNumber || '').trim();
+  const newVoyageNo = newCondition === 'B' ? bumpVoyageNumber(oldVoyageNo) : oldVoyageNo;
+  let newDateTime = last.datetime || state.setup.initDateTime || '';
+  if (!newDateTime){
+    alert('The last log entry has no date/time stamp.');
+    return;
+  }
+  /* datetime-local needs YYYY-MM-DDTHH:MM (no seconds). */
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(newDateTime)) {
+    newDateTime = newDateTime.slice(0, 16);
+  }
+
+  /* Prefill Voyage Specifics so the Create New Voyage form matches what we apply. */
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+  setVal('s_voyageNumber', newVoyageNo);
+  setVal('s_shipCondition', newCondition);
+  setVal('s_initDateTime', newDateTime);
+  setVal('s_arrivePort', destination);
+  setVal('s_voyageDistance', distanceNm);
+  /* Departure display will become previous arrival after create; show it now for clarity. */
+  setVal('s_departPort', state.setup.arrivePort || '');
+  /* Time zone + CE unchanged — leave form fields as-is (already synced with setup). */
+
+  closeNewVoyageLegDialog();
+  await createNewVoyageLeg({
+    fromLogEntry: true,
+    voyageNumber: newVoyageNo,
+    shipCondition: newCondition,
+    initDateTime: newDateTime,
+    tzOffsetMin: state.setup.tzOffsetMin,
+    arrivePort: destination,
+    voyageDistance: distanceNm,
+    stayOnEntry: false,
+  });
+}
+
+document.getElementById('btnNewVoyageLeg')?.addEventListener('click', openNewVoyageLegDialog);
+document.getElementById('nvLegCancel')?.addEventListener('click', closeNewVoyageLegDialog);
+document.getElementById('nvLegAccept')?.addEventListener('click', () => {
+  acceptNewVoyageLegDialog().catch(e => alert(e.message || String(e)));
+});
+document.getElementById('nvLegOverlay')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeNewVoyageLegDialog();
+});
+document.getElementById('nvLegDestination')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('nvLegDistance')?.focus(); }
+});
+document.getElementById('nvLegDistance')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    acceptNewVoyageLegDialog().catch(err => alert(err.message || String(err)));
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const overlay = document.getElementById('nvLegOverlay');
+  if (overlay && overlay.classList.contains('open')) closeNewVoyageLegDialog();
 });
 
 function getRobRows(){
@@ -21354,7 +21539,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v249';
+let androidInstallCacheName = 'noon-report-v250';
 
 /*
  * What the program is called.
