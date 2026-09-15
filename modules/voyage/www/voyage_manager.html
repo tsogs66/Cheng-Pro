@@ -393,6 +393,43 @@
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
+  /* Log Entry → Enter Flowmeters popup */
+  .fm-quick-overlay{
+    position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
+    padding:max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px));
+    background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
+  }
+  .fm-quick-overlay.open{display:flex;}
+  .fm-quick-dialog{
+    width:min(720px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; max-height:min(92vh, 900px);
+    overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
+    border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+  }
+  html.bright .fm-quick-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
+  .fm-quick-dialog h3{margin:0 0 6px; font-size:16px;}
+  .fm-quick-dialog h4{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
+  .fm-quick-grid{
+    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(180px,0.8fr); gap:14px; margin-bottom:14px;
+  }
+  .fm-quick-meters, .fm-quick-types{display:flex; flex-direction:column; gap:10px; min-width:0;}
+  .fm-quick-block{
+    border:1px solid var(--line,#2a3550); border-radius:8px; padding:10px 12px;
+  }
+  .fm-quick-dialog .field{margin-bottom:8px;}
+  .fm-quick-dialog .field:last-child{margin-bottom:0;}
+  .fm-quick-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .field input, .fm-quick-dialog .field select{
+    display:block; width:100%; max-width:100%; box-sizing:border-box;
+    min-height:40px; font-size:15px; padding:8px 10px; border-radius:8px;
+    border:1px solid var(--line,#2a3550); background:transparent; color:inherit;
+  }
+  .fm-quick-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .sg-from-density[hidden]{display:none !important;}
+  @media (max-width:720px){
+    .fm-quick-grid{grid-template-columns:1fr;}
+  }
   @media (max-width:900px){
     .nv-leg-overlay{
       padding:max(8px, env(safe-area-inset-top, 0px)) 8px max(8px, env(safe-area-inset-bottom, 0px));
@@ -2200,7 +2237,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
     <div class="panel">
       <h2>Fuel, Lube Oil &amp; Fresh Water — Types &amp; Opening ROB</h2>
-      <div class="hint" style="margin-bottom:10px;">Add or edit types for this vessel. <strong>ISO 8217</strong> is the marine fuel classification (e.g. RMG 380, DMA). Opening ROB here is the voyage baseline used for ROB calculations. Capacities (gauge scale) remain under Ship Details.</div>
+      <div class="hint" style="margin-bottom:10px;">Add or edit types for this vessel. <strong>ISO 8217</strong> is the marine fuel classification (e.g. RMG 380, DMA). <strong>Density @ 15°C</strong> (kg/m³) is used as Spec. Gravity on the Log Entry when that fuel type is selected (SG = density ÷ 1000). Opening ROB here is the voyage baseline used for ROB calculations. Capacities (gauge scale) remain under Ship Details.</div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
         <h3 class="sub" style="margin:0;">Fuel</h3>
@@ -2208,7 +2245,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="table-scroll" style="margin-bottom:14px;">
         <table>
-          <thead><tr><th>Name</th><th>Grade</th><th>ISO 8217</th><th>Opening ROB (MT)</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Grade</th><th>ISO 8217</th><th>Density @15°C<br><span style="font-weight:400;text-transform:none;letter-spacing:0;">(kg/m³)</span></th><th>Opening ROB (MT)</th><th></th></tr></thead>
           <tbody id="mgmtFuelBody"></tbody>
         </table>
       </div>
@@ -2442,25 +2479,28 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
 
+      <div class="btn-row" style="margin:12px 0 8px; justify-content:flex-start;">
+        <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, rev counter, fuel types and TBN in a popup, then apply them to this log entry">Enter Flowmeters…</button>
+      </div>
       <h3 class="sub">Fuel &amp; Cylinder Oil Meters (litres, cumulative)</h3>
       <div class="unit-group cols4" id="fuelLubeMeterRow">
         <div class="unit-box">
           <h3>Main Engine Fuel</h3>
           <div id="meMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
-          <div class="field"><label>Spec. Gravity</label><input type="number" step="0.001" id="me_sg" value="0.980"></div>
+          <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="me_sg" value="0.980"></div>
         </div>
         <div class="unit-box">
           <h3>Generator Fuel</h3>
           <div id="geMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="ge_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
-          <div class="field"><label>Spec. Gravity</label><input type="number" step="0.001" id="ge_sg" value="0.870"></div>
+          <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="ge_sg" value="0.870"></div>
         </div>
         <div class="unit-box">
           <h3>Boiler Fuel</h3>
           <div class="field"><label>Fuel Meter</label><input type="number" id="blr_meter"></div>
           <div class="field"><label>Fuel Type</label><select id="blr_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
-          <div class="field"><label>Spec. Gravity</label><input type="number" step="0.001" id="blr_sg" value="0.870"></div>
+          <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="blr_sg" value="0.870"></div>
         </div>
         <div class="unit-box">
           <h3>Cylinder Oil</h3>
@@ -2468,7 +2508,51 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>TBN in Use</label><select id="in_tbn"><option>HIGH</option><option>LOW</option></select></div>
         </div>
       </div>
-      <div class="hint">Fuel consumption overrides and ROB review are on the Voyage Summary after you add or open an entry. M/E and G/E system oil meters are no longer entered here — those grades follow opening ROB / receipts unless adjusted on the summary ROB table.</div>
+      <div class="hint">Spec. Gravity is taken from Vessel Data → Fuel Types density (kg/m³ ÷ 1000) for the selected fuel type. Use <strong>Enter Flowmeters…</strong> to fill meters, rev counter, fuel types and TBN in one step. Fuel consumption overrides and ROB review are on the Voyage Summary after you add or open an entry.</div>
+
+    <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
+      <div class="fm-quick-dialog">
+        <h3 id="fmQuickTitle">Enter Flowmeters</h3>
+        <p class="hint">Values load from the log entry form. Accept writes them back. Fuel Spec. Gravity is set from Vessel Data density for each selected type.</p>
+        <div class="fm-quick-grid">
+          <div class="fm-quick-meters">
+            <div class="fm-quick-block">
+              <h4>Main Engine</h4>
+              <div id="fmq_meMeters"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Generator</h4>
+              <div id="fmq_geMeters"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Boiler</h4>
+              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Cylinder Oil</h4>
+              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Revolution Counter</h4>
+              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
+            </div>
+          </div>
+          <div class="fm-quick-types">
+            <div class="fm-quick-block">
+              <h4>Fuel in Use</h4>
+              <div class="field"><label>M/E Fuel Type</label><select id="fmq_me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
+              <div class="field"><label>G/E Fuel Type</label><select id="fmq_ge_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
+              <div class="field"><label>Boiler Fuel Type</label><select id="fmq_blr_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
+              <div class="field"><label>TBN in Use</label><select id="fmq_tbn"><option>HIGH</option><option>LOW</option></select></div>
+            </div>
+          </div>
+        </div>
+        <div class="fm-quick-actions">
+          <button type="button" class="ghost small" id="fmQuickCancel">Cancel</button>
+          <button type="button" class="primary small" id="fmQuickAccept">Accept</button>
+        </div>
+      </div>
+    </div>
 
       <h3 class="sub">Fresh Water</h3>
       <div class="unit-group cols2" id="logFwCard">
@@ -4274,11 +4358,18 @@ const ISO_8217_DEFAULT_BY_GRADE = {
   'MDO/MGO': 'DMA',
   'LSMGO': 'DMA'
 };
+/* Typical density @ 15°C (kg/m³). Spec. Gravity for consumption = density / 1000. */
+const FUEL_DENSITY_DEFAULT_BY_GRADE = {
+  'HFO': 980,
+  'LSFO': 965,
+  'MDO/MGO': 870,
+  'LSMGO': 870
+};
 const DEFAULT_FUEL_TANKS = [
-  {id:'hfo', name:'HFO', grade:'HFO', iso8217:'RMG 380'},
-  {id:'lsfo', name:'LSFO', grade:'LSFO', iso8217:'RMG 380'},
-  {id:'mdomgo', name:'MDO/MGO', grade:'MDO/MGO', iso8217:'DMA'},
-  {id:'lsmgo', name:'LSMGO', grade:'LSMGO', iso8217:'DMA'}
+  {id:'hfo', name:'HFO', grade:'HFO', iso8217:'RMG 380', density:980},
+  {id:'lsfo', name:'LSFO', grade:'LSFO', iso8217:'RMG 380', density:965},
+  {id:'mdomgo', name:'MDO/MGO', grade:'MDO/MGO', iso8217:'DMA', density:870},
+  {id:'lsmgo', name:'LSMGO', grade:'LSMGO', iso8217:'DMA', density:870}
 ];
 const DEFAULT_LUBE_TANKS = [
   {id:'cylhigh', name:'CYL HIGH', kind:'cylHigh'},
@@ -4326,6 +4417,43 @@ function fuelTankList(){ return state.setup.fuelTanks?.length ? state.setup.fuel
 function defaultIso8217ForGrade(grade){
   return ISO_8217_DEFAULT_BY_GRADE[grade] || 'DMA';
 }
+function defaultFuelDensityForGrade(grade){
+  const d = FUEL_DENSITY_DEFAULT_BY_GRADE[grade];
+  return d != null ? d : 870;
+}
+/** Spec. Gravity used in litres×SG/1000 — from Vessel Data fuel-type density (kg/m³). */
+function sgFromFuelDensity(density){
+  const d = Number(density);
+  if (!isFinite(d) || d <= 0) return null;
+  /* Accept either kg/m³ (≈700–1100) or already-SG (≈0.7–1.1). */
+  if (d > 2) return d / 1000;
+  return d;
+}
+function densityForFuelType(type){
+  const grade = String(type || '').trim();
+  if (!grade) return null;
+  const tanks = fuelTankList();
+  const hit = tanks.find(t => t.grade === grade || t.name === grade);
+  if (hit && hit.density != null && hit.density !== '') {
+    const n = Number(hit.density);
+    if (isFinite(n) && n > 0) return n;
+  }
+  return defaultFuelDensityForGrade(grade);
+}
+function sgForFuelType(type){
+  return sgFromFuelDensity(densityForFuelType(type));
+}
+function applySgFromFuelType(consumer){
+  /* consumer: 'me' | 'ge' | 'blr' */
+  const typeEl = document.getElementById(consumer + '_type');
+  const sgEl = document.getElementById(consumer + '_sg');
+  if (!typeEl || !sgEl) return;
+  const sg = sgForFuelType(typeEl.value);
+  if (sg != null) sgEl.value = Number(sg).toFixed(3);
+}
+function applyAllSgFromFuelTypes(){
+  ['me','ge','blr'].forEach(applySgFromFuelType);
+}
 function iso8217OptionsHtml(selected){
   const sel = selected || '';
   const known = new Set();
@@ -4346,6 +4474,9 @@ function iso8217OptionsHtml(selected){
 function normalizeFuelTankIso8217(tank){
   if (!tank) return tank;
   if (!tank.iso8217) tank.iso8217 = defaultIso8217ForGrade(tank.grade || tank.name);
+  if (tank.density == null || tank.density === '' || !isFinite(Number(tank.density))) {
+    tank.density = defaultFuelDensityForGrade(tank.grade || tank.name);
+  }
   return tank;
 }
 function lubeTankList(){ return state.setup.lubeTanks?.length ? state.setup.lubeTanks : DEFAULT_LUBE_TANKS; }
@@ -4453,7 +4584,7 @@ function resizeTankList(list, count, defaults, makeTank){
   return out.slice(0, count);
 }
 function ensureTankStores(){
-  state.setup.fuelTanks = resizeTankList(state.setup.fuelTanks, state.setup.fuelTankCount || fuelTankList().length, DEFAULT_FUEL_TANKS, i=>({id:'fuel'+i, name:'Fuel Tank '+(i+1), grade:'MDO/MGO', iso8217: defaultIso8217ForGrade('MDO/MGO')}));
+  state.setup.fuelTanks = resizeTankList(state.setup.fuelTanks, state.setup.fuelTankCount || fuelTankList().length, DEFAULT_FUEL_TANKS, i=>({id:'fuel'+i, name:'Fuel Tank '+(i+1), grade:'MDO/MGO', iso8217: defaultIso8217ForGrade('MDO/MGO'), density: defaultFuelDensityForGrade('MDO/MGO')}));
   state.setup.lubeTanks = resizeTankList(state.setup.lubeTanks, state.setup.lubeTankCount || lubeTankList().length, DEFAULT_LUBE_TANKS, i=>({id:'lube'+i, name:'Lube Tank '+(i+1), kind:'meSys'}));
   state.setup.fwTanks = resizeTankList(state.setup.fwTanks, state.setup.fwTankCount || fwTankList().length, DEFAULT_FW_TANKS, i=>({id:'fw'+i, name:'FW Tank '+(i+1)}));
   state.setup.fuelTankCount = state.setup.fuelTanks.length;
@@ -9605,10 +9736,15 @@ function readFuelTypeManagementFromDom(){
     const nameEl = document.querySelector(`[data-fuel-tank-name="${t.id}"]`);
     const gradeEl = document.querySelector(`[data-fuel-tank-grade="${t.id}"]`);
     const isoEl = document.querySelector(`[data-fuel-tank-iso="${t.id}"]`);
+    const densEl = document.querySelector(`[data-fuel-tank-density="${t.id}"]`);
     const robEl = document.querySelector(`[data-mgmt-fuel-rob="${t.id}"]`);
     if (nameEl) t.name = nameEl.value.trim() || t.name;
     if (gradeEl) t.grade = gradeEl.value;
     if (isoEl) t.iso8217 = isoEl.value;
+    if (densEl && densEl.value !== '') {
+      const d = parseFloat(densEl.value);
+      t.density = isFinite(d) && d > 0 ? d : defaultFuelDensityForGrade(t.grade);
+    }
     if (robEl && robEl.value!=='') state.setup.rob[t.id] = parseFloat(robEl.value) || 0;
   });
   lubeTankList().forEach(t=>{
@@ -9647,10 +9783,12 @@ function renderFuelTypeManagement(){
     fuelBody.innerHTML = fuelTankList().map(t=>{
       normalizeFuelTankIso8217(t);
       const rob = tankRobValue(state.setup.rob, t);
+      const dens = t.density != null ? t.density : defaultFuelDensityForGrade(t.grade);
       return `<tr data-fuel-row="${t.id}">
         <td><input data-fuel-tank-name="${t.id}" value="${escAttr(t.name)}" style="min-width:110px;"></td>
         <td><select data-fuel-tank-grade="${t.id}">${FUEL_TYPES.map(g=>`<option value="${g}"${t.grade===g?' selected':''}>${g}</option>`).join('')}</select></td>
         <td><select data-fuel-tank-iso="${t.id}" title="ISO 8217 marine fuel classification">${iso8217OptionsHtml(t.iso8217)}</select></td>
+        <td><input type="number" step="0.1" min="500" max="1200" data-fuel-tank-density="${t.id}" value="${Number(dens)}" style="width:100px;" title="Density @ 15°C (kg/m³) — used as Spec. Gravity on Log Entry (÷1000)"></td>
         <td><input type="number" step="0.001" data-mgmt-fuel-rob="${t.id}" value="${Number(rob).toFixed(3)}" style="width:110px;"></td>
         <td><button type="button" class="small danger" data-remove-fuel="${t.id}">✕</button></td>
       </tr>`;
@@ -9662,6 +9800,7 @@ function renderFuelTypeManagement(){
       sel.addEventListener('change', ()=>{
         const id = sel.dataset.fuelTankGrade;
         const isoSel = document.querySelector(`[data-fuel-tank-iso="${id}"]`);
+        const densEl = document.querySelector(`[data-fuel-tank-density="${id}"]`);
         const tank = fuelTankList().find(t=>t.id===id);
         if (!isoSel) return;
         const suggested = defaultIso8217ForGrade(sel.value);
@@ -9671,7 +9810,14 @@ function renderFuelTypeManagement(){
           isoSel.innerHTML = iso8217OptionsHtml(suggested);
           isoSel.value = suggested;
         }
-        if (tank) tank.grade = sel.value;
+        const prevDensDefault = tank ? defaultFuelDensityForGrade(tank.grade) : null;
+        if (densEl && (!densEl.value || (prevDensDefault != null && Number(densEl.value) === prevDensDefault))){
+          densEl.value = defaultFuelDensityForGrade(sel.value);
+        }
+        if (tank) {
+          tank.grade = sel.value;
+          if (densEl) tank.density = parseFloat(densEl.value) || defaultFuelDensityForGrade(sel.value);
+        }
       });
     });
   }
@@ -9713,7 +9859,7 @@ function addFuelType(){
   if (fuelTankList().length >= 12){ alert('Maximum 12 fuel types.'); return; }
   const n = fuelTankList().length + 1;
   const id = slugTankId('fuel', 'type'+n);
-  state.setup.fuelTanks.push({ id, name: 'Fuel Type '+n, grade: 'MDO/MGO', iso8217: defaultIso8217ForGrade('MDO/MGO') });
+  state.setup.fuelTanks.push({ id, name: 'Fuel Type '+n, grade: 'MDO/MGO', iso8217: defaultIso8217ForGrade('MDO/MGO'), density: defaultFuelDensityForGrade('MDO/MGO') });
   state.setup.fuelTankCount = state.setup.fuelTanks.length;
   state.setup.rob[id] = 0;
   state.setup.capacity[id] = 1000;
@@ -19448,7 +19594,117 @@ document.getElementById('btnVsResetConsOverride')?.addEventListener('click', ()=
   });
 });
 ['me_type','ge_type','blr_type','in_tbn'].forEach(id=>{
-  document.getElementById(id)?.addEventListener('change', updateVsRobLiveFromCons);
+  document.getElementById(id)?.addEventListener('change', ()=>{
+    if (id === 'me_type') applySgFromFuelType('me');
+    if (id === 'ge_type') applySgFromFuelType('ge');
+    if (id === 'blr_type') applySgFromFuelType('blr');
+    updateVsRobLiveFromCons();
+  });
+});
+
+/* ---- Log Entry → Enter Flowmeters popup ---- */
+function flowArrIsMeDual(){
+  const arr = state.setup.flowArr || 'SINGLE';
+  return arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
+}
+function flowArrIsGeDual(){
+  const arr = state.setup.flowArr || 'SINGLE';
+  return arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+}
+function paintFmQuickMeterBox(box, dual, prefix){
+  if (!box) return;
+  box.innerHTML = dual
+    ? `<div class="field"><label>Inlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_in"></div>
+       <div class="field"><label>Outlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_out"></div>`
+    : `<div class="field"><label>Fuel Meter</label><input type="number" id="fmq_${prefix}_meter"></div>`;
+}
+function setElVal(id, val){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = (val == null || val === undefined || Number.isNaN(val)) ? '' : val;
+}
+function getElVal(id){
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+function closeFmQuickDialog(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.hidden = true;
+}
+function openFmQuickDialog(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay) return;
+  /* Ensure main form meter boxes exist for the current arrangement. */
+  if (typeof renderFuelMeterFields === 'function') renderFuelMeterFields();
+  paintFmQuickMeterBox(document.getElementById('fmq_meMeters'), flowArrIsMeDual(), 'me');
+  paintFmQuickMeterBox(document.getElementById('fmq_geMeters'), flowArrIsGeDual(), 'ge');
+
+  /* Prefill from the log entry form. */
+  if (flowArrIsMeDual()){
+    setElVal('fmq_me_meter_in', getElVal('me_meter_in'));
+    setElVal('fmq_me_meter_out', getElVal('me_meter_out'));
+  } else {
+    setElVal('fmq_me_meter', getElVal('me_meter'));
+  }
+  if (flowArrIsGeDual()){
+    setElVal('fmq_ge_meter_in', getElVal('ge_meter_in'));
+    setElVal('fmq_ge_meter_out', getElVal('ge_meter_out'));
+  } else {
+    setElVal('fmq_ge_meter', getElVal('ge_meter'));
+  }
+  setElVal('fmq_blr_meter', getElVal('blr_meter'));
+  setElVal('fmq_cyl_meter', getElVal('cyl_meter'));
+  setElVal('fmq_revCounter', getElVal('in_revCounter'));
+  setElVal('fmq_me_type', getElVal('me_type') || 'HFO');
+  setElVal('fmq_ge_type', getElVal('ge_type') || 'MDO/MGO');
+  setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
+  setElVal('fmq_tbn', getElVal('in_tbn') || 'HIGH');
+
+  overlay.hidden = false;
+  overlay.classList.add('open');
+  const first = overlay.querySelector('input, select');
+  if (first) setTimeout(() => first.focus(), 30);
+}
+function acceptFmQuickDialog(){
+  if (typeof renderFuelMeterFields === 'function') renderFuelMeterFields();
+
+  if (flowArrIsMeDual()){
+    setElVal('me_meter_in', getElVal('fmq_me_meter_in'));
+    setElVal('me_meter_out', getElVal('fmq_me_meter_out'));
+  } else {
+    setElVal('me_meter', getElVal('fmq_me_meter'));
+  }
+  if (flowArrIsGeDual()){
+    setElVal('ge_meter_in', getElVal('fmq_ge_meter_in'));
+    setElVal('ge_meter_out', getElVal('fmq_ge_meter_out'));
+  } else {
+    setElVal('ge_meter', getElVal('fmq_ge_meter'));
+  }
+  setElVal('blr_meter', getElVal('fmq_blr_meter'));
+  setElVal('cyl_meter', getElVal('fmq_cyl_meter'));
+  setElVal('in_revCounter', getElVal('fmq_revCounter'));
+  setElVal('me_type', getElVal('fmq_me_type'));
+  setElVal('ge_type', getElVal('fmq_ge_type'));
+  setElVal('blr_type', getElVal('fmq_blr_type'));
+  setElVal('in_tbn', getElVal('fmq_tbn'));
+  applyAllSgFromFuelTypes();
+  closeFmQuickDialog();
+  try { updateLivePreview(); } catch (_) {}
+  try { updateVsRunCalcDisplays(); } catch (_) {}
+  try { updateVsRobLiveFromCons(); } catch (_) {}
+}
+document.getElementById('btnFlowmeterQuickEntry')?.addEventListener('click', openFmQuickDialog);
+document.getElementById('fmQuickCancel')?.addEventListener('click', closeFmQuickDialog);
+document.getElementById('fmQuickAccept')?.addEventListener('click', acceptFmQuickDialog);
+document.getElementById('fmQuickOverlay')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeFmQuickDialog();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (overlay && overlay.classList.contains('open')) closeFmQuickDialog();
 });
 
 document.getElementById('logEntryFormPanel').addEventListener('input', ()=>{ updateLivePreview(); updateVsRunCalcDisplays(); });
@@ -19648,6 +19904,8 @@ function applyEntryDefaults(){
   set('me_type', d.meType); set('me_sg', d.meSg);
   set('ge_type', d.geType); set('ge_sg', d.geSg);
   set('blr_type', d.blrType); set('blr_sg', d.blrSg);
+  /* Prefer Vessel Data fuel-type density over legacy per-consumer SG defaults. */
+  applyAllSgFromFuelTypes();
   syncMeRuntimeFromPeriod();
   updateLivePreview();
   updateVsRunCalcDisplays();
@@ -19714,6 +19972,8 @@ function prefillFromLastEntry(){
   setShipTzUi(useVoyageTz ? voyageTz : (last.tzOffsetMin != null ? last.tzOffsetMin : defaultShipTzOffsetMin()), 0);
   /* Runs after me_runtime was seeded from `last`, so the counter re-tracks the clock. */
   syncMeRuntimeFromPeriod();
+  /* Spec. Gravity follows Vessel Data density for the fuel types just seeded. */
+  applyAllSgFromFuelTypes();
   updateLivePreview();
   updateVsRunCalcDisplays();
 }
