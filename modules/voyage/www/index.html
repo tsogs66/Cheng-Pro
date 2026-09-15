@@ -2475,13 +2475,18 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">The time-zone list only labels ship's clock. Use Change clocks when the watch actually advances or retards time — that adjusts period hours (noon-to-noon after +1 h is 23 h) without moving the date/time stamp. Picking UTC+8 alone does not take 8 hours off the period.</div>
       <div class="hint">Distance run, M/E avg RPM, slip, engine distance/speed, and consumption review are on the Voyage Summary after you save or open an entry.</div>
 
+      <div class="btn-row" id="fmQuickEntryRow" hidden style="margin:12px 0 8px; justify-content:flex-start;">
+        <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, M/E runtime, rev counter, fuel types and TBN in a popup, then apply them to this log entry">Enter Flowmeters…</button>
+      </div>
+
+      <div id="logMetersDeferred" hidden>
       <h3 class="sub">Main Engine — Runtime &amp; Revolutions</h3>
       <div class="unit-group cols2 cols1-after-hide" id="meBlrRuntimeFields">
         <div class="unit-box">
           <h3>Main Engine</h3>
           <div class="field log-entry-always-hide" hidden><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
           <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
-          <div class="field log-meters-deferred-field" hidden><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
+          <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
           <div class="hint" id="meRuntimeHint" style="margin:0;">Period runtime = hours between the previous entry's date/time and the date/time selected above, after any clocks advanced/retarded this period. On a new entry the cumulative counter tracks that period automatically until you type your own reading.</div>
         </div>
         <div class="unit-box log-entry-always-hide" hidden>
@@ -2491,11 +2496,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
 
-      <div class="btn-row" id="fmQuickEntryRow" hidden style="margin:12px 0 8px; justify-content:flex-start;">
-        <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, rev counter, fuel types and TBN in a popup, then apply them to this log entry">Enter Flowmeters…</button>
-      </div>
-
-      <div id="logMetersDeferred" hidden>
       <h3 class="sub">Fuel &amp; Cylinder Oil Meters (litres, cumulative)</h3>
       <div class="unit-group cols4" id="fuelLubeMeterRow">
         <div class="unit-box">
@@ -2555,7 +2555,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
       <div class="fm-quick-dialog">
         <h3 id="fmQuickTitle">Enter Flowmeters</h3>
-        <p class="hint">Values load from the log entry form. Accept writes them back and reveals the meter fields. Spec. Gravity comes from Vessel Data density. RPM and Rev. Counter stay linked using M/E run hours.</p>
+        <p class="hint">Values load from the log entry form. Accept writes them back and reveals M/E runtime &amp; revolutions, fuel/cyl meters and FWG. Spec. Gravity comes from Vessel Data density. RPM and Rev. Counter stay linked using M/E run hours.</p>
         <div class="fm-quick-rows">
           <div class="fm-quick-row">
             <div class="fm-quick-block">
