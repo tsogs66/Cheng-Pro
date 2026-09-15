@@ -222,11 +222,10 @@ const FuelReport = (() => {
       return `<tr data-tank="${esc(row.tankId)}">
         <th class="fr-tank-name">${esc(row.name)}<span class="fr-move" data-fr-move="${esc(row.tankId)}"></span></th>
         <td><select data-row="${esc(row.tankId)}" data-field="fuelType">${typeOpts}</select></td>
-        <td><input type="number" step="any" data-row="${esc(row.tankId)}" data-field="reading" value="${esc(f.reading)}"></td>
+        <td><input type="number" step="any" data-row="${esc(row.tankId)}" data-field="reading" data-sheet-popup="actual" value="${esc(Core.formatCm(row.reading))}"></td>
         <td><select data-row="${esc(row.tankId)}" data-field="method">${methodOpts}</select></td>
         <td><input type="number" step="any" class="fr-narrow" data-row="${esc(row.tankId)}" data-field="tempC" value="${esc(f.tempC)}"></td>
-        <td><select data-row="${esc(row.tankId)}" data-field="unit">${unitOpts}</select></td>
-        <td><input type="number" step="any" class="fr-wide" data-row="${esc(row.tankId)}" data-field="unitValue" value="${esc(f.unitValue)}"></td>
+        <td><input type="number" step="any" class="fr-wide" data-row="${esc(row.tankId)}" data-field="unitValue" data-sheet-popup="sg" value="${esc(f.unitValue)}"></td>
         <td class="fr-check"><input type="checkbox" data-row="${esc(row.tankId)}" data-field="inUse" ${row.inUse ? 'checked' : ''}></td>
         ${COMPUTED_COLUMNS.map((c) =>
           `<td class="fr-calc" data-fr-cell="${esc(row.tankId)}.${c.field}"></td>`).join('')}
@@ -239,15 +238,15 @@ const FuelReport = (() => {
         <table class="fr-sheet">
           <thead>
             <tr>
-              <th>TANK</th><th>FUEL TYPE</th><th>ACTUAL (MM)</th><th>METHOD</th><th>TEMP. (°C)</th>
-              <th>UNIT</th><th>UNIT VALUE</th><th>TANK IN USE</th>
+              <th>TANK</th><th>FUEL TYPE</th><th>ACTUAL (CM)</th><th>METHOD</th><th>TEMP. (°C)</th>
+              <th>SG</th><th>TANK IN USE</th>
               ${COMPUTED_COLUMNS.map((c) => `<th class="fr-calc-head">${esc(c.label)}</th>`).join('')}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
           <tfoot>
             <tr>
-              <th colspan="8">TOTAL — ${section.rows.length} tanks</th>
+              <th colspan="7">TOTAL — ${section.rows.length} tanks</th>
               <td class="fr-calc" data-fr-total="${esc(section.id)}.capacity100M3"></td>
               <td class="fr-calc" data-fr-total="${esc(section.id)}.capacity100MT"></td>
               <td class="fr-calc" data-fr-total="${esc(section.id)}.measuredM3"></td>
@@ -263,86 +262,6 @@ const FuelReport = (() => {
     </div>`;
   }
 
-  /** AIO-only: Voyage Chief Calculated ROB is available on the parent shell. */
-  function showVoyageRobButton() {
-    try {
-      return typeof isAioEmbedded === 'function' && isAioEmbedded();
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /** Map Voyage fuel grade labels onto Fuel Oil Report logbook keys. */
-  function logbookIdForVoyageGrade(grade) {
-    const g = String(grade || '').trim().toUpperCase();
-    if (g === 'HFO' || (g.includes('HFO') && !g.includes('LS'))) return 'hfo';
-    if (g === 'LSFO' || g.includes('VLSFO') || g.includes('LSFO')) return 'lsfo';
-    if (g === 'LSMGO' || g.includes('LSMGO')) return 'lsmgo';
-    if (g === 'MDO/MGO' || g.includes('MDO') || g.includes('MGO') || g === 'MO/MGO') return 'mdo';
-    return null;
-  }
-
-  /**
-   * Read Voyage Chief present ROB (Calculated ROB book) from the AIO shell.
-   * Returns { hfo, lsfo, mdo, lsmgo } MT totals, or null when unavailable.
-   */
-  async function readVoyageRobByLogbookGrade() {
-    try {
-      const parentWin = window.parent;
-      if (!parentWin || parentWin === window) return null;
-      const bridge = parentWin.ChengProVoyageBridge;
-      if (!bridge || typeof bridge.readHomeSnapshot !== 'function') return null;
-      let vessel = null;
-      try {
-        vessel = parentWin.ChengPro && parentWin.ChengPro.vessel
-          && typeof parentWin.ChengPro.vessel.getActive === 'function'
-          ? parentWin.ChengPro.vessel.getActive()
-          : null;
-      } catch (_) { /* cross-origin or missing */ }
-      const snap = await bridge.readHomeSnapshot(vessel);
-      if (!snap || !snap.ok) return null;
-      const rob = snap.robCurrent || {};
-      const tanks = Array.isArray(snap.fuelTanks) ? snap.fuelTanks : [];
-      const out = { hfo: null, lsfo: null, mdo: null, lsmgo: null };
-      for (const t of tanks) {
-        const key = logbookIdForVoyageGrade(t.grade || t.name);
-        if (!key) continue;
-        const v = Number(rob[t.id]);
-        if (!Number.isFinite(v)) continue;
-        out[key] = (out[key] == null ? 0 : out[key]) + v;
-      }
-      return out;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /**
-   * AIO only — fill LOGBOOK ROB from Voyage Chief Calculated ROB (not tank soundings).
-   */
-  async function fillLogbookFromVoyageRob() {
-    const rob = await readVoyageRobByLogbookGrade();
-    if (!rob) {
-      showToast('Voyage ROB unavailable — open Voyage Chief for this vessel first');
-      return;
-    }
-    let filled = 0;
-    for (const grade of Core.FUEL_TYPES) {
-      const mt = rob[grade.id];
-      if (mt == null || !Number.isFinite(Number(mt))) continue;
-      const val = n(mt, 3);
-      view.form.logbook[grade.id] = val;
-      const input = document.querySelector(`[data-logbook="${grade.id}"]`);
-      if (input) input.value = val;
-      filled += 1;
-    }
-    view.dirty = true;
-    refreshComputed();
-    showToast(filled
-      ? `Logbook filled from Voyage ROB (${filled} fuel type${filled === 1 ? '' : 's'})`
-      : 'No Voyage ROB figures for this vessel');
-  }
-
   function renderGradesPanel() {
     const cells = Core.FUEL_TYPES.map((g) => `
       <div class="fr-grade" data-grade="${g.id}">
@@ -354,14 +273,8 @@ const FuelReport = (() => {
         <div class="fr-grade-row"><span>LOGBOOK − ACTUAL</span>
           <b data-fr-grade="${g.id}.differenceMT"></b></div>
       </div>`).join('');
-    const robBtn = showVoyageRobButton()
-      ? `<button type="button" class="btn small" id="fr-fill-logbook-rob">Get current ROB</button>`
-      : '';
     return `<div class="form-panel no-print">
-      <div class="section-title" style="margin-top:0">
-        <span>Totals vs log book</span>
-        ${robBtn}
-      </div>
+      <div class="section-title" style="margin-top:0">Totals vs log book</div>
       <div class="fr-grades">${cells}</div>
     </div>`;
   }
@@ -604,6 +517,9 @@ const FuelReport = (() => {
   }
 
   function bindEvents(wrap) {
+    bindSheetPopups(wrap, () => view.form.rows, () => view.computed || recompute(), () => {
+      view.dirty = true; refreshComputed();
+    });
     bindSectionMove(wrap, view.form.rows, () => {
       view.pendingForm = view.form;
       view.dirty = true;
@@ -618,7 +534,15 @@ const FuelReport = (() => {
         if (!row) return;
         const moves = el.dataset.field === 'fuelType'
           && sectionWouldChange(view.computed, row, el.dataset.row, el.value);
-        row[el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
+        if (el.dataset.field === 'reading') {
+          row.reading = Core.cmToMm(el.value);
+          row.unit = 'den15';
+        } else if (el.dataset.field === 'unitValue') {
+          row.unitValue = el.value;
+          row.unit = 'den15';
+        } else {
+          row[el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
+        }
         if (moves) {
           view.pendingForm = view.form;
           view.dirty = true;
@@ -643,10 +567,6 @@ const FuelReport = (() => {
       }
       mark();
       refreshComputed();
-    });
-
-    document.getElementById('fr-fill-logbook-rob')?.addEventListener('click', () => {
-      fillLogbookFromVoyageRob();
     });
 
     document.getElementById('fr-print-save').onclick = () => saveReport({ snapshot: true, print: true });
@@ -859,7 +779,7 @@ const FuelReport = (() => {
     const rows = section.rows.map((r) => `<tr>
       <td class="fr-print-name">${esc(r.name)}${r.moved ? ' *' : ''}</td>
       <td class="fr-print-label">${esc(r.fuelTypeLabel)}</td>
-      <td>${n(r.reading, 0)}</td>
+      <td>${n(Core.mmToCm(r.reading), 1)}</td>
       <td class="fr-print-label">${esc(r.methodLabel)}</td>
       <td>${n(r.tempC, 1)}</td>
       <td>${n(r.capacity100M3, 1)}</td>
@@ -877,7 +797,7 @@ const FuelReport = (() => {
       <div class="pr-section-body">
       <table class="fr-print-table">
         <thead><tr>
-          <th>Tank</th><th>Fuel</th><th>Actual (mm)</th><th>Method</th><th>Temp °C</th>
+          <th>Tank</th><th>Fuel</th><th>Actual (cm)</th><th>Method</th><th>Temp °C</th>
           <th>100% m³</th><th>Measured m³</th><th>Vol %</th><th>Density @15</th>
           <th>VCF 54B</th><th>GSV @15 m³</th><th>WCF 56</th><th>Weight air MT</th>
         </tr></thead>
@@ -957,7 +877,7 @@ const FuelReport = (() => {
     const rows = section.rows.map((r) => `<tr>
       <td class="fr-print-name">${esc(r.name)}${r.moved ? ' *' : ''}</td>
       <td class="fr-print-label">${esc(r.fuelTypeLabel)}</td>
-      <td>${n(r.reading, 0)}</td>
+      <td>${n(Core.mmToCm(r.reading), 1)}</td>
       <td class="fr-print-label">${esc(r.methodLabel)}</td>
       <td>${n(r.tempC, 1)}</td>
       <td>${n(r.capacity100M3, 1)}</td>
@@ -980,7 +900,7 @@ const FuelReport = (() => {
           <tr>
             <th class="fr-print-name">Tank</th>
             <th>Fuel</th>
-            <th>Actual<br>mm</th>
+            <th>Actual<br>cm</th>
             <th>Method</th>
             <th>Temp<br>°C</th>
             <th>100%<br>m³</th>
@@ -1118,8 +1038,8 @@ const FuelReport = (() => {
           <td class="fr-print-name">${esc(r.name)}</td>
           <td>${esc(r.fuelTypeLabel)}</td>
           <td>${esc(r.methodLabel)}</td>
-          <td>${esc(r.unitLabel)}</td>
-          <td>${n(r.unitValue, 4)}</td>
+          <td>SG</td>
+          <td>${n(r.density15 != null ? r.density15 : r.unitValue, 4)}</td>
           <td>${r.inUse ? 'YES' : ''}</td>
           <td>${pct(r.volumePercent)}</td>
         </tr>`);
@@ -1151,7 +1071,7 @@ const FuelReport = (() => {
       <table class="fr-print-table">
         <thead><tr>
           <th class="fr-print-name">Tank</th><th>Fuel</th><th>Method</th>
-          <th>Unit</th><th>Unit value</th><th>In use</th><th>Vol %</th>
+          <th>SG</th><th>Dens @15</th><th>In use</th><th>Vol %</th>
         </tr></thead>
         <tbody>${extraRows.join('')}</tbody>
       </table>
@@ -1181,7 +1101,7 @@ const FuelReport = (() => {
         const t = r.trace;
         rows.push(`<tr>
           <td class="fr-print-name">${esc(r.name)}</td>
-          <td>${esc(r.methodLabel)} ${n(r.reading, 0)}</td>
+          <td>${esc(r.methodLabel)} ${n(Core.mmToCm(r.reading), 1)}</td>
           <td>${t.flipped ? `${esc(t.nativeMethod)} ${n(t.nativeReading, 0)}` : 'as read'}</td>
           <td>${corrCell(r, t.trimCorrection)}</td>
           <td>${corrCell(r, t.listCorrection)}</td>
@@ -1217,7 +1137,7 @@ const FuelReport = (() => {
         const t = r.trace;
         rows.push(`<tr>
           <td class="fr-print-name">${esc(r.name)}</td>
-          <td>${esc(r.methodLabel)} ${n(r.reading, 0)}</td>
+          <td>${esc(r.methodLabel)} ${n(Core.mmToCm(r.reading), 1)}</td>
           <td>${t.flipped ? `${esc(t.nativeMethod)} ${n(t.nativeReading, 0)} (pipe ${n(t.pipeHeight, 0)})` : 'as read'}</td>
           <td>${esc(r.calcType)} · step ${n(t.soundingIncrement, 0)}</td>
           <td>${signed(t.trimUsed, 2)} m</td>
@@ -1359,6 +1279,129 @@ const FuelReport = (() => {
     printHtml(buildPrintPages(computed));
   }
 
+
+  /* ---- Mobile / tablet sheet popups (Actual + SG) ---- */
+  function sheetPopupWanted() {
+    try {
+      return window.matchMedia('(max-width: 1100px), (pointer: coarse)').matches;
+    } catch (_) {
+      return window.innerWidth <= 1100;
+    }
+  }
+
+  function closeSheetPopup() {
+    document.getElementById('tankSheetPopup')?.remove();
+  }
+
+  function openSheetPopup(opts) {
+    const {
+      mode, /* 'actual' | 'sg' */
+      sectionId,
+      focusTankId,
+      formRows,
+      computed,
+      onApply,
+      host,
+    } = opts;
+    closeSheetPopup();
+    const section = (computed.sections || []).find((s) => s.id === sectionId)
+      || { id: sectionId, title: sectionId === 'do' ? 'MO / MGO / LSMGO' : 'HFO / VLSFO', rows: [] };
+    const title = mode === 'sg'
+      ? `${section.title} — SG`
+      : `${section.title} — Actual`;
+    const list = (section.rows || []).map((r) => {
+      const fr = formRows[r.tankId] || {};
+      if (mode === 'sg') {
+        return `<div class="tsp-row" data-tsp-tank="${esc(r.tankId)}">
+          <div class="tsp-name">${esc(r.name)}</div>
+          <label class="tsp-field"><span>SG</span>
+            <input type="number" step="any" inputmode="decimal" data-tsp="unitValue" value="${esc(fr.unitValue)}"></label>
+        </div>`;
+      }
+      return `<div class="tsp-row" data-tsp-tank="${esc(r.tankId)}">
+        <div class="tsp-name">${esc(r.name)}</div>
+        <label class="tsp-field"><span>Actual (cm)</span>
+          <input type="number" step="any" inputmode="decimal" data-tsp="reading" value="${esc(Core.formatCm(fr.reading))}"></label>
+        <label class="tsp-field"><span>Temp (°C)</span>
+          <input type="number" step="any" inputmode="decimal" data-tsp="tempC" value="${esc(fr.tempC)}"></label>
+      </div>`;
+    }).join('') || `<p class="hint">No tanks in this group.</p>`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tankSheetPopup';
+    overlay.className = 'tsp-overlay';
+    overlay.innerHTML = `<div class="tsp-dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <div class="tsp-head"><h3>${esc(title)}</h3>
+        <button type="button" class="btn ghost small" data-tsp-cancel>Close</button></div>
+      <div class="tsp-list tsp-mode-${esc(mode)}">${list}</div>
+      <div class="tsp-actions">
+        <button type="button" class="btn" data-tsp-cancel>Cancel</button>
+        <button type="button" class="btn primary" data-tsp-update>Update</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    const focusRow = overlay.querySelector(`[data-tsp-tank="${CSS.escape(focusTankId || '')}"]`);
+    const focusInput = focusRow?.querySelector('input');
+    setTimeout(() => focusInput?.focus(), 40);
+
+    const dismiss = () => closeSheetPopup();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
+    overlay.querySelectorAll('[data-tsp-cancel]').forEach((b) => { b.onclick = dismiss; });
+    overlay.querySelector('[data-tsp-update]').onclick = () => {
+      overlay.querySelectorAll('[data-tsp-tank]').forEach((rowEl) => {
+        const id = rowEl.dataset.tspTank;
+        const fr = formRows[id];
+        if (!fr) return;
+        if (mode === 'sg') {
+          fr.unitValue = rowEl.querySelector('[data-tsp="unitValue"]')?.value ?? '';
+          fr.unit = 'den15';
+        } else {
+          fr.reading = Core.cmToMm(rowEl.querySelector('[data-tsp="reading"]')?.value);
+          fr.tempC = rowEl.querySelector('[data-tsp="tempC"]')?.value ?? '';
+          fr.unit = 'den15';
+        }
+        if (host) {
+          if (mode === 'sg') {
+            const uv = host.querySelector(`input[data-row="${CSS.escape(id)}"][data-field="unitValue"]`);
+            if (uv) uv.value = fr.unitValue ?? '';
+          } else {
+            const rd = host.querySelector(`input[data-row="${CSS.escape(id)}"][data-field="reading"]`);
+            const tp = host.querySelector(`input[data-row="${CSS.escape(id)}"][data-field="tempC"]`);
+            if (rd) rd.value = Core.formatCm(fr.reading);
+            if (tp) tp.value = fr.tempC ?? '';
+          }
+        }
+      });
+      dismiss();
+      if (typeof onApply === 'function') onApply();
+    };
+  }
+
+  function bindSheetPopups(wrap, getFormRows, getComputed, onApply) {
+    wrap.addEventListener('focusin', (e) => {
+      const el = e.target;
+      if (!el || !el.dataset || !el.dataset.sheetPopup) return;
+      if (!sheetPopupWanted()) return;
+      const fieldMode = el.dataset.sheetPopup; /* actual | sg */
+      const tankId = el.dataset.row;
+      const sectionEl = el.closest('[data-section]');
+      const sectionId = sectionEl?.dataset.section || 'fuel';
+      e.preventDefault();
+      el.blur();
+      openSheetPopup({
+        mode: fieldMode === 'sg' ? 'sg' : 'actual',
+        sectionId,
+        focusTankId: tankId,
+        formRows: getFormRows(),
+        computed: getComputed(),
+        onApply,
+        host: wrap,
+      });
+    });
+  }
+
+
   return {
     render,
     printReport,
@@ -1373,6 +1416,9 @@ const FuelReport = (() => {
     vesselChiefEngineer,
     vesselAssets,
     sheetTableHtml: renderSectionPanel,
+    bindSheetPopups,
+    openSheetPopup,
+    sheetPopupWanted,
     sectionWouldChange,
     SECTION_SHORT,
     bindSectionMove,
