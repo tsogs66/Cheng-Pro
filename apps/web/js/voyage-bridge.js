@@ -779,6 +779,117 @@
     return { robStart, robCurrent, robUsed };
   }
 
+  /** Default Voyage lube tanks when setup.lubeTanks is empty. */
+  const DEFAULT_HOME_LUBE_TANKS = [
+    { id: 'cylhigh', name: 'CYL HIGH', kind: 'cylHigh' },
+    { id: 'cyllow', name: 'CYL LOW', kind: 'cylLow' },
+    { id: 'mesysoil', name: 'ME SYS OIL', kind: 'meSys' },
+    { id: 'gesysoil', name: 'GE SYS OIL', kind: 'geSys' },
+  ];
+  const HOME_LUBE_KIND_LABEL = {
+    cylHigh: 'CYL HIGH',
+    cylLow: 'CYL LOW',
+    meSys: 'ME SYS OIL',
+    geSys: 'GE SYS OIL',
+  };
+
+  function homeLubeTankList(setup) {
+    const list = Array.isArray(setup && setup.lubeTanks) ? setup.lubeTanks : [];
+    return list.length ? list : DEFAULT_HOME_LUBE_TANKS.slice();
+  }
+
+  function homeLubeReceiptQty(receipts, tank) {
+    let hand = 0;
+    let survey = 0;
+    for (const r of receipts || []) {
+      if (!r || r.category !== 'lube') continue;
+      const match = (r.tankId && r.tankId === tank.id)
+        || (!r.tankId && r.type && tank.name && String(r.type) === String(tank.name));
+      if (!match) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.source === 'rob-survey') survey += qty;
+      else hand += qty;
+    }
+    return hand > 0 ? hand : survey;
+  }
+
+  /**
+   * Period lube consumption by kind (litres) — cyl / ME LO / GE LO meter deltas,
+   * matching the Voyage Calculated ROB book when no survey re-base applies.
+   */
+  function homeSavedLubeConsByKind(entries, carryover) {
+    const kinds = { 'CYL HIGH': 0, 'CYL LOW': 0, 'ME SYS OIL': 0, 'GE SYS OIL': 0 };
+    const list = (entries || []).slice()
+      .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+    let prev = carryover || null;
+    for (const e of list) {
+      if (!prev) { prev = e; continue; }
+      const cylD = homeMeterDelta(e.cylMeter, prev.cylMeter);
+      const meLoD = homeMeterDelta(e.meLo, prev.meLo);
+      const geLoD = homeMeterDelta(e.geLo, prev.geLo);
+      const raw = { 'CYL HIGH': 0, 'CYL LOW': 0, 'ME SYS OIL': 0, 'GE SYS OIL': 0 };
+      if (cylD != null && cylD > 0) {
+        raw[e.tbn === 'LOW' ? 'CYL LOW' : 'CYL HIGH'] += cylD;
+      }
+      if (meLoD != null && meLoD > 0) raw['ME SYS OIL'] += meLoD;
+      if (geLoD != null && geLoD > 0) raw['GE SYS OIL'] += geLoD;
+      const ov = e.consOverride || {};
+      Object.keys(kinds).forEach((label) => {
+        const o = ov[label];
+        kinds[label] += (o != null && o !== '' && !isNaN(Number(o))) ? Number(o) : raw[label];
+      });
+      prev = e;
+    }
+    return kinds;
+  }
+
+  function homeLubeStockShare(peers, tank, openStore, receipts) {
+    if (!peers.length) return 0;
+    let total = 0;
+    let mine = 0;
+    peers.forEach((p) => {
+      const open = Number(openStore && openStore[p.id]) || 0;
+      const recv = homeLubeReceiptQty(receipts, p);
+      const stock = Math.max(0, open + recv);
+      total += stock;
+      if (p.id === tank.id) mine = stock;
+    });
+    if (total > 0) return mine / total;
+    return 1 / peers.length;
+  }
+
+  /** Opening + received − consumed (or latest measuredLube survey) for each lube tank. */
+  function buildHomeCalculatedLubeRob(setup, entries, receipts) {
+    const lubeTanks = homeLubeTankList(setup);
+    const robStart = { ...((setup && setup.robLube) || {}) };
+    const robCurrent = {};
+    const list = Array.isArray(entries) ? entries : [];
+    const consByKind = homeSavedLubeConsByKind(list, setup && setup.carryover);
+
+    for (const t of lubeTanks) {
+      const open = Number(robStart[t.id]) || Number(robStart[t.name]) || 0;
+      const received = homeLubeReceiptQty(receipts, t);
+      const kindKey = t.kind || '';
+      const kindLabel = HOME_LUBE_KIND_LABEL[kindKey] || t.name;
+      const peers = lubeTanks.filter((p) => (p.kind || p.name) === (t.kind || t.name));
+      const consumed = (Number(consByKind[kindLabel]) || 0)
+        * homeLubeStockShare(peers, t, robStart, receipts);
+      let measured = null;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const m = list[i] && list[i].robSurvey && list[i].robSurvey.measuredLube
+          ? list[i].robSurvey.measuredLube[t.id]
+          : null;
+        if (m != null && m !== '' && !isNaN(Number(m))) {
+          measured = Number(m);
+          break;
+        }
+      }
+      if (measured != null) robCurrent[t.id] = measured;
+      else robCurrent[t.id] = open + received - Math.max(0, consumed);
+    }
+    return { robStart, robCurrent, lubeTanks };
+  }
+
   /**
    * Lightweight voyage snapshot for the AIO Home dashboard (progress + Calculated ROB).
    * Fuel gauges use Opening / Received / Present & consumption from the Voyage Calculated ROB book.
@@ -896,10 +1007,13 @@
       totalDistance: null,
       weather: null,
       fuelTanks: [],
+      lubeTanks: [],
       capacity: {},
       robStart: {},
       robCurrent: {},
       robUsed: {},
+      robLubeStart: {},
+      robLubeCurrent: {},
     };
     let db;
     try {
@@ -984,6 +1098,10 @@
       const robStart = calc.robStart;
       const robCurrent = calc.robCurrent;
       const robUsed = calc.robUsed;
+      const lubeCalc = buildHomeCalculatedLubeRob(setup, entries, receipts);
+      const lubeTanks = lubeCalc.lubeTanks;
+      const robLubeStart = lubeCalc.robStart;
+      const robLubeCurrent = lubeCalc.robCurrent;
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
@@ -1011,10 +1129,13 @@
         arrivePort: setup.arrivePort || 'Arrival',
         weather,
         fuelTanks,
+        lubeTanks,
         capacity,
         robStart,
         robCurrent,
         robUsed,
+        robLubeStart,
+        robLubeCurrent,
         lastSpeed: progress.lastSpeed,
         avgSpeed: progress.avgSpeed,
         lastRpm,
@@ -1047,7 +1168,9 @@
     normalizeImo,
     normalizeVesselName,
     buildHomeCalculatedRob,
+    buildHomeCalculatedLubeRob,
     homeSavedFuelConsByGrade,
+    homeSavedLubeConsByKind,
     HINT_KEY,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
