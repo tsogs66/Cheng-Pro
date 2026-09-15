@@ -401,7 +401,7 @@
   }
   .fm-quick-overlay.open{display:flex;}
   .fm-quick-dialog{
-    width:min(720px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; max-height:min(92vh, 900px);
+    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; max-height:min(92vh, 900px);
     overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
@@ -410,12 +410,13 @@
   .fm-quick-dialog h3{margin:0 0 6px; font-size:16px;}
   .fm-quick-dialog h4{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
   .fm-quick-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
-  .fm-quick-grid{
-    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(180px,0.8fr); gap:14px; margin-bottom:14px;
+  .fm-quick-rows{display:flex; flex-direction:column; gap:10px; margin-bottom:14px;}
+  .fm-quick-row{
+    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(160px,0.85fr); gap:10px; align-items:stretch;
   }
-  .fm-quick-meters, .fm-quick-types{display:flex; flex-direction:column; gap:10px; min-width:0;}
+  .fm-quick-row.fm-quick-row-single{grid-template-columns:1fr;}
   .fm-quick-block{
-    border:1px solid var(--line,#2a3550); border-radius:8px; padding:10px 12px;
+    border:1px solid var(--line,#2a3550); border-radius:8px; padding:10px 12px; min-width:0;
   }
   .fm-quick-dialog .field{margin-bottom:8px;}
   .fm-quick-dialog .field:last-child{margin-bottom:0;}
@@ -427,8 +428,13 @@
   }
   .fm-quick-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
   .sg-from-density[hidden]{display:none !important;}
+  #logEntryPreviewBlock[hidden],
+  #logMetersDeferred[hidden],
+  #fmQuickEntryRow[hidden],
+  .log-entry-always-hide[hidden]{display:none !important;}
+  #meBlrRuntimeFields.cols1-after-hide{grid-template-columns:1fr;}
   @media (max-width:720px){
-    .fm-quick-grid{grid-template-columns:1fr;}
+    .fm-quick-row{grid-template-columns:1fr;}
   }
   @media (max-width:900px){
     .nv-leg-overlay{
@@ -2426,18 +2432,23 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
     </div>
-    <div class="panel" id="lastEntryPanel">
-      <h2 id="lastEntryPanelTitle">Last Saved Entry — Reference</h2>
-      <div id="lastEntryRef"></div>
-    </div>
+    <details class="panel vs-fold" id="lastEntryPanel">
+      <summary>
+        <span id="lastEntryPanelTitle">Last Saved Entry — Reference</span>
+        <span class="vs-fold-hint">tap to expand</span>
+      </summary>
+      <div class="vs-fold-body" id="lastEntryRef"></div>
+    </details>
     <div class="panel" id="logEntryFormPanel">
       <h2 id="logEntryTitle">New Log Entry</h2>
       <div class="field-legend">
         <span><i class="edit"></i> Editable — enter your reading</span>
         <span><i class="calc"></i> Calculated — filled by the app</span>
       </div>
-      <h3 class="sub" style="margin-top:0;">Live Calculation Preview</h3>
-      <div class="stat-strip cols4" id="livePreviewBox" style="margin-bottom:14px;"></div>
+      <div id="logEntryPreviewBlock" hidden>
+        <h3 class="sub" style="margin-top:0;">Live Calculation Preview</h3>
+        <div class="stat-strip cols4" id="livePreviewBox" style="margin-bottom:14px;"></div>
+      </div>
       <!-- Hidden bridges: distance/RPM edited on Voyage Summary; kept here for live preview & save -->
       <input type="hidden" id="in_distanceShip" value="0">
       <input type="hidden" id="in_rpm" value="">
@@ -2449,7 +2460,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <!-- Options are built from OPERATION_GROUPS so the list has one definition. -->
           <select id="in_operation"></select>
         </div>
-        <div class="field"><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
+        <div class="field log-entry-always-hide" hidden><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
+        <div class="field calc"><label>Period Hrs</label><input type="text" id="in_periodHrs" readonly tabindex="-1" value="—"><div class="hint">Hours since the previous entry (after any clock change).</div></div>
       </div>
       <input type="hidden" id="in_clockChangeMin" value="0">
       <div class="tz-clock-row">
@@ -2464,24 +2476,26 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="hint">Distance run, M/E avg RPM, slip, engine distance/speed, and consumption review are on the Voyage Summary after you save or open an entry.</div>
 
       <h3 class="sub">Main Engine — Runtime &amp; Revolutions</h3>
-      <div class="unit-group cols2" id="meBlrRuntimeFields">
+      <div class="unit-group cols2 cols1-after-hide" id="meBlrRuntimeFields">
         <div class="unit-box">
           <h3>Main Engine</h3>
-          <div class="field"><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
+          <div class="field log-entry-always-hide" hidden><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
           <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
-          <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
+          <div class="field log-meters-deferred-field" hidden><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
           <div class="hint" id="meRuntimeHint" style="margin:0;">Period runtime = hours between the previous entry's date/time and the date/time selected above, after any clocks advanced/retarded this period. On a new entry the cumulative counter tracks that period automatically until you type your own reading.</div>
         </div>
-        <div class="unit-box">
+        <div class="unit-box log-entry-always-hide" hidden>
           <h3>Linked from Voyage Summary</h3>
           <div class="field"><label>M/E Avg RPM (from summary)</label><input type="text" id="in_rpm_display" readonly></div>
           <div class="hint" style="margin:0;">Editing RPM on Voyage Summary updates Rev. Counter here: Rev = previous Rev + RPM × Run Hours × 60. Editing Rev. Counter updates RPM on the summary the same way.</div>
         </div>
       </div>
 
-      <div class="btn-row" style="margin:12px 0 8px; justify-content:flex-start;">
+      <div class="btn-row" id="fmQuickEntryRow" hidden style="margin:12px 0 8px; justify-content:flex-start;">
         <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, rev counter, fuel types and TBN in a popup, then apply them to this log entry">Enter Flowmeters…</button>
       </div>
+
+      <div id="logMetersDeferred" hidden>
       <h3 class="sub">Fuel &amp; Cylinder Oil Meters (litres, cumulative)</h3>
       <div class="unit-group cols4" id="fuelLubeMeterRow">
         <div class="unit-box">
@@ -2510,64 +2524,20 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint">Spec. Gravity is taken from Vessel Data → Fuel Types density (kg/m³ ÷ 1000) for the selected fuel type. Use <strong>Enter Flowmeters…</strong> to fill meters, rev counter, fuel types and TBN in one step. Fuel consumption overrides and ROB review are on the Voyage Summary after you add or open an entry.</div>
 
-    <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
-      <div class="fm-quick-dialog">
-        <h3 id="fmQuickTitle">Enter Flowmeters</h3>
-        <p class="hint">Values load from the log entry form. Accept writes them back. Fuel Spec. Gravity is set from Vessel Data density for each selected type.</p>
-        <div class="fm-quick-grid">
-          <div class="fm-quick-meters">
-            <div class="fm-quick-block">
-              <h4>Main Engine</h4>
-              <div id="fmq_meMeters"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>Generator</h4>
-              <div id="fmq_geMeters"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>Boiler</h4>
-              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>Cylinder Oil</h4>
-              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>Revolution Counter</h4>
-              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
-            </div>
-          </div>
-          <div class="fm-quick-types">
-            <div class="fm-quick-block">
-              <h4>Fuel in Use</h4>
-              <div class="field"><label>M/E Fuel Type</label><select id="fmq_me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
-              <div class="field"><label>G/E Fuel Type</label><select id="fmq_ge_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
-              <div class="field"><label>Boiler Fuel Type</label><select id="fmq_blr_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
-              <div class="field"><label>TBN in Use</label><select id="fmq_tbn"><option>HIGH</option><option>LOW</option></select></div>
-            </div>
-          </div>
-        </div>
-        <div class="fm-quick-actions">
-          <button type="button" class="ghost small" id="fmQuickCancel">Cancel</button>
-          <button type="button" class="primary small" id="fmQuickAccept">Accept</button>
-        </div>
-      </div>
-    </div>
-
-      <h3 class="sub">Fresh Water</h3>
-      <div class="unit-group cols2" id="logFwCard">
+      <h3 class="sub">FWG Flowmeter</h3>
+      <div class="unit-group" id="logFwCard" style="grid-template-columns:1fr;">
         <div class="unit-box">
-          <h3>Production &amp; tanks</h3>
-          <div class="form-grid cols2" id="inFwTankPickRow" style="display:none;">
+          <h3>FWG Flowmeter</h3>
+          <div class="form-grid cols2 log-entry-always-hide" id="inFwTankPickRow" hidden style="display:none;">
             <div class="field"><label>Tank for production</label><select id="in_fwProdTank"></select>
               <div class="hint">Produced water is added to this tank.</div></div>
             <div class="field"><label>Tank for consumption</label><select id="in_fwConsTank"></select>
               <div class="hint">Consumed water is taken from this tank.</div></div>
           </div>
-          <div class="field"><label>Production Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="in_fwProd"></div>
-          <div class="field" id="inFwSingleRobWrap"><label>FW ROB (m³)</label><input type="number" step="0.01" id="in_fwRob"></div>
+          <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="in_fwProd"></div>
+          <div class="field log-entry-always-hide" id="inFwSingleRobWrap" hidden><label>FW ROB (m³)</label><input type="number" step="0.01" id="in_fwRob"></div>
         </div>
-        <div class="unit-box">
+        <div class="unit-box log-entry-always-hide" hidden>
           <h3>ROB &amp; period</h3>
           <div id="inFwMultiRobWrap" style="display:none;">
             <div class="hint" style="margin-bottom:8px;">Enter present ROB for each tank in m³. Total water is the sum of all tanks.</div>
@@ -2580,6 +2550,76 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </div>
         </div>
       </div>
+      </div>
+
+    <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
+      <div class="fm-quick-dialog">
+        <h3 id="fmQuickTitle">Enter Flowmeters</h3>
+        <p class="hint">Values load from the log entry form. Accept writes them back and reveals the meter fields. Spec. Gravity comes from Vessel Data density. RPM and Rev. Counter stay linked using M/E run hours.</p>
+        <div class="fm-quick-rows">
+          <div class="fm-quick-row">
+            <div class="fm-quick-block">
+              <h4>Main Engine</h4>
+              <div id="fmq_meMeters"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Fuel in Use</h4>
+              <div class="field"><label>M/E Fuel Type</label><select id="fmq_me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
+            </div>
+          </div>
+          <div class="fm-quick-row">
+            <div class="fm-quick-block">
+              <h4>Generator</h4>
+              <div id="fmq_geMeters"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Fuel in Use</h4>
+              <div class="field"><label>G/E Fuel Type</label><select id="fmq_ge_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
+            </div>
+          </div>
+          <div class="fm-quick-row">
+            <div class="fm-quick-block">
+              <h4>Boiler</h4>
+              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>Fuel in Use</h4>
+              <div class="field"><label>Boiler Fuel Type</label><select id="fmq_blr_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
+            </div>
+          </div>
+          <div class="fm-quick-row">
+            <div class="fm-quick-block">
+              <h4>Cylinder Oil</h4>
+              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>TBN in Use</h4>
+              <div class="field"><label>TBN</label><select id="fmq_tbn"><option>HIGH</option><option>LOW</option></select></div>
+            </div>
+          </div>
+          <div class="fm-quick-row">
+            <div class="fm-quick-block">
+              <h4>Revolution Counter</h4>
+              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
+            </div>
+            <div class="fm-quick-block">
+              <h4>M/E Avg RPM</h4>
+              <div class="field"><label>RPM</label><input type="number" step="0.1" id="fmq_rpm"></div>
+            </div>
+          </div>
+          <div class="fm-quick-row fm-quick-row-single">
+            <div class="fm-quick-block">
+              <h4>FWG Flowmeter</h4>
+              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="fmq_fwProd"></div>
+            </div>
+          </div>
+        </div>
+        <div class="fm-quick-actions">
+          <button type="button" class="ghost small" id="fmQuickCancel">Cancel</button>
+          <button type="button" class="primary small" id="fmQuickAccept">Accept</button>
+        </div>
+      </div>
+    </div>
 
       <div class="btn-row">
         <button class="primary" id="btnAdd">Add Entry</button>
@@ -9569,12 +9609,20 @@ function syncFwTankUi(prefix){
   const pickRow = document.getElementById(prefix + 'FwTankPickRow');
   const multiWrap = document.getElementById(prefix + 'FwMultiRobWrap');
   const singleWrap = document.getElementById(prefix + 'FwSingleRobWrap');
-  if (pickRow) pickRow.style.display = multi ? '' : 'none';
-  if (multiWrap) multiWrap.style.display = multi ? '' : 'none';
-  if (singleWrap) singleWrap.style.display = multi ? 'none' : '';
-  const inTotalWrap = document.getElementById('inFwTotalRobWrap');
-  if (inTotalWrap) inTotalWrap.style.display = multi ? '' : 'none';
-
+  /* Log Entry: FW ROB / tanks stay hidden — only FWG flowmeter is shown (when meters revealed). */
+  if (prefix === 'in'){
+    if (pickRow){ pickRow.hidden = true; pickRow.style.display = 'none'; }
+    if (multiWrap) multiWrap.style.display = 'none';
+    if (singleWrap){ singleWrap.hidden = true; singleWrap.style.display = 'none'; }
+    const inTotalWrap = document.getElementById('inFwTotalRobWrap');
+    if (inTotalWrap) inTotalWrap.style.display = 'none';
+  } else {
+    if (pickRow) pickRow.style.display = multi ? '' : 'none';
+    if (multiWrap) multiWrap.style.display = multi ? '' : 'none';
+    if (singleWrap) singleWrap.style.display = multi ? 'none' : '';
+    const inTotalWrap = document.getElementById('inFwTotalRobWrap');
+    if (inTotalWrap) inTotalWrap.style.display = multi ? '' : 'none';
+  }
   const keepProd = document.getElementById(prefix + '_fwProdTank')?.value;
   const keepCons = document.getElementById(prefix + '_fwConsTank')?.value;
   ['fwProdTank','fwConsTank'].forEach(suffix => {
@@ -15317,6 +15365,8 @@ function loadEntryIntoForm(id){
   }
   updateLivePreview();
   updateVsRunCalcDisplays();
+  setLogMetersRevealed(true);
+  markFmGateBaseline();
   openVoyageSummary(id);
 }
 
@@ -18819,6 +18869,7 @@ function updateLivePreview(){
 
   const rpmDisp = document.getElementById('in_rpm_display');
   if (rpmDisp) rpmDisp.value = rpmEff==null?'—':fmt(rpmEff,2);
+  updatePeriodHrsDisplay(hrs);
 
   const sfoc100 = state.setup.sfoc100;
   const sfocRef = mcrPct!=null ? referenceSfocAtLoad(mcrPct) : null;
@@ -19608,6 +19659,47 @@ document.getElementById('btnVsResetConsOverride')?.addEventListener('click', ()=
 });
 
 /* ---- Log Entry → Enter Flowmeters popup ---- */
+let _logMetersRevealed = false;
+let fmqRpmSyncGuard = false;
+
+function setLogMetersRevealed(vis){
+  _logMetersRevealed = !!vis;
+  const deferred = document.getElementById('logMetersDeferred');
+  if (deferred) deferred.hidden = !_logMetersRevealed;
+  document.querySelectorAll('.log-meters-deferred-field').forEach((el) => {
+    el.hidden = !_logMetersRevealed;
+  });
+}
+function refreshFmEntryButtonVisibility(){
+  const row = document.getElementById('fmQuickEntryRow');
+  if (!row) return;
+  const dt = getElVal('in_datetime');
+  const op = getElVal('in_operation');
+  let show = false;
+  if (editingId){
+    const e = state.entries.find((x) => x.id === editingId);
+    show = !!(e && (dt !== (e.datetime || '') || op !== (e.operation || '')));
+  } else {
+    /* New entry: show once this watch's date/time or operation differs from the
+       previous reference (normal for the next noon). Hidden while still identical. */
+    const prev = (dt ? getPrevReferenceFor(dt, null) : null)
+      || sortedEntries().slice(-1)[0]
+      || effectiveCarryover();
+    if (!prev) show = !!(dt || op);
+    else show = dt !== (prev.datetime || '') || op !== (prev.operation || '');
+  }
+  row.hidden = !show;
+}
+function markFmGateBaseline(){
+  /* Kept as a refresh hook after prefills / loads. */
+  refreshFmEntryButtonVisibility();
+}
+function updatePeriodHrsDisplay(hrs){
+  const el = document.getElementById('in_periodHrs');
+  if (!el) return;
+  el.value = (hrs == null || isNaN(hrs)) ? '—' : fmt(hrs, 2);
+}
+
 function flowArrIsMeDual(){
   const arr = state.setup.flowArr || 'SINGLE';
   return arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
@@ -19638,6 +19730,41 @@ function closeFmQuickDialog(){
   overlay.classList.remove('open');
   overlay.hidden = true;
 }
+function syncFmqRpmRev(sourceId){
+  if (fmqRpmSyncGuard) return;
+  const ctx = getActivePeriodContext();
+  if (!ctx.datetime) return;
+  const prevRef = getPrevReferenceFor(ctx.datetime, ctx.excludeId);
+  if (!prevRef || prevRef.revCounter == null) return;
+  const runHours = liveMeRunHours(prevRef, ctx);
+  if (!(runHours > 0)) return;
+  fmqRpmSyncGuard = true;
+  const src = (sourceId === 'fmq_rpm') ? 'rpm' : 'rev';
+  const rolls = meterRollovers();
+  const op = document.getElementById('in_operation')?.value;
+  if (src === 'rpm'){
+    const rpm = parseFloat(getElVal('fmq_rpm'));
+    if (!isNaN(rpm)){
+      const revCounter = prevRef.revCounter + rpm * runHours * 60;
+      setElVal('fmq_rpm', Number(rpm).toFixed(2));
+      setElVal('fmq_revCounter', Number(revCounter).toFixed(2));
+    }
+  } else {
+    const rc = parseFloat(getElVal('fmq_revCounter'));
+    if (!isNaN(rc)){
+      if (!operationNeedsMeData(op)){
+        setElVal('fmq_revCounter', Number(rc).toFixed(2));
+        setElVal('fmq_rpm', '');
+      } else {
+        const dRevs = meterDelta(rc, prevRef.revCounter, rolls.rc);
+        const rpm = (dRevs != null) ? dRevs / (runHours * 60) : null;
+        setElVal('fmq_revCounter', Number(rc).toFixed(2));
+        setElVal('fmq_rpm', rpm == null || isNaN(rpm) ? '' : Number(rpm).toFixed(2));
+      }
+    }
+  }
+  fmqRpmSyncGuard = false;
+}
 function openFmQuickDialog(){
   const overlay = document.getElementById('fmQuickOverlay');
   if (!overlay) return;
@@ -19662,6 +19789,8 @@ function openFmQuickDialog(){
   setElVal('fmq_blr_meter', getElVal('blr_meter'));
   setElVal('fmq_cyl_meter', getElVal('cyl_meter'));
   setElVal('fmq_revCounter', getElVal('in_revCounter'));
+  setElVal('fmq_rpm', getElVal('in_rpm') || getElVal('vs_rpm'));
+  setElVal('fmq_fwProd', getElVal('in_fwProd'));
   setElVal('fmq_me_type', getElVal('me_type') || 'HFO');
   setElVal('fmq_ge_type', getElVal('ge_type') || 'MDO/MGO');
   setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
@@ -19690,15 +19819,25 @@ function acceptFmQuickDialog(){
   setElVal('blr_meter', getElVal('fmq_blr_meter'));
   setElVal('cyl_meter', getElVal('fmq_cyl_meter'));
   setElVal('in_revCounter', getElVal('fmq_revCounter'));
+  setElVal('in_fwProd', getElVal('fmq_fwProd'));
   setElVal('me_type', getElVal('fmq_me_type'));
   setElVal('ge_type', getElVal('fmq_ge_type'));
   setElVal('blr_type', getElVal('fmq_blr_type'));
   setElVal('in_tbn', getElVal('fmq_tbn'));
+  const rpmVal = getElVal('fmq_rpm');
+  setElVal('in_rpm', rpmVal);
+  setElVal('vs_rpm', rpmVal);
+  const rpmDisp = document.getElementById('in_rpm_display');
+  if (rpmDisp) rpmDisp.value = rpmVal === '' ? '—' : rpmVal;
+  setElVal('vs_revCounter', getElVal('fmq_revCounter'));
   applyAllSgFromFuelTypes();
+  setLogMetersRevealed(true);
   closeFmQuickDialog();
+  try { syncRpmRevCounter('in_revCounter'); } catch (_) {}
   try { updateLivePreview(); } catch (_) {}
   try { updateVsRunCalcDisplays(); } catch (_) {}
   try { updateVsRobLiveFromCons(); } catch (_) {}
+  try { updateFwPreview('in'); } catch (_) {}
 }
 document.getElementById('btnFlowmeterQuickEntry')?.addEventListener('click', openFmQuickDialog);
 document.getElementById('fmQuickCancel')?.addEventListener('click', closeFmQuickDialog);
@@ -19711,6 +19850,13 @@ document.addEventListener('keydown', (e) => {
   const overlay = document.getElementById('fmQuickOverlay');
   if (overlay && overlay.classList.contains('open')) closeFmQuickDialog();
 });
+document.getElementById('fmQuickOverlay')?.addEventListener('input', (e) => {
+  const id = e.target && e.target.id;
+  if (id === 'fmq_rpm' || id === 'fmq_revCounter') syncFmqRpmRev(id);
+});
+document.getElementById('in_datetime')?.addEventListener('change', refreshFmEntryButtonVisibility);
+document.getElementById('in_datetime')?.addEventListener('input', refreshFmEntryButtonVisibility);
+document.getElementById('in_operation')?.addEventListener('change', refreshFmEntryButtonVisibility);
 
 document.getElementById('logEntryFormPanel').addEventListener('input', ()=>{ updateLivePreview(); updateVsRunCalcDisplays(); });
 document.getElementById('logEntryFormPanel').addEventListener('change', ()=>{ updateLivePreview(); updateVsRunCalcDisplays(); updateVsRobLiveFromCons(); });
@@ -19934,6 +20080,8 @@ function prefillFromLastEntry(){
   if (!last){
     setShipTzUi(useVoyageTz ? voyageTz : defaultShipTzOffsetMin(), 0);
     syncMeRuntimeFromPeriod();
+    setLogMetersRevealed(false);
+    markFmGateBaseline();
     return;
   }
 
@@ -19981,6 +20129,8 @@ function prefillFromLastEntry(){
   applyAllSgFromFuelTypes();
   updateLivePreview();
   updateVsRunCalcDisplays();
+  setLogMetersRevealed(false);
+  markFmGateBaseline();
 }
 
 document.getElementById('btnClearForm').addEventListener('click', ()=>{
