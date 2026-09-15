@@ -11462,7 +11462,12 @@ function normalizeBunkerLegs(legs, legacySideMargin){
     marginPct: (leg.marginPct==null || leg.marginPct==='') ? null : Number(leg.marginPct)
   })) : [];
   list.forEach(leg=>{ if (leg.marginPct!=null && isNaN(leg.marginPct)) leg.marginPct = null; });
-  while (list.length > 1 && bunkerLegIsBlank(list[list.length - 1])) list.pop();
+  /* Legacy plans padded to many blank rows. Collapse consecutive trailing blanks
+     but keep one empty row so "Add destination / stay" can show a new line
+     (ensureBunkerPlan → normalize runs on every render). */
+  while (list.length > 1
+      && bunkerLegIsBlank(list[list.length - 1])
+      && bunkerLegIsBlank(list[list.length - 2])) list.pop();
   if (!list.length) list = [emptyBunkerLeg()];
   /* Old plans had one Margin % for the whole side — copy onto filled legs once. */
   const anyPerLeg = list.some(l => l.marginPct != null);
