@@ -1350,8 +1350,11 @@
     .footer-note{display:none;}
   }
 
-  /* ---- Tablet / large-phone landscape: single-row GE + Fuel Cons, wide Others ---- */
-  @media (orientation: landscape) and (min-width:721px) and (min-height:561px) and (max-width:1400px){
+  /* ---- Tablet / large-phone landscape: single-row GE + Fuel Cons, wide Others ----
+     Also driven by html.vm-land-rows (set in JS) for Android tablets whose CSS
+     width exceeds typical media max-width or where orientation queries fail in
+     the AIO WebView / iframe. */
+  @media (orientation: landscape) and (min-width:721px) and (min-height:561px){
     .wrap{max-width:100%;}
     body{
       padding:14px 16px 84px;
@@ -1369,7 +1372,6 @@
     .unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(4,1fr);}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(6, minmax(0, 1fr));}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(5, minmax(0, 1fr));}
-    /* Narrow Weather so Others can hold T/C #1 | T/C #2 | Others | E/R */
     .vs-weather-others-row{
       grid-template-columns:minmax(140px, 0.55fr) minmax(0, 2.45fr) !important;
       gap:12px;
@@ -1380,7 +1382,6 @@
     #vsTurboScavRow .vs-tc-box{padding:8px;}
     #vsTurboScavRow .vs-tc-box .field label{font-size:10px;}
     #vsTurboScavRow .vs-tc-box .field input{font-size:12px; padding:6px 7px; min-height:34px;}
-    /* Boiler | Incinerator | A/E #1 | A/E #2 | A/E #3 in one row */
     .vs-ge-blr-inc-grid{
       display:grid !important;
       grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
@@ -1402,6 +1403,34 @@
     .gauge-grid.cols5{grid-template-columns:repeat(5,1fr);}
     .table-scroll{max-height:min(58vh, 480px);}
     .bunker-plan-grid{grid-template-columns:1fr 1fr; gap:14px;}
+  }
+  /* JS class mirror — fires when media query does not (wide Android WebView / AIO) */
+  html.vm-land-rows .vs-weather-others-row{
+    grid-template-columns:minmax(140px, 0.55fr) minmax(0, 2.45fr) !important;
+    gap:12px;
+  }
+  html.vm-land-rows #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
+    grid-template-columns:minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1.15fr) !important;
+  }
+  html.vm-land-rows #vsRunFields.form-grid.cols4{
+    grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+  }
+  html.vm-land-rows .vs-ge-blr-inc-grid{
+    display:grid !important;
+    grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
+    gap:10px;
+  }
+  html.vm-land-rows .vs-ge-blr-inc-grid > .vs-blr-inc-row,
+  html.vm-land-rows .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents !important;}
+  html.vm-land-rows .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-blr-box,
+  html.vm-land-rows .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-inc-box,
+  html.vm-land-rows .vs-ge-blr-inc-grid > #vsGeRuntimeFields > .unit-box{
+    grid-column:auto !important;
+    grid-row:1 !important;
+    min-width:0;
+  }
+  html.vm-land-rows #vsFuelConsMiscFwRow.unit-group.cols3{
+    grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
   }
 
   /* Wide desktop / large tablet landscape — use more horizontal room */
@@ -12370,6 +12399,12 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       document.documentElement.classList.toggle('short-viewport', short);
       document.documentElement.classList.toggle('landscape-view', landscape);
       document.documentElement.classList.toggle('compact-phone', compact && !landscape);
+      /* Tablet / phone landscape with bottom nav: force GE + Fuel Cons single rows.
+         Many Android tablets report CSS width >1400 (or skip orientation media), so
+         media-query-only rules never fire and the desktop stack remains. */
+      const landRows = landscape && !short && (window.innerWidth || 0) >= 800
+        && (mobileLocked || touch || document.documentElement.classList.contains('use-bottom-nav'));
+      document.documentElement.classList.toggle('vm-land-rows', !!landRows);
     }catch(_){}
     syncBottomNav(_activeTab);
   }
