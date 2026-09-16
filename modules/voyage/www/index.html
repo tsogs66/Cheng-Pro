@@ -441,10 +441,10 @@
     margin-top:6px;
   }
   #logFmRevGrid .unit-box{min-width:0;}
-  /* Voyage Summary: Weather (1-col) beside Others */
+  /* Voyage Summary: Weather (narrow) beside Others (wide) */
   .vs-weather-others-row{
     display:grid;
-    grid-template-columns:minmax(200px, 0.85fr) minmax(0, 1.7fr);
+    grid-template-columns:minmax(160px, 0.7fr) minmax(0, 2.1fr);
     gap:16px;
     margin:0 0 16px;
     align-items:stretch;
@@ -551,12 +551,13 @@
   #vsCylFields .field label{font-size:11px;}
   #vsCylFields .field input{font-size:12px; padding:6px;}
   #vsTurboScavRow.unit-group.cols3{
-    grid-template-columns:repeat(3, minmax(0, 1fr));
+    grid-template-columns:repeat(4, minmax(0, 1fr));
     align-items:stretch;
   }
+  #vsTurboScavRow .vs-tc-box{min-width:0;}
   /* Without turbocharger boxes the row still carries Others and Engine Room & Tanks,
      which belong side by side rather than stacked. Must carry the same class weight
-     as the cols3 rule above or that one wins and forces three columns. */
+     as the cols3 rule above or that one wins and forces four columns. */
   #vsTurboScavRow.unit-group.cols3.no-turbos{
     grid-template-columns:repeat(2, minmax(0, 1fr));
   }
@@ -567,6 +568,10 @@
     grid-template-columns:minmax(0, 1fr);
   }
   #vsTurboScavRow .unit-box{min-width:0;}
+  /* Voyage Run — Distance & RPM: prefer 2×4 */
+  #vsRunFields.form-grid.cols4{
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+  }
   #vsOthersFields.form-grid.cols2{
     grid-template-columns:repeat(2, minmax(0, 1fr));
     gap:8px 10px;
@@ -588,7 +593,10 @@
       overflow-x:visible;
     }
     #vsTurboScavRow.unit-group.cols3{
-      grid-template-columns:repeat(3, minmax(0, 1fr));
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+    #vsRunFields.form-grid.cols4{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
     }
   }
   .vs-photo-preview{margin-top:10px; max-width:100%;}
@@ -1068,6 +1076,7 @@
     #vsGeRuntimeFields.unit-group.cols3{grid-template-columns:1fr 1fr;}
     #voyageSummaryPanel .unit-group.cols3{grid-template-columns:1fr 1fr;}
     #vsFuelConsMiscFwRow.unit-group.cols3{grid-template-columns:1fr 1fr;}
+    #vsRunFields.form-grid.cols4{grid-template-columns:1fr 1fr;}
 
     .ref-grid{grid-template-columns:repeat(2,1fr); gap:6px 8px;}
     .ref-item .rv{font-size:11px;}
@@ -1112,8 +1121,8 @@
     .btn-row > button{flex:1 1 calc(50% - 6px);}
   }
 
-  /* ---- Tablet mid-width (portrait tablets / small laptops) ---- */
-  @media (min-width:721px) and (max-width:1100px){
+  /* ---- Tablet mid-width portrait: denser stacks ---- */
+  @media (min-width:721px) and (max-width:1100px) and (orientation: portrait){
     body{
       padding:16px 14px 88px;
       padding-top:calc(16px + env(safe-area-inset-top, 0px));
@@ -1126,6 +1135,7 @@
     .form-grid{grid-template-columns:repeat(3,1fr); gap:10px 12px;}
     .form-grid.cols2{grid-template-columns:repeat(2,1fr);}
     .form-grid.cols3,.form-grid.cols5,.form-grid.cols6{grid-template-columns:repeat(3,1fr);}
+    #vsRunFields.form-grid.cols4{grid-template-columns:repeat(4, minmax(0, 1fr));}
     .unit-group,.unit-group.cols3{grid-template-columns:repeat(2,1fr);}
     .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(3,1fr);}
     #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(4, minmax(0, 1fr));}
@@ -1152,10 +1162,34 @@
     .table-scroll{max-height:min(55vh, 520px); -webkit-overflow-scrolling:touch;}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(3, minmax(0, 1fr));}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr));}
-    #vsTurboScavRow.unit-group.cols3{grid-template-columns:repeat(2, minmax(0, 1fr));}
+    #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+    .vs-weather-others-row{
+      grid-template-columns:minmax(140px, 0.65fr) minmax(0, 2.2fr);
+    }
     .field input,.field select{font-size:14px; min-height:40px; padding:8px 9px;}
     button.small{min-height:36px;}
     #page-data #btnSaveSyncSettings{min-height:44px;}
+  }
+
+  /* Mid-width landscape still needs padding/meta (portrait block above is orientation-gated) */
+  @media (min-width:721px) and (max-width:1100px) and (orientation: landscape){
+    body{
+      padding:14px 16px 84px;
+      padding-top:calc(14px + env(safe-area-inset-top, 0px));
+      padding-left:calc(16px + env(safe-area-inset-left, 0px));
+      padding-right:calc(16px + env(safe-area-inset-right, 0px));
+      padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+    }
+    .wrap{max-width:100%;}
+    #logEntryFormPanel .log-meta-row{
+      grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
+      gap:10px 12px;
+    }
+    #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
+    #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
+    #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(4, minmax(0, 1fr));}
   }
 
   /* Sync actions stay tappable on phone/tablet when the soft keyboard is open */
@@ -1316,8 +1350,8 @@
     .footer-note{display:none;}
   }
 
-  /* ---- Tablet / large phone landscape: use width, keep readable density ---- */
-  @media (orientation: landscape) and (min-height:561px) and (max-width:1180px){
+  /* ---- Tablet / large-phone landscape: single-row GE + Fuel Cons, wide Others ---- */
+  @media (orientation: landscape) and (min-width:721px) and (min-height:561px) and (max-width:1400px){
     .wrap{max-width:100%;}
     body{
       padding:14px 16px 84px;
@@ -1328,23 +1362,37 @@
     .form-grid{grid-template-columns:repeat(4,1fr);}
     .form-grid.cols3,.form-grid.cols5,.form-grid.cols6{grid-template-columns:repeat(4,1fr);}
     .form-grid.cols2{grid-template-columns:repeat(2,1fr);}
+    #vsRunFields.form-grid.cols4{
+      grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    }
     .unit-group.cols3,.unit-group.cols4{grid-template-columns:repeat(3,1fr);}
     .unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(4,1fr);}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(6, minmax(0, 1fr));}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(5, minmax(0, 1fr));}
-    /* Tablet landscape: Boiler | Incinerator | A/E #1 | A/E #2 | A/E #3 in one row */
+    /* Narrow Weather so Others can hold T/C #1 | T/C #2 | Others | E/R */
+    .vs-weather-others-row{
+      grid-template-columns:minmax(140px, 0.55fr) minmax(0, 2.45fr) !important;
+      gap:12px;
+    }
+    #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
+      grid-template-columns:minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1.15fr) !important;
+    }
+    #vsTurboScavRow .vs-tc-box{padding:8px;}
+    #vsTurboScavRow .vs-tc-box .field label{font-size:10px;}
+    #vsTurboScavRow .vs-tc-box .field input{font-size:12px; padding:6px 7px; min-height:34px;}
+    /* Boiler | Incinerator | A/E #1 | A/E #2 | A/E #3 in one row */
     .vs-ge-blr-inc-grid{
-      display:grid;
-      grid-template-columns:repeat(5, minmax(0, 1fr));
+      display:grid !important;
+      grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
       gap:10px;
     }
     .vs-ge-blr-inc-grid > .vs-blr-inc-row,
-    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents;}
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents !important;}
     .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-blr-box,
     .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-inc-box,
     .vs-ge-blr-inc-grid > #vsGeRuntimeFields > .unit-box{
-      grid-column:auto;
-      grid-row:auto;
+      grid-column:auto !important;
+      grid-row:1 !important;
     }
     #vsFuelConsMiscFwRow.unit-group.cols3{
       grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
@@ -2722,15 +2770,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div>M/E stopped this period — rev counter unchanged. Main engine panels are hidden; generators, boiler and ROB below still apply.</div>
         <button type="button" class="ghost small" id="btnVsShowMePanels" style="margin-top:8px;">Show M/E panels anyway</button>
       </div>
-      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsReferenceBlock">
-        <h3 class="sub" style="margin-top:0;">Voyage Summary — Reference</h3>
-        <div class="stat-strip cols4" id="vsTopStrip"></div>
-        <div class="hint">Merged voyage reference and main-engine performance. Rows: Voyage/Date/Ship Dist/Ship Speed · Run Time/Load kW/Dist To Go/Days To Go · Total Rev/Load %/Engine Dist/Engine Speed · RPM/Ave kW/Slip/ETA · SFOC 100%/Ref/Actual/Δ%.</div>
-      </div>
+      <details class="panel vs-fold" style="margin:0 0 16px;" id="vsReferenceBlock">
+        <summary>Voyage Summary — Reference <span class="vs-fold-hint">tap to expand</span></summary>
+        <div class="vs-fold-body">
+          <div class="stat-strip cols4" id="vsTopStrip"></div>
+          <div class="hint">Merged voyage reference and main-engine performance. Rows: Voyage/Date/Ship Dist/Ship Speed · Run Time/Load kW/Dist To Go/Days To Go · Total Rev/Load %/Engine Dist/Engine Speed · RPM/Ave kW/Slip/ETA · SFOC 100%/Ref/Actual/Δ%.</div>
+        </div>
+      </details>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsRunBlock">
         <h3 class="sub" style="margin-top:0;">Voyage Run — Distance &amp; RPM</h3>
-        <div class="form-grid cols3">
+        <div class="form-grid cols4" id="vsRunFields">
           <div class="field"><label>Distance Run — Ship/GPS (nm)</label><input type="number" step="0.1" id="vs_distanceShip" value="0"></div>
           <div class="field"><label>M/E Avg RPM</label><input type="number" step="0.1" id="vs_rpm"></div>
           <div class="field"><label>Ship Speed (kn, calc)</label><input type="text" id="vs_shipSpeed" readonly></div>
@@ -17073,23 +17123,23 @@ function openVoyageSummary(entryId){
     }).join('');
     const turboN = turboCount();
     const turbos = r.turbos || (r.turbo1 ? [r.turbo1, r.turbo2].filter(Boolean) : []);
-    /* Air cooler and pressure differential are turbocharger readings shared across the
-       units, so they close out the T/C boxes rather than sitting under Others. */
-    const turboCommon = `
-      <div class="unit-box"><h3>T/C — Air Cooler</h3>
+    /* Air cooler and pressure differential are shared T/C readings — keep them on the
+       last turbo box so Others stays a clean 4-up (T/C #1 | T/C #2 | Others | E/R). */
+    const airCoolerFields = `
         <div class="field"><label>Air Cooler In (°C)</label><input type="number" step="0.1" id="vs_acIn" value="${r.airCoolerIn??''}"></div>
         <div class="field"><label>Air Cooler Out (°C)</label><input type="number" step="0.1" id="vs_acOut" value="${r.airCoolerOut??''}"></div>
-        <div class="field"><label>Pressure Diff. (bar)</label><input type="number" step="0.01" id="vs_pressDiff" value="${r.pressDiff??''}"></div>
-      </div>`;
+        <div class="field"><label>Pressure Diff. (bar)</label><input type="number" step="0.01" id="vs_pressDiff" value="${r.pressDiff??''}"></div>`;
     turboBox.innerHTML = Array.from({length:turboN}, (_,i)=>{
       const n = i+1;
       const t = turbos[i] || {};
-      return `<div class="unit-box"><h3>T/C #${n}</h3>
+      const tail = (i === turboN - 1) ? airCoolerFields : '';
+      return `<div class="unit-box vs-tc-box"><h3>T/C #${n}</h3>
         <div class="field"><label>In Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}in" value="${t.in??''}"></div>
         <div class="field"><label>Out Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}out" value="${t.out??''}"></div>
         <div class="field"><label>RPM</label><input type="number" step="1" id="vs_t${n}rpm" value="${t.rpm??''}"></div>
+        ${tail}
       </div>`;
-    }).join('') + turboCommon;
+    }).join('');
     turboRow?.classList.remove('no-turbos');
   } else {
     cylBox.innerHTML = '';
@@ -22108,7 +22158,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v258';
+let androidInstallCacheName = 'noon-report-v259';
 
 /*
  * What the program is called.
