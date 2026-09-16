@@ -470,6 +470,8 @@
   .vs-ge-cum-hours,
   .vs-blr-cum-hours{display:none !important;}
   #vsFuelConsMiscFwRow.unit-group{margin-top:6px;}
+  /* Keep Sea Temp under E/R Temp in the 2-col Engine Room grid */
+  #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:1;}
   @media (max-width:720px){
     .fm-quick-row{grid-template-columns:1fr;}
   }
@@ -2816,7 +2818,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <h3>Engine Room &amp; Tanks</h3>
             <div class="form-grid cols2" id="vsErTankFields">
               <div class="field"><label>E/R Temp (°C)</label><input type="number" step="0.1" id="vs_erTemp"></div>
-              <div class="field"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
+              <div class="field vs-sea-temp-under-er"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
               <div class="field"><label>S/T Temp — Stern Tube (°C)</label><input type="number" step="0.1" id="vs_stTemp"></div>
               <div class="field"><label>Bilge ROB (m³)</label><input type="number" step="0.01" id="vs_bilgeRob"></div>
               <div class="field calc"><label>Bilge change (m³)</label><input type="text" id="vs_bilgeDelta" readonly tabindex="-1"></div>
