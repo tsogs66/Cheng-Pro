@@ -433,6 +433,35 @@
   #fmQuickEntryRow[hidden],
   .log-entry-always-hide[hidden]{display:none !important;}
   #meBlrRuntimeFields.cols1-after-hide{grid-template-columns:1fr;}
+  /* Log Entry: Flowmeters & Rev. Counter — 6 cells; mobile 2×3, tablet 4×2 */
+  #logFmRevGrid.log-fm-rev-grid{
+    display:grid;
+    grid-template-columns:repeat(6, minmax(0, 1fr));
+    gap:10px;
+    margin-top:6px;
+  }
+  #logFmRevGrid .unit-box{min-width:0;}
+  /* Voyage Summary: Weather (1-col) beside Others */
+  .vs-weather-others-row{
+    display:grid;
+    grid-template-columns:minmax(200px, 0.85fr) minmax(0, 1.7fr);
+    gap:16px;
+    margin:0 0 16px;
+    align-items:stretch;
+  }
+  .vs-weather-others-row > .panel{margin:0; height:100%; box-sizing:border-box;}
+  .vs-weather-col .form-grid.vs-weather-stack{
+    grid-template-columns:1fr;
+    gap:8px 0;
+  }
+  .vs-blr-inc-row{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    margin-top:6px;
+  }
+  .vs-blr-inc-row .unit-box{min-width:0;}
+  .vs-ge-cum-hours{display:none !important;}
   @media (max-width:720px){
     .fm-quick-row{grid-template-columns:1fr;}
   }
@@ -933,6 +962,7 @@
     .form-grid.cols3,.form-grid.cols5,.form-grid.cols6{grid-template-columns:repeat(2,1fr);}
     .stat-strip.cols5{grid-template-columns:repeat(3,1fr);}
     #vsTurboScavRow.unit-group.cols3{grid-template-columns:repeat(2, minmax(0, 1fr));}
+    #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)); overflow-x:visible;}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(2, minmax(0, 1fr)); overflow-x:visible;}
   }
@@ -1004,6 +1034,9 @@
     }
     #fuelLubeMeterRow.unit-group.cols4{grid-template-columns:1fr 1fr;}
     #meBlrRuntimeFields.unit-group.cols2{grid-template-columns:1fr 1fr;}
+    #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}
+    .vs-weather-others-row{grid-template-columns:1fr;}
+    .vs-blr-inc-row{grid-template-columns:1fr;}
 
     /* Voyage Summary: readable stacks instead of tiny 5/6-col scroll rows */
     #voyageSummaryPanel .form-grid.cols5,
@@ -1082,6 +1115,14 @@
     .form-grid.cols3,.form-grid.cols5,.form-grid.cols6{grid-template-columns:repeat(3,1fr);}
     .unit-group,.unit-group.cols3{grid-template-columns:repeat(2,1fr);}
     .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(3,1fr);}
+    #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(4, minmax(0, 1fr));}
+    .vs-blr-inc-row{grid-template-columns:1fr 1fr;}
+    #logEntryFormPanel .log-meta-row{
+      grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
+      gap:10px 12px;
+    }
+    #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
+    #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
     .stat-strip.cols5{grid-template-columns:repeat(3,1fr);}
     .gauge-grid.cols4,.gauge-grid.cols5{grid-template-columns:repeat(3,1fr);}
     .table-scroll{max-height:min(55vh, 520px); -webkit-overflow-scrolling:touch;}
@@ -2453,15 +2494,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <input type="hidden" id="in_distanceShip" value="0">
       <input type="hidden" id="in_rpm" value="">
 
-      <div class="form-grid">
+      <div class="form-grid log-meta-row">
         <div class="field span2"><label>Date &amp; Time (ship's clock)</label><input type="datetime-local" id="in_datetime"><div class="hint">Set the correct date/time first when inserting a missed report — meters and calculations use the previous entry before that stamp.</div></div>
-        <div class="field span2"><label>Time zone</label><select id="in_tzOffset"></select></div>
+        <div class="field"><label>Time zone</label><select id="in_tzOffset"></select></div>
+        <div class="field calc"><label>Period Hrs</label><input type="text" id="in_periodHrs" readonly tabindex="-1" value="—"><div class="hint">Hours since the previous entry (after any clock change).</div></div>
         <div class="field span2"><label>Operation</label>
           <!-- Options are built from OPERATION_GROUPS so the list has one definition. -->
           <select id="in_operation"></select>
         </div>
         <div class="field log-entry-always-hide" hidden><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
-        <div class="field calc"><label>Period Hrs</label><input type="text" id="in_periodHrs" readonly tabindex="-1" value="—"><div class="hint">Hours since the previous entry (after any clock change).</div></div>
       </div>
       <input type="hidden" id="in_clockChangeMin" value="0">
       <div class="tz-clock-row">
@@ -2480,38 +2521,24 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
 
       <div id="logMetersDeferred" hidden>
-      <h3 class="sub">Main Engine — Runtime &amp; Revolutions</h3>
-      <div class="unit-group cols2 cols1-after-hide" id="meBlrRuntimeFields">
+      <h3 class="sub">Flowmeters &amp; Rev. Counter</h3>
+      <div class="unit-group log-fm-rev-grid" id="logFmRevGrid">
         <div class="unit-box">
           <h3>Main Engine</h3>
-          <div class="field log-entry-always-hide" hidden><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
-          <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
-          <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
-          <div class="hint" id="meRuntimeHint" style="margin:0;">Period runtime = hours between the previous entry's date/time and the date/time selected above, after any clocks advanced/retarded this period. On a new entry the cumulative counter tracks that period automatically until you type your own reading.</div>
-        </div>
-        <div class="unit-box log-entry-always-hide" hidden>
-          <h3>Linked from Voyage Summary</h3>
-          <div class="field"><label>M/E Avg RPM (from summary)</label><input type="text" id="in_rpm_display" readonly></div>
-          <div class="hint" style="margin:0;">Editing RPM on Voyage Summary updates Rev. Counter here: Rev = previous Rev + RPM × Run Hours × 60. Editing Rev. Counter updates RPM on the summary the same way.</div>
-        </div>
-      </div>
-
-      <h3 class="sub">Fuel &amp; Cylinder Oil Meters (litres, cumulative)</h3>
-      <div class="unit-group cols4" id="fuelLubeMeterRow">
-        <div class="unit-box">
-          <h3>Main Engine Fuel</h3>
           <div id="meMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="me_sg" value="0.980"></div>
+          <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
+          <div class="field log-entry-always-hide" hidden><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
         </div>
         <div class="unit-box">
-          <h3>Generator Fuel</h3>
+          <h3>Generator</h3>
           <div id="geMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="ge_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="ge_sg" value="0.870"></div>
         </div>
         <div class="unit-box">
-          <h3>Boiler Fuel</h3>
+          <h3>Boiler</h3>
           <div class="field"><label>Fuel Meter</label><input type="number" id="blr_meter"></div>
           <div class="field"><label>Fuel Type</label><select id="blr_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="blr_sg" value="0.870"></div>
@@ -2521,12 +2548,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="cyl_meter"></div>
           <div class="field"><label>TBN in Use</label><select id="in_tbn"><option>HIGH</option><option>LOW</option></select></div>
         </div>
-      </div>
-      <div class="hint">Spec. Gravity is taken from Vessel Data → Fuel Types density (kg/m³ ÷ 1000) for the selected fuel type. Use <strong>Enter Flowmeters…</strong> to fill meters, rev counter, fuel types and TBN in one step. Fuel consumption overrides and ROB review are on the Voyage Summary after you add or open an entry.</div>
-
-      <h3 class="sub">FWG Flowmeter</h3>
-      <div class="unit-group" id="logFwCard" style="grid-template-columns:1fr;">
         <div class="unit-box">
+          <h3>Rev. Counter</h3>
+          <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
+          <div class="hint" id="meRuntimeHint" style="margin:0;">Period runtime = hours between the previous entry's date/time and the date/time selected above, after any clocks advanced/retarded this period. On a new entry the cumulative counter tracks that period automatically until you type your own reading.</div>
+          <div class="field log-entry-always-hide" hidden><label>M/E Avg RPM (from summary)</label><input type="text" id="in_rpm_display" readonly></div>
+        </div>
+        <div class="unit-box" id="logFwCard">
           <h3>FWG Flowmeter</h3>
           <div class="form-grid cols2 log-entry-always-hide" id="inFwTankPickRow" hidden style="display:none;">
             <div class="field"><label>Tank for production</label><select id="in_fwProdTank"></select>
@@ -2536,20 +2564,20 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </div>
           <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="in_fwProd"></div>
           <div class="field log-entry-always-hide" id="inFwSingleRobWrap" hidden><label>FW ROB (m³)</label><input type="number" step="0.01" id="in_fwRob"></div>
-        </div>
-        <div class="unit-box log-entry-always-hide" hidden>
-          <h3>ROB &amp; period</h3>
-          <div id="inFwMultiRobWrap" style="display:none;">
-            <div class="hint" style="margin-bottom:8px;">Enter present ROB for each tank in m³. Total water is the sum of all tanks.</div>
-            <div class="form-grid cols2" id="inFwTankRobFields"></div>
-          </div>
-          <div class="form-grid cols3" style="margin-top:8px;">
-            <div class="field calc" id="inFwTotalRobWrap"><label>Total FW ROB (m³)</label><input type="text" id="in_fwTotalRob" readonly tabindex="-1"></div>
-            <div class="field calc"><label>Produced (m³)</label><input type="text" id="in_fwProdD" readonly tabindex="-1"></div>
-            <div class="field calc"><label>Consumed (m³)</label><input type="text" id="in_fwConsD" readonly tabindex="-1"></div>
+          <div class="unit-box log-entry-always-hide" hidden style="margin-top:8px; padding:0; border:none; background:transparent;">
+            <div id="inFwMultiRobWrap" style="display:none;">
+              <div class="hint" style="margin-bottom:8px;">Enter present ROB for each tank in m³. Total water is the sum of all tanks.</div>
+              <div class="form-grid cols2" id="inFwTankRobFields"></div>
+            </div>
+            <div class="form-grid cols3" style="margin-top:8px;">
+              <div class="field calc" id="inFwTotalRobWrap"><label>Total FW ROB (m³)</label><input type="text" id="in_fwTotalRob" readonly tabindex="-1"></div>
+              <div class="field calc"><label>Produced (m³)</label><input type="text" id="in_fwProdD" readonly tabindex="-1"></div>
+              <div class="field calc"><label>Consumed (m³)</label><input type="text" id="in_fwConsD" readonly tabindex="-1"></div>
+            </div>
           </div>
         </div>
       </div>
+      <div class="hint">Spec. Gravity is taken from Vessel Data → Fuel Types density (kg/m³ ÷ 1000) for the selected fuel type. Use <strong>Enter Flowmeters…</strong> to fill meters, rev counter, fuel types and TBN in one step. Fuel consumption overrides and ROB review are on the Voyage Summary after you add or open an entry.</div>
       </div>
 
     <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
@@ -2670,9 +2698,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="hint">RPM and Rev. Counter are linked: RPM = (Rev. Counter − previous) ÷ (Run Hours × 60). Engine distance = Pitch(m) × Δrevs ÷ 1852 when the rev counter is available (Δrevs = 0 → engine dist 0). Falls back to RPM × pitch × 60 ÷ 1852 × hours only if Δrevs is unknown. Slip % = (Engine Dist − Ship Dist) ÷ Engine Dist × 100.</div>
       </div>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
+      <div class="vs-weather-others-row">
+      <div class="panel vs-weather-col" style="padding:16px;">
         <h3 class="sub" style="margin-top:0;">Weather &amp; Sea State</h3>
-        <div class="form-grid cols3">
+        <div class="form-grid vs-weather-stack">
           <div class="field"><label>Wind Direction</label>
             <select id="vs_windDir">
               <option value="">—</option>
@@ -2725,17 +2754,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Air Temp (°C)</label><input type="number" step="0.1" id="vs_airTemp"></div>
           <div class="field"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
         </div>
-        <div class="hint">Weather helps explain slip and fuel burn (head seas raise positive slip). Beaufort wind force 0–12; Douglas sea state 0–9.</div>
+        <div class="hint">Weather helps explain slip and fuel burn (head seas raise positive slip). Beaufort wind force 0–12; Douglas sea state 0–9. Sea temp is the same reading used for S/W temperature elsewhere.</div>
       </div>
 
-      <div id="vsSeaReportBlock">
-        <div class="panel" style="margin:0 0 16px; padding:16px;">
-          <h3 class="sub" style="margin-top:0;">Main Engine — Cylinder Readings</h3>
-          <div class="unit-group cols6" id="vsCylFields"></div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
+      <div class="panel vs-others-col" style="padding:16px;">
         <h3 class="sub" style="margin-top:0;">Others</h3>
         <div class="unit-group cols3" id="vsTurboScavRow">
           <div id="vsTurboFields"></div>
@@ -2759,10 +2781,16 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
               <div class="field calc"><label>Bilge change (m³)</label><input type="text" id="vs_bilgeDelta" readonly tabindex="-1"></div>
               <div class="field"><label>Sludge ROB (m³)</label><input type="number" step="0.01" id="vs_sludgeRob"></div>
               <div class="field calc"><label>Sludge change (m³)</label><input type="text" id="vs_sludgeDelta" readonly tabindex="-1"></div>
-              <div class="field"><label>S/W Temp — Sea Water (°C)</label><input type="number" step="0.1" id="vs_erSeaTemp"></div>
             </div>
-            <div class="hint" style="margin-top:8px;">Sea temp here is the same reading as Weather &amp; Sea State — type it in either place.</div>
           </div>
+        </div>
+      </div>
+      </div>
+
+      <div id="vsSeaReportBlock">
+        <div class="panel" style="margin:0 0 16px; padding:16px;">
+          <h3 class="sub" style="margin-top:0;">Main Engine — Cylinder Readings</h3>
+          <div class="unit-group cols6" id="vsCylFields"></div>
         </div>
       </div>
 
@@ -2786,19 +2814,24 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Generators, Boiler &amp; Incinerator — Runtime / Load</h3>
-        <div class="form-grid cols3">
-          <div class="field"><label>Boiler Run Hours (this report)</label><input type="number" step="0.1" id="vs_blrRuntime"></div>
-          <div class="field"><label>Boiler Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_blrCumHours"></div>
-          <div class="field"><label>Boiler Avg Load (kW)</label><input type="number" step="1" id="vs_blrKw"></div>
-          <div class="field"><label>Boiler Load % (calc)</label><input type="text" id="vs_blrLoadPct" readonly></div>
-          <div class="field"></div>
-          <div class="field"><label>Incinerator Run Time (hrs)</label><input type="number" step="0.1" id="vs_incRuntime"></div>
-          <div class="field"><label>Incinerator Avg Load (kW)</label><input type="number" step="1" id="vs_incKw"></div>
-          <div class="field"><label>Incinerator Load % (calc)</label><input type="text" id="vs_incLoadPct" readonly></div>
+        <div class="vs-blr-inc-row">
+          <div class="unit-box">
+            <h3>Boiler</h3>
+            <div class="field"><label>Boiler Run Hours (this report)</label><input type="number" step="0.1" id="vs_blrRuntime"></div>
+            <div class="field"><label>Boiler Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_blrCumHours"></div>
+            <div class="field"><label>Boiler Avg Load (kW)</label><input type="number" step="1" id="vs_blrKw"></div>
+            <div class="field"><label>Boiler Load % (calc)</label><input type="text" id="vs_blrLoadPct" readonly></div>
+          </div>
+          <div class="unit-box">
+            <h3>Incinerator</h3>
+            <div class="field"><label>Incinerator Run Time (hrs)</label><input type="number" step="0.1" id="vs_incRuntime"></div>
+            <div class="field"><label>Incinerator Avg Load (kW)</label><input type="number" step="1" id="vs_incKw"></div>
+            <div class="field"><label>Incinerator Load % (calc)</label><input type="text" id="vs_incLoadPct" readonly></div>
+          </div>
         </div>
         <div class="unit-group cols3" id="vsGeRuntimeFields" style="margin-top:10px;"></div>
         <div class="ge-split-note" id="vsGeSplitNote"></div>
-        <div class="hint">Tick each generator that was in service and enter its run hours for this report. Cumulative running hours accumulate from those entries — type over the cumulative box only if you are reading the hour meter directly, and the run hours will follow from it. Boiler / incinerator load % = (kW ÷ max kW from Setup) × 100.</div>
+        <div class="hint">Tick each generator that was in service and enter its run hours for this report. Boiler / incinerator load % = (kW ÷ max kW from Setup) × 100.</div>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
@@ -3413,7 +3446,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>Bilge ROB (m³)</label><input type="number" step="0.01" id="rep_bilgeRob"></div>
         <div class="field"><label>Sludge ROB (m³)</label><input type="number" step="0.01" id="rep_sludgeRob"></div>
         <div class="field"><label>S/T Temp — Stern Tube (°C)</label><input type="number" step="0.1" id="rep_stTemp"></div>
-        <div class="field"><label>S/W Temp — Sea Water (°C)</label><input type="number" step="0.1" id="rep_swTemp"></div>
+        <div class="field"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="rep_swTemp"></div>
       </div>
 
       <div id="reportSeaFields">
@@ -5358,7 +5391,7 @@ function weather(w){
   return Object.assign({ windDir:'', windBft:null, seaState:null, swellDir:'', airTemp:null, seaTemp:null }, w || {});
 }
 
-const SEA_TEMP_FIELD_IDS = ['vs_seaTemp', 'vs_erSeaTemp', 'rep_swTemp'];
+const SEA_TEMP_FIELD_IDS = ['vs_seaTemp', 'rep_swTemp'];
 
 function parseSeaTempValue(v){
   if (v==null || v==='') return null;
@@ -17596,7 +17629,7 @@ function renderVsGeRuntimeFields(entryId, report){
     return `<div class="unit-box${inService?'':' ge-offline'}">
       <h3><label class="ge-on-label"><input type="checkbox" id="vs_ge${n}_on" class="vs-ge-on" ${inService?'checked':''}> A/E #${n} in service</label></h3>
       <div class="field"><label>Run Hours (this report)</label><input type="number" step="0.1" id="vs_ge${n}_runhours" class="vs-ge-runhours" value="${runHours===null||runHours===undefined?'':runHours}"></div>
-      <div class="field"><label>Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_ge${n}_runtime" class="vs-ge-runtime" value="${cum==null?'':fmt(cum,1)}"></div>
+      <div class="field vs-ge-cum-hours"><label>Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_ge${n}_runtime" class="vs-ge-runtime" value="${cum==null?'':fmt(cum,1)}"></div>
       <div class="field"><label>Avg Load (kW)</label><input type="number" step="1" id="vs_ge${n}_kw" class="vs-ge-kw" value="${avgKw===null||avgKw===undefined?'':avgKw}"></div>
       <div class="field"><label>Fuel Share (MT)</label><input type="text" id="vs_ge${n}_fuel" readonly value="—"></div>
       <div class="field"><label>Load % (calc)</label><input type="text" id="vs_ge${n}_loadpct" readonly value=""></div>
