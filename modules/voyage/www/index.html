@@ -454,14 +454,24 @@
     grid-template-columns:1fr;
     gap:8px 0;
   }
+  .vs-ge-blr-inc-grid{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:6px;
+  }
   .vs-blr-inc-row{
     display:grid;
     grid-template-columns:1fr;
     gap:10px;
-    margin-top:6px;
   }
-  .vs-blr-inc-row .unit-box{min-width:0;}
-  .vs-ge-cum-hours{display:none !important;}
+  .vs-blr-inc-row .unit-box,
+  .vs-ge-blr-inc-grid .unit-box{min-width:0;}
+  .vs-ge-cum-hours,
+  .vs-blr-cum-hours{display:none !important;}
+  #vsFuelConsMiscFwRow.unit-group{margin-top:6px;}
+  /* Keep Sea Temp under E/R Temp in the 2-col Engine Room grid */
+  #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:1;}
   @media (max-width:720px){
     .fm-quick-row{grid-template-columns:1fr;}
   }
@@ -1037,6 +1047,8 @@
     #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}
     .vs-weather-others-row{grid-template-columns:1fr;}
     .vs-blr-inc-row{grid-template-columns:1fr;}
+    .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
+    #vsGeRuntimeFields{margin-top:0;}
 
     /* Voyage Summary: readable stacks instead of tiny 5/6-col scroll rows */
     #voyageSummaryPanel .form-grid.cols5,
@@ -1055,6 +1067,7 @@
     #vsOthersFields.form-grid.cols2{grid-template-columns:1fr 1fr;}
     #vsGeRuntimeFields.unit-group.cols3{grid-template-columns:1fr 1fr;}
     #voyageSummaryPanel .unit-group.cols3{grid-template-columns:1fr 1fr;}
+    #vsFuelConsMiscFwRow.unit-group.cols3{grid-template-columns:1fr 1fr;}
 
     .ref-grid{grid-template-columns:repeat(2,1fr); gap:6px 8px;}
     .ref-item .rv{font-size:11px;}
@@ -1116,7 +1129,18 @@
     .unit-group,.unit-group.cols3{grid-template-columns:repeat(2,1fr);}
     .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(3,1fr);}
     #logFmRevGrid.log-fm-rev-grid{grid-template-columns:repeat(4, minmax(0, 1fr));}
-    .vs-blr-inc-row{grid-template-columns:1fr 1fr;}
+    /* Tablet portrait: Boiler | Incinerator | (empty) / A/E #1 | A/E #2 | A/E #3 */
+    .vs-ge-blr-inc-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:10px;
+    }
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row,
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents;}
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-blr-box{grid-column:1; grid-row:1;}
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-inc-box{grid-column:2; grid-row:1;}
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields > .unit-box{grid-row:2;}
+    #vsFuelConsMiscFwRow.unit-group.cols3{grid-template-columns:repeat(2, minmax(0, 1fr));}
     #logEntryFormPanel .log-meta-row{
       grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
       gap:10px 12px;
@@ -1265,6 +1289,10 @@
     }
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)) !important;}
     #vsOthersFields.form-grid.cols2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}
+    .vs-blr-inc-row{grid-template-columns:1fr 1fr !important;}
+    .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row{display:grid;}
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:grid; grid-template-columns:repeat(2,1fr) !important;}
     .stat-strip,.stat-strip.cols5{grid-template-columns:repeat(3,1fr) !important; gap:8px;}
     .gauge-grid,.gauge-grid.cols4,.gauge-grid.cols5{grid-template-columns:repeat(3,1fr) !important;}
     .field label{font-size:9px;}
@@ -1304,6 +1332,23 @@
     .unit-group.cols5,.unit-group.cols6{grid-template-columns:repeat(4,1fr);}
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(6, minmax(0, 1fr));}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(5, minmax(0, 1fr));}
+    /* Tablet landscape: Boiler | Incinerator | A/E #1 | A/E #2 | A/E #3 in one row */
+    .vs-ge-blr-inc-grid{
+      display:grid;
+      grid-template-columns:repeat(5, minmax(0, 1fr));
+      gap:10px;
+    }
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row,
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents;}
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-blr-box,
+    .vs-ge-blr-inc-grid > .vs-blr-inc-row .vs-inc-box,
+    .vs-ge-blr-inc-grid > #vsGeRuntimeFields > .unit-box{
+      grid-column:auto;
+      grid-row:auto;
+    }
+    #vsFuelConsMiscFwRow.unit-group.cols3{
+      grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    }
     .stat-strip.cols5{grid-template-columns:repeat(5,1fr);}
     .gauge-grid.cols4{grid-template-columns:repeat(4,1fr);}
     .gauge-grid.cols5{grid-template-columns:repeat(5,1fr);}
@@ -2528,7 +2573,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div id="meMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="me_sg" value="0.980"></div>
-          <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
           <div class="field log-entry-always-hide" hidden><label>Runtime (hrs, cumulative)</label><input type="number" step="0.1" id="me_runtime"></div>
         </div>
         <div class="unit-box">
@@ -2551,7 +2595,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="unit-box">
           <h3>Rev. Counter</h3>
           <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
-          <div class="hint" id="meRuntimeHint" style="margin:0;">Period runtime = hours between the previous entry's date/time and the date/time selected above, after any clocks advanced/retarded this period. On a new entry the cumulative counter tracks that period automatically until you type your own reading.</div>
+          <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
           <div class="field log-entry-always-hide" hidden><label>M/E Avg RPM (from summary)</label><input type="text" id="in_rpm_display" readonly></div>
         </div>
         <div class="unit-box" id="logFwCard">
@@ -2752,9 +2796,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             </select>
           </div>
           <div class="field"><label>Air Temp (°C)</label><input type="number" step="0.1" id="vs_airTemp"></div>
-          <div class="field"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
         </div>
-        <div class="hint">Weather helps explain slip and fuel burn (head seas raise positive slip). Beaufort wind force 0–12; Douglas sea state 0–9. Sea temp is the same reading used for S/W temperature elsewhere.</div>
       </div>
 
       <div class="panel vs-others-col" style="padding:16px;">
@@ -2776,6 +2818,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <h3>Engine Room &amp; Tanks</h3>
             <div class="form-grid cols2" id="vsErTankFields">
               <div class="field"><label>E/R Temp (°C)</label><input type="number" step="0.1" id="vs_erTemp"></div>
+              <div class="field vs-sea-temp-under-er"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
               <div class="field"><label>S/T Temp — Stern Tube (°C)</label><input type="number" step="0.1" id="vs_stTemp"></div>
               <div class="field"><label>Bilge ROB (m³)</label><input type="number" step="0.01" id="vs_bilgeRob"></div>
               <div class="field calc"><label>Bilge change (m³)</label><input type="text" id="vs_bilgeDelta" readonly tabindex="-1"></div>
@@ -2814,33 +2857,33 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Generators, Boiler &amp; Incinerator — Runtime / Load</h3>
-        <div class="vs-blr-inc-row">
-          <div class="unit-box">
-            <h3>Boiler</h3>
-            <div class="field"><label>Boiler Run Hours (this report)</label><input type="number" step="0.1" id="vs_blrRuntime"></div>
-            <div class="field"><label>Boiler Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_blrCumHours"></div>
-            <div class="field"><label>Boiler Avg Load (kW)</label><input type="number" step="1" id="vs_blrKw"></div>
-            <div class="field"><label>Boiler Load % (calc)</label><input type="text" id="vs_blrLoadPct" readonly></div>
+        <div class="vs-ge-blr-inc-grid" id="vsGeBlrIncGrid">
+          <div class="vs-blr-inc-row">
+            <div class="unit-box vs-blr-box">
+              <h3>Boiler</h3>
+              <div class="field"><label>Boiler Run Hours (this report)</label><input type="number" step="0.1" id="vs_blrRuntime"></div>
+              <div class="field vs-blr-cum-hours"><label>Boiler Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_blrCumHours"></div>
+              <div class="field"><label>Boiler Avg Load (kW)</label><input type="number" step="1" id="vs_blrKw"></div>
+              <div class="field"><label>Boiler Load % (calc)</label><input type="text" id="vs_blrLoadPct" readonly></div>
+            </div>
+            <div class="unit-box vs-inc-box">
+              <h3>Incinerator</h3>
+              <div class="field"><label>Incinerator Run Time (hrs)</label><input type="number" step="0.1" id="vs_incRuntime"></div>
+              <div class="field"><label>Incinerator Avg Load (kW)</label><input type="number" step="1" id="vs_incKw"></div>
+              <div class="field"><label>Incinerator Load % (calc)</label><input type="text" id="vs_incLoadPct" readonly></div>
+            </div>
           </div>
-          <div class="unit-box">
-            <h3>Incinerator</h3>
-            <div class="field"><label>Incinerator Run Time (hrs)</label><input type="number" step="0.1" id="vs_incRuntime"></div>
-            <div class="field"><label>Incinerator Avg Load (kW)</label><input type="number" step="1" id="vs_incKw"></div>
-            <div class="field"><label>Incinerator Load % (calc)</label><input type="text" id="vs_incLoadPct" readonly></div>
-          </div>
+          <div class="unit-group cols3" id="vsGeRuntimeFields"></div>
         </div>
-        <div class="unit-group cols3" id="vsGeRuntimeFields" style="margin-top:10px;"></div>
         <div class="ge-split-note" id="vsGeSplitNote"></div>
-        <div class="hint">Tick each generator that was in service and enter its run hours for this report. Boiler / incinerator load % = (kW ÷ max kW from Setup) × 100.</div>
       </div>
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Fuel Cons. / Misc. / Fresh Water</h3>
-        <div class="unit-group cols3">
+        <div class="unit-group cols3" id="vsFuelConsMiscFwRow">
           <div class="unit-box">
             <h3>Fuel Cons. (by unit — edit to override)</h3>
             <div id="vsFuelConsBox"></div>
-            <div class="hint" style="margin-top:8px;">Each box opens on the figure the flowmeters measured, shown beside it as the basis. Type over any of them to override; clear the box to go back to the metered figure.</div>
           </div>
           <div class="unit-box">
             <h3>Misc. Cons. (manual, added to Consumption)</h3>
@@ -2853,7 +2896,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             <div class="field"><label>Boiler — LS MGO</label><input type="number" step="0.01" id="vs_blrExtra_lsmgo" value="0"></div>
             <div class="field"><label>Incinerator — MDO/MGO</label><input type="number" step="0.01" id="vs_incExtra_mdomgo" value="0"></div>
             <div class="field"><label>Incinerator — LS MGO</label><input type="number" step="0.01" id="vs_incExtra_lsmgo" value="0"></div>
-            <div class="hint" style="margin:8px 0 0;">Distillate burned by the boiler's pilot burner and by the incinerator, on top of what the boiler flowmeter measured. Added to consumption and deducted from R.O.B. like any other burn.</div>
           </div>
           <div class="unit-box">
             <h3>Fresh Water</h3>
@@ -22066,7 +22108,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v252';
+let androidInstallCacheName = 'noon-report-v258';
 
 /*
  * What the program is called.
@@ -22366,23 +22408,14 @@ let androidInstallAssets = [
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './fonts/IBMPlexMono-400-latin-ext.woff2',
   './fonts/IBMPlexMono-400-latin.woff2',
-  './fonts/IBMPlexMono-500-latin-ext.woff2',
   './fonts/IBMPlexMono-500-latin.woff2',
-  './fonts/IBMPlexMono-600-latin-ext.woff2',
   './fonts/IBMPlexMono-600-latin.woff2',
-  './fonts/Inter-400-latin-ext.woff2',
   './fonts/Inter-400-latin.woff2',
-  './fonts/Inter-500-latin-ext.woff2',
   './fonts/Inter-500-latin.woff2',
-  './fonts/Inter-600-latin-ext.woff2',
   './fonts/Inter-600-latin.woff2',
-  './fonts/Oswald-500-latin-ext.woff2',
   './fonts/Oswald-500-latin.woff2',
-  './fonts/Oswald-600-latin-ext.woff2',
   './fonts/Oswald-600-latin.woff2',
-  './fonts/Oswald-700-latin-ext.woff2',
   './fonts/Oswald-700-latin.woff2',
   './fonts/fonts.css'
 ];
