@@ -247,10 +247,10 @@ window.ChengProModules.performance = {
       stats.innerHTML = [
         stat('Watch hours', fmt(v.watchHours, 2) + (v.watchHours != null ? ' h' : '')),
         stat('M/E run hours', fmt(v.meRunHours, 2) + (v.meRunHours != null ? ' h' : '')),
-        stat('Avg RPM', fmt(v.rpm, 2)),
+        stat('Avg RPM', fmt(v.rpm, 2) + (v.rpm != null ? ' rpm' : '')),
         stat('% MCR', fmt(v.mcrPct, 2) + (v.mcrPct != null ? ' %' : '')),
-        stat('SHP (kW)', fmt(v.shpKw, 1)),
-        stat('IHP (kW)', fmt(v.ihpKw, 1)),
+        stat('SHP', fmt(v.shpKw, 1) + (v.shpKw != null ? ' kW' : '')),
+        stat('IHP', fmt(v.ihpKw, 1) + (v.ihpKw != null ? ' kW' : '')),
         stat('SFOC', fmt(v.sfoc, 2) + (v.sfoc != null ? ' g/kWh' : '')),
         stat('ISO SFOC', fmt(v.sfocIso, 2) + (v.sfocIso != null ? ' g/kWh' : ''), 'iso'),
         stat('SLOC', fmt(v.sloc, 3) + (v.sloc != null ? ' g/kWh' : '')),

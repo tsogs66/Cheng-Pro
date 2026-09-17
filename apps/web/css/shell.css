@@ -632,6 +632,15 @@ html.bright .home-voyage-strip .stat { background: transparent; }
 .gauge-box { text-align: center; padding: 8px 2px 2px; }
 .gauge-box svg.analog-gauge { width: 100%; max-width: 170px; height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28)); }
 .gauge-value { font-family: var(--mono); font-size: 16px; color: var(--brass); font-weight: 600; }
+.gauge-value .unit,
+.home-voyage-strip .stat .num .unit,
+.stat .num .unit {
+  font-size: 0.72em;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 0.28em;
+  letter-spacing: 0.02em;
+}
 .gauge-cap { font-size: 9px; color: var(--muted); font-family: var(--mono); }
 .gauge-label { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-top: 2px; font-weight: 600; }
 .cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 10px; }

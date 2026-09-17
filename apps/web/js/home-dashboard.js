@@ -68,6 +68,14 @@
     if (n == null || isNaN(n)) return '—';
     return Number(n).toFixed(3);
   }
+  function unitSpan(u) {
+    return u ? ` <span class="unit">${esc(String(u))}</span>` : '';
+  }
+  function withUnit(formatted, u) {
+    if (formatted == null || formatted === '' || formatted === '—') return (formatted == null || formatted === '') ? '—' : formatted;
+    if (!u) return String(formatted);
+    return `${formatted}${unitSpan(u)}`;
+  }
   function esc(s) {
     return String(s ?? '')
       .replace(/&/g, '&amp;')
@@ -440,8 +448,8 @@
       : '—';
     const eta = snap.etaLabel || '—';
     el.innerHTML = `
-      <div class="stat"><div class="num">${daysAtSea}</div><div class="lbl">Days at Sea</div></div>
-      <div class="stat"><div class="num">${daysToGo}</div><div class="lbl">Days To Go</div></div>
+      <div class="stat"><div class="num">${withUnit(daysAtSea, 'days')}</div><div class="lbl">Days at Sea</div></div>
+      <div class="stat"><div class="num">${withUnit(daysToGo, daysToGo === '—' ? '' : 'days')}</div><div class="lbl">Days To Go</div></div>
       <div class="stat"><div class="num">${esc(eta)}</div><div class="lbl">ETA</div></div>`;
   }
 
@@ -532,8 +540,8 @@
         ? Math.max(0, Number(snap.robUsed[t.id]) || 0)
         : Math.max(0, startVal - curVal);
       return `<div class="gauge-box">${dualGaugeSVG(startVal / cap, curVal / cap, gaugeColor(t))}
-        <div class="gauge-value">${fmtFuel(curVal)}</div>
-        <div class="gauge-cap">start ${fmtFuel(startVal)} · used ${fmtFuel(used)} MT</div>
+        <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
+        <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(used), 'MT')}</div>
         <div class="gauge-label">${esc(t.name || t.id)}</div></div>`;
     }).join('');
   }
