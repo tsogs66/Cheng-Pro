@@ -3,6 +3,6 @@
  * Keep in sync with package.json version when releasing.
  */
 (function (root) {
-  root.CHENG_PRO_VERSION = '0.3.172';
+  root.CHENG_PRO_VERSION = '0.3.173';
   root.CHENG_PRO_AUTHOR = 'ts0gs · Marvin C. Endozo';
 })(window);
