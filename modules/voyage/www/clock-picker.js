@@ -157,6 +157,7 @@ input.ccp-bound{cursor:pointer}
       if (state.step === 'hour') {
         stepEl.textContent = 'Select hour';
         ampmRow.hidden = true;
+        ampmRow.style.display = 'none';
         placeNums(12, (i) => (i === 0 ? 12 : i));
         face.querySelectorAll('.ccp-num').forEach((n) => {
           n.classList.toggle('active', Number(n.dataset.val) === state.h12);
@@ -169,6 +170,7 @@ input.ccp-bound{cursor:pointer}
       } else if (state.step === 'minute') {
         stepEl.textContent = 'Select minutes';
         ampmRow.hidden = true;
+        ampmRow.style.display = 'none';
         placeNums(12, (i) => pad(i * 5));
         face.querySelectorAll('.ccp-num').forEach((n) => {
           const v = Number(n.dataset.val);
@@ -182,6 +184,7 @@ input.ccp-bound{cursor:pointer}
       } else {
         stepEl.textContent = 'Select AM / PM';
         ampmRow.hidden = false;
+        ampmRow.style.display = 'flex';
         placeNums(12, (i) => (i === 0 ? 12 : i));
         face.querySelectorAll('.ccp-num').forEach((n) => {
           n.classList.toggle('active', Number(n.dataset.val) === state.h12);
