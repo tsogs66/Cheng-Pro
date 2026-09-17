@@ -924,10 +924,24 @@
       }
       loadSyncSettings();
 
+      /* Saving a peer URL is the moment the engineer means "connect me".
+       *
+       * Rather than leave him to press Test, then Pull, then Refresh list, the
+       * save runs the whole arrival: prove the peer answers, bring the tank
+       * database down, then repaint the vessel library and the header's vessel
+       * list so his ships are simply there.
+       *
+       * The pull is safe to do without asking because applySyncPayload merges
+       * by revision — a remote vessel only lands when its revision is at least
+       * the local one, so work done on this device since the last sync is not
+       * thrown away. Each step reports separately: a peer that does not answer
+       * stops the sequence with the settings still saved, rather than looking
+       * like the save failed. */
       root.querySelector('#bk-sync-save')?.addEventListener('click', async () => {
+        const syncUrl = root.querySelector('#bk-sync-url').value.trim();
+        const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
+
         try {
-          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
-          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
           await tankRequest('/api/settings', {
             method: 'PUT',
             body: JSON.stringify({ syncUrl, syncApiToken, syncEnabled: true }),
@@ -936,12 +950,53 @@
           if (tr === 'local' || tr === 'server') {
             try { localStorage.setItem(TRANSPORT_KEY, tr); } catch (_) { /* ignore */ }
           }
-          setSync('Sync settings saved.');
-          toast('Sync settings saved');
         } catch (e) {
           setSync(e.message || 'Save failed');
           toast(e.message || 'Save failed');
+          return;
         }
+
+        if (!syncUrl) {
+          setSync('Sync settings saved. Enter a peer URL to pull vessels automatically.');
+          toast('Sync settings saved');
+          await refreshVesselLibrary();
+          return;
+        }
+
+        setSync('Saved. Checking the peer…');
+        try {
+          await tankRequest('/api/sync/probe', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl, syncApiToken }),
+          });
+        } catch (e) {
+          setSync(`Saved, but the peer did not answer: ${e.message || 'unreachable'}. Vessels will appear once it does.`);
+          toast('Saved — peer unreachable');
+          await refreshVesselLibrary();
+          return;
+        }
+
+        setSync('Peer reachable. Downloading the tank database…');
+        let pulled = '';
+        try {
+          const res = await tankRequest('/api/sync/pull', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl, syncApiToken }),
+          });
+          pulled = res && (res.message || (res.remoteCount != null ? `${res.remoteCount} vessel(s) from the peer` : ''));
+          if (res && res.warning) pulled = res.warning;
+        } catch (e) {
+          setSync(`Saved and peer reachable, but the tank pull failed: ${e.message || 'unknown error'}`);
+          toast('Tank pull failed');
+          await refreshVesselLibrary();
+          return;
+        }
+
+        try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+        await refreshVesselLibrary();
+        const done = `Connected. ${pulled || 'Tank database up to date'}.`;
+        setSync(done);
+        toast('Connected — vessel list updated');
       });
 
       root.querySelector('#bk-sync-probe')?.addEventListener('click', async () => {
