@@ -22326,7 +22326,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v264';
+let androidInstallCacheName = 'noon-report-v266';
 
 /*
  * What the program is called.
@@ -25600,6 +25600,9 @@ document.addEventListener('focusin', (e)=>{
   if (el.tagName === 'INPUT'){
     const t = (el.type || '').toLowerCase();
     if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'file' || t === 'hidden') return;
+    /* Native date/time pickers break if we force-select the whole value on focus
+       (Chromium/Electron datetime-local segments and calendar UI stop responding). */
+    if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week') return;
   }
   /* Select all so the next keystroke replaces the previous value (touch + mouse). */
   setTimeout(()=>{ try{ el.select(); }catch(_e){} }, 0);
