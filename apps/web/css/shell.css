@@ -207,6 +207,52 @@ html.bright .theme-toggle { background: rgba(18,34,56,0.06); }
   padding: 18px 12px; display: flex; flex-direction: column; gap: 16px;
 }
 html.bright .sidebar { background: rgba(255,255,255,0.7); }
+
+/* Windows / desktop: pin the AIO menu in the viewport.
+   Only the main pane scrolls — the sidebar must never scroll away or grow a
+   scrollbar of its own. */
+@media (min-width: 901px) {
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed),
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) body {
+    height: 100%;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .app {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .body {
+    min-height: 0;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar {
+    position: sticky;
+    top: 0;
+    align-self: stretch;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar .nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar-meta {
+    flex-shrink: 0;
+  }
+  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .main {
+    min-height: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 .nav { display: flex; flex-direction: column; gap: 6px; }
 .nav-item, .bottom-item, .btn, .icon-btn { border: 1px solid transparent; background: transparent; cursor: pointer; }
 .nav-item { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
@@ -942,13 +988,15 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   gap: 10px;
   margin-bottom: 8px;
 }
-/* A configured server folds to its summary line; see markServerBlock. */
+/* Configured server blocks stay open so fields remain editable after save. */
 .backup-page details.backup-section > summary {
   display: flex;
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
   list-style: none;
+  position: relative;
+  z-index: 1;
 }
 .backup-page details.backup-section > summary::-webkit-details-marker { display: none; }
 .backup-page details.backup-section > summary::before {
@@ -964,6 +1012,14 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   overflow-wrap: anywhere;
 }
 .backup-page details.backup-section[open] > summary { margin-bottom: 8px; }
+.backup-page details.backup-section .field,
+.backup-page details.backup-section input,
+.backup-page details.backup-section select,
+.backup-page details.backup-section button,
+.backup-page details.backup-section .btn-row {
+  position: relative;
+  z-index: 1;
+}
 /* A group inside a panel — the one-leg-at-a-time controls. */
 .backup-page .backup-subsection {
   margin-top: 14px;
