@@ -1,6 +1,10 @@
 {
   "name": "cheng-pro",
+<<<<<<< HEAD
+  "version": "0.3.186",
+=======
   "version": "0.3.191",
+>>>>>>> origin/main
   "description": "ChEng AIO — Marine Engineer Suite (Voyage Chief + Tank Chief)",
   "author": "ts0gs (Marvin C. Endozo)",
   "main": "desktop/main.js",
