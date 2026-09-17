@@ -22418,7 +22418,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v272';
+let androidInstallCacheName = 'noon-report-v273';
 
 /*
  * What the program is called.
@@ -23742,6 +23742,30 @@ window.addEventListener('message', async (ev)=>{
       const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
       const voyages = (body && body.voyages) || [];
       reply({ vessel, voyages, message: voyages.length ? `${voyages.length} remote voyage(s) for ${vessel}` : `No remote voyages for "${vessel}".` });
+    } else if (msg.action === 'pull-voyage-leg') {
+      const voyage = String(msg.voyage || '').trim();
+      const condition = normalizeCondition(msg.condition);
+      if (!voyage) throw new Error('Select a voyage number first (List Remote Voyages refreshes the list).');
+      const prevVn = state.setup.voyageNumber;
+      const prevCond = state.setup.shipCondition;
+      try {
+        await archiveActiveVoyageLeg();
+        state.setup.voyageNumber = voyage;
+        state.setup.shipCondition = condition;
+        await syncNow({ pullOnly: true, policy: 'merge' });
+        await archiveActiveVoyageLeg();
+        try { await renderVoyageLibrary(); } catch (_) {}
+        reply({
+          message: `Merged voyage ${voyage} (${condition}) — ${state.entries.length} log entries on this device.`,
+          voyage,
+          condition,
+          entryCount: state.entries.length,
+        });
+      } catch (e) {
+        state.setup.voyageNumber = prevVn;
+        state.setup.shipCondition = prevCond;
+        throw e;
+      }
     } else {
       reply({ error: 'Unknown backup action: ' + msg.action });
     }
