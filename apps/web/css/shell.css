@@ -897,19 +897,81 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
 @media (min-width: 900px) {
   .backup-page .backup-grid { grid-template-columns: 1fr 1fr; }
 }
-.backup-page .backup-program-title {
-  margin: 22px 0 10px;
+/* The page reads as three numbered steps: connect, then the fleet the
+   connection brings back, then the files that need no connection at all. */
+.backup-page .backup-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 6px;
   font-size: 1.05rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent, var(--brass, #c4a35a));
 }
+.backup-page .backup-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.65em;
+  height: 1.65em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.85em;
+  line-height: 1;
+}
+.backup-page .backup-step-hint { margin: 0 0 12px; }
 .backup-page .backup-section {
   margin-bottom: 14px;
 }
 .backup-page .form-panel h2 {
   margin: 0 0 8px;
   font-size: 1.05rem;
+}
+/* One title style whether the block is a plain panel or a foldable one. */
+.backup-page .backup-section-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.backup-page .backup-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+/* A configured server folds to its summary line; see markServerBlock. */
+.backup-page details.backup-section > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+.backup-page details.backup-section > summary::-webkit-details-marker { display: none; }
+.backup-page details.backup-section > summary::before {
+  content: "\25B8";
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.backup-page details.backup-section[open] > summary::before { transform: rotate(90deg); }
+.backup-page .backup-summary-note {
+  margin-left: auto;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.backup-page details.backup-section[open] > summary { margin-bottom: 8px; }
+/* A group inside a panel — the one-leg-at-a-time controls. */
+.backup-page .backup-subsection {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, rgba(255,255,255,0.08));
+}
+.backup-page .backup-subsection h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
 }
 .backup-page .hint { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .backup-page .btn-row { margin-top: 10px; }

@@ -23740,9 +23740,22 @@ window.addEventListener('message', async (ev)=>{
       }
       const base = syncApiBase();
       if (!base) throw new Error('Enter a Sync Server URL first.');
-      const vessel = vesselSyncSlug();
-      const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
-      const voyages = (body && body.voyages) || [];
+      /* Pin the ship the caller named. vesselSyncSlug() otherwise prefers this
+         page's own Setup field, so a ChEng AIO row asking for one vessel would
+         be answered with whichever ship this hidden frame happens to show —
+         the same trap pullVesselFromServer already guards against. */
+      const prevListOverride = _syncSlugOverride;
+      let vessel;
+      let voyages;
+      try {
+        const asked = String((msg.settings && msg.settings.vesselId) || msg.vessel || '').trim();
+        if (asked) _syncSlugOverride = asked;
+        vessel = vesselSyncSlug();
+        const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
+        voyages = (body && body.voyages) || [];
+      } finally {
+        _syncSlugOverride = prevListOverride;
+      }
       reply({ vessel, voyages, message: voyages.length ? `${voyages.length} remote voyage(s) for ${vessel}` : `No remote voyages for "${vessel}".` });
     } else if (msg.action === 'pull-voyage-leg') {
       const voyage = String(msg.voyage || '').trim();
@@ -23750,7 +23763,12 @@ window.addEventListener('message', async (ev)=>{
       if (!voyage) throw new Error('Select a voyage number first (List Remote Voyages refreshes the list).');
       const prevVn = state.setup.voyageNumber;
       const prevCond = state.setup.shipCondition;
+      /* Same pinning as list-remote: the leg has to come from the ship that was
+         listed, not from the one this frame's Setup field names. */
+      const prevPullOverride = _syncSlugOverride;
+      const askedVessel = String(msg.vessel || '').trim();
       try {
+        if (askedVessel) _syncSlugOverride = askedVessel;
         await archiveActiveVoyageLeg();
         state.setup.voyageNumber = voyage;
         state.setup.shipCondition = condition;
@@ -23761,12 +23779,15 @@ window.addEventListener('message', async (ev)=>{
           message: `Merged voyage ${voyage} (${condition}) — ${state.entries.length} log entries on this device.`,
           voyage,
           condition,
+          vessel: askedVessel || vesselSyncSlug(),
           entryCount: state.entries.length,
         });
       } catch (e) {
         state.setup.voyageNumber = prevVn;
         state.setup.shipCondition = prevCond;
         throw e;
+      } finally {
+        _syncSlugOverride = prevPullOverride;
       }
     } else {
       reply({ error: 'Unknown backup action: ' + msg.action });

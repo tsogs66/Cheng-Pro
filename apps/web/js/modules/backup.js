@@ -196,7 +196,7 @@
     voyageFrame.title = 'Voyage Chief backup bridge';
     voyageFrame.setAttribute('aria-hidden', 'true');
     voyageFrame.tabIndex = -1;
-    /* Hidden bridge only — Backup paints its own Server Sync form. */
+    /* Hidden bridge only — Backup paints its own Voyage server form. */
     voyageFrame.src = ChengPro.voyageEmbedUrl({ page: 'data' });
     if (mount) mount.appendChild(voyageFrame);
     else if (host) host.appendChild(voyageFrame);
@@ -288,52 +288,15 @@
       root.innerHTML = `
         <section class="panel backup-page">
           <h1>Backup &amp; Restore</h1>
-          <p class="hint">Export or import vessel databases offline. On the phone the file goes to <strong>Downloads/ChEngAIO</strong>; on desktop you pick the folder. Suite files restore in standalone Tank or Voyage too — each app takes its own half.</p>
+          <p class="hint">Everything that moves a vessel's data — to a file, to a server, or from another engineer's account — in the order you do it. On the phone a file goes to <strong>Downloads/ChEngAIO</strong>; on desktop you pick the folder. Suite files restore in standalone Tank or Voyage too — each app takes its own half.</p>
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'} Active vessel: <strong>${esc(activeLabel)}</strong></p>
 
-          <div class="form-panel backup-section">
-            <h2>Entire suite</h2>
-            <p class="hint">One JSON with Tank Chief + Voyage Chief from this device/server.</p>
-            <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-suite-all">Export entire program</button>
-              <button type="button" class="btn" id="bk-suite-restore">Restore entire program…</button>
-              <button type="button" class="btn" id="bk-suite-merge">Merge entire program…</button>
-              <input type="file" id="bk-suite-file" accept="application/json,.json" hidden>
-            </div>
-            <p class="hint" id="bk-suite-status">Ready.</p>
-          </div>
+          <h2 class="backup-step"><span class="backup-step-no">1</span> Connect to your servers</h2>
+          <p class="hint backup-step-hint">Set each address once. Saving one connects and pulls straight away, and the vessel list in step 2 fills itself from whichever servers answer. Step 3 needs no network at all.</p>
 
-          <div class="form-panel backup-section">
-            <h2>Server vessel library</h2>
-            <p class="hint">Every vessel on this server, from Tank Chief and Voyage Chief together — one row per ship, matched by IMO or by name with the MV / M/V prefix ignored. Your own vessels come first. Import ship particulars, plus the latest voyage leg when available.</p>
-            <div class="btn-row">
-              <button type="button" class="btn" id="bk-lib-refresh">Refresh list</button>
-            </div>
-            <div id="bk-lib-list" class="backup-lib-list hint">Loading…</div>
-            <p class="hint" id="bk-lib-status">Ready.</p>
-          </div>
-
-          <h2 class="backup-program-title">Tank Chief</h2>
-
-          <div class="form-panel backup-section">
-            <h2>Vessel database</h2>
-            <p class="hint">Source: <strong>${esc(tankSourceLabel())}</strong>. Tanks, calibrations, readings, bunkering, settings.</p>
-            <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-tank-full">Download full backup</button>
-              <button type="button" class="btn" id="bk-tank-import">Import backup…</button>
-              <input type="file" id="bk-tank-file" accept="application/json,.json" hidden>
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn" id="bk-tank-vessel" ${active ? '' : 'disabled'}>Export active vessel</button>
-              <button type="button" class="btn" id="bk-tank-vessel-import">Import vessel JSON…</button>
-              <input type="file" id="bk-tank-vessel-file" accept="application/json,.json" hidden>
-            </div>
-            <p class="hint" id="bk-tank-status">Ready.</p>
-          </div>
-
-          <div class="form-panel backup-section">
-            <h2>Peer sync</h2>
-            <p class="hint">Tank Chief peer URL, token, and where this device keeps its tank database.</p>
+          <details class="form-panel backup-section" id="bk-tank-server" open>
+            <summary><span class="backup-section-title">Tank Chief server</span><span class="hint backup-summary-note" id="bk-sync-summary">not set</span></summary>
+            <p class="hint">Peer URL, token, and where this device keeps its tank database.</p>
             <div class="grid-2">
               <div class="field"><label for="bk-sync-url">Peer sync URL</label>
                 <input id="bk-sync-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.1.50:8080 or :3080"></div>
@@ -347,36 +310,17 @@
               </select>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn" id="bk-sync-save">Save settings</button>
+              <button type="button" class="btn primary" id="bk-sync-save">Save &amp; connect</button>
               <button type="button" class="btn" id="bk-sync-probe">Test connection</button>
               <button type="button" class="btn" id="bk-sync-pull">Pull from peer</button>
-              <button type="button" class="btn primary" id="bk-sync-push">Push to peer</button>
+              <button type="button" class="btn" id="bk-sync-push">Push to peer</button>
               <button type="button" class="btn" id="bk-sync-flush">Flush offline queue</button>
             </div>
             <p class="hint" id="bk-sync-status">Ready.</p>
-          </div>
+          </details>
 
-          <h2 class="backup-program-title">Voyage Chief</h2>
-
-          <div class="form-panel backup-section">
-            <h2>Database backup</h2>
-            <p class="hint">Noon reports and voyage legs on this device (IndexedDB).</p>
-            <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-voyage-db">Download voyage database</button>
-              <button type="button" class="btn" id="bk-voyage-restore">Restore database…</button>
-              <button type="button" class="btn" id="bk-voyage-merge">Merge database…</button>
-              <input type="file" id="bk-voyage-db-file" accept="application/json,.json" hidden>
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn" id="bk-voyage-vessel">Export selected vessel</button>
-              <button type="button" class="btn" id="bk-voyage-vessel-import">Import vessel JSON…</button>
-              <input type="file" id="bk-voyage-vessel-file" accept="application/json,.json" hidden>
-            </div>
-            <p class="hint" id="bk-voyage-status">Ready.</p>
-          </div>
-
-          <div class="form-panel backup-section">
-            <h2>Server Sync</h2>
+          <details class="form-panel backup-section" id="bk-voyage-server" open>
+            <summary><span class="backup-section-title">Voyage Chief server</span><span class="hint backup-summary-note" id="bk-voy-sync-summary">not set</span></summary>
             <p class="hint">Self-hosted Voyage sync server. Same settings that used to live under Voyage → Setup.</p>
             <div class="grid-2">
               <div class="field span2"><label for="bk-voy-sync-url">Sync server URL</label>
@@ -396,28 +340,94 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-voy-sync-save">Save sync settings</button>
+              <button type="button" class="btn primary" id="bk-voy-sync-save">Save &amp; connect</button>
               <button type="button" class="btn" id="bk-voy-sync-test">Test connection</button>
               <button type="button" class="btn" id="bk-voy-sync-push">Push active leg</button>
               <button type="button" class="btn" id="bk-voy-sync-pull">Pull active leg</button>
               <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
-              <button type="button" class="btn" id="bk-voy-sync-list">List remote voyages</button>
             </div>
-            <div class="grid-2" style="margin-top:10px;">
-              <div class="field"><label for="bk-voy-sync-pull-voyage">Pull voyage no.</label>
-                <select id="bk-voy-sync-pull-voyage"><option value="">— List remote voyages first —</option></select></div>
-              <div class="field"><label for="bk-voy-sync-pull-condition">Pull condition</label>
-                <select id="bk-voy-sync-pull-condition">
-                  <option value="B">B — Ballasted</option>
-                  <option value="L">L — Laden</option>
-                </select></div>
+            <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
+
+            <div class="backup-subsection">
+              <h3>One leg at a time</h3>
+              <p class="hint">For a specific voyage and condition. Step 2 pulls a ship's latest leg — or all of them — from its own row, which is the usual way in.</p>
+              <div class="btn-row">
+                <button type="button" class="btn" id="bk-voy-sync-list">List remote voyages</button>
+              </div>
+              <div class="grid-2" style="margin-top:10px;">
+                <div class="field"><label for="bk-voy-sync-pull-voyage">Voyage no.</label>
+                  <select id="bk-voy-sync-pull-voyage"><option value="">— List remote voyages first —</option></select></div>
+                <div class="field"><label for="bk-voy-sync-pull-condition">Condition</label>
+                  <select id="bk-voy-sync-pull-condition">
+                    <option value="B">B — Ballasted</option>
+                    <option value="L">L — Laden</option>
+                  </select></div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn" id="bk-voy-sync-pull-leg">Pull selected voyage leg</button>
+              </div>
+              <div id="bk-voy-sync-remote" class="hint backup-remote-list" hidden></div>
+            </div>
+          </details>
+
+          <h2 class="backup-step"><span class="backup-step-no">2</span> Vessels on the server</h2>
+          <p class="hint backup-step-hint">Every vessel on this server, from Tank Chief and Voyage Chief together — one row per ship, matched by IMO or by name with the MV / M/V prefix ignored. Your own vessels come first.</p>
+
+          <div class="form-panel backup-section">
+            <div class="backup-section-head">
+              <span class="backup-section-title">Vessel library</span>
+              <button type="button" class="btn" id="bk-lib-refresh">Refresh list</button>
+            </div>
+            <div id="bk-lib-list" class="backup-lib-list hint">Loading…</div>
+            <p class="hint" id="bk-lib-status">Ready.</p>
+          </div>
+
+          <h2 class="backup-step"><span class="backup-step-no">3</span> Backup files</h2>
+          <p class="hint backup-step-hint">Plain JSON, written and read with no server involved. This is the half that still works at sea.</p>
+
+          <div class="form-panel backup-section">
+            <div class="backup-section-head"><span class="backup-section-title">Entire suite</span></div>
+            <p class="hint">One file with Tank Chief + Voyage Chief from this device/server.</p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-suite-all">Export entire program</button>
+              <button type="button" class="btn" id="bk-suite-restore">Restore entire program…</button>
+              <button type="button" class="btn" id="bk-suite-merge">Merge entire program…</button>
+              <input type="file" id="bk-suite-file" accept="application/json,.json" hidden>
+            </div>
+            <p class="hint" id="bk-suite-status">Ready.</p>
+          </div>
+
+          <div class="form-panel backup-section">
+            <div class="backup-section-head"><span class="backup-section-title">Tank Chief database</span></div>
+            <p class="hint">Source: <strong>${esc(tankSourceLabel())}</strong>. Tanks, calibrations, readings, bunkering, settings.</p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-tank-full">Download full backup</button>
+              <button type="button" class="btn" id="bk-tank-import">Import backup…</button>
+              <input type="file" id="bk-tank-file" accept="application/json,.json" hidden>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-voy-sync-pull-leg">Pull selected voyage leg</button>
+              <button type="button" class="btn" id="bk-tank-vessel" ${active ? '' : 'disabled'}>Export active vessel</button>
+              <button type="button" class="btn" id="bk-tank-vessel-import">Import vessel JSON…</button>
+              <input type="file" id="bk-tank-vessel-file" accept="application/json,.json" hidden>
             </div>
-            <p class="hint">List remote voyages fills the voyage number list. Pull selected voyage leg merges that B/L leg onto this device (same as Voyage → Setup).</p>
-            <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
-            <div id="bk-voy-sync-remote" class="hint backup-remote-list" hidden></div>
+            <p class="hint" id="bk-tank-status">Ready.</p>
+          </div>
+
+          <div class="form-panel backup-section">
+            <div class="backup-section-head"><span class="backup-section-title">Voyage Chief database</span></div>
+            <p class="hint">Noon reports and voyage legs on this device (IndexedDB).</p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-voyage-db">Download voyage database</button>
+              <button type="button" class="btn" id="bk-voyage-restore">Restore database…</button>
+              <button type="button" class="btn" id="bk-voyage-merge">Merge database…</button>
+              <input type="file" id="bk-voyage-db-file" accept="application/json,.json" hidden>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn" id="bk-voyage-vessel">Export selected vessel</button>
+              <button type="button" class="btn" id="bk-voyage-vessel-import">Import vessel JSON…</button>
+              <input type="file" id="bk-voyage-vessel-file" accept="application/json,.json" hidden>
+            </div>
+            <p class="hint" id="bk-voyage-status">Ready.</p>
           </div>
 
           <div id="bk-voyage-bridge-host" class="aio-backup-voyage-bridge" hidden aria-hidden="true"></div>
@@ -429,6 +439,39 @@
       const setTank = (t) => { if (tankStatus) tankStatus.textContent = t; };
       const setVoyage = (t) => { if (voyageStatus) voyageStatus.textContent = t; };
       const setSuite = (t) => { if (suiteStatus) suiteStatus.textContent = t; };
+
+      /* A server block that is already set up folds away.
+       *
+       * Both addresses are typed once and then never again, but they have to
+       * sit above the vessel list that cannot work without them — telling an
+       * engineer to "set the URL below" and making him hunt for it is how the
+       * old order read. Folded, the block keeps its place in the sequence and
+       * costs him one line instead of a screen of fields, and the summary says
+       * which server it points at so he can see that without opening it.
+       *
+       * Left open when there is no URL yet: that is the one visit where the
+       * fields are the point. */
+      function markServerBlock(blockId, noteId, url) {
+        const block = root.querySelector('#' + blockId);
+        const note = root.querySelector('#' + noteId);
+        const set = String(url || '').trim();
+        if (note) note.textContent = set || 'not set';
+        if (block && set) block.open = false;
+      }
+
+      /* Keep the folded line honest while he is typing a new address. */
+      for (const [noteId, urlId] of [
+        ['bk-sync-summary', 'bk-sync-url'],
+        ['bk-voy-sync-summary', 'bk-voy-sync-url'],
+      ]) {
+        const note = root.querySelector('#' + noteId);
+        const urlEl = root.querySelector('#' + urlId);
+        if (note && urlEl) {
+          urlEl.addEventListener('input', () => {
+            note.textContent = urlEl.value.trim() || 'not set';
+          });
+        }
+      }
 
       root.querySelector('#bk-suite-all').onclick = async () => {
         setSuite('Collecting Tank + Voyage databases…');
@@ -810,7 +853,7 @@
              it were the whole fleet. */
           const notes = [];
           if (tank.error) notes.push(`Tank Chief list unavailable (${esc(tank.error)})`);
-          if (voyage.error) notes.push(`Voyage Chief list unavailable — sign in under Server Sync (${esc(voyage.error)})`);
+          if (voyage.error) notes.push(`Voyage Chief list unavailable — sign in under Voyage Chief server in step 1 (${esc(voyage.error)})`);
 
           if (!rows.length) {
             libList.innerHTML = `<p class="hint">No vessels on the server yet.</p>${
@@ -871,18 +914,24 @@
               /* Voyage Chief's own sync config is what pull-voyage-leg reads,
                  and in a fresh profile it is empty — the frame answers "Enter a
                  Sync Server URL first" however good the row is. So push the
-                 Server Sync form down first, exactly as the panel's own List /
+                 Voyage server form down first, exactly as the panel's own List /
                  Pull buttons do, and say plainly when that form is blank. */
               const voySettings = readVoyageSyncForm(root);
               if (!voySettings.serverUrl) {
-                setLib('Set the Voyage Chief sync server URL under Server Sync below, then pull.');
+                setLib('Set the Voyage Chief sync server URL in step 1 above, then pull.');
                 toast('Voyage sync server not set');
                 return;
               }
 
               setLib(`Asking the server which voyages ${vesselId} has…`);
               try {
-                await voyagePost('save-sync-settings', { settings: voySettings }, root);
+                /* Point the frame at this row's ship, not at whatever slug the
+                   Voyage server form happens to hold — with that form folded
+                   away once it is configured, it is usually the last ship
+                   pulled, not the one whose row was clicked. */
+                await voyagePost('save-sync-settings', {
+                  settings: { ...voySettings, vesselId },
+                }, root);
                 const listed = await voyagePost('list-remote', {
                   vessel: vesselId,
                   settings: { ...voySettings, vesselId },
@@ -934,6 +983,7 @@
                   setLib(`Pulling ${vesselId} voyage ${leg.voyage} ${leg.condition} (${done + 1} of ${wanted.length})…`);
                   try {
                     await voyagePost('pull-voyage-leg', {
+                      vessel: vesselId,
                       voyage: leg.voyage,
                       condition: leg.condition,
                     }, root);
@@ -1198,6 +1248,7 @@
           if (urlEl) urlEl.value = s.syncUrl || '';
           if (tokEl) tokEl.value = s.syncApiToken || '';
           if (trEl) trEl.value = tankTransport();
+          markServerBlock('bk-tank-server', 'bk-sync-summary', urlEl && urlEl.value);
           setSync('Loaded from ' + tankSourceLabel() + '.');
         } catch (e) {
           setSync(e.message || 'Could not load sync settings');
@@ -1365,6 +1416,7 @@
         try {
           const msg = await voyagePost('get-sync-settings', {}, root);
           fillVoyageSyncForm(root, msg.settings || {});
+          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', (msg.settings || {}).serverUrl);
           const s = msg.settings || {};
           const parts = [];
           if (s.lastSyncedAt) parts.push('Last sync: ' + new Date(s.lastSyncedAt).toLocaleString());
