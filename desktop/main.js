@@ -4,7 +4,7 @@
  * Portable builds (USB): all databases live beside the .exe under ChEngAIO-data/
  * so the stick is fully standalone across PCs.
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -56,6 +56,57 @@ if (paths.portable) {
 let mainWindow = null;
 let gateway = null;
 
+function filtersForName(filename, mime) {
+  const lower = String(filename || '').toLowerCase();
+  if (lower.endsWith('.json') || /json/i.test(mime || '')) {
+    return [
+      { name: 'JSON', extensions: ['json'] },
+      { name: 'All files', extensions: ['*'] },
+    ];
+  }
+  if (lower.endsWith('.csv')) {
+    return [
+      { name: 'CSV', extensions: ['csv'] },
+      { name: 'All files', extensions: ['*'] },
+    ];
+  }
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+    return [
+      { name: 'Excel', extensions: ['xlsx', 'xls'] },
+      { name: 'All files', extensions: ['*'] },
+    ];
+  }
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+    return [
+      { name: 'HTML', extensions: ['html', 'htm'] },
+      { name: 'All files', extensions: ['*'] },
+    ];
+  }
+  const ext = path.extname(lower).replace(/^\./, '');
+  if (ext) {
+    return [
+      { name: ext.toUpperCase(), extensions: [ext] },
+      { name: 'All files', extensions: ['*'] },
+    ];
+  }
+  return [{ name: 'All files', extensions: ['*'] }];
+}
+
+ipcMain.handle('cheng-save-text', async (event, payload = {}) => {
+  const filename = String(payload.filename || `cheng-backup-${Date.now()}.json`).replace(/[\\/:*?"<>|]+/g, '-');
+  const text = String(payload.text ?? '');
+  const mime = String(payload.mime || 'application/json');
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  const result = await dialog.showSaveDialog(win || undefined, {
+    title: 'Save file',
+    defaultPath: filename,
+    filters: filtersForName(filename, mime),
+  });
+  if (result.canceled || !result.filePath) return '';
+  await fs.promises.writeFile(result.filePath, text, 'utf8');
+  return result.filePath;
+});
+
 async function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -65,6 +116,7 @@ async function createWindow(port) {
     title: 'ChEng AIO',
     backgroundColor: '#07141a',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
     },
@@ -74,8 +126,29 @@ async function createWindow(port) {
     if (url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost')) {
       return { action: 'allow' };
     }
-    shell.openExternal(url);
+    /* blob:/data: popups must stay in-app; shell.openExternal crashes/odd on Windows. */
+    if (/^(blob:|data:)/i.test(url)) {
+      return { action: 'allow' };
+    }
+    if (/^https?:/i.test(url)) {
+      shell.openExternal(url);
+    }
     return { action: 'deny' };
+  });
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[desktop] render-process-gone', details);
+    try {
+      if (!mainWindow.isDestroyed()) mainWindow.reload();
+    } catch (err) {
+      console.error('[desktop] reload after renderer crash failed', err);
+    }
+  });
+  mainWindow.webContents.session.on('will-download', (_event, item) => {
+    /* Keep the OS save dialog for Content-Disposition attachments (CSV/XLSX). */
+    item.setSaveDialogOptions({
+      title: 'Save download',
+      defaultPath: item.getFilename(),
+    });
   });
 }
 
