@@ -441,10 +441,10 @@
     margin-top:6px;
   }
   #logFmRevGrid .unit-box{min-width:0;}
-  /* Voyage Summary: Weather (narrow) beside Others (wide) */
+  /* Voyage Summary: Weather beside Engine Room & Tanks (T/C + Others live under cylinders) */
   .vs-weather-others-row{
     display:grid;
-    grid-template-columns:minmax(160px, 0.7fr) minmax(0, 2.1fr);
+    grid-template-columns:minmax(160px, 0.85fr) minmax(0, 1.35fr);
     gap:16px;
     margin:0 0 16px;
     align-items:stretch;
@@ -454,6 +454,7 @@
     grid-template-columns:1fr;
     gap:8px 0;
   }
+  #vsSeaReportBlock #vsTurboScavRow{margin-top:12px;}
   .vs-ge-blr-inc-grid{
     display:flex;
     flex-direction:column;
@@ -550,16 +551,14 @@
   #vsCylFields .unit-box h3{font-size:10px;}
   #vsCylFields .field label{font-size:11px;}
   #vsCylFields .field input{font-size:12px; padding:6px;}
+  /* T/C boxes + Others under Cylinder Readings (ER & Tanks sit beside Weather). */
   #vsTurboScavRow.unit-group.cols3{
-    grid-template-columns:repeat(4, minmax(0, 1fr));
+    grid-template-columns:repeat(3, minmax(0, 1fr));
     align-items:stretch;
   }
   #vsTurboScavRow .vs-tc-box{min-width:0;}
-  /* Without turbocharger boxes the row still carries Others and Engine Room & Tanks,
-     which belong side by side rather than stacked. Must carry the same class weight
-     as the cols3 rule above or that one wins and forces four columns. */
   #vsTurboScavRow.unit-group.cols3.no-turbos{
-    grid-template-columns:repeat(2, minmax(0, 1fr));
+    grid-template-columns:minmax(0, 1fr);
   }
   #vsTurboScavRow.unit-group.cols3.no-others{
     grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -1166,7 +1165,7 @@
       grid-template-columns:repeat(2, minmax(0, 1fr));
     }
     .vs-weather-others-row{
-      grid-template-columns:minmax(140px, 0.65fr) minmax(0, 2.2fr);
+      grid-template-columns:minmax(140px, 0.85fr) minmax(0, 1.35fr);
     }
     .field input,.field select{font-size:14px; min-height:40px; padding:8px 9px;}
     button.small{min-height:36px;}
@@ -1373,15 +1372,55 @@
     #vsCylFields.unit-group.cols6{grid-template-columns:repeat(6, minmax(0, 1fr));}
     #voyageSummaryPanel .form-grid.cols5{grid-template-columns:repeat(5, minmax(0, 1fr));}
     .vs-weather-others-row{
-      grid-template-columns:minmax(140px, 0.55fr) minmax(0, 2.45fr) !important;
+      grid-template-columns:minmax(160px, 1fr) minmax(0, 1.4fr) !important;
       gap:12px;
     }
-    #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
-      grid-template-columns:minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1.15fr) !important;
+    /* Weather + Engine Room: one horizontal field row each */
+    .vs-weather-col .form-grid.vs-weather-stack{
+      grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
+      gap:8px 10px;
     }
-    #vsTurboScavRow .vs-tc-box{padding:8px;}
+    #vsErTankFields.form-grid.cols2{
+      grid-template-columns:repeat(7, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+    }
+    #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
+    /* T/C + Others under cylinders: 3 containers, fields transposed to 1 row each */
+    #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
+      grid-template-columns:minmax(0, 0.95fr) minmax(0, 0.95fr) minmax(0, 1.4fr) !important;
+      gap:10px;
+    }
+    #vsTurboScavRow .vs-tc-box{
+      padding:8px;
+      display:flex;
+      flex-direction:row;
+      flex-wrap:nowrap;
+      align-items:flex-end;
+      gap:6px 8px;
+    }
+    #vsTurboScavRow .vs-tc-box > h3{
+      flex:0 0 auto;
+      margin:0;
+      align-self:center;
+      white-space:nowrap;
+    }
+    #vsTurboScavRow .vs-tc-box > .field{
+      flex:1 1 0;
+      min-width:0;
+      margin-bottom:0;
+    }
     #vsTurboScavRow .vs-tc-box .field label{font-size:10px;}
     #vsTurboScavRow .vs-tc-box .field input{font-size:12px; padding:6px 7px; min-height:34px;}
+    #vsOthersFields.form-grid.cols2{
+      grid-template-columns:repeat(9, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+    }
+    #logEntryFormPanel .log-meta-row{
+      grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
+      gap:10px 12px;
+    }
+    #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
+    #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
     .vs-ge-blr-inc-grid{
       display:grid !important;
       grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
@@ -1405,12 +1444,53 @@
     .bunker-plan-grid{grid-template-columns:1fr 1fr; gap:14px;}
   }
   /* JS class mirror — fires when media query does not (wide Android WebView / AIO) */
+  html.vm-land-rows #logEntryFormPanel .log-meta-row{
+    grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
+    gap:10px 12px;
+  }
+  html.vm-land-rows #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
+  html.vm-land-rows #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
   html.vm-land-rows .vs-weather-others-row{
-    grid-template-columns:minmax(140px, 0.55fr) minmax(0, 2.45fr) !important;
+    grid-template-columns:minmax(160px, 1fr) minmax(0, 1.4fr) !important;
     gap:12px;
   }
+  html.vm-land-rows .vs-weather-col .form-grid.vs-weather-stack{
+    grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
+    gap:8px 10px;
+  }
+  html.vm-land-rows #vsErTankFields.form-grid.cols2{
+    grid-template-columns:repeat(7, minmax(0, 1fr)) !important;
+    gap:8px 10px;
+  }
+  html.vm-land-rows #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
   html.vm-land-rows #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
-    grid-template-columns:minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1.15fr) !important;
+    grid-template-columns:minmax(0, 0.95fr) minmax(0, 0.95fr) minmax(0, 1.4fr) !important;
+    gap:10px;
+  }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box{
+    padding:8px;
+    display:flex;
+    flex-direction:row;
+    flex-wrap:nowrap;
+    align-items:flex-end;
+    gap:6px 8px;
+  }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box > h3{
+    flex:0 0 auto;
+    margin:0;
+    align-self:center;
+    white-space:nowrap;
+  }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box > .field{
+    flex:1 1 0;
+    min-width:0;
+    margin-bottom:0;
+  }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box .field label{font-size:10px;}
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box .field input{font-size:12px; padding:6px 7px; min-height:34px;}
+  html.vm-land-rows #vsOthersFields.form-grid.cols2{
+    grid-template-columns:repeat(9, minmax(0, 1fr)) !important;
+    gap:8px 10px;
   }
   html.vm-land-rows #vsRunFields.form-grid.cols4{
     grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
@@ -2878,33 +2958,16 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
 
-      <div class="panel vs-others-col" style="padding:16px;">
-        <h3 class="sub" style="margin-top:0;">Others</h3>
-        <div class="unit-group cols3" id="vsTurboScavRow">
-          <div id="vsTurboFields"></div>
-          <div class="unit-box" id="vsOthersBox">
-            <h3>Others</h3>
-            <div class="form-grid cols2" id="vsOthersFields">
-              <div class="field"><label>Scavenge Temp (°C)</label><input type="number" step="0.1" id="vs_scavTemp"></div>
-              <div class="field"><label>Scavenge Pressure (bar)</label><input type="number" step="0.01" id="vs_scavPress"></div>
-              <div class="field"><label>Pump Mark</label><input type="number" step="0.1" id="vs_pumpMark"></div>
-              <div class="field"><label>Fuel Temp (°C)</label><input type="number" step="0.1" id="vs_fuelTemp"></div>
-              <div class="field"><label>M/E LO Temp (°C)</label><input type="number" step="0.1" id="vs_meLoTemp"></div>
-              <div class="field"><label>M/E LO Press (bar)</label><input type="number" step="0.01" id="vs_meLoPress"></div>
-            </div>
-          </div>
-          <div class="unit-box" id="vsErTankBox">
-            <h3>Engine Room &amp; Tanks</h3>
-            <div class="form-grid cols2" id="vsErTankFields">
-              <div class="field"><label>E/R Temp (°C)</label><input type="number" step="0.1" id="vs_erTemp"></div>
-              <div class="field vs-sea-temp-under-er"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
-              <div class="field"><label>S/T Temp — Stern Tube (°C)</label><input type="number" step="0.1" id="vs_stTemp"></div>
-              <div class="field"><label>Bilge ROB (m³)</label><input type="number" step="0.01" id="vs_bilgeRob"></div>
-              <div class="field calc"><label>Bilge change (m³)</label><input type="text" id="vs_bilgeDelta" readonly tabindex="-1"></div>
-              <div class="field"><label>Sludge ROB (m³)</label><input type="number" step="0.01" id="vs_sludgeRob"></div>
-              <div class="field calc"><label>Sludge change (m³)</label><input type="text" id="vs_sludgeDelta" readonly tabindex="-1"></div>
-            </div>
-          </div>
+      <div class="panel vs-er-col" id="vsErTankBox" style="padding:16px;">
+        <h3 class="sub" style="margin-top:0;">Engine Room &amp; Tanks</h3>
+        <div class="form-grid cols2" id="vsErTankFields">
+          <div class="field"><label>E/R Temp (°C)</label><input type="number" step="0.1" id="vs_erTemp"></div>
+          <div class="field vs-sea-temp-under-er"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
+          <div class="field"><label>S/T Temp — Stern Tube (°C)</label><input type="number" step="0.1" id="vs_stTemp"></div>
+          <div class="field"><label>Bilge ROB (m³)</label><input type="number" step="0.01" id="vs_bilgeRob"></div>
+          <div class="field calc"><label>Bilge change (m³)</label><input type="text" id="vs_bilgeDelta" readonly tabindex="-1"></div>
+          <div class="field"><label>Sludge ROB (m³)</label><input type="number" step="0.01" id="vs_sludgeRob"></div>
+          <div class="field calc"><label>Sludge change (m³)</label><input type="text" id="vs_sludgeDelta" readonly tabindex="-1"></div>
         </div>
       </div>
       </div>
@@ -2913,6 +2976,23 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="panel" style="margin:0 0 16px; padding:16px;">
           <h3 class="sub" style="margin-top:0;">Main Engine — Cylinder Readings</h3>
           <div class="unit-group cols6" id="vsCylFields"></div>
+          <div class="unit-group cols3" id="vsTurboScavRow">
+            <div id="vsTurboFields"></div>
+            <div class="unit-box" id="vsOthersBox">
+              <h3>Others</h3>
+              <div class="form-grid cols2" id="vsOthersFields">
+                <div class="field"><label>Scavenge Temp (°C)</label><input type="number" step="0.1" id="vs_scavTemp"></div>
+                <div class="field"><label>Scavenge Pressure (bar)</label><input type="number" step="0.01" id="vs_scavPress"></div>
+                <div class="field"><label>Pump Mark</label><input type="number" step="0.1" id="vs_pumpMark"></div>
+                <div class="field"><label>Fuel Temp (°C)</label><input type="number" step="0.1" id="vs_fuelTemp"></div>
+                <div class="field"><label>M/E LO Temp (°C)</label><input type="number" step="0.1" id="vs_meLoTemp"></div>
+                <div class="field"><label>M/E LO Press (bar)</label><input type="number" step="0.01" id="vs_meLoPress"></div>
+                <div class="field"><label>Air Cooler In (°C)</label><input type="number" step="0.1" id="vs_acIn"></div>
+                <div class="field"><label>Air Cooler Out (°C)</label><input type="number" step="0.1" id="vs_acOut"></div>
+                <div class="field"><label>Pressure Diff. (bar)</label><input type="number" step="0.01" id="vs_pressDiff"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -17101,16 +17181,16 @@ function openVoyageSummary(entryId){
   const isSea = SEA_TYPE_OPS.has(entry.operation);
   const meRunning = mainEngineInUse(entry, row);
   const showMeDetail = canShowMeDetailOp(entry.operation) && meRunning;
-  document.getElementById('vsSeaReportBlock').style.display = showMeDetail ? '' : 'none';
+  document.getElementById('vsSeaReportBlock').style.display =
+    (showMeDetail || vsForceShowMePanels) ? '' : 'none';
 
   /* Panels that only describe a main engine under way. With the engine stopped
      they would be a wall of dashes, so they are hidden entirely and the summary
      collapses to what is actually running — generators, boiler, ROB, soundings. */
   setVsMePanelsVisible(meRunning);
 
-  /* Engine Room & Tanks are always available; scavenge / pump mark / fuel temp only
-     with M/E in use. Air cooler and pressure diff now live in the T/C boxes and are
-     filled by renderVsCylTurboFields. Sea temp is shown here and under Weather. */
+  /* Engine Room & Tanks are always available; scavenge / pump mark / fuel temp /
+     air cooler only with M/E in use (Others box under Cylinder Readings). */
   document.getElementById('vs_erTemp').value = r.erTemp ?? '';
   document.getElementById('vs_stTemp').value = r.stTemp ?? '';
   /* Carried forward: an unreported figure means the tank did not change, so the
@@ -17158,21 +17238,18 @@ function openVoyageSummary(entryId){
     }).join('');
     const turboN = turboCount();
     const turbos = r.turbos || (r.turbo1 ? [r.turbo1, r.turbo2].filter(Boolean) : []);
-    /* Air cooler and pressure differential are shared T/C readings — keep them on the
-       last turbo box so Others stays a clean 4-up (T/C #1 | T/C #2 | Others | E/R). */
-    const airCoolerFields = `
-        <div class="field"><label>Air Cooler In (°C)</label><input type="number" step="0.1" id="vs_acIn" value="${r.airCoolerIn??''}"></div>
-        <div class="field"><label>Air Cooler Out (°C)</label><input type="number" step="0.1" id="vs_acOut" value="${r.airCoolerOut??''}"></div>
-        <div class="field"><label>Pressure Diff. (bar)</label><input type="number" step="0.01" id="vs_pressDiff" value="${r.pressDiff??''}"></div>`;
+    /* Air cooler / pressure diff live in the Others box (filled below) so each T/C
+       container stays a clean 3-field row in landscape. */
+    document.getElementById('vs_acIn').value = r.airCoolerIn ?? '';
+    document.getElementById('vs_acOut').value = r.airCoolerOut ?? '';
+    document.getElementById('vs_pressDiff').value = r.pressDiff ?? '';
     turboBox.innerHTML = Array.from({length:turboN}, (_,i)=>{
       const n = i+1;
       const t = turbos[i] || {};
-      const tail = (i === turboN - 1) ? airCoolerFields : '';
       return `<div class="unit-box vs-tc-box"><h3>T/C #${n}</h3>
         <div class="field"><label>In Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}in" value="${t.in??''}"></div>
         <div class="field"><label>Out Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}out" value="${t.out??''}"></div>
         <div class="field"><label>RPM</label><input type="number" step="1" id="vs_t${n}rpm" value="${t.rpm??''}"></div>
-        ${tail}
       </div>`;
     }).join('');
     turboRow?.classList.remove('no-turbos');
@@ -18544,7 +18621,7 @@ function updateVsTankRobDeltas(){
  * panels while these fields stayed hidden, which is not what it says it does.
  */
 const VS_ME_DETAIL_FIELDS = ['vs_scavTemp','vs_scavPress','vs_pumpMark','vs_fuelTemp',
-  'vs_meLoTemp','vs_meLoPress'];
+  'vs_meLoTemp','vs_meLoPress','vs_acIn','vs_acOut','vs_pressDiff'];
 
 function setVsOthersVisible(show){
   VS_ME_DETAIL_FIELDS.forEach(id=>{
@@ -18585,6 +18662,8 @@ document.getElementById('btnVsShowMePanels')?.addEventListener('click', ()=>{
   const running = entry ? mainEngineInUse(entry, getComputedRow(entry.id)) : false;
   setVsMePanelsVisible(running);
   setVsOthersVisible((running && entry && canShowMeDetailOp(entry.operation)) || vsForceShowMePanels);
+  document.getElementById('vsSeaReportBlock').style.display =
+    ((running && entry && canShowMeDetailOp(entry.operation)) || vsForceShowMePanels) ? '' : 'none';
 });
 
 /** Label the summary with the entry it belongs to — critical on stacked mobile layouts. */
@@ -22193,7 +22272,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v259';
+let androidInstallCacheName = 'noon-report-v261';
 
 /*
  * What the program is called.
