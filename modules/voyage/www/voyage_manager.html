@@ -59,7 +59,18 @@
     if (k === null) {
       try { k = localStorage.getItem('vm_bright'); } catch (_e2) {}
     }
-    if (k === '1') document.documentElement.classList.add('bright');
+    var mode = 'night';
+    try {
+      var tm = localStorage.getItem('marine_theme');
+      if (tm === 'bright' || tm === 'prism' || tm === 'sailor' || tm === 'astrolabe' || tm === 'night') {
+        mode = (tm === 'sailor') ? 'prism' : tm;
+      }
+      else if (k === '1') mode = 'bright';
+    } catch (_eM) { if (k === '1') mode = 'bright'; }
+    if (mode === 'bright') document.documentElement.classList.add('bright');
+    if (mode === 'prism') document.documentElement.classList.add('prism');
+    if (mode === 'astrolabe') document.documentElement.classList.add('astrolabe');
+    try { document.documentElement.setAttribute('data-theme', mode); } catch (_eT) {}
     try {
       var qs = location.search || '';
       var aioEmbed = /[?&]chengaio=1\b/.test(qs);
@@ -262,6 +273,60 @@
   html.chengaio-embed.aio-data-embed body{padding:8px 10px !important; background:transparent !important;}
   html.chengaio-embed.aio-data-embed #page-data > .panel:not(#serverSyncPanel){display:none !important;}
   html.chengaio-embed.aio-data-embed #serverSyncPanel{margin:0; box-shadow:none;}
+
+
+  html.prism{
+    --ink:#041618; --panel:#0a2c30; --panel2:#061820;
+    --paper:#e6fff8; --paper-dim:#7eb8ae; --muted:#7eb8ae;
+    --brass:#e8c070; --brass-dim:#9a7a38; --brass-bright:#f0d090;
+    --teal:#2fd4b8; --alert:#e0705c; --good:#4cb88a;
+    --line:rgba(120,240,220,0.18); --line-strong:rgba(120,240,220,0.32);
+    --nav-bg:rgba(4,22,24,0.96); --nav-shadow:0 -8px 28px rgba(0,0,0,.4);
+    --nav-item-bg:rgba(8,44,48,0.92); --nav-active-bg:rgba(47,212,184,0.14);
+    --calc-bg:rgba(6,40,44,0.9);
+  }
+  html.prism body{
+    background:
+      conic-gradient(from 210deg at 85% 15%, rgba(47,212,184,0.15), transparent 40%, rgba(232,192,112,0.1), transparent 70%),
+      linear-gradient(170deg, #041618 0%, #0a2c30 48%, #061820 100%);
+  }
+  html.prism .panel{
+    background:linear-gradient(165deg, rgba(10,44,48,0.92), rgba(6,40,44,0.88));
+    border-color:rgba(120,240,220,0.2);
+    box-shadow:0 12px 40px rgba(0,20,24,0.4);
+    backdrop-filter:blur(8px);
+    border-radius:8px;
+  }
+  html.prism .btn, html.prism button.primary{
+    border-radius:8px;
+  }
+
+  html.astrolabe{
+    --ink:#0a0c16; --panel:#14182c; --panel2:#101428;
+    --paper:#f4efe4; --paper-dim:#a89a82; --muted:#a89a82;
+    --brass:#c9985a; --brass-dim:#8a6a3a; --brass-bright:#e0b878;
+    --teal:#6ab0c8; --alert:#e0705c; --good:#5f9e6e;
+    --line:rgba(200,170,120,0.18); --line-strong:rgba(200,170,120,0.32);
+    --nav-bg:rgba(10,12,22,0.96); --nav-shadow:0 -8px 28px rgba(0,0,0,.45);
+    --nav-item-bg:rgba(22,26,44,0.94); --nav-active-bg:rgba(201,152,90,0.14);
+    --calc-bg:rgba(16,20,40,0.9);
+  }
+  html.astrolabe body{
+    background:
+      radial-gradient(circle at 70% 20%, rgba(201,152,90,0.14), transparent 42%),
+      radial-gradient(circle at 20% 80%, rgba(106,176,200,0.12), transparent 45%),
+      linear-gradient(160deg, #0a0c16 0%, #12162a 50%, #080a12 100%);
+  }
+  html.astrolabe .panel{
+    background:linear-gradient(165deg, rgba(20,24,44,0.94), rgba(16,20,36,0.9));
+    border-color:rgba(200,170,120,0.2);
+    box-shadow:0 12px 40px rgba(4,6,16,0.4);
+    backdrop-filter:blur(8px);
+    border-radius:7px;
+  }
+  html.astrolabe .btn, html.astrolabe button.primary{
+    border-radius:7px;
+  }
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -22353,7 +22418,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v268';
+let androidInstallCacheName = 'noon-report-v272';
 
 /*
  * What the program is called.

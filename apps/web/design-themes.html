@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChEng theme design options — Voyage &amp; Tank</title>
+  <style>
+    :root {
+      --page-bg: #0a0e14;
+      --page-text: #e8eef4;
+      --page-muted: #8a9aab;
+      --page-line: rgba(255,255,255,0.1);
+      font-size: 15px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(900px 500px at 20% -10%, #1a2838 0%, transparent 55%), var(--page-bg);
+      color: var(--page-text);
+      line-height: 1.45;
+    }
+    header.page-head {
+      padding: 28px 24px 12px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    header.page-head h1 {
+      font-family: "Oswald", "Segoe UI", sans-serif;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 1.35rem;
+      margin: 0 0 8px;
+    }
+    header.page-head p { margin: 0; color: var(--page-muted); max-width: 62ch; }
+    .filters {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      max-width: 1280px; margin: 0 auto; padding: 12px 24px 20px;
+    }
+    .filters button {
+      font-family: "Oswald", sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--page-line);
+      background: rgba(255,255,255,0.04);
+      color: var(--page-muted);
+      cursor: pointer;
+    }
+    .filters button.active {
+      color: #e8f4f8;
+      border-color: rgba(61,184,197,0.5);
+      background: rgba(61,184,197,0.12);
+    }
+    .gallery {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+      display: grid;
+      gap: 28px;
+    }
+    .option {
+      border: 1px solid var(--page-line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: rgba(8,14,22,0.65);
+    }
+    .option-head {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--page-line);
+    }
+    .option-head h2 {
+      font-family: "Oswald", sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 0 0 4px;
+      font-weight: 500;
+    }
+    .option-head .tag {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--page-muted);
+      margin-right: 10px;
+    }
+    .option-head p { margin: 6px 0 0; color: var(--page-muted); font-size: 0.92rem; }
+    .pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    @media (max-width: 860px) {
+      .pair { grid-template-columns: 1fr; }
+    }
+    .swatch {
+      padding: 16px;
+      min-height: 320px;
+      position: relative;
+    }
+    .swatch .mode-label {
+      font-family: "Oswald", sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 10px;
+    }
+    .swatch .panel {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .swatch .panel h3 {
+      font-family: "Oswald", sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .swatch .panel h3::after {
+      content: ""; flex: 1; height: 1px; background: var(--line);
+    }
+    .swatch .hint { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .btn {
+      font-family: "Oswald", sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 9px 12px;
+      border-radius: var(--btn-radius, 10px);
+      border: 1px solid var(--line);
+      background: var(--btn-bg);
+      color: var(--text);
+      cursor: default;
+    }
+    .btn.primary {
+      background: var(--btn-primary);
+      border-color: var(--accent);
+      color: var(--btn-primary-text);
+    }
+    .btn.accent2 {
+      border-color: var(--accent-2);
+      color: var(--accent-2);
+      background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .chip {
+      font-size: 10px;
+      font-family: "Oswald", sans-serif;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel) 70%, transparent);
+    }
+    .chip.fuel { color: var(--fuel); border-color: color-mix(in srgb, var(--fuel) 45%, transparent); }
+    .chip.water { color: var(--water); border-color: color-mix(in srgb, var(--water) 45%, transparent); }
+    .chip.lube { color: var(--lube); border-color: color-mix(in srgb, var(--lube) 45%, transparent); }
+    .chip.log { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    .chip.rob { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 45%, transparent); }
+    .grid-menu {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .grid-menu span {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; min-height: 54px; padding: 8px 4px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--nav-item);
+      color: var(--muted);
+      font-family: "Oswald", sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .grid-menu span.active {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    .swatch .contrast-note {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ===== Option 1: Crystal Chartroom (Sailor candidate — shipping now) ===== */
+    .o1.dark {
+      --ink: #071824; --panel: rgba(14,51,72,0.92); --line: rgba(180,230,240,0.18);
+      --text: #e8f4f8; --muted: #8fb8c8; --accent: #d4a84b; --accent-2: #3db8c5;
+      --fuel: #d4a84b; --lube: #3db8c5; --water: #4cb8d4;
+      --btn-bg: rgba(10,36,54,0.85); --btn-primary: rgba(61,184,197,0.22); --btn-primary-text: #e8f4f8;
+      --nav-item: rgba(14,51,72,0.9); --shadow: 0 16px 40px rgba(0,12,24,0.4); --btn-radius: 10px;
+      background:
+        radial-gradient(500px 280px at 10% 0%, rgba(61,184,197,0.28), transparent 55%),
+        radial-gradient(420px 240px at 95% 10%, rgba(212,168,75,0.14), transparent 50%),
+        linear-gradient(165deg, #071824, #0a2436 55%, #071824);
+      color: var(--text);
+    }
+    .o1.light {
+      --ink: #f2f7f9; --panel: rgba(255,255,255,0.88); --line: rgba(7,24,36,0.14);
+      --text: #0a2436; --muted: #3d5a68; --accent: #8a6a1e; --accent-2: #0e7a86;
+      --fuel: #8a6a1e; --lube: #0e7a86; --water: #176a8a;
+      --btn-bg: #fff; --btn-primary: #0e7a86; --btn-primary-text: #fff;
+      --nav-item: rgba(255,255,255,0.95); --shadow: 0 12px 28px rgba(7,24,36,0.1); --btn-radius: 10px;
+      background:
+        radial-gradient(500px 260px at 8% 0%, rgba(14,122,134,0.12), transparent 55%),
+        linear-gradient(180deg, #e8f2f5, #f7fbfc 45%, #ffffff);
+      color: var(--text);
+    }
+
+    /* ===== Option 2: Deep Bridge Glass ===== */
+    .o2.dark {
+      --panel: rgba(16,24,40,0.82); --line: rgba(180,200,230,0.16);
+      --text: #eef2f8; --muted: #9aa8bc; --accent: #c8d0dc; --accent-2: #6eb0ff;
+      --fuel: #e0a050; --lube: #6eb0ff; --water: #5ec8e0;
+      --btn-bg: rgba(22,32,52,0.9); --btn-primary: rgba(110,176,255,0.2); --btn-primary-text: #eef2f8;
+      --nav-item: rgba(22,32,52,0.88); --shadow: 0 20px 50px rgba(0,0,0,0.45); --btn-radius: 12px;
+      background:
+        radial-gradient(600px 320px at 80% -10%, rgba(110,176,255,0.18), transparent 50%),
+        linear-gradient(160deg, #080c14, #121a2a 50%, #0a1018);
+      color: var(--text);
+    }
+    .o2.light {
+      --panel: rgba(255,255,255,0.9); --line: rgba(18,28,48,0.12);
+      --text: #121a2a; --muted: #4a5a70; --accent: #3a4a62; --accent-2: #1a6acc;
+      --fuel: #9a5a12; --lube: #1a6acc; --water: #0e6a8a;
+      --btn-bg: #fff; --btn-primary: #1a6acc; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 14px 32px rgba(18,28,48,0.1); --btn-radius: 12px;
+      background: linear-gradient(180deg, #e8eef6, #f5f7fb 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 3: Nautical Prism ===== */
+    .o3.dark {
+      --panel: rgba(8,36,40,0.9); --line: rgba(120,240,220,0.18);
+      --text: #e6fff8; --muted: #7eb8ae; --accent: #e8c070; --accent-2: #2fd4b8;
+      --fuel: #e8a040; --lube: #2fd4b8; --water: #40c8e8;
+      --btn-bg: rgba(6,40,44,0.9); --btn-primary: linear-gradient(135deg, rgba(47,212,184,0.35), rgba(232,192,112,0.25));
+      --btn-primary-text: #e6fff8;
+      --nav-item: rgba(8,44,48,0.92); --shadow: 0 18px 44px rgba(0,20,24,0.5); --btn-radius: 8px;
+      background:
+        conic-gradient(from 210deg at 85% 15%, rgba(47,212,184,0.15), transparent 40%, rgba(232,192,112,0.1), transparent 70%),
+        linear-gradient(170deg, #041618, #0a2c30 48%, #061820);
+      color: var(--text);
+    }
+    .o3.dark .btn.primary { background: rgba(47,212,184,0.22); border-color: #2fd4b8; }
+    .o3.light {
+      --panel: rgba(255,255,255,0.92); --line: rgba(8,48,52,0.12);
+      --text: #0a2c30; --muted: #3a6a68; --accent: #8a6818; --accent-2: #0e8a78;
+      --fuel: #9a5a10; --lube: #0e8a78; --water: #0e6a8a;
+      --btn-bg: #fff; --btn-primary: #0e8a78; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(8,48,52,0.1); --btn-radius: 8px;
+      background:
+        radial-gradient(480px 240px at 90% 0%, rgba(14,138,120,0.1), transparent 55%),
+        linear-gradient(180deg, #e6f4f2, #f4faf9 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 4: Harbor Aurora ===== */
+    .o4.dark {
+      --panel: rgba(18,16,36,0.88); --line: rgba(180,160,255,0.16);
+      --text: #f0ecff; --muted: #a89cc8; --accent: #f0b060; --accent-2: #78d0c8;
+      --fuel: #f0b060; --lube: #78d0c8; --water: #68b8e8;
+      --btn-bg: rgba(24,20,48,0.9); --btn-primary: rgba(120,208,200,0.2); --btn-primary-text: #f0ecff;
+      --nav-item: rgba(28,24,52,0.9); --shadow: 0 18px 48px rgba(8,4,24,0.5); --btn-radius: 14px;
+      background:
+        radial-gradient(520px 300px at 15% 0%, rgba(120,80,200,0.28), transparent 55%),
+        radial-gradient(480px 260px at 90% 20%, rgba(120,208,200,0.16), transparent 50%),
+        linear-gradient(165deg, #0c0a18, #16122a 50%, #0c0a18);
+      color: var(--text);
+    }
+    .o4.light {
+      --panel: rgba(255,255,255,0.94); --line: rgba(28,24,52,0.12);
+      --text: #1a1630; --muted: #4a4668; --accent: #8a5a18; --accent-2: #0e7a72;
+      --fuel: #8a5a18; --lube: #0e7a72; --water: #1a6a9a;
+      --btn-bg: #fff; --btn-primary: #0e7a72; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(28,24,52,0.1); --btn-radius: 14px;
+      background:
+        radial-gradient(420px 220px at 10% 0%, rgba(120,80,200,0.08), transparent 55%),
+        linear-gradient(180deg, #eeeaf8, #f7f5fc 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 5: Compass Frost ===== */
+    .o5.dark {
+      --panel: rgba(12,28,40,0.9); --line: rgba(200,230,245,0.18);
+      --text: #eef6fa; --muted: #8eacbc; --accent: #d8b070; --accent-2: #7ec8e8;
+      --fuel: #d8b070; --lube: #7ec8e8; --water: #5eb8d8;
+      --btn-bg: rgba(10,32,48,0.92); --btn-primary: rgba(126,200,232,0.2); --btn-primary-text: #eef6fa;
+      --nav-item: rgba(14,36,52,0.92); --shadow: 0 16px 40px rgba(0,16,28,0.45); --btn-radius: 6px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(126,200,232,0.2), transparent 42%),
+        linear-gradient(180deg, #061018, #0c1c28 50%, #061018);
+      color: var(--text);
+    }
+    .o5.light {
+      --panel: rgba(255,255,255,0.95); --line: rgba(12,40,56,0.12);
+      --text: #0c1c28; --muted: #3a5a6a; --accent: #8a6818; --accent-2: #0e6a8a;
+      --fuel: #8a6818; --lube: #0e6a8a; --water: #0e5a7a;
+      --btn-bg: #fff; --btn-primary: #0e6a8a; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(12,40,56,0.1); --btn-radius: 6px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(14,106,138,0.08), transparent 45%),
+        linear-gradient(180deg, #e8f2f6, #f5fafc 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 6: Signal Lantern ===== */
+    .o6.dark {
+      --panel: rgba(28,22,14,0.92); --line: rgba(255,200,120,0.18);
+      --text: #fff4e6; --muted: #c4a882; --accent: #f0a040; --accent-2: #5ec8c0;
+      --fuel: #f0a040; --lube: #5ec8c0; --water: #4ab0d0;
+      --btn-bg: rgba(36,28,16,0.92); --btn-primary: rgba(240,160,64,0.22); --btn-primary-text: #fff4e6;
+      --nav-item: rgba(40,30,18,0.94); --shadow: 0 18px 44px rgba(12,6,0,0.5); --btn-radius: 11px;
+      background:
+        radial-gradient(420px 280px at 88% 8%, rgba(240,160,64,0.28), transparent 50%),
+        radial-gradient(360px 220px at 12% 90%, rgba(94,200,192,0.1), transparent 55%),
+        linear-gradient(165deg, #120e08, #1c1610 48%, #100c08);
+      color: var(--text);
+    }
+    .o6.light {
+      --panel: rgba(255,252,246,0.95); --line: rgba(60,40,16,0.12);
+      --text: #2a1e10; --muted: #6a5640; --accent: #9a5a10; --accent-2: #0e7a72;
+      --fuel: #9a5a10; --lube: #0e7a72; --water: #0e6a8a;
+      --btn-bg: #fff; --btn-primary: #9a5a10; --btn-primary-text: #fff;
+      --nav-item: #fffdf8; --shadow: 0 12px 28px rgba(60,40,16,0.1); --btn-radius: 11px;
+      background:
+        radial-gradient(480px 240px at 90% 0%, rgba(240,160,64,0.12), transparent 55%),
+        linear-gradient(180deg, #f6efe4, #fbf8f2 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 7: Quartz Hull ===== */
+    .o7.dark {
+      --panel: rgba(20,28,36,0.88); --line: rgba(220,235,245,0.2);
+      --text: #f2f6fa; --muted: #9aadb8; --accent: #e8eef4; --accent-2: #6ad0e0;
+      --fuel: #e0a858; --lube: #6ad0e0; --water: #58b8d8;
+      --btn-bg: rgba(24,32,42,0.9); --btn-primary: rgba(106,208,224,0.18); --btn-primary-text: #f2f6fa;
+      --nav-item: rgba(28,36,46,0.92); --shadow: 0 16px 42px rgba(0,8,16,0.45); --btn-radius: 4px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 40%),
+        linear-gradient(225deg, rgba(106,208,224,0.12) 0%, transparent 45%),
+        linear-gradient(180deg, #0c1218, #141c24 50%, #0a1014);
+      color: var(--text);
+    }
+    .o7.light {
+      --panel: rgba(255,255,255,0.92); --line: rgba(20,36,48,0.12);
+      --text: #141c24; --muted: #4a5e6c; --accent: #3a4a56; --accent-2: #0e7a8a;
+      --fuel: #8a5a14; --lube: #0e7a8a; --water: #0e5a7a;
+      --btn-bg: #fff; --btn-primary: #0e7a8a; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(20,36,48,0.1); --btn-radius: 4px;
+      background:
+        linear-gradient(135deg, rgba(106,208,224,0.08) 0%, transparent 42%),
+        linear-gradient(180deg, #eef3f6, #f7fafb 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 8: Phosphor Watch ===== */
+    .o8.dark {
+      --panel: rgba(8,24,16,0.92); --line: rgba(120,255,160,0.16);
+      --text: #e8ffe8; --muted: #7eb890; --accent: #90e070; --accent-2: #40c8a8;
+      --fuel: #e0b050; --lube: #40c8a8; --water: #50b8d0;
+      --btn-bg: rgba(10,32,20,0.92); --btn-primary: rgba(144,224,112,0.18); --btn-primary-text: #e8ffe8;
+      --nav-item: rgba(12,36,22,0.94); --shadow: 0 18px 44px rgba(0,16,8,0.5); --btn-radius: 9px;
+      background:
+        radial-gradient(480px 320px at 50% 0%, rgba(144,224,112,0.14), transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(64,200,168,0.08), transparent 40%),
+        linear-gradient(170deg, #06140c, #0a1c12 50%, #040e08);
+      color: var(--text);
+    }
+    .o8.light {
+      --panel: rgba(255,255,255,0.94); --line: rgba(12,48,28,0.12);
+      --text: #0a1c12; --muted: #3a6a4a; --accent: #2e7a28; --accent-2: #0e7a68;
+      --fuel: #8a5a10; --lube: #0e7a68; --water: #0e6a8a;
+      --btn-bg: #fff; --btn-primary: #2e7a28; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(12,48,28,0.1); --btn-radius: 9px;
+      background:
+        radial-gradient(480px 240px at 50% 0%, rgba(46,122,40,0.08), transparent 55%),
+        linear-gradient(180deg, #e8f4ea, #f4faf5 40%, #fff);
+      color: var(--text);
+    }
+
+    /* ===== Option 9: Tidal Mirror ===== */
+    .o9.dark {
+      --panel: rgba(10,32,44,0.88); --line: rgba(160,220,240,0.2);
+      --text: #eaf6fc; --muted: #86aebc; --accent: #b8d4e0; --accent-2: #38b8d0;
+      --fuel: #e0a848; --lube: #38b8d0; --water: #2aa0c8;
+      --btn-bg: rgba(12,36,50,0.9); --btn-primary: rgba(56,184,208,0.2); --btn-primary-text: #eaf6fc;
+      --nav-item: rgba(14,40,54,0.92); --shadow: 0 16px 40px rgba(0,12,20,0.45); --btn-radius: 16px;
+      background:
+        linear-gradient(180deg, transparent 0%, rgba(56,184,208,0.12) 48%, transparent 52%),
+        radial-gradient(700px 180px at 50% 52%, rgba(184,212,224,0.14), transparent 60%),
+        linear-gradient(180deg, #06141c, #0a2430 50%, #061018);
+      color: var(--text);
+    }
+    .o9.light {
+      --panel: rgba(255,255,255,0.9); --line: rgba(12,48,64,0.12);
+      --text: #0a2430; --muted: #3a6474; --accent: #3a5a68; --accent-2: #0e7a90;
+      --fuel: #8a5a12; --lube: #0e7a90; --water: #0e5a7a;
+      --btn-bg: #fff; --btn-primary: #0e7a90; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(12,48,64,0.1); --btn-radius: 16px;
+      background:
+        linear-gradient(180deg, #e6f2f6 0%, #f2f8fa 45%, #e8f4f8 55%, #fff 100%);
+      color: var(--text);
+    }
+
+    /* ===== Option 10: Astrolabe Ink ===== */
+    .o10.dark {
+      --panel: rgba(16,20,36,0.92); --line: rgba(200,170,120,0.18);
+      --text: #f4efe4; --muted: #a89a82; --accent: #c9985a; --accent-2: #6ab0c8;
+      --fuel: #c9985a; --lube: #6ab0c8; --water: #5898b8;
+      --btn-bg: rgba(20,24,40,0.94); --btn-primary: rgba(201,152,90,0.2); --btn-primary-text: #f4efe4;
+      --nav-item: rgba(22,26,44,0.94); --shadow: 0 18px 46px rgba(4,6,16,0.5); --btn-radius: 7px;
+      background:
+        radial-gradient(circle at 70% 20%, rgba(201,152,90,0.12), transparent 42%),
+        radial-gradient(circle at 20% 80%, rgba(106,176,200,0.1), transparent 45%),
+        linear-gradient(160deg, #0a0c16, #12162a 50%, #080a12);
+      color: var(--text);
+    }
+    .o10.light {
+      --panel: rgba(255,253,248,0.95); --line: rgba(32,28,48,0.12);
+      --text: #1a1830; --muted: #5a5670; --accent: #8a5a1a; --accent-2: #1a6a8a;
+      --fuel: #8a5a1a; --lube: #1a6a8a; --water: #0e5a7a;
+      --btn-bg: #fff; --btn-primary: #8a5a1a; --btn-primary-text: #fff;
+      --nav-item: #fff; --shadow: 0 12px 28px rgba(32,28,48,0.1); --btn-radius: 7px;
+      background:
+        radial-gradient(circle at 75% 10%, rgba(201,152,90,0.08), transparent 45%),
+        linear-gradient(180deg, #f0ece4, #f8f6f0 40%, #fff);
+      color: var(--text);
+    }
+
+    .option[data-prog="voyage"] .tank-only { display: none; }
+    .option[data-prog="tank"] .voyage-only { display: none; }
+    .hidden { display: none !important; }
+  </style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="page-head">
+    <h1>Theme design options</h1>
+    <p>
+      Ten stylistic directions for Voyage Chief and Tank Chief — each with dark and light.
+      Accents track program function: Voyage (log / ROB / underway) vs Tank (fuel / lube / water soundings).
+      Option 3 ships as <strong>Prism</strong>; option 10 ships as <strong>Astrolabe</strong>
+      (Night → Bright → Prism → Astrolabe). Remaining cards are design recommendations only.
+    </p>
+  </header>
+  <div class="filters" role="toolbar" aria-label="Filter options">
+    <button type="button" class="active" data-filter="all">All</button>
+    <button type="button" data-filter="voyage">Voyage Chief</button>
+    <button type="button" data-filter="tank">Tank Chief</button>
+  </div>
+  <div class="gallery" id="gallery"></div>
+  <script>
+    const OPTIONS = [
+      {
+        id: 'o1',
+        name: '1 · Crystal Chartroom',
+        tags: 'Sailor · retired · see Prism',
+        blurb: 'Original Sailor (crystal chartroom) candidate — superseded by option 3 Prism for shipping. Kept here for comparison.',
+      },
+      {
+        id: 'o2',
+        name: '2 · Deep Bridge Glass',
+        tags: 'futuristic · frost glass',
+        blurb: 'Cool bridge glass with silver instruments and ice-blue primary actions. Dark stays night-bridge; light is misted daylight glass.',
+      },
+      {
+        id: 'o3',
+        name: '3 · Nautical Prism',
+        tags: 'artistic · prism refraction · shipping',
+        blurb: 'Emerald-sea prism with warm brass refraction. Slightly sharper corners — feels like etched glass over bilge paint. Shipped as the Prism theme (Night → Bright → Prism → Astrolabe).',
+      },
+      {
+        id: 'o4',
+        name: '4 · Harbor Aurora',
+        tags: 'elegant · aurora dusk',
+        blurb: 'Harbor-night indigo with aurora teal and warm lamp brass. Softest radius — ceremonial watch feel.',
+      },
+      {
+        id: 'o5',
+        name: '5 · Compass Frost',
+        tags: 'sailor aligned · compass rose',
+        blurb: 'Centered frost bloom like a compass rose under ice. Tight square buttons evoke instrument bezels.',
+      },
+      {
+        id: 'o6',
+        name: '6 · Signal Lantern',
+        tags: 'warm · navigation light',
+        blurb: 'Hull-charcoal night with a warm navigation-lantern glow. Light mode is parchment lamp-deck — excellent sunlight readability for Bright-adjacent feel.',
+      },
+      {
+        id: 'o7',
+        name: '7 · Quartz Hull',
+        tags: 'futuristic · crystal facet',
+        blurb: 'Faceted quartz planes over slate steel. Sharp 4px corners read as crystal edges; cyan secondary for instruments and water.',
+      },
+      {
+        id: 'o8',
+        name: '8 · Phosphor Watch',
+        tags: 'sonar · radar scope',
+        blurb: 'Soft phosphor green like a radar/sonar watch. Feels operational and futuristic without neon glare; light mode is garden-bridge daylight.',
+      },
+      {
+        id: 'o9',
+        name: '9 · Tidal Mirror',
+        tags: 'elegant · waterline',
+        blurb: 'Horizontal tidal band across the viewport — a mirror waterline. Softest pills (16px); silver-teal instruments over deep tide.',
+      },
+      {
+        id: 'o10',
+        name: '10 · Astrolabe Ink',
+        tags: 'artistic · chart ink · shipping',
+        blurb: 'Deep chart-ink indigo with copper astrolabe engraving. Classical sailor scholarship meeting crystal panels — copper for log/fuel, steel-cyan for ROB/water. Shipped as the Astrolabe theme (after Sailor in the cycle).',
+      },
+    ];
+
+    function swatch(optId, mode, program) {
+      const isVoyage = program === 'voyage';
+      return `
+        <div class="swatch ${optId} ${mode}">
+          <div class="mode-label">${mode === 'dark' ? 'Dark' : 'Light'} · ${isVoyage ? 'Voyage Chief' : 'Tank Chief'}</div>
+          <div class="panel">
+            <h3>${isVoyage ? 'Log &amp; ROB' : 'Sounding &amp; Fuel'}</h3>
+            <p class="hint">${isVoyage
+              ? 'Underway entries, noon summary, and remaining-on-board — brass for log, cyan for ROB.'
+              : 'Tank grades and sounding cards — amber fuel, teal lube, cyan water.'}</p>
+            <div class="chips">
+              ${isVoyage
+                ? '<span class="chip log">Log</span><span class="chip rob">ROB</span><span class="chip">Noon</span><span class="chip">Cons.</span>'
+                : '<span class="chip fuel">Fuel</span><span class="chip lube">Lube</span><span class="chip water">Water</span><span class="chip">Sounding</span>'}
+            </div>
+            <div class="btn-row">
+              <span class="btn primary">${isVoyage ? 'Save entry' : 'Save sounding'}</span>
+              <span class="btn">${isVoyage ? 'Print noon' : 'Print card'}</span>
+              <span class="btn accent2">${isVoyage ? 'Sync' : 'VCF calc'}</span>
+            </div>
+            <div class="grid-menu ${isVoyage ? 'voyage-only' : 'tank-only'}">
+              ${isVoyage
+                ? '<span class="active">Cons</span><span>Abstract</span><span>Totals</span><span>Receipts</span><span>Reports</span><span>Setup</span>'
+                : '<span class="active">Fuel</span><span>Lube</span><span>Water</span><span>Sounding</span><span>Backup</span><span>About</span>'}
+            </div>
+            <p class="contrast-note">Body / muted / accent sized for readable theme transitions (AA on panels).</p>
+          </div>
+        </div>`;
+    }
+
+    const gallery = document.getElementById('gallery');
+    for (const opt of OPTIONS) {
+      for (const prog of ['voyage', 'tank']) {
+        const el = document.createElement('article');
+        el.className = 'option';
+        el.dataset.prog = prog;
+        el.dataset.opt = opt.id;
+        el.innerHTML = `
+          <div class="option-head">
+            <h2>${opt.name}</h2>
+            <span class="tag">${opt.tags}</span>
+            <span class="tag">${prog === 'voyage' ? 'Voyage Chief' : 'Tank Chief'}</span>
+            <p>${opt.blurb}</p>
+          </div>
+          <div class="pair">
+            ${swatch(opt.id, 'dark', prog)}
+            ${swatch(opt.id, 'light', prog)}
+          </div>`;
+        gallery.appendChild(el);
+      }
+    }
+
+    document.querySelectorAll('.filters button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filters button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const f = btn.dataset.filter;
+        document.querySelectorAll('.option').forEach((card) => {
+          card.classList.toggle('hidden', f !== 'all' && card.dataset.prog !== f);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

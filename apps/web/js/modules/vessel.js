@@ -22,6 +22,7 @@ window.ChengProModules.vessel = {
     const assets = normalizeAssets(shared?.assets);
 
     root.innerHTML = `
+      <div class="vessel-setup-page">
       <section class="panel">
         <div class="section-head">
           <div>
@@ -72,10 +73,23 @@ window.ChengProModules.vessel = {
 
         <div id="printIdentityHost"></div>
 
-        <div class="form-actions">
-          <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
-          ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : ''}
-          <button type="button" class="btn" id="newVessel">New vessel</button>
+        <div class="vessel-action-groups form-actions vessel-actions">
+          <div class="vessel-action-group">
+            <p class="group-label">Record</p>
+            <button type="button" class="btn primary" id="saveVessel">${active ? 'Save vessel' : 'Create vessel'}</button>
+          </div>
+          <div class="vessel-action-group">
+            <p class="group-label">Workspace</p>
+            <button type="button" class="btn" id="newVessel">New vessel</button>
+          </div>
+          <div class="vessel-action-group">
+            <p class="group-label">Danger</p>
+            ${active ? '<button type="button" class="btn danger" id="deleteVessel">Delete vessel</button>' : '<button type="button" class="btn" disabled title="Save a vessel first">Delete vessel</button>'}
+          </div>
+          <div class="vessel-action-group">
+            <p class="group-label">Print identity</p>
+            <span class="hint" style="margin:0">Signature &amp; stamp tools are below.</span>
+          </div>
         </div>
       </section>
       <section class="panel">
@@ -92,6 +106,7 @@ window.ChengProModules.vessel = {
           </table>
         </div>
       </section>
+      </div>
     `;
 
     await renderFleet(root.querySelector('#fleetTable tbody'));
@@ -226,7 +241,7 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
         <label class="stamp-check"><input type="checkbox" id="sig-cutout" checked>
           Remove background and trim to the signature</label>
         <div class="hint" id="sig-for"></div>
-        <div class="btn-row">
+        <div class="btn-row vessel-identity-actions">
           <button type="button" class="btn small" id="sig-photo">Take photo</button>
           <button type="button" class="btn small" id="sig-draw">Sign on screen</button>
           <button type="button" class="btn small" id="sig-recut" style="display:none">Remove background now</button>
@@ -246,7 +261,7 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
         <label class="stamp-check"><input type="checkbox" id="logo-cutout">
           Remove background and trim to the mark</label>
         <p class="hint" style="margin:0">Leave the box unticked for a stamp that already has a transparent background.</p>
-        <div class="btn-row">
+        <div class="btn-row vessel-identity-actions">
           <button type="button" class="btn small" id="logo-photo">Take photo</button>
           <button type="button" class="btn small" id="logo-recut" style="display:none">Remove background now</button>
           <button type="button" class="btn small danger" id="logo-remove" style="display:none">Remove stamp</button>

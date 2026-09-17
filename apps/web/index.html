@@ -18,9 +18,16 @@
   <script>
     /* Apply before first paint (same as Voyage Chief). */
     try {
-      if (localStorage.getItem('marine_bright') === '1' || localStorage.getItem('vm_bright') === '1') {
-        document.documentElement.classList.add('bright');
+      var tm = localStorage.getItem('marine_theme');
+      var mode = 'night';
+      if (tm === 'bright' || tm === 'prism' || tm === 'sailor' || tm === 'astrolabe' || tm === 'night') {
+        mode = (tm === 'sailor') ? 'prism' : tm;
       }
+      else if (localStorage.getItem('marine_bright') === '1' || localStorage.getItem('vm_bright') === '1') mode = 'bright';
+      if (mode === 'bright') document.documentElement.classList.add('bright');
+      if (mode === 'prism') document.documentElement.classList.add('prism');
+      if (mode === 'astrolabe') document.documentElement.classList.add('astrolabe');
+      document.documentElement.setAttribute('data-theme', mode);
     } catch (_e) {}
     /* Android shell: full-width home + floating nav (set early when possible). */
     try {
@@ -54,6 +61,8 @@
   <style>
     html, body { margin: 0; background: #0a1420; color: #e9e4d6; font-family: Georgia, "Times New Roman", serif; }
     html.bright, html.bright body { background: #efebe3; color: #122238; }
+    html.prism, html.prism body { background: #041618; color: #e6fff8; }
+    html.astrolabe, html.astrolabe body { background: #0a0c16; color: #f4efe4; }
     #main:empty::before {
       content: "Starting ChEng AIO…";
       display: block;
@@ -62,6 +71,8 @@
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     }
     html.bright #main:empty::before { color: #4a5568; }
+    html.prism #main:empty::before { color: #7eb8ae; }
+    html.astrolabe #main:empty::before { color: #a89a82; }
   </style>
 </head>
 <body>
