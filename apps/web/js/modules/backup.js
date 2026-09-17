@@ -403,6 +403,19 @@
               <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
               <button type="button" class="btn" id="bk-voy-sync-list">List remote voyages</button>
             </div>
+            <div class="grid-2" style="margin-top:10px;">
+              <div class="field"><label for="bk-voy-sync-pull-voyage">Pull voyage no.</label>
+                <select id="bk-voy-sync-pull-voyage"><option value="">— List remote voyages first —</option></select></div>
+              <div class="field"><label for="bk-voy-sync-pull-condition">Pull condition</label>
+                <select id="bk-voy-sync-pull-condition">
+                  <option value="B">B — Ballasted</option>
+                  <option value="L">L — Laden</option>
+                </select></div>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-voy-sync-pull-leg">Pull selected voyage leg</button>
+            </div>
+            <p class="hint">List remote voyages fills the voyage number list. Pull selected voyage leg merges that B/L leg onto this device (same as Voyage → Setup).</p>
             <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
             <div id="bk-voy-sync-remote" class="hint backup-remote-list" hidden></div>
           </div>
@@ -1003,8 +1016,21 @@
         try {
           const msg = await voyagePost('list-remote', { settings: readVoyageSyncForm(root) }, root);
           setVoySync(msg.message || 'Listed.');
+          const voyages = msg.voyages || [];
+          const pullSel = root.querySelector('#bk-voy-sync-pull-voyage');
+          if (pullSel) {
+            const keep = pullSel.value;
+            if (!voyages.length) {
+              pullSel.innerHTML = '<option value="">— No remote voyages —</option>';
+            } else {
+              pullSel.innerHTML = voyages.map((v) => {
+                const vn = esc(v.voyageNumber || v.voyageKey || '');
+                return `<option value="${vn}">${vn}</option>`;
+              }).join('');
+              if (keep && [...pullSel.options].some((o) => o.value === keep)) pullSel.value = keep;
+            }
+          }
           if (remoteBox) {
-            const voyages = msg.voyages || [];
             remoteBox.hidden = false;
             if (!voyages.length) {
               remoteBox.textContent = msg.message || 'No remote voyages.';
@@ -1024,6 +1050,27 @@
             remoteBox.hidden = false;
             remoteBox.textContent = e.message || 'List failed';
           }
+        }
+      });
+
+      root.querySelector('#bk-voy-sync-pull-leg')?.addEventListener('click', async () => {
+        const voyage = (root.querySelector('#bk-voy-sync-pull-voyage')?.value || '').trim();
+        const condition = (root.querySelector('#bk-voy-sync-pull-condition')?.value || 'B').trim();
+        if (!voyage) {
+          setVoySync('Select a voyage number first (List remote voyages refreshes the list).');
+          toast('Select a voyage number first');
+          return;
+        }
+        if (!confirm(`Pull ${voyage} / ${condition} from the server and merge it as the active leg?\n\nNewer of local vs server kept for each record.`)) return;
+        setVoySync(`Pulling ${voyage} / ${condition}…`);
+        try {
+          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
+          const msg = await voyagePost('pull-voyage-leg', { voyage, condition }, root);
+          setVoySync(msg.message || 'Pull completed');
+          toast(msg.message || 'Pull completed');
+        } catch (e) {
+          setVoySync(e.message || 'Pull failed');
+          toast(e.message || 'Pull failed');
         }
       });
 
