@@ -820,11 +820,40 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
 @media (min-width: 900px) {
   .backup-page .backup-grid { grid-template-columns: 1fr 1fr; }
 }
+.backup-page .backup-program-title {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent, var(--brass, #c4a35a));
+}
+.backup-page .backup-program-block {
+  border: 1px solid var(--line, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  padding: 14px 14px 4px;
+  background: rgba(0,0,0,0.12);
+}
 .backup-page .form-panel h2 {
   margin: 0 0 8px;
   font-size: 1.05rem;
 }
 .backup-page .hint { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.backup-page .aio-backup-voyage-host {
+  min-height: 420px;
+  border: 1px solid var(--line, rgba(255,255,255,0.08));
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a1218;
+}
+.backup-page .aio-backup-voyage-frame {
+  display: block;
+  width: 100%;
+  min-height: 520px;
+  height: 56vh;
+  max-height: 720px;
+  border: 0;
+  background: transparent;
+}
 
 /* ---------- Vessel stamp / Chief Engineer signature (Vessel Setup) ---------- */
 .btn.small { padding: 6px 10px; font-size: 0.82rem; border-radius: 8px; }

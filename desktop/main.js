@@ -26,30 +26,123 @@ function portableBaseDir() {
   return '';
 }
 
+function dirHasContent(dir) {
+  try {
+    if (!fs.existsSync(dir)) return false;
+    return fs.readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Copy directory tree when dest is missing/empty (one-time migration). */
+function migrateDirIfNeeded(src, dest, label) {
+  if (!src || !dest || src === dest) return false;
+  if (!dirHasContent(src)) return false;
+  if (dirHasContent(dest)) return false;
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.cpSync(src, dest, { recursive: true, errorOnExist: false, force: false });
+    console.log(`[desktop] migrated ${label}: ${src} → ${dest}`);
+    return true;
+  } catch (err) {
+    console.error(`[desktop] migrate ${label} failed:`, err && err.message ? err.message : err);
+    return false;
+  }
+}
+
+function legacyAppDataCandidates() {
+  const appData = process.env.APPDATA || process.env.HOME || '';
+  if (!appData) return [];
+  /* Older Electron / rebranded productName folders that held license + IndexedDB. */
+  return [
+    path.join(appData, 'cheng-pro'),
+    path.join(appData, 'Cheng-Pro'),
+    path.join(appData, 'ChEng AIO'),
+    path.join(appData, 'chengaio'),
+  ];
+}
+
 function resolvePaths() {
   const portableBase = portableBaseDir();
   if (portableBase) {
     const root = path.join(portableBase, 'ChEngAIO-data');
+    const legacyRoots = [
+      path.join(portableBase, 'cheng-pro-data'),
+      path.join(portableBase, 'Cheng-Pro-data'),
+      path.join(portableBase, 'ChEng-Pro-data'),
+    ];
+    /* Prefer rename of the old USB folder when the new one is absent. */
+    if (!fs.existsSync(root)) {
+      for (const legacy of legacyRoots) {
+        if (!dirHasContent(legacy)) continue;
+        try {
+          fs.renameSync(legacy, root);
+          console.log(`[desktop] renamed portable data: ${legacy} → ${root}`);
+          break;
+        } catch (err) {
+          console.warn('[desktop] rename failed, will copy:', err && err.message);
+          migrateDirIfNeeded(legacy, root, 'portable-data');
+          break;
+        }
+      }
+    }
+    const serverData = path.join(root, 'server');
+    const userData = path.join(root, 'electron-profile');
+    /* Pre-portable-profile builds kept Chromium data in %APPDATA% — bring license + IDB over. */
+    if (!dirHasContent(userData)) {
+      for (const legacy of legacyAppDataCandidates()) {
+        if (migrateDirIfNeeded(legacy, userData, 'electron-profile')) break;
+      }
+    }
+    /* Old portable layout stored JSON under cheng-pro-data/ directly (not …/server). */
+    if (!dirHasContent(serverData)) {
+      for (const legacy of legacyRoots) {
+        if (!dirHasContent(legacy)) continue;
+        const nested = path.join(legacy, 'server');
+        if (dirHasContent(nested)) migrateDirIfNeeded(nested, serverData, 'server-data');
+        else migrateDirIfNeeded(legacy, serverData, 'server-data-flat');
+        if (dirHasContent(serverData)) break;
+      }
+    }
     return {
       portable: true,
       root,
-      serverData: path.join(root, 'server'),
-      userData: path.join(root, 'electron-profile'),
+      serverData,
+      userData,
     };
+  }
+
+  const userData = app.getPath('userData');
+  const serverData = path.join(userData, 'data');
+  /* Installed build: if this profile is empty, copy from a previous productName folder. */
+  if (!dirHasContent(userData) || !dirHasContent(path.join(userData, 'Local Storage'))) {
+    for (const legacy of legacyAppDataCandidates()) {
+      if (legacy === userData) continue;
+      if (migrateDirIfNeeded(legacy, userData, 'installed-profile')) break;
+    }
+  }
+  if (!dirHasContent(serverData)) {
+    for (const legacy of legacyAppDataCandidates()) {
+      const legacyData = path.join(legacy, 'data');
+      if (migrateDirIfNeeded(legacyData, serverData, 'installed-server-data')) break;
+    }
   }
   return {
     portable: false,
-    root: app.getPath('userData'),
-    serverData: path.join(app.getPath('userData'), 'data'),
-    userData: app.getPath('userData'),
+    root: userData,
+    serverData,
+    userData,
   };
 }
 
 const paths = resolvePaths();
+fs.mkdirSync(paths.serverData, { recursive: true });
+fs.mkdirSync(paths.userData, { recursive: true });
 if (paths.portable) {
-  fs.mkdirSync(paths.serverData, { recursive: true });
-  fs.mkdirSync(paths.userData, { recursive: true });
   /* Must run before ready — puts IndexedDB / localStorage on the USB too. */
+  app.setPath('userData', paths.userData);
+} else if (paths.userData !== app.getPath('userData')) {
   app.setPath('userData', paths.userData);
 }
 
