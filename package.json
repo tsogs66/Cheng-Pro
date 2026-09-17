@@ -1,6 +1,6 @@
 {
   "name": "cheng-pro",
-  "version": "0.3.173",
+  "version": "0.3.174",
   "description": "ChEng AIO \u2014 Marine Engineer Suite (Voyage Chief + Tank Chief)",
   "author": "ts0gs (Marvin C. Endozo)",
   "main": "desktop/main.js",
@@ -8,7 +8,7 @@
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "seed": "node scripts/seed-demo.js",
-    "test": "node scripts/smoke-test.js && node scripts/test-license.js && node scripts/test-home-calculated-rob.js",
+    "test": "node scripts/smoke-test.js && node scripts/test-license.js && node scripts/test-home-calculated-rob.js && node scripts/test-python-spawn.js",
     "license-host": "node server/license/host.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win --publish never",

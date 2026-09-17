@@ -106,6 +106,14 @@ app.whenReady().then(async () => {
       : `ChEng AIO data directory: ${DATA_DIR}`
   );
 
+  /* Spawn ENOENT (missing python3 on Windows) must not take down the UI. */
+  process.on('uncaughtException', (err) => {
+    console.error('[desktop] uncaughtException:', err && err.stack ? err.stack : err);
+  });
+  process.on('unhandledRejection', (err) => {
+    console.error('[desktop] unhandledRejection:', err && err.stack ? err.stack : err);
+  });
+
   const { boot } = require('../server/index.js');
   const server = await boot();
   gateway = server;

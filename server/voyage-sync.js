@@ -1,11 +1,14 @@
 /**
  * Spawn / supervise the Voyage Chief Python sync + auth server.
+ *
+ * Must not hard-code `python3`: on Windows that name is often missing
+ * (ENOENT), and an unhandled spawn 'error' crashes Electron's main process.
  */
 'use strict';
 
-const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const { spawnPythonProcess } = require('../modules/tanks/server/python-run');
 
 const ROOT = path.join(__dirname, '..');
 const SYNC_DIR = path.join(ROOT, 'modules', 'voyage', 'sync-server');
@@ -32,11 +35,10 @@ function waitForHealth(port, timeoutMs = 20000) {
   });
 }
 
-function startVoyageSync(opts = {}) {
+async function startVoyageSync(opts = {}) {
   const port = opts.port || Number(process.env.SYNC_PORT || 8787);
   const dataDir = opts.dataDir || path.join(opts.chengDataDir || path.join(ROOT, 'data'), 'voyage-sync');
   const env = {
-    ...process.env,
     SYNC_HOST: '127.0.0.1',
     SYNC_PORT: String(port),
     SYNC_DATA_DIR: dataDir,
@@ -47,7 +49,7 @@ function startVoyageSync(opts = {}) {
   if (process.env.SYNC_ADMIN_PASSWORD) env.SYNC_ADMIN_PASSWORD = process.env.SYNC_ADMIN_PASSWORD;
   if (process.env.SYNC_ADMIN_USER) env.SYNC_ADMIN_USER = process.env.SYNC_ADMIN_USER;
 
-  const child = spawn('python3', ['server.py'], {
+  const child = await spawnPythonProcess(['server.py'], {
     cwd: SYNC_DIR,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -58,8 +60,13 @@ function startVoyageSync(opts = {}) {
   child.on('exit', (code, signal) => {
     console.error(`[voyage-sync] exited code=${code} signal=${signal}`);
   });
+  /* Keep listening for late errors so they never become uncaughtExceptions. */
+  child.on('error', (err) => {
+    console.error(`[voyage-sync] process error: ${err.message}`);
+  });
 
-  return waitForHealth(port).then(() => ({ child, port, dataDir }));
+  await waitForHealth(port);
+  return { child, port, dataDir };
 }
 
 function proxyToVoyage(port) {
