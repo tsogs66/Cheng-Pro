@@ -17329,30 +17329,30 @@ function openVoyageSummary(entryId){
   const daysToGoVal = (distanceToGo!=null && refSpeed>0) ? (distanceToGo/refSpeed)/24 : null;
   const eta = (daysToGoVal!=null) ? new Date(dt.getTime() + daysToGoVal*24*3600000) : null;
 
-  const stat = (label,val) => `<div class="stat"><div class="num">${val}</div><div class="lbl">${label}</div></div>`;
+  const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   const etaStr = eta ? eta.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
   const sfocDeltaStr = row.sfocDelta==null ? '—' : ((row.sfocDelta>0?'+':'')+fmt(row.sfocDelta, 2));
   document.getElementById('vsTopStrip').innerHTML = `
     ${stat('Voyage', state.setup.voyageNumber||'—')}
     ${stat('Date', dtStr)}
-    ${stat('Ship Distance', fmt(entry.distanceShip, 2))}
-    ${stat('Ship Speed', row.speedShip==null?'—':fmt(row.speedShip,2)+' kn')}
-    ${stat('Run Time (hrs)', fmt(row.hrs, 2))}
-    ${stat('Load (kW)', fmt(row.kwEst, 2))}
-    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—')}
-    ${stat('Days To Go', daysToGoVal!=null? fmt(daysToGoVal,2):'—')}
-    ${stat('Total Rev.', fmt(row.dailyRevs, 2))}
-    ${stat('Load %', fmt(row.mcrPct,2))}
-    ${stat('Engine Distance', fmt(row.distEngine,2))}
-    ${stat('Engine Speed', row.speedEngine==null?'—':fmt(row.speedEngine,2)+' kn')}
-    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2))}
-    ${stat('Ave. kW', fmt(perf.avgKw, 2))}
-    ${stat('Slip %', fmt(row.slip,2))}
+    ${stat('Ship Distance', fmt(entry.distanceShip, 2), 'nm')}
+    ${stat('Ship Speed', row.speedShip==null?'—':fmt(row.speedShip,2), 'kn')}
+    ${stat('Run Time', fmt(row.hrs, 2), 'hrs')}
+    ${stat('Load', fmt(row.kwEst, 2), 'kW')}
+    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—', 'nm')}
+    ${stat('Days To Go', daysToGoVal!=null? fmt(daysToGoVal,2):'—', 'days')}
+    ${stat('Total Rev.', fmt(row.dailyRevs, 2), 'rev')}
+    ${stat('Load', fmt(row.mcrPct,2), '%')}
+    ${stat('Engine Distance', fmt(row.distEngine,2), 'nm')}
+    ${stat('Engine Speed', row.speedEngine==null?'—':fmt(row.speedEngine,2), 'kn')}
+    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2), 'rpm')}
+    ${stat('Ave. kW', fmt(perf.avgKw, 2), 'kW')}
+    ${stat('Slip', fmt(row.slip,2), '%')}
     ${stat('ETA', etaStr)}
-    ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2))}
-    ${stat('Ref. SFOC', fmt(row.sfocRef, 2))}
-    ${stat('Actual SFOC', fmt(row.sfocActual, 2))}
-    ${stat('SFOC Δ %', sfocDeltaStr)}
+    ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2), 'g/kWh')}
+    ${stat('Ref. SFOC', fmt(row.sfocRef, 2), 'g/kWh')}
+    ${stat('Actual SFOC', fmt(row.sfocActual, 2), 'g/kWh')}
+    ${stat('SFOC Δ', sfocDeltaStr, '%')}
   `;
 
   /* Arrangement reflects the generators actually in service for this entry, not how
