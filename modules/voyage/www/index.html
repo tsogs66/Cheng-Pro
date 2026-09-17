@@ -19315,24 +19315,24 @@ function updateLivePreview(){
   const sfocRef = mcrPct!=null ? referenceSfocAtLoad(mcrPct) : null;
   const sfocAct = isoCorrectedSfoc(actualMeSfoc(meCons, kwEst, hrs));
   const sfocDelta = sfocDeltaPct(sfocAct, sfocRef);
-  const stat = (label,val) => `<div class="stat"><div class="num">${val}</div><div class="lbl">${label}</div></div>`;
+  const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   box.className = 'stat-strip cols4';
   box.innerHTML =
-    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2)) +
-    stat('Daily Revs', dailyRevs==null?'—':fmt(dailyRevs, 2)) +
-    stat('Engine Speed', speedEngine==null?'—':fmt(speedEngine,2)) +
-    stat('Actual SFOC', sfocAct==null?'—':fmt(sfocAct, 2)) +
-    stat('M/E Cons (MT)', meCons==null?'—':fmtFuel(meCons)) +
-    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2)) +
-    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2)) +
-    stat('SFOC @ 100%', sfoc100==null?'—':fmt(sfoc100, 2)) +
-    stat('G/E Cons (MT)', geCons==null?'—':fmtFuel(geCons)) +
-    stat('M/E Load (kW)', kwEst==null?'—':fmt(kwEst, 2)) +
-    stat('Slip %', slip==null?'—':fmt(slip,2)) +
-    stat('Ref. SFOC', sfocRef==null?'—':fmt(sfocRef, 2)) +
-    stat('Boiler Cons (MT)', blrCons==null?'—':fmtFuel(blrCons)) +
-    stat('M/E Load %', mcrPct==null?'—':fmt(mcrPct, 2)) +
-    stat('SFOC Δ %', sfocDelta==null?'—':((sfocDelta>0?'+':'')+fmt(sfocDelta, 2)));
+    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2), 'hrs') +
+    stat('Daily Revs', dailyRevs==null?'—':fmt(dailyRevs, 2), 'rev') +
+    stat('Engine Speed', speedEngine==null?'—':fmt(speedEngine,2), 'kn') +
+    stat('Actual SFOC', sfocAct==null?'—':fmt(sfocAct, 2), 'g/kWh') +
+    stat('M/E Cons', meCons==null?'—':fmtFuel(meCons), 'MT') +
+    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2), 'rpm') +
+    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2), 'nm') +
+    stat('SFOC @ 100%', sfoc100==null?'—':fmt(sfoc100, 2), 'g/kWh') +
+    stat('G/E Cons', geCons==null?'—':fmtFuel(geCons), 'MT') +
+    stat('M/E Load', kwEst==null?'—':fmt(kwEst, 2), 'kW') +
+    stat('Slip', slip==null?'—':fmt(slip,2), '%') +
+    stat('Ref. SFOC', sfocRef==null?'—':fmt(sfocRef, 2), 'g/kWh') +
+    stat('Boiler Cons', blrCons==null?'—':fmtFuel(blrCons), 'MT') +
+    stat('M/E Load', mcrPct==null?'—':fmt(mcrPct, 2), '%') +
+    stat('SFOC Δ', sfocDelta==null?'—':((sfocDelta>0?'+':'')+fmt(sfocDelta, 2)), '%');
 }
 /* ---------------- editable consumption helpers (Voyage Summary) ---------------- */
 function computeRawUnitCons(curEntry, prevRef, rolls){
