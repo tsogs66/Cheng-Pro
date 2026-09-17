@@ -785,8 +785,48 @@
 
       async function tankVesselLibrary() {
         try {
-          const data = await gatewayTankApi('/api/vessel-library');
-          return { vessels: (data && data.vessels) || [], error: null };
+          /* Do not attach license scope headers — the catalog is server-wide and
+           * entitlement mismatches returned 401 / an empty list. */
+          const res = await fetch('/tanks/api/vessel-library', {
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+          });
+          const raw = await res.text();
+          let data = null;
+          try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+          if (!res.ok) {
+            throw new Error((data && data.error) || res.statusText || 'Request failed');
+          }
+          let vessels = (data && data.vessels) || [];
+          /* Also fold in this licensee's shell vessels (data/users/<email>/…).
+             Covers scoped saves that the catalog already lists, and fills gaps
+             when the server index and library scan disagree. */
+          const mine = licensedEmail();
+          if (mine) {
+            try {
+              const shell = await ChengProApi.api('/api/shell/vessels');
+              const slug = (window.ChengVesselKey && ChengVesselKey.emailSlug)
+                ? ChengVesselKey.emailSlug(mine)
+                : mine.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+              const seen = new Set(vessels.map((v) => `${v.ownerSlug || ''}::${v.vesselId}`));
+              for (const v of (shell && shell.vessels) || []) {
+                const key = `${slug}::${v.id}`;
+                if (seen.has(key)) continue;
+                vessels.push({
+                  ownerSlug: slug,
+                  vesselId: v.id,
+                  name: v.name || '',
+                  imo: v.imo || '',
+                  flag: v.flag || '',
+                  updatedAt: v.updatedAt || null,
+                });
+                seen.add(key);
+              }
+            } catch (shellErr) {
+              console.warn('Shell vessel merge for library:', shellErr);
+            }
+          }
+          return { vessels, error: null };
         } catch (e) {
           return { vessels: [], error: e && e.message ? e.message : 'unavailable' };
         }
