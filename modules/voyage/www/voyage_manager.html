@@ -62,11 +62,12 @@
     var mode = 'night';
     try {
       var tm = localStorage.getItem('marine_theme');
-      if (tm === 'bright' || tm === 'sailor' || tm === 'night') mode = tm;
+      if (tm === 'bright' || tm === 'sailor' || tm === 'astrolabe' || tm === 'night') mode = tm;
       else if (k === '1') mode = 'bright';
     } catch (_eM) { if (k === '1') mode = 'bright'; }
     if (mode === 'bright') document.documentElement.classList.add('bright');
     if (mode === 'sailor') document.documentElement.classList.add('sailor');
+    if (mode === 'astrolabe') document.documentElement.classList.add('astrolabe');
     try { document.documentElement.setAttribute('data-theme', mode); } catch (_eT) {}
     try {
       var qs = location.search || '';
@@ -296,6 +297,33 @@
   }
   html.sailor .btn, html.sailor button.primary{
     border-radius:10px;
+  }
+
+  html.astrolabe{
+    --ink:#0a0c16; --panel:#14182c; --panel2:#101428;
+    --paper:#f4efe4; --paper-dim:#a89a82; --muted:#a89a82;
+    --brass:#c9985a; --brass-dim:#8a6a3a; --brass-bright:#e0b878;
+    --teal:#6ab0c8; --alert:#e0705c; --good:#5f9e6e;
+    --line:rgba(200,170,120,0.18); --line-strong:rgba(200,170,120,0.32);
+    --nav-bg:rgba(10,12,22,0.96); --nav-shadow:0 -8px 28px rgba(0,0,0,.45);
+    --nav-item-bg:rgba(22,26,44,0.94); --nav-active-bg:rgba(201,152,90,0.14);
+    --calc-bg:rgba(16,20,40,0.9);
+  }
+  html.astrolabe body{
+    background:
+      radial-gradient(circle at 70% 20%, rgba(201,152,90,0.14), transparent 42%),
+      radial-gradient(circle at 20% 80%, rgba(106,176,200,0.12), transparent 45%),
+      linear-gradient(160deg, #0a0c16 0%, #12162a 50%, #080a12 100%);
+  }
+  html.astrolabe .panel{
+    background:linear-gradient(165deg, rgba(20,24,44,0.94), rgba(16,20,36,0.9));
+    border-color:rgba(200,170,120,0.2);
+    box-shadow:0 12px 40px rgba(4,6,16,0.4);
+    backdrop-filter:blur(8px);
+    border-radius:7px;
+  }
+  html.astrolabe .btn, html.astrolabe button.primary{
+    border-radius:7px;
   }
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
@@ -22388,7 +22416,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v270';
+let androidInstallCacheName = 'noon-report-v271';
 
 /*
  * What the program is called.

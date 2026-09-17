@@ -91,6 +91,45 @@ html.sailor .panel {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
+
+/* Astrolabe — chart-ink indigo / copper engraving (fourth theme; design option 10) */
+html.astrolabe {
+  --ink: #0a0c16;
+  --bg0: #0a0c16;
+  --bg1: #161a2e;
+  --bg2: #101428;
+  --panel: rgba(16, 20, 36, 0.92);
+  --panel-solid: #14182c;
+  --line: rgba(200, 170, 120, 0.18);
+  --line-strong: rgba(200, 170, 120, 0.32);
+  --text: #f4efe4;
+  --muted: #a89a82;
+  --paper: #f4efe4;
+  --paper-dim: #a89a82;
+  --accent: #6ab0c8;
+  --accent-2: #c9985a;
+  --brass: #c9985a;
+  --brass-dim: #8a6a3a;
+  --teal: #6ab0c8;
+  --danger: #e0705c;
+  --ok: #5f9e6e;
+  --shadow: 0 18px 46px rgba(4, 6, 16, 0.5);
+  color-scheme: dark;
+}
+html.astrolabe body,
+html.astrolabe {
+  background:
+    radial-gradient(circle at 70% 20%, rgba(201, 152, 90, 0.14), transparent 42%),
+    radial-gradient(circle at 20% 80%, rgba(106, 176, 200, 0.12), transparent 45%),
+    linear-gradient(160deg, #0a0c16 0%, #12162a 50%, #080a12 100%);
+}
+html.astrolabe .btn,
+html.astrolabe .form-panel,
+html.astrolabe .panel {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 7px;
+}
 * { box-sizing: border-box; }
 html, body {
   margin: 0; min-height: 100%;
