@@ -1379,16 +1379,19 @@
     .vs-weather-col .form-grid.vs-weather-stack{
       grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
       gap:8px 10px;
+      align-items:end;
     }
     #vsErTankFields.form-grid.cols2{
       grid-template-columns:repeat(8, minmax(0, 1fr)) !important;
       gap:8px 10px;
+      align-items:end;
     }
     #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
     /* T/C + Others under cylinders: 3 containers, fields transposed to 1 row each */
     #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
       grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
       gap:10px;
+      align-items:end;
     }
     #vsTurboScavRow #vsOthersBox{grid-column:1 / -1;}
     #vsTurboScavRow .vs-tc-box{
@@ -1415,15 +1418,23 @@
     #vsOthersFields.form-grid.cols2{
       grid-template-columns:repeat(8, minmax(0, 1fr)) !important;
       gap:8px 10px;
+      align-items:end;
     }
     #vsOthersFields .field label{font-size:10px; line-height:1.2;}
     #vsOthersFields .field input{font-size:12px; padding:6px 7px; min-height:34px;}
     #logEntryFormPanel .log-meta-row{
       grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
       gap:10px 12px;
+      align-items:end;
     }
     #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
     #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
+    /* Field hints under meta inputs break bottom alignment — keep page-level hints below */
+    #logEntryFormPanel .log-meta-row > .field > .hint{display:none;}
+    #vsRunFields.form-grid.cols4{align-items:end;}
+    #vsCylFields.unit-group.cols6{align-items:end;}
+    .vs-ge-blr-inc-grid{align-items:end;}
+    #vsFuelConsMiscFwRow.unit-group.cols3{align-items:end;}
     .vs-ge-blr-inc-grid{
       display:grid !important;
       grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
@@ -1450,9 +1461,11 @@
   html.vm-land-rows #logEntryFormPanel .log-meta-row{
     grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,0.75fr) minmax(0,1.15fr);
     gap:10px 12px;
+    align-items:end;
   }
   html.vm-land-rows #logEntryFormPanel .log-meta-row > .field{grid-column:auto;}
   html.vm-land-rows #logEntryFormPanel .log-meta-row .field.span2{grid-column:auto;}
+  html.vm-land-rows #logEntryFormPanel .log-meta-row > .field > .hint{display:none;}
   html.vm-land-rows .vs-weather-others-row{
     grid-template-columns:1fr !important;
     gap:12px;
@@ -1460,15 +1473,18 @@
   html.vm-land-rows .vs-weather-col .form-grid.vs-weather-stack{
     grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
     gap:8px 10px;
+    align-items:end;
   }
   html.vm-land-rows #vsErTankFields.form-grid.cols2{
     grid-template-columns:repeat(8, minmax(0, 1fr)) !important;
     gap:8px 10px;
+    align-items:end;
   }
   html.vm-land-rows #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
   html.vm-land-rows #vsTurboScavRow.unit-group.cols3:not(.no-turbos){
     grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
     gap:10px;
+    align-items:end;
   }
   html.vm-land-rows #vsTurboScavRow #vsOthersBox{grid-column:1 / -1;}
   html.vm-land-rows #vsTurboScavRow .vs-tc-box{
@@ -1495,16 +1511,20 @@
   html.vm-land-rows #vsOthersFields.form-grid.cols2{
     grid-template-columns:repeat(8, minmax(0, 1fr)) !important;
     gap:8px 10px;
+    align-items:end;
   }
   html.vm-land-rows #vsOthersFields .field label{font-size:10px; line-height:1.2;}
   html.vm-land-rows #vsOthersFields .field input{font-size:12px; padding:6px 7px; min-height:34px;}
   html.vm-land-rows #vsRunFields.form-grid.cols4{
     grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    align-items:end;
   }
+  html.vm-land-rows #vsCylFields.unit-group.cols6{align-items:end;}
   html.vm-land-rows .vs-ge-blr-inc-grid{
     display:grid !important;
     grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
     gap:10px;
+    align-items:end;
   }
   html.vm-land-rows .vs-ge-blr-inc-grid > .vs-blr-inc-row,
   html.vm-land-rows .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents !important;}
@@ -1517,6 +1537,7 @@
   }
   html.vm-land-rows #vsFuelConsMiscFwRow.unit-group.cols3{
     grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+    align-items:end;
   }
 
   /* Wide desktop / large tablet landscape — use more horizontal room */
@@ -22278,7 +22299,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v262';
+let androidInstallCacheName = 'noon-report-v263';
 
 /*
  * What the program is called.
