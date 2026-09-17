@@ -20890,7 +20890,9 @@ function syncRequestHeaders(extra){
   if (token) headers.Authorization = 'Bearer ' + token;
   if (deviceId) headers['X-Device-Id'] = deviceId;
   if (deviceName) headers['X-Device-Name'] = deviceName;
-  /* Email-scoped server folders: data/users/<email-slug>/<vessel>/… */
+  /* Email-scoped server folders: data/users/<email-slug>/<vessel>/…
+   * Only attach when entitlement has a signature — bare email headers make
+   * Tank/AIO peers answer "Invalid entitlement signature". */
   try {
     if (window.ChengLicense && typeof ChengLicense.authHeaders === 'function') {
       Object.assign(headers, ChengLicense.authHeaders());

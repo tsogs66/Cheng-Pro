@@ -38,7 +38,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 store.ensureDirs();
 
-app.use(cors({ origin: true, credentials: true,
+app.use(cors({
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -50,8 +50,16 @@ app.use(cors({ origin: true, credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
 
-/* Per-request license email scope — requires signed entitlement when scoped. */
+/* Per-request license email scope — requires signed entitlement when scoped.
+ * Peer sync orchestration (probe/pull/push) is local UI → this device → peer
+ * with SYNC_API_TOKEN only. Do not require license entitlement on these routes
+ * or Backup peer sync fails with "Invalid entitlement signature" when the
+ * browser still attaches X-License-* from a licensed session. */
 app.use((req, res, next) => {
+  const p = String(req.path || '');
+  if (p === '/api/sync/probe' || p === '/api/sync/pull' || p === '/api/sync/push') {
+    return store.runWithUserScope({ email: null, master: false, actAs: null }, () => next());
+  }
   const scope = parseScopedEntitlement(req, res);
   if (scope === null) return;
   store.runWithUserScope({
@@ -67,7 +75,6 @@ app.get('/api/admin/users', (req, res) => {
   }
   res.json({ users: store.listUserDatabases() });
 });
-
 
 app.get('/api/vessel-library', (req, res) => {
   try {
@@ -198,6 +205,7 @@ app.get('/api/admin/inventory', (req, res) => {
 });
 
 
+/* Points standalone EXE / portable builds at the production license host. */
 app.get('/js/license-config.js', (req, res) => {
   const raw = (process.env.LICENSE_SERVER_URL || process.env.CHENG_LICENSE_API || '').replace(/\/$/, '');
   let api = '';
@@ -1067,30 +1075,17 @@ function describePeerFetchError(err, url) {
 }
 
 function peerScopeFromRequest(req) {
-  if (!req || !req.get) return {};
-  const out = {};
-  const email = (req.get('x-license-email') || '').trim();
-  const master = req.get('x-license-master') === '1';
-  const actAs = (req.get('x-act-as-user') || '').trim();
-  const ent = req.get('x-license-entitlement');
-  if (email) out.licenseEmail = email;
-  if (master) out.licenseMaster = true;
-  if (actAs) out.actAsUser = actAs;
-  if (ent) out.licenseEntitlement = ent;
-  return out;
+  /* Peer Tank/AIO authenticates with SYNC_API_TOKEN only. Do not forward
+   * license entitlement headers — the peer may use a different signing secret
+   * and answers "Invalid entitlement signature", which blocked peer sync. */
+  return {};
 }
 
 function peerAuthHeadersFromBody(body) {
+  /* Token only — never forward license entitlement to a peer. */
   const headers = {};
   const token = String(body?.syncApiToken || body?.apiToken || '').trim();
   if (token) headers.Authorization = 'Bearer ' + token;
-  const email = String(body?.licenseEmail || '').trim();
-  if (email) headers['X-License-Email'] = email;
-  if (body?.licenseMaster) headers['X-License-Master'] = '1';
-  const actAs = String(body?.actAsUser || '').trim();
-  if (actAs) headers['X-Act-As-User'] = actAs;
-  const ent = String(body?.licenseEntitlement || '').trim();
-  if (ent) headers['X-License-Entitlement'] = ent;
   return headers;
 }
 
@@ -1240,7 +1235,6 @@ app.post('/api/sync/pull', asyncHandler(async (req, res) => {
   }
   const results = store.applySyncPayload(payload);
   if (payload.settings) {
-    // keep local syncUrl / token
     const { syncUrl, syncApiToken, ...rest } = payload.settings;
     store.saveSettings(rest);
   }
