@@ -1167,9 +1167,36 @@
     .vs-weather-others-row{
       grid-template-columns:1fr;
     }
+    /* Portrait tablet: Weather one row; Engine Room 4×2 */
+    .vs-weather-col .form-grid.vs-weather-stack{
+      grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+      align-items:end;
+    }
+    #vsErTankFields.form-grid.cols2{
+      grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+      align-items:end;
+    }
+    #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
     .field input,.field select{font-size:14px; min-height:40px; padding:8px 9px;}
     button.small{min-height:36px;}
     #page-data #btnSaveSyncSettings{min-height:44px;}
+  }
+
+  /* Wider portrait tablets (e.g. iPad Pro) — same Weather / ER field grids */
+  @media (min-width:1101px) and (orientation: portrait){
+    .vs-weather-col .form-grid.vs-weather-stack{
+      grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+      align-items:end;
+    }
+    #vsErTankFields.form-grid.cols2{
+      grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+      gap:8px 10px;
+      align-items:end;
+    }
+    #vsErTankFields.form-grid > .vs-sea-temp-under-er{grid-column:auto;}
   }
 
   /* Mid-width landscape still needs padding/meta (portrait block above is orientation-gated) */
@@ -1433,12 +1460,11 @@
     #logEntryFormPanel .log-meta-row > .field > .hint{display:none;}
     #vsRunFields.form-grid.cols4{align-items:end;}
     #vsCylFields.unit-group.cols6{align-items:end;}
-    .vs-ge-blr-inc-grid{align-items:end;}
-    #vsFuelConsMiscFwRow.unit-group.cols3{align-items:end;}
     .vs-ge-blr-inc-grid{
       display:grid !important;
       grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
       gap:10px;
+      align-items:start;
     }
     .vs-ge-blr-inc-grid > .vs-blr-inc-row,
     .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents !important;}
@@ -1450,6 +1476,7 @@
     }
     #vsFuelConsMiscFwRow.unit-group.cols3{
       grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
+      align-items:start;
     }
     .stat-strip.cols5{grid-template-columns:repeat(5,1fr);}
     .gauge-grid.cols4{grid-template-columns:repeat(4,1fr);}
@@ -1524,7 +1551,7 @@
     display:grid !important;
     grid-template-columns:repeat(5, minmax(0, 1fr)) !important;
     gap:10px;
-    align-items:end;
+    align-items:start;
   }
   html.vm-land-rows .vs-ge-blr-inc-grid > .vs-blr-inc-row,
   html.vm-land-rows .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:contents !important;}
@@ -1537,7 +1564,7 @@
   }
   html.vm-land-rows #vsFuelConsMiscFwRow.unit-group.cols3{
     grid-template-columns:repeat(4, minmax(0, 1fr)) !important;
-    align-items:end;
+    align-items:start;
   }
 
   /* Wide desktop / large tablet landscape — use more horizontal room */
@@ -22299,7 +22326,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v263';
+let androidInstallCacheName = 'noon-report-v264';
 
 /*
  * What the program is called.
