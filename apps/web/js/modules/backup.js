@@ -440,23 +440,49 @@
       const setVoyage = (t) => { if (voyageStatus) voyageStatus.textContent = t; };
       const setSuite = (t) => { if (suiteStatus) suiteStatus.textContent = t; };
 
-      /* A server block that is already set up folds away.
-       *
-       * Both addresses are typed once and then never again, but they have to
-       * sit above the vessel list that cannot work without them — telling an
-       * engineer to "set the URL below" and making him hunt for it is how the
-       * old order read. Folded, the block keeps its place in the sequence and
-       * costs him one line instead of a screen of fields, and the summary says
-       * which server it points at so he can see that without opening it.
-       *
-       * Left open when there is no URL yet: that is the one visit where the
-       * fields are the point. */
+      /* Keep server blocks open after save so URL / token fields stay editable.
+       * The summary line still shows which host is configured. */
       function markServerBlock(blockId, noteId, url) {
         const block = root.querySelector('#' + blockId);
         const note = root.querySelector('#' + noteId);
         const set = String(url || '').trim();
         if (note) note.textContent = set || 'not set';
-        if (block && set) block.open = false;
+        if (block) block.open = true;
+      }
+
+      function mirrorVoyageSyncToLocalStorage(settings) {
+        try {
+          const prev = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('noonReportSyncCredentials') || '{}') || {};
+            } catch {
+              return {};
+            }
+          })();
+          const next = {
+            ...prev,
+            serverUrl: (settings && settings.serverUrl) || prev.serverUrl || '',
+            apiToken: (settings && settings.apiToken) || prev.apiToken || '',
+            vesselId: (settings && settings.vesselId) != null ? settings.vesselId : (prev.vesselId || ''),
+            deviceName: (settings && settings.deviceName) != null ? settings.deviceName : (prev.deviceName || ''),
+            conflictPolicy: (settings && settings.conflictPolicy) || prev.conflictPolicy || 'merge',
+            updatedAt: new Date().toISOString(),
+          };
+          localStorage.setItem('noonReportSyncCredentials', JSON.stringify(next));
+          try { sessionStorage.setItem('noonReportSyncCredentials', JSON.stringify(next)); } catch (_) {}
+        } catch (_) { /* ignore */ }
+      }
+
+      function readMirroredVoyageSync() {
+        try {
+          const raw = localStorage.getItem('noonReportSyncCredentials')
+            || sessionStorage.getItem('noonReportSyncCredentials');
+          if (!raw) return null;
+          const creds = JSON.parse(raw);
+          return (creds && typeof creds === 'object') ? creds : null;
+        } catch {
+          return null;
+        }
       }
 
       /* Keep the folded line honest while he is typing a new address. */
@@ -1452,26 +1478,63 @@
       };
       const remoteBox = root.querySelector('#bk-voy-sync-remote');
 
+      /* Paint mirrored credentials immediately so a closed/reopened AIO still
+       * shows the last saved Voyage sync URL before the bridge iframe answers. */
+      {
+        const mirrored = readMirroredVoyageSync();
+        if (mirrored && (mirrored.serverUrl || mirrored.apiToken || mirrored.vesselId)) {
+          fillVoyageSyncForm(root, mirrored);
+          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', mirrored.serverUrl);
+        }
+      }
+
       (async () => {
         try {
           const msg = await voyagePost('get-sync-settings', {}, root);
-          fillVoyageSyncForm(root, msg.settings || {});
-          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', (msg.settings || {}).serverUrl);
-          const s = msg.settings || {};
+          const settings = msg.settings || {};
+          const mirrored = readMirroredVoyageSync() || {};
+          fillVoyageSyncForm(root, {
+            serverUrl: settings.serverUrl || mirrored.serverUrl || '',
+            apiToken: settings.apiToken || mirrored.apiToken || '',
+            vesselId: settings.vesselId || mirrored.vesselId || '',
+            deviceName: settings.deviceName || mirrored.deviceName || '',
+            conflictPolicy: settings.conflictPolicy || mirrored.conflictPolicy || 'merge',
+          });
+          if (settings.serverUrl || settings.apiToken) {
+            mirrorVoyageSyncToLocalStorage({
+              serverUrl: settings.serverUrl || '',
+              apiToken: (settings.apiToken && settings.apiToken.indexOf('•') < 0) ? settings.apiToken : (mirrored.apiToken || ''),
+              vesselId: settings.vesselId || '',
+              deviceName: settings.deviceName || '',
+              conflictPolicy: settings.conflictPolicy || 'merge',
+            });
+          }
+          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', (settings.serverUrl || mirrored.serverUrl));
+          const s = settings;
           const parts = [];
           if (s.lastSyncedAt) parts.push('Last sync: ' + new Date(s.lastSyncedAt).toLocaleString());
           else parts.push('Last sync: never');
           if (s.lastSyncError) parts.push('Error: ' + s.lastSyncError);
           setVoySync(parts.join(' · '));
         } catch (e) {
-          setVoySync(e.message || 'Could not load Voyage sync settings');
+          const mirrored = readMirroredVoyageSync();
+          if (mirrored && mirrored.serverUrl) {
+            fillVoyageSyncForm(root, mirrored);
+            markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', mirrored.serverUrl);
+            setVoySync('Using last saved sync URL (Voyage bridge still loading).');
+          } else {
+            setVoySync(e.message || 'Could not load Voyage sync settings');
+          }
         }
       })();
 
       root.querySelector('#bk-voy-sync-save')?.addEventListener('click', async () => {
         setVoySync('Saving Voyage sync settings…');
         try {
-          const msg = await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
+          const formSettings = readVoyageSyncForm(root);
+          mirrorVoyageSyncToLocalStorage(formSettings);
+          const msg = await voyagePost('save-sync-settings', { settings: formSettings }, root);
+          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', formSettings.serverUrl);
           setVoySync(msg.message || 'Saved.');
           toast(msg.message || 'Voyage sync settings saved');
         } catch (e) {

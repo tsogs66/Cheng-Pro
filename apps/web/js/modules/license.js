@@ -141,6 +141,8 @@ window.ChengProModules.license = {
     root.querySelector('#btnLicActivate').onclick = async () => {
       try {
         status.textContent = 'Activating…';
+        const url = root.querySelector('#licServerUrl').value.trim();
+        if (url && L.setLicenseServerUrl) L.setLicenseServerUrl(url);
         const fd = new FormData(form);
         const ent = await L.activate({
           email: fd.get('email'),
