@@ -29,6 +29,10 @@ UPDATING
 --------
 Replace the EXE with a newer build. Leave ChEngAIO-data alone so records stay.
 
+If an older portable build used the folder name "cheng-pro-data" (or kept
+the license in %APPDATA%\cheng-pro), the new EXE copies that data into
+ChEngAIO-data on first launch so vessels and the license are not lost.
+
 
 REQUIREMENTS
 ------------

@@ -68,6 +68,7 @@
       /* Hide Voyage tabs before first paint — mobile CSS uses display:flex !important. */
       if (aioEmbed && /[?&]eorbEmbed=1\b/.test(qs)) document.documentElement.classList.add('eorb-embed');
       if (aioEmbed && /[?&]page=bunkerplan\b/.test(qs)) document.documentElement.classList.add('bunkerplan-embed');
+      if (aioEmbed && /[?&]page=data\b/.test(qs)) document.documentElement.classList.add('aio-data-embed');
     } catch (_e3) {}
   }catch(_e){}
 })();
@@ -245,6 +246,22 @@
   /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
   html.chengaio-embed #vesselSelectionPanel,
   html.chengaio-embed #vesselIdentityPanel{display:none !important;}
+
+  /* AIO Backup bridge (?page=data): only Server Sync — chrome and other Setup panels go away. */
+  html.chengaio-embed.aio-data-embed .masthead,
+  html.chengaio-embed.aio-data-embed #tabs,
+  html.chengaio-embed.aio-data-embed .bottom-nav,
+  html.chengaio-embed.aio-data-embed #bnMoreSheet,
+  html.chengaio-embed.aio-data-embed #bnMoreBackdrop,
+  html.chengaio-embed.aio-data-embed #appUpdatePanel,
+  html.chengaio-embed.aio-data-embed #vesselLibraryPanel,
+  html.chengaio-embed.aio-data-embed #androidInstallPanel,
+  html.chengaio-embed.aio-data-embed #pcInstallPanel,
+  html.chengaio-embed.aio-data-embed #accountAssignmentPanel,
+  html.chengaio-embed.aio-data-embed #fleetOfficePanel{display:none !important;}
+  html.chengaio-embed.aio-data-embed body{padding:8px 10px !important; background:transparent !important;}
+  html.chengaio-embed.aio-data-embed #page-data > .panel:not(#serverSyncPanel){display:none !important;}
+  html.chengaio-embed.aio-data-embed #serverSyncPanel{margin:0; box-shadow:none;}
 
   .tabs{display:flex; gap:2px; margin:18px 0 20px; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .tab{
@@ -3973,7 +3990,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint" id="appUpdateStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="serverSyncPanel">
       <h2>Server Sync</h2>
       <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally until you press Sync Now.</div>
       <div class="form-grid cols2">
@@ -5498,11 +5515,21 @@ function applyArchivedFeatureVisibility(){
   hide('fleetOfficePanel', !f.fleetOffice);
   hide('androidInstallPanel', !f.installAndroid);
   hide('pcInstallPanel', !f.installPc);
-  const syncPanel = document.querySelector('#page-data .panel');
-  /* Server Sync is the first panel on Setup — leave visible when serverSync true */
-  if (!f.serverSync && syncPanel && syncPanel.querySelector('#sync_serverUrl')) {
-    syncPanel.hidden = true;
-  }
+  /* Prefer explicit id — App version is now the first #page-data panel. */
+  const syncPanel = document.getElementById('serverSyncPanel');
+  if (!f.serverSync && syncPanel) syncPanel.hidden = true;
+  /* Inside ChEng AIO: App version lives under AIO About; Server Sync lives on AIO Backup.
+     Keep Server Sync visible only for the Backup bridge (?page=data). */
+  try {
+    if (typeof isChengAioEmbedded === 'function' && isChengAioEmbedded()) {
+      hide('appUpdatePanel', true);
+      const qsPage = new URLSearchParams(location.search || '').get('page') || '';
+      const backupBridge = qsPage === 'data' || document.documentElement.classList.contains('aio-data-embed');
+      if (!backupBridge && syncPanel) syncPanel.hidden = true;
+      if (backupBridge && syncPanel && f.serverSync) syncPanel.hidden = false;
+      if (backupBridge) hide('vesselLibraryPanel', true);
+    }
+  } catch (_) {}
   /* License identity replaces fleet login when archived */
   try {
     const note = document.getElementById('vesselLockNote');
@@ -22326,7 +22353,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v266';
+let androidInstallCacheName = 'noon-report-v267';
 
 /*
  * What the program is called.
@@ -27001,7 +27028,17 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
           document.body.style.paddingBottom = '0';
         }
       }
-      else if (qsPage === 'data') switchTab('data');
+      else if (qsPage === 'data'){
+        switchTab('data');
+        if (isChengAioEmbedded()){
+          document.documentElement.classList.add('aio-data-embed');
+          document.querySelectorAll('.masthead, #tabs, .bottom-nav, #bnMoreSheet, #bnMoreBackdrop').forEach(el=>{
+            if (el) el.style.display = 'none';
+          });
+          document.body.style.paddingBottom = '0';
+          try { applyArchivedFeatureVisibility(); } catch (_) {}
+        }
+      }
       else if (qsPage === 'setup') switchTab('setup');
       /* Hiding the tab is not one of the navigation choices. Chained onto them
          with else-if it swallowed ?page=data and ?page=setup inside the shell —
@@ -27026,6 +27063,10 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       await applyMirroredSyncCredentials();
       renderSyncUi();
     }catch(_){}
+    /* Still tell AIO Backup the bridge is alive so export is not stuck on "still loading". */
+    if (isChengAioEmbedded()) {
+      try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
+    }
     document.getElementById('dbStatus').textContent = '● local database error — see console';
     alert('This app could not open its local database on startup: ' + e.message + '\n\nTry closing any other tabs/windows with this same file open, then reload this page. (Check the browser console for full details.)');
   }
