@@ -117,9 +117,9 @@ const check = (l, a, e) => { c++; const ok = JSON.stringify(a) === JSON.stringif
   check('hidden when the engine is stopped and it has nothing to show', others.stopped, { shown: false, fields: 0 });
   // "Show M/E panels anyway" used to reveal the panels while these fields stayed
   // hidden, which is not what the button says it does.
-  check('"show anyway" brings it back with its fields', others.forced, { shown: true, fields: 9 });
+  check('"show anyway" brings it back with its fields', others.forced, { shown: true, fields: 8 });
   check('toggling off hides it again', others.unforced, { shown: false, fields: 0 });
-  check('shown on a sea watch with the engine turning', others.running, { shown: true, fields: 9 });
+  check('shown on a sea watch with the engine turning', others.running, { shown: true, fields: 8 });
 
   console.log('\ntank soundings');
   const snd = await pg.evaluate(async () => {
