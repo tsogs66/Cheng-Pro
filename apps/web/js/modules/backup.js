@@ -110,6 +110,38 @@
     });
   }
 
+  /**
+   * Hit the live ChEng AIO gateway (Express), never LocalApi/IndexedDB.
+   * Server vessel library and peer probes must see the on-disk server database —
+   * offline LocalApi only has this device's empty/partial copy after a profile reset.
+   */
+  async function gatewayTankApi(path, options = {}) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+    try {
+      if (typeof ChengLicense !== 'undefined' && ChengLicense.authHeaders) {
+        Object.assign(headers, ChengLicense.authHeaders());
+      }
+    } catch (_) { /* ignore */ }
+    try {
+      if (window.ChengProApi && ChengProApi.getToken) {
+        const token = ChengProApi.getToken();
+        if (token) {
+          headers['X-Session-Token'] = token;
+          headers.Authorization = 'Bearer ' + token;
+        }
+      }
+    } catch (_) { /* ignore */ }
+    const url = '/tanks' + path;
+    const res = await fetch(url, { ...options, headers });
+    const raw = await res.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = { raw }; }
+    if (!res.ok) {
+      throw new Error((data && (data.error || data.message)) || res.statusText || 'Request failed');
+    }
+    return data;
+  }
+
   /* ---------------------------------------------------------- Voyage Chief --
    * Voyage Chief owns its IndexedDB inside its own frame, so the shell asks it
    * over postMessage rather than reaching into the database itself. */
@@ -144,9 +176,18 @@
     });
   }
 
+  function voyageMount(host) {
+    if (!host || !host.querySelector) return host;
+    const details = host.querySelector('#bk-voyage-sync-details');
+    const syncHost = host.querySelector('#bk-voyage-sync-host');
+    const bridgeHost = host.querySelector('#bk-voyage-bridge-host');
+    if (details && details.open && syncHost) return syncHost;
+    return bridgeHost || syncHost || host;
+  }
+
   function ensureVoyageFrame(host) {
     bindVoyageMessages();
-    const mount = (host && host.querySelector && host.querySelector('#bk-voyage-sync-host')) || host;
+    const mount = voyageMount(host);
     if (voyageFrameAlive()) {
       if (mount && voyageFrame.parentElement !== mount) {
         try { mount.appendChild(voyageFrame); } catch (_) { /* ignore */ }
@@ -251,34 +292,6 @@
           </div>
 
           <div class="backup-program-block" style="margin-bottom:20px">
-            <h2 class="backup-program-title">Voyage Chief</h2>
-            <p class="hint">Noon reports, voyage legs, and Voyage server sync. Sync settings used to live under Voyage → Setup.</p>
-
-            <div class="form-panel" style="margin-bottom:12px">
-              <h2>Database backup</h2>
-              <p class="hint">Full database or single-vessel export includes the voyage library (all B/L legs). Works offline on this device.</p>
-              <div class="btn-row">
-                <button type="button" class="btn primary" id="bk-voyage-db">Download voyage database</button>
-                <button type="button" class="btn" id="bk-voyage-restore">Restore database…</button>
-                <button type="button" class="btn" id="bk-voyage-merge">Merge database…</button>
-                <input type="file" id="bk-voyage-db-file" accept="application/json,.json" hidden>
-              </div>
-              <div class="btn-row" style="margin-top:10px">
-                <button type="button" class="btn" id="bk-voyage-vessel">Export selected vessel</button>
-                <button type="button" class="btn" id="bk-voyage-vessel-import">Import vessel JSON…</button>
-                <input type="file" id="bk-voyage-vessel-file" accept="application/json,.json" hidden>
-              </div>
-              <p class="hint" id="bk-voyage-status">Ready.</p>
-            </div>
-
-            <div class="form-panel">
-              <h2>Server Sync</h2>
-              <p class="hint">Self-hosted Voyage sync server (push/pull active leg). Configure here — the same controls are hidden inside Voyage Setup while running in ChEng AIO.</p>
-              <div id="bk-voyage-sync-host" class="aio-backup-voyage-host"></div>
-            </div>
-          </div>
-
-          <div class="backup-program-block">
             <h2 class="backup-program-title">Tank Chief</h2>
             <p class="hint">Tank database on this screen comes from <strong>${esc(tankSourceLabel())}</strong> — the same database Tank Chief itself is set to.</p>
 
@@ -302,12 +315,12 @@
               <h2>Peer sync settings</h2>
               <p class="hint">Peer sync URL/token and database transport for Tank Chief (same settings formerly under Tank Chief → Backup / Sync).</p>
               <div class="grid-2">
-                <div class="field"><label>Peer sync URL</label>
-                  <input id="bk-sync-url" placeholder="http://192.168.1.50:8080 or :3080"></div>
-                <div class="field"><label>Sync API token</label>
-                  <input id="bk-sync-token" type="password" placeholder="Optional — required when peer uses SYNC_API_TOKEN"></div>
+                <div class="field"><label for="bk-sync-url">Peer sync URL</label>
+                  <input id="bk-sync-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.1.50:8080 or :3080"></div>
+                <div class="field"><label for="bk-sync-token">Sync API token</label>
+                  <input id="bk-sync-token" type="password" autocomplete="off" placeholder="Optional — required when peer uses SYNC_API_TOKEN"></div>
               </div>
-              <div class="field" style="margin-top:8px"><label>Database on this device</label>
+              <div class="field" style="margin-top:8px"><label for="bk-api-transport">Database on this device</label>
                 <select id="bk-api-transport">
                   <option value="local">On this device — works with no network</option>
                   <option value="server">On the server that served this page</option>
@@ -321,6 +334,39 @@
                 <button type="button" class="btn" id="bk-sync-flush">Flush offline queue</button>
               </div>
               <p class="hint" id="bk-sync-status" style="margin-top:8px">Ready.</p>
+            </div>
+          </div>
+
+          <div class="backup-program-block">
+            <h2 class="backup-program-title">Voyage Chief</h2>
+            <p class="hint">Noon reports, voyage legs, and Voyage server sync. Sync settings used to live under Voyage → Setup.</p>
+
+            <div class="form-panel" style="margin-bottom:12px">
+              <h2>Database backup</h2>
+              <p class="hint">Full database or single-vessel export includes the voyage library (all B/L legs). Works offline on this device.</p>
+              <div class="btn-row">
+                <button type="button" class="btn primary" id="bk-voyage-db">Download voyage database</button>
+                <button type="button" class="btn" id="bk-voyage-restore">Restore database…</button>
+                <button type="button" class="btn" id="bk-voyage-merge">Merge database…</button>
+                <input type="file" id="bk-voyage-db-file" accept="application/json,.json" hidden>
+              </div>
+              <div class="btn-row" style="margin-top:10px">
+                <button type="button" class="btn" id="bk-voyage-vessel">Export selected vessel</button>
+                <button type="button" class="btn" id="bk-voyage-vessel-import">Import vessel JSON…</button>
+                <input type="file" id="bk-voyage-vessel-file" accept="application/json,.json" hidden>
+              </div>
+              <p class="hint" id="bk-voyage-status">Ready.</p>
+            </div>
+
+            <div class="form-panel">
+              <h2>Server Sync</h2>
+              <p class="hint">Self-hosted Voyage sync server (push/pull active leg). Open the panel to load the sync form — kept collapsed so it cannot cover Tank fields above.</p>
+              <details id="bk-voyage-sync-details" class="aio-backup-voyage-details">
+                <summary>Show Voyage Server Sync</summary>
+                <div id="bk-voyage-sync-host" class="aio-backup-voyage-host"></div>
+              </details>
+              <!-- Hidden mount so export/import works before the sync panel is opened. -->
+              <div id="bk-voyage-bridge-host" class="aio-backup-voyage-bridge" hidden></div>
             </div>
           </div>
         </section>`;
@@ -607,14 +653,24 @@
       const setSync = (t) => { if (syncStatus) syncStatus.textContent = t; };
 
       async function serverTankApi(path, options = {}) {
-        return ChengProApi.api('/tanks' + path, options);
+        /* Prefer the live gateway so Electron "local" transport does not hide server vessels. */
+        try {
+          return await gatewayTankApi(path, options);
+        } catch (gatewayErr) {
+          /* Fall back to ChengProApi (LocalApi) when the gateway is unreachable. */
+          try {
+            return await ChengProApi.api('/tanks' + path, options);
+          } catch (_) {
+            throw gatewayErr;
+          }
+        }
       }
 
       async function refreshVesselLibrary() {
         if (!libList) return;
         libList.textContent = 'Loading vessel list from server…';
         try {
-          const data = await serverTankApi('/api/vessel-library');
+          const data = await gatewayTankApi('/api/vessel-library');
           const vessels = (data && data.vessels) || [];
           if (!vessels.length) {
             libList.innerHTML = '<p class="hint">No vessels on the server yet.</p>';
@@ -816,6 +872,12 @@
       });
 
 
+      const syncDetails = root.querySelector('#bk-voyage-sync-details');
+      if (syncDetails) {
+        syncDetails.addEventListener('toggle', () => {
+          ensureVoyageFrame(root);
+        });
+      }
       ensureVoyageFrame(root);
     },
   };
