@@ -71,6 +71,21 @@ jobs:
           node modules/tanks/scripts/copy-embedded.js
           git diff --exit-code -- modules/tanks/public/embedded
 
+      # The two Voyage copies are one file served under two names: the shell
+      # asks for voyage_manager.html, express.static hands index.html to anyone
+      # opening /voyage/ directly. They drifted once already — the Prism and
+      # Astrolabe themes landed in one and not the other, so the direct URL
+      # showed the old theme set for a release.
+      - name: Check the two embedded Voyage copies are identical
+        run: |
+          set -e
+          if ! cmp -s modules/voyage/www/index.html modules/voyage/www/voyage_manager.html; then
+            echo "modules/voyage/www/index.html has drifted from voyage_manager.html."
+            echo "Mirror it:  cp modules/voyage/www/voyage_manager.html modules/voyage/www/index.html"
+            diff modules/voyage/www/index.html modules/voyage/www/voyage_manager.html | head -40
+            exit 1
+          fi
+
       # No SYNC_* here on purpose. smoke-test.js sets SYNC_ADMIN_PASSWORD
       # itself and deliberately leaves SYNC_API_TOKEN unset, because it asserts
       # that the tank sync export answers 200 at the gateway root — configuring
