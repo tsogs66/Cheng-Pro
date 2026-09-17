@@ -54,45 +54,45 @@ html.bright {
   color-scheme: light;
 }
 
-/* Sailor — crystal sea / chartroom (third theme) */
-html.sailor {
-  --ink: #071824;
-  --bg0: #071824;
-  --bg1: #0c2f42;
-  --bg2: #0a2436;
-  --panel: rgba(10, 42, 58, 0.88);
-  --panel-solid: #0e3348;
-  --line: rgba(180, 230, 240, 0.16);
-  --line-strong: rgba(180, 230, 240, 0.32);
-  --text: #e8f4f8;
-  --muted: #8fb8c8;
-  --paper: #e8f4f8;
-  --paper-dim: #8fb8c8;
-  --accent: #3db8c5;
-  --accent-2: #d4a84b;
-  --brass: #d4a84b;
+/* Prism — nautical emerald prism / brass refraction (design option 3) */
+html.prism {
+  --ink: #041618;
+  --bg0: #041618;
+  --bg1: #0a2c30;
+  --bg2: #061820;
+  --panel: rgba(8, 36, 40, 0.9);
+  --panel-solid: #0a2c30;
+  --line: rgba(120, 240, 220, 0.18);
+  --line-strong: rgba(120, 240, 220, 0.32);
+  --text: #e6fff8;
+  --muted: #7eb8ae;
+  --paper: #e6fff8;
+  --paper-dim: #7eb8ae;
+  --accent: #2fd4b8;
+  --accent-2: #e8c070;
+  --brass: #e8c070;
   --brass-dim: #9a7a38;
-  --teal: #3db8c5;
+  --teal: #2fd4b8;
   --danger: #e0705c;
   --ok: #4cb88a;
-  --shadow: 0 18px 48px rgba(0, 12, 24, 0.45);
+  --shadow: 0 18px 44px rgba(0, 20, 24, 0.5);
   color-scheme: dark;
 }
-html.sailor body,
-html.sailor {
+html.prism body,
+html.prism {
   background:
-    radial-gradient(900px 480px at 12% -8%, rgba(61, 184, 197, 0.22) 0%, transparent 55%),
-    radial-gradient(700px 420px at 88% 0%, rgba(212, 168, 75, 0.12) 0%, transparent 50%),
-    linear-gradient(165deg, #071824 0%, #0a2436 48%, #071824 100%);
+    conic-gradient(from 210deg at 85% 15%, rgba(47, 212, 184, 0.15), transparent 40%, rgba(232, 192, 112, 0.1), transparent 70%),
+    linear-gradient(170deg, #041618 0%, #0a2c30 48%, #061820 100%);
 }
-html.sailor .btn,
-html.sailor .form-panel,
-html.sailor .panel {
+html.prism .btn,
+html.prism .form-panel,
+html.prism .panel {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  border-radius: 8px;
 }
 
-/* Astrolabe — chart-ink indigo / copper engraving (fourth theme; design option 10) */
+/* Astrolabe — chart-ink indigo / copper engraving (design option 10) */
 html.astrolabe {
   --ink: #0a0c16;
   --bg0: #0a0c16;
