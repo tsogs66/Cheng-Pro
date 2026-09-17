@@ -305,7 +305,7 @@
 
           <div class="form-panel backup-section">
             <h2>Server vessel library</h2>
-            <p class="hint">Vessels on this ChEng AIO server (name + IMO). Import ship particulars, plus the latest voyage leg when available.</p>
+            <p class="hint">Every vessel on this server, from Tank Chief and Voyage Chief together — one row per ship, matched by IMO or by name with the MV / M/V prefix ignored. Your own vessels come first. Import ship particulars, plus the latest voyage leg when available.</p>
             <div class="btn-row">
               <button type="button" class="btn" id="bk-lib-refresh">Refresh list</button>
             </div>
@@ -718,28 +718,122 @@
         }
       }
 
-      async function refreshVesselLibrary() {
-        if (!libList) return;
-        libList.textContent = 'Loading vessel list from server…';
+      /* The licence this suite is signed in with. The engineer's own ships are
+         pinned above everyone else's, so the list opens on what he came for. */
+      function licensedEmail() {
+        try {
+          const e = typeof ChengLicense !== 'undefined' ? ChengLicense.loadEntitlement() : null;
+          return (e && e.email) ? String(e.email).trim().toLowerCase() : '';
+        } catch (_) { return ''; }
+      }
+
+      /* Voyage Chief's fleet register, over the gateway's proxy to the Python
+         sync server. It needs a signed-in session: when there is none the
+         server answers 401 and the library simply shows the Tank side, rather
+         than failing the whole panel over a half-configured install. */
+      async function voyageFleetRegister() {
+        try {
+          const data = await ChengProApi.api('/api/vessels');
+          return { vessels: (data && data.vessels) || [], error: null };
+        } catch (e) {
+          return { vessels: [], error: e && e.message ? e.message : 'unavailable' };
+        }
+      }
+
+      async function tankVesselLibrary() {
         try {
           const data = await gatewayTankApi('/api/vessel-library');
-          const vessels = (data && data.vessels) || [];
-          if (!vessels.length) {
-            libList.innerHTML = '<p class="hint">No vessels on the server yet.</p>';
-            setLib('No vessels found.');
+          return { vessels: (data && data.vessels) || [], error: null };
+        } catch (e) {
+          return { vessels: [], error: e && e.message ? e.message : 'unavailable' };
+        }
+      }
+
+      /* One row per ship, not one row per record. Tank Chief writes
+         "MV CAPTAIN VENIAMIS" where Voyage Chief writes "M/V Captain
+         Veniamis"; vessel-key.js decides they are the same hull, by IMO where
+         both sides carry one and by the normalised name where they do not. */
+      function buildLibraryRows(tankVessels, voyageVessels) {
+        const VK = window.ChengVesselKey;
+        const entries = [];
+        for (const v of tankVessels) {
+          entries.push({
+            source: 'tank',
+            ownerSlug: v.ownerSlug || '',
+            vesselId: v.vesselId,
+            record: { name: v.name || v.vesselId || '', imo: v.imo || '' },
+          });
+        }
+        for (const v of voyageVessels) {
+          entries.push({
+            source: 'voyage',
+            ownerEmail: v.createdBy || '',
+            vesselId: v.vesselId,
+            record: { name: v.vesselName || v.vesselId || '', imo: v.imo || '' },
+          });
+        }
+        if (!VK) {
+          /* Without the matcher every record is its own row — worse, never wrong. */
+          return entries.map((e) => ({
+            key: '', name: e.record.name, imo: e.record.imo, sources: [e],
+          }));
+        }
+        return VK.sortForOwner(VK.mergeVessels(entries), licensedEmail());
+      }
+
+      function ownerLabel(entry) {
+        const who = entry.ownerEmail || entry.ownerSlug || '';
+        return who || 'server';
+      }
+
+      async function refreshVesselLibrary() {
+        if (!libList) return;
+        libList.textContent = 'Loading vessel list from both servers…';
+        try {
+          const [tank, voyage] = await Promise.all([tankVesselLibrary(), voyageFleetRegister()]);
+          const rows = buildLibraryRows(tank.vessels, voyage.vessels);
+
+          /* Say which half is missing rather than showing a short list as if
+             it were the whole fleet. */
+          const notes = [];
+          if (tank.error) notes.push(`Tank Chief list unavailable (${esc(tank.error)})`);
+          if (voyage.error) notes.push(`Voyage Chief list unavailable — sign in under Server Sync (${esc(voyage.error)})`);
+
+          if (!rows.length) {
+            libList.innerHTML = `<p class="hint">No vessels on the server yet.</p>${
+              notes.length ? `<p class="hint">${notes.join('<br>')}</p>` : ''}`;
+            setLib(notes.length ? notes.join(' · ').replace(/<[^>]+>/g, '') : 'No vessels found.');
             return;
           }
-          libList.innerHTML = `<div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
-            <thead><tr><th>Vessel</th><th>IMO</th><th>Owner</th><th></th></tr></thead>
-            <tbody>${vessels.map((v) => {
-              const name = esc(v.name || v.vesselId || '—');
-              const imo = esc(v.imo || '—');
-              const owner = esc(v.ownerSlug || 'server');
-              return `<tr>
-                <td>${name}</td>
-                <td>${imo}</td>
-                <td>${owner}</td>
-                <td><button type="button" class="btn" data-lib-import="${esc(v.vesselId)}" data-lib-owner="${esc(v.ownerSlug || '')}">Import particulars + latest leg</button></td>
+
+          const mine = licensedEmail();
+          const VK = window.ChengVesselKey;
+          libList.innerHTML = `${notes.length ? `<p class="hint">${notes.join('<br>')}</p>` : ''}
+          <div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
+            <thead><tr><th>Vessel</th><th>IMO</th><th>Data in</th><th>Uploaded by</th><th></th></tr></thead>
+            <tbody>${rows.map((row) => {
+              const tankSrc = row.sources.find((x) => x.source === 'tank');
+              const voySrc = row.sources.find((x) => x.source === 'voyage');
+              const isMine = !!mine && row.sources.some((x) => {
+                const who = String(x.ownerEmail || x.ownerSlug || '').trim().toLowerCase();
+                if (!who) return false;
+                return who === mine || (VK && (who === VK.emailSlug(mine) || VK.emailSlug(who) === VK.emailSlug(mine)));
+              });
+              const programs = [tankSrc ? 'Tank' : null, voySrc ? 'Voyage' : null].filter(Boolean).join(' + ');
+              const owners = [...new Set(row.sources.map(ownerLabel))].join(', ');
+              /* The number as written, not as validated. ChengVesselKey.isValidImo
+                 can tell a typo from a real IMO, but matching uses the digits
+                 either way, so a badge here would fire on every row of a demo
+                 seed and buy the engineer nothing he can act on. */
+              const imoTxt = row.imo ? esc(row.imo) : '—';
+              return `<tr${isMine ? ' style="font-weight:600"' : ''}>
+                <td>${esc(row.name || '—')}${isMine ? ' <span class="hint" style="font-weight:400">· yours</span>' : ''}</td>
+                <td>${imoTxt}</td>
+                <td>${esc(programs || '—')}</td>
+                <td>${esc(owners)}</td>
+                <td>${tankSrc
+                  ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}">Import particulars + latest leg</button>`
+                  : '<span class="hint">Voyage only — pull from Server Sync</span>'}</td>
               </tr>`;
             }).join('')}</tbody></table></div>`;
           libList.querySelectorAll('[data-lib-import]').forEach((btn) => {
@@ -803,7 +897,8 @@
               }
             };
           });
-          setLib(`${vessels.length} vessel(s) on server.`);
+          const paired = rows.filter((r) => r.sources.length > 1).length;
+          setLib(`${rows.length} vessel(s)${paired ? `, ${paired} with data in both programs` : ''}.`);
         } catch (e) {
           libList.textContent = e.message || 'Could not load vessel library (is the server reachable?)';
           setLib(e.message || 'Failed');
