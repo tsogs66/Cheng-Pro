@@ -831,11 +831,125 @@
                 <td>${imoTxt}</td>
                 <td>${esc(programs || '—')}</td>
                 <td>${esc(owners)}</td>
-                <td>${tankSrc
+                <td class="backup-lib-actions">${tankSrc
                   ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}">Import particulars + latest leg</button>`
-                  : '<span class="hint">Voyage only — pull from Server Sync</span>'}</td>
+                  : ''}${voySrc
+                  ? `<label class="hint" style="display:inline-flex;gap:4px;align-items:center;margin-left:6px">
+                       <select data-voy-mode="${esc(voySrc.vesselId)}">
+                         <option value="latest">Latest leg</option>
+                         <option value="all">All legs</option>
+                       </select>
+                       <button type="button" class="btn" data-voy-pull="${esc(voySrc.vesselId)}">Pull voyage</button>
+                     </label>`
+                  : ''}${(!tankSrc && !voySrc) ? '<span class="hint">—</span>' : ''}</td>
               </tr>`;
             }).join('')}</tbody></table></div>`;
+          /* Pull one ship's voyage data: the latest leg, or every leg.
+           *
+           * Orchestrated here from the two bridge actions Voyage Chief already
+           * has — list-remote to see what is on the server, pull-voyage-leg to
+           * bring one down — rather than adding a bulk path inside a
+           * twenty-three-thousand-line file for the sake of a loop. Each leg
+           * goes through the same tested merge as a manual pull.
+           *
+           * Pulling a leg makes it the active one in Voyage Chief, so after
+           * "All legs" the ship is left on whichever leg came last. The status
+           * line says so rather than leaving him to notice. */
+          libList.querySelectorAll('[data-voy-pull]').forEach((btn) => {
+            btn.onclick = async () => {
+              const vesselId = btn.getAttribute('data-voy-pull');
+              const modeEl = libList.querySelector(`[data-voy-mode="${CSS.escape(vesselId)}"]`);
+              const mode = (modeEl && modeEl.value) || 'latest';
+              /* Voyage Chief's own sync config is what pull-voyage-leg reads,
+                 and in a fresh profile it is empty — the frame answers "Enter a
+                 Sync Server URL first" however good the row is. So push the
+                 Server Sync form down first, exactly as the panel's own List /
+                 Pull buttons do, and say plainly when that form is blank. */
+              const voySettings = readVoyageSyncForm(root);
+              if (!voySettings.serverUrl) {
+                setLib('Set the Voyage Chief sync server URL under Server Sync below, then pull.');
+                toast('Voyage sync server not set');
+                return;
+              }
+
+              setLib(`Asking the server which voyages ${vesselId} has…`);
+              try {
+                await voyagePost('save-sync-settings', { settings: voySettings }, root);
+                const listed = await voyagePost('list-remote', {
+                  vessel: vesselId,
+                  settings: { ...voySettings, vesselId },
+                }, root);
+                const voyages = (listed && listed.voyages) || [];
+                if (!voyages.length) {
+                  setLib(listed.message || `No remote voyages for ${vesselId}.`);
+                  return;
+                }
+
+                /* Every (voyage, condition) pair the server holds, newest last
+                   so "latest" is the tail and "all" replays in order. */
+                const legs = [];
+                for (const v of voyages) {
+                  /* The server answers with conditions as an array of leg
+                     records; older builds keyed them by condition name. Read
+                     both, so a suite talking to either one still lists legs
+                     rather than pulling voyages called "0" and "1". */
+                  const conds = Array.isArray(v.conditions)
+                    ? v.conditions
+                    : Object.entries(v.conditions || {}).map(([condition, meta]) => ({
+                      condition,
+                      ...(meta && typeof meta === 'object' ? meta : {}),
+                    }));
+                  for (const meta of conds) {
+                    const condition = String((meta && meta.condition) || '').trim();
+                    if (!condition) continue;
+                    legs.push({
+                      voyage: (meta && meta.voyageNumber) || v.voyageNumber,
+                      condition,
+                      updatedAt: (meta && (meta.updatedAt || meta.serverUpdatedAt || meta.savedAt)) || '',
+                    });
+                  }
+                }
+                legs.sort((a, b) => String(a.updatedAt).localeCompare(String(b.updatedAt))
+                  || String(a.voyage).localeCompare(String(b.voyage), undefined, { numeric: true }));
+
+                const wanted = mode === 'all' ? legs : legs.slice(-1);
+                if (!wanted.length) { setLib(`No legs to pull for ${vesselId}.`); return; }
+                if (mode === 'all' && wanted.length > 1
+                  && !confirm(`Pull all ${wanted.length} legs for ${vesselId}?\n\nEach is merged into this device. Voyage Chief will be left on the last one pulled.`)) {
+                  setLib('Pull cancelled.');
+                  return;
+                }
+
+                let done = 0;
+                const failed = [];
+                for (const leg of wanted) {
+                  setLib(`Pulling ${vesselId} voyage ${leg.voyage} ${leg.condition} (${done + 1} of ${wanted.length})…`);
+                  try {
+                    await voyagePost('pull-voyage-leg', {
+                      voyage: leg.voyage,
+                      condition: leg.condition,
+                    }, root);
+                    done += 1;
+                  } catch (legErr) {
+                    failed.push(`${leg.voyage} ${leg.condition}: ${legErr.message || 'failed'}`);
+                  }
+                }
+
+                try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+                const last = wanted[wanted.length - 1];
+                const tail = done ? ` Voyage Chief is now on ${last.voyage} ${last.condition}.` : '';
+                const msg = failed.length
+                  ? `Pulled ${done} of ${wanted.length} leg(s) for ${vesselId} — ${failed.join('; ')}.${tail}`
+                  : `Pulled ${done} leg(s) for ${vesselId}.${tail}`;
+                setLib(msg);
+                toast(failed.length ? 'Pulled with errors — see status' : `Pulled ${done} leg(s)`);
+              } catch (e) {
+                setLib(e.message || 'Voyage pull failed');
+                toast(e.message || 'Voyage pull failed');
+              }
+            };
+          });
+
           libList.querySelectorAll('[data-lib-import]').forEach((btn) => {
             btn.onclick = async () => {
               const vesselId = btn.getAttribute('data-lib-import');
