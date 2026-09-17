@@ -786,6 +786,19 @@
         return who || 'server';
       }
 
+      /* Did the signed-in licensee upload this record?
+         The Tank server names owners by the folder slug it writes under
+         (data/users/ce-example-com/), Voyage Chief by the account's email
+         address. Compare both spellings so one ship does not read as two
+         different people's. */
+      function ownedByLicensee(entry, mine) {
+        const VK = window.ChengVesselKey;
+        const who = String((entry && (entry.ownerEmail || entry.ownerSlug)) || '').trim().toLowerCase();
+        if (!who || !mine) return false;
+        if (who === mine) return true;
+        return !!VK && (who === VK.emailSlug(mine) || VK.emailSlug(who) === VK.emailSlug(mine));
+      }
+
       async function refreshVesselLibrary() {
         if (!libList) return;
         libList.textContent = 'Loading vessel list from both servers…';
@@ -807,18 +820,13 @@
           }
 
           const mine = licensedEmail();
-          const VK = window.ChengVesselKey;
           libList.innerHTML = `${notes.length ? `<p class="hint">${notes.join('<br>')}</p>` : ''}
           <div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
             <thead><tr><th>Vessel</th><th>IMO</th><th>Data in</th><th>Uploaded by</th><th></th></tr></thead>
-            <tbody>${rows.map((row) => {
+            <tbody>${rows.map((row, rowIndex) => {
               const tankSrc = row.sources.find((x) => x.source === 'tank');
               const voySrc = row.sources.find((x) => x.source === 'voyage');
-              const isMine = !!mine && row.sources.some((x) => {
-                const who = String(x.ownerEmail || x.ownerSlug || '').trim().toLowerCase();
-                if (!who) return false;
-                return who === mine || (VK && (who === VK.emailSlug(mine) || VK.emailSlug(who) === VK.emailSlug(mine)));
-              });
+              const isMine = row.sources.some((x) => ownedByLicensee(x, mine));
               const programs = [tankSrc ? 'Tank' : null, voySrc ? 'Voyage' : null].filter(Boolean).join(' + ');
               const owners = [...new Set(row.sources.map(ownerLabel))].join(', ');
               /* The number as written, not as validated. ChengVesselKey.isValidImo
@@ -831,8 +839,8 @@
                 <td>${imoTxt}</td>
                 <td>${esc(programs || '—')}</td>
                 <td>${esc(owners)}</td>
-                <td class="backup-lib-actions">${tankSrc
-                  ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}">Import particulars + latest leg</button>`
+                <td class="backup-lib-actions"><button type="button" class="btn" data-lib-adopt="${rowIndex}">Add to my list</button>${tankSrc
+                  ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}" style="margin-left:6px">Import particulars + latest leg</button>`
                   : ''}${voySrc
                   ? `<label class="hint" style="display:inline-flex;gap:4px;align-items:center;margin-left:6px">
                        <select data-voy-mode="${esc(voySrc.vesselId)}">
@@ -841,7 +849,7 @@
                        </select>
                        <button type="button" class="btn" data-voy-pull="${esc(voySrc.vesselId)}">Pull voyage</button>
                      </label>`
-                  : ''}${(!tankSrc && !voySrc) ? '<span class="hint">—</span>' : ''}</td>
+                  : ''}</td>
               </tr>`;
             }).join('')}</tbody></table></div>`;
           /* Pull one ship's voyage data: the latest leg, or every leg.
@@ -1011,6 +1019,165 @@
               }
             };
           });
+          /* "Add to my list" — put someone else's ship into this engineer's
+           * own database folder, in both programs at once.
+           *
+           * A vessel on a shared server belongs to whoever uploaded it: Tank
+           * Chief keeps its particulars under data/users/<his-email>/, Voyage
+           * Chief under the account that registered it. A relief engineer
+           * joining that ship sees it in the list but cannot work on it,
+           * because none of it is his.
+           *
+           * This copies the ship's identity — particulars into his Tank
+           * account, a fleet entry into his Voyage Chief — and stops there.
+           * Soundings and voyage legs are deliberately left to the two pull
+           * controls beside it, so adding a ship to the list never quietly
+           * drags another crew's readings onto this device.
+           *
+           * Every step is reported on its own line, including the ones that
+           * were already done, because "added" with half of it silently
+           * skipped is how an engineer ends up printing from a vessel record
+           * he does not actually have.
+           */
+          libList.querySelectorAll('[data-lib-adopt]').forEach((btn) => {
+            btn.onclick = async () => {
+              const row = rows[Number(btn.getAttribute('data-lib-adopt'))];
+              if (!row) return;
+              const VKa = window.ChengVesselKey;
+              const tankSrc = row.sources.find((x) => x.source === 'tank');
+              const voySrc = row.sources.find((x) => x.source === 'voyage');
+              const label = row.name
+                || (tankSrc && tankSrc.vesselId)
+                || (voySrc && voySrc.vesselId)
+                || 'this vessel';
+              if (!confirm(`Add ${label} to your own vessel list in Tank Chief and Voyage Chief?\n\n`
+                + 'Ship particulars are copied into your account. Tank readings and voyage '
+                + 'legs are not — use the pull buttons beside this one for those.')) return;
+
+              setLib(`Adding ${label} to your list…`);
+              const notes = [];
+
+              /* Tank Chief.
+               *
+               * The only question worth asking is "is this hull already in the
+               * list this device writes to?", and it is asked of the list
+               * itself. The library's owner column cannot answer it: an
+               * install with no license scope keeps every ship in the shared
+               * root database, where the engineer's own vessels carry the same
+               * empty owner as everyone else's — so trusting that label
+               * imports a ship into the database it came from, and the second
+               * click leaves him choosing between "Relief Test" and
+               * "Relief Test 2" on a sounding sheet.
+               *
+               * When the list cannot be read, nothing is written. A duplicate
+               * hull is worse than a button that says it did nothing.
+               */
+              let ownVessels = null;
+              try {
+                const res = await serverTankApi('/api/vessels');
+                ownVessels = Array.isArray(res) ? res : (res && res.vessels) || [];
+              } catch (e) {
+                notes.push(`Tank Chief — could not read your vessel list (${e.message || 'failed'}); nothing changed.`);
+              }
+              if (ownVessels) {
+                const already = ownVessels.find((v) => (VKa
+                  ? VKa.sameVessel({ name: v.name, imo: v.imo }, { name: row.name, imo: row.imo })
+                  : String(v.name || '').trim().toUpperCase() === String(row.name || '').trim().toUpperCase()));
+                try {
+                  if (already) {
+                    notes.push('Tank Chief — already on your list.');
+                  } else if (tankSrc) {
+                    const res = await serverTankApi('/api/vessel-library/import', {
+                      method: 'POST',
+                      body: JSON.stringify({ ownerSlug: tankSrc.ownerSlug || null, vesselId: tankSrc.vesselId }),
+                    });
+                    if (usingLocalTank() && res && res.vessel) {
+                      try {
+                        await tankRequest('/api/vessels', { method: 'POST', body: JSON.stringify(res.vessel) });
+                      } catch (localErr) {
+                        console.warn('Local vessel mirror:', localErr);
+                      }
+                    }
+                    notes.push('Tank Chief — particulars copied into your account.');
+                  } else {
+                    /* Voyage-only ship: no Tank record anywhere to copy from,
+                       so open one and let him fill in the tank tables. */
+                    const created = await serverTankApi('/api/vessels', {
+                      method: 'POST',
+                      body: JSON.stringify({ name: row.name || label, imo: row.imo || '' }),
+                    });
+                    if (usingLocalTank() && created) {
+                      try {
+                        await tankRequest('/api/vessels', { method: 'POST', body: JSON.stringify(created) });
+                      } catch (localErr) {
+                        console.warn('Local vessel mirror:', localErr);
+                      }
+                    }
+                    notes.push('Tank Chief — vessel created on your list (tank tables still to fill in).');
+                  }
+                } catch (e) {
+                  notes.push(`Tank Chief — ${e.message || 'failed'}`);
+                }
+              }
+
+              /* Voyage Chief, this device's fleet list. An empty stores block
+                 is a vessel export with no records in it: importVesselExport
+                 creates the ship and its setup row and writes nothing else. */
+              try {
+                await voyagePost('import-vessel', {
+                  payload: {
+                    format: 'noon-report-vessel-v1',
+                    vessel: {
+                      name: row.name || label,
+                      /* Match the server's own id where there is one, so a
+                         later push lands on the same folder. */
+                      slug: (voySrc && voySrc.vesselId) || undefined,
+                      imo: row.imo || '',
+                    },
+                    setup: { vesselName: row.name || label, imoNo: row.imo || '' },
+                    stores: {},
+                  },
+                  mode: 'merge',
+                }, root);
+                notes.push(`Voyage Chief — on this device's vessel list, and now the active ship.`);
+              } catch (e) {
+                notes.push(`Voyage Chief — ${e.message || 'failed'}`);
+              }
+
+              /* A ship nobody has registered yet is one this engineer holds the
+                 only records for, and the sync server has an endpoint for
+                 exactly that case. It needs an IMO, because the register is
+                 keyed by hull, not by name. */
+              if (!voySrc) {
+                if (!row.imo) {
+                  notes.push('Voyage Chief server — not registered: the fleet register needs an IMO number.');
+                } else {
+                  try {
+                    await ChengProApi.api('/api/vessels/import', {
+                      method: 'POST',
+                      body: JSON.stringify({ vesselName: row.name || label, imo: row.imo }),
+                    });
+                    notes.push('Voyage Chief server — registered under your account.');
+                  } catch (e) {
+                    /* The sync server explains itself in `message` and puts a
+                       machine code in `error`; "already_registered" on its own
+                       tells the engineer nothing. */
+                    const why = (e && e.data && e.data.message) || (e && e.message) || 'failed';
+                    notes.push(`Voyage Chief server — not registered (${why}).`);
+                  }
+                }
+              }
+
+              try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+              /* Redraw first, then report: refreshVesselLibrary ends by writing
+                 its own count into the status line, so saying what happened
+                 before it runs is saying it to nobody. */
+              await refreshVesselLibrary();
+              setLib(`${label}: ${notes.join(' ')}`);
+              toast(`${label} added to your list`);
+            };
+          });
+
           const paired = rows.filter((r) => r.sources.length > 1).length;
           setLib(`${rows.length} vessel(s)${paired ? `, ${paired} with data in both programs` : ''}.`);
         } catch (e) {
