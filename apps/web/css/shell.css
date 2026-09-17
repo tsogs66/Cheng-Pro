@@ -53,6 +53,44 @@ html.bright {
   --shadow: 0 12px 36px rgba(18, 34, 56, 0.12);
   color-scheme: light;
 }
+
+/* Sailor — crystal sea / chartroom (third theme) */
+html.sailor {
+  --ink: #071824;
+  --bg0: #071824;
+  --bg1: #0c2f42;
+  --bg2: #0a2436;
+  --panel: rgba(10, 42, 58, 0.88);
+  --panel-solid: #0e3348;
+  --line: rgba(180, 230, 240, 0.16);
+  --line-strong: rgba(180, 230, 240, 0.32);
+  --text: #e8f4f8;
+  --muted: #8fb8c8;
+  --paper: #e8f4f8;
+  --paper-dim: #8fb8c8;
+  --accent: #3db8c5;
+  --accent-2: #d4a84b;
+  --brass: #d4a84b;
+  --brass-dim: #9a7a38;
+  --teal: #3db8c5;
+  --danger: #e0705c;
+  --ok: #4cb88a;
+  --shadow: 0 18px 48px rgba(0, 12, 24, 0.45);
+  color-scheme: dark;
+}
+html.sailor body,
+html.sailor {
+  background:
+    radial-gradient(900px 480px at 12% -8%, rgba(61, 184, 197, 0.22) 0%, transparent 55%),
+    radial-gradient(700px 420px at 88% 0%, rgba(212, 168, 75, 0.12) 0%, transparent 50%),
+    linear-gradient(165deg, #071824 0%, #0a2436 48%, #071824 100%);
+}
+html.sailor .btn,
+html.sailor .form-panel,
+html.sailor .panel {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 * { box-sizing: border-box; }
 html, body {
   margin: 0; min-height: 100%;
@@ -860,6 +898,57 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   width: 1px;
   height: 1px;
   border: 0;
+}
+
+
+/* Backup / Vessel Setup — wide layouts (tablet landscape + PC) */
+@media (min-width: 900px), ((orientation: landscape) and (min-width: 700px)) {
+  .backup-page .btn-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .backup-page .btn-row > .btn {
+    flex: 1 1 0;
+    min-width: max-content;
+    white-space: nowrap;
+    justify-content: center;
+  }
+  .vessel-setup-page .vessel-actions,
+  .vessel-setup-page .stamp-controls .btn-row,
+  .vessel-setup-page .vessel-identity-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .vessel-setup-page .vessel-actions > .btn,
+  .vessel-setup-page .stamp-controls .btn-row > .btn,
+  .vessel-setup-page .vessel-identity-actions > .btn {
+    width: 100%;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .vessel-setup-page .vessel-action-groups {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .vessel-setup-page .vessel-action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .vessel-setup-page .vessel-action-group .group-label {
+    font-family: var(--display);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
 }
 
 /* ---------- Vessel stamp / Chief Engineer signature (Vessel Setup) ---------- */

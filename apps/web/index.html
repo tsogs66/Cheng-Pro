@@ -18,9 +18,13 @@
   <script>
     /* Apply before first paint (same as Voyage Chief). */
     try {
-      if (localStorage.getItem('marine_bright') === '1' || localStorage.getItem('vm_bright') === '1') {
-        document.documentElement.classList.add('bright');
-      }
+      var tm = localStorage.getItem('marine_theme');
+      var mode = 'night';
+      if (tm === 'bright' || tm === 'sailor' || tm === 'night') mode = tm;
+      else if (localStorage.getItem('marine_bright') === '1' || localStorage.getItem('vm_bright') === '1') mode = 'bright';
+      if (mode === 'bright') document.documentElement.classList.add('bright');
+      if (mode === 'sailor') document.documentElement.classList.add('sailor');
+      document.documentElement.setAttribute('data-theme', mode);
     } catch (_e) {}
     /* Android shell: full-width home + floating nav (set early when possible). */
     try {
@@ -54,6 +58,7 @@
   <style>
     html, body { margin: 0; background: #0a1420; color: #e9e4d6; font-family: Georgia, "Times New Roman", serif; }
     html.bright, html.bright body { background: #efebe3; color: #122238; }
+    html.sailor, html.sailor body { background: #071824; color: #e8f4f8; }
     #main:empty::before {
       content: "Starting ChEng AIO…";
       display: block;
@@ -62,6 +67,7 @@
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     }
     html.bright #main:empty::before { color: #4a5568; }
+    html.sailor #main:empty::before { color: #8fb8c8; }
   </style>
 </head>
 <body>
