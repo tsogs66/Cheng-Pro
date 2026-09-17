@@ -22353,7 +22353,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v267';
+let androidInstallCacheName = 'noon-report-v268';
 
 /*
  * What the program is called.
@@ -23572,6 +23572,111 @@ window.addEventListener('message', async (ev)=>{
       const mode = msg.mode === 'merge' ? 'merge' : 'replace';
       const res = await importVesselExport(msg.payload, { mode });
       reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records, mode ${res.mode}).` });
+    } else if (msg.action === 'get-sync-settings') {
+      ensureSyncConfig();
+      await applyMirroredSyncCredentials();
+      const sync = ensureSyncConfig();
+      const creds = readSyncCredentialsFromLocalStorage() || {};
+      reply({
+        settings: {
+          serverUrl: sync.serverUrl || creds.serverUrl || '',
+          apiToken: sync.apiToken || creds.apiToken || '',
+          vesselId: sync.vesselId || creds.vesselId || '',
+          deviceName: sync.deviceName || creds.deviceName || '',
+          conflictPolicy: sync.conflictPolicy || creds.conflictPolicy || 'merge',
+          lastSyncedAt: sync.lastSyncedAt || null,
+          lastSyncError: sync.lastSyncError || null,
+          pendingChanges: !!sync.pendingChanges,
+        }
+      });
+    } else if (msg.action === 'save-sync-settings') {
+      const incoming = msg.settings || {};
+      const sync = ensureSyncConfig();
+      const url = typeof normalizeSyncServerUrl === 'function'
+        ? normalizeSyncServerUrl(incoming.serverUrl || '')
+        : String(incoming.serverUrl || '').trim();
+      if (!url) throw new Error('Enter a Sync Server URL before saving.');
+      sync.serverUrl = url;
+      const tok = String(incoming.apiToken || '').trim();
+      if (tok) sync.apiToken = tok;
+      sync.vesselId = String(incoming.vesselId || '').trim();
+      const dname = String(incoming.deviceName || '').trim();
+      if (dname) sync.deviceName = dname;
+      sync.autoSync = false;
+      sync.conflictPolicy = incoming.conflictPolicy || sync.conflictPolicy || 'merge';
+      sync.lastModifiedAt = new Date().toISOString();
+      writeSyncCredentialsToLocalStorage(sync);
+      applySyncFieldsToLiveConfig(sync);
+      try { renderSyncUi(); } catch (_) {}
+      persistSyncCredentialsMirror(sync).catch(() => {});
+      propagateSyncCredentialsToAllVessels(sync).catch(() => {});
+      reply({ message: 'Voyage sync settings saved.', settings: {
+        serverUrl: sync.serverUrl,
+        apiToken: sync.apiToken ? '••••' : '',
+        vesselId: sync.vesselId,
+        deviceName: sync.deviceName,
+        conflictPolicy: sync.conflictPolicy,
+      }});
+    } else if (msg.action === 'test-sync') {
+      if (msg.settings) {
+        /* Apply posted settings first so Test uses what the Backup form shows. */
+        const incoming = msg.settings;
+        const sync = ensureSyncConfig();
+        const url = typeof normalizeSyncServerUrl === 'function'
+          ? normalizeSyncServerUrl(incoming.serverUrl || '')
+          : String(incoming.serverUrl || '').trim();
+        if (url) sync.serverUrl = url;
+        const tok = String(incoming.apiToken || '').trim();
+        if (tok) sync.apiToken = tok;
+        if (incoming.vesselId != null) sync.vesselId = String(incoming.vesselId || '').trim();
+        applySyncFieldsToLiveConfig(sync);
+        writeSyncCredentialsToLocalStorage(sync);
+      }
+      const base = syncApiBase();
+      if (!base) throw new Error('Enter a Sync Server URL first.');
+      const { body } = await fetchSyncJson(`${base}/api/health`, { headers: syncRequestHeaders() });
+      if (!body || body.ok !== true) {
+        throw new Error('Health check response was not a Voyage Chief sync server.');
+      }
+      const vessel = vesselSyncSlug();
+      await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
+      const openServer = body.tokenConfigured === false;
+      reply({
+        message: openServer
+          ? ('Connection OK, but the server has NO API token set — ' + base)
+          : ('Connection OK — ' + base),
+        warning: openServer,
+        health: body,
+        vessel,
+      });
+    } else if (msg.action === 'push-active') {
+      await syncNow({ policy: 'local' });
+      reply({ message: 'Push completed. Server active leg was overwritten with this device’s data.' });
+    } else if (msg.action === 'pull-active') {
+      await syncNow({ pullOnly: true, policy: 'remote' });
+      reply({ message: 'Pull completed. Local active leg was overwritten with server data.' });
+    } else if (msg.action === 'persist-merge') {
+      await syncNow({ policy: 'merge' });
+      reply({ message: 'Keep Data Persistent completed — local and server legs were merged both ways.' });
+    } else if (msg.action === 'list-remote') {
+      if (msg.settings) {
+        const incoming = msg.settings;
+        const sync = ensureSyncConfig();
+        const url = typeof normalizeSyncServerUrl === 'function'
+          ? normalizeSyncServerUrl(incoming.serverUrl || '')
+          : String(incoming.serverUrl || '').trim();
+        if (url) sync.serverUrl = url;
+        const tok = String(incoming.apiToken || '').trim();
+        if (tok) sync.apiToken = tok;
+        if (incoming.vesselId != null) sync.vesselId = String(incoming.vesselId || '').trim();
+        applySyncFieldsToLiveConfig(sync);
+      }
+      const base = syncApiBase();
+      if (!base) throw new Error('Enter a Sync Server URL first.');
+      const vessel = vesselSyncSlug();
+      const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
+      const voyages = (body && body.voyages) || [];
+      reply({ vessel, voyages, message: voyages.length ? `${voyages.length} remote voyage(s) for ${vessel}` : `No remote voyages for "${vessel}".` });
     } else {
       reply({ error: 'Unknown backup action: ' + msg.action });
     }
