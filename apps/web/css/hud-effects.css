@@ -1,0 +1,144 @@
+/* Mild HUD + 3D depth — ChEng AIO / Voyage / Tank (Windows + tablet landscape) */
+:root {
+  --hud-glow: rgba(87, 179, 171, 0.22);
+  --hud-edge: rgba(201, 154, 83, 0.35);
+  --btn-depth-top: rgba(255, 255, 255, 0.14);
+  --btn-depth-bot: rgba(0, 0, 0, 0.45);
+  --hud-scan: rgba(87, 179, 171, 0.04);
+}
+
+html.bright {
+  --hud-glow: rgba(23, 102, 95, 0.12);
+  --hud-edge: rgba(110, 72, 20, 0.28);
+  --btn-depth-top: rgba(255, 255, 255, 0.7);
+  --btn-depth-bot: rgba(18, 34, 56, 0.18);
+  --hud-scan: rgba(23, 102, 95, 0.03);
+}
+
+/* Subtle HUD scan / corner ticks on main panels (screen only) */
+@media (min-width: 901px), (orientation: landscape) and (min-width: 721px) {
+  .panel,
+  .form-panel,
+  .aio-panel,
+  .bunker-side {
+    position: relative;
+    box-shadow:
+      inset 0 0 0 1px var(--hud-edge),
+      0 0 24px var(--hud-glow);
+  }
+  .panel::before,
+  .form-panel::before,
+  .bunker-side::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(180deg, var(--hud-scan) 0%, transparent 40%),
+      linear-gradient(90deg, transparent 0%, transparent 97%, var(--hud-edge) 100%),
+      linear-gradient(0deg, transparent 0%, transparent 97%, var(--hud-edge) 100%);
+    opacity: 0.55;
+    z-index: 0;
+  }
+  .panel > *,
+  .form-panel > *,
+  .bunker-side > * { position: relative; z-index: 1; }
+
+  /* 3D depth buttons */
+  .btn,
+  button.primary,
+  button.ghost,
+  .nav-item,
+  .nav-btn,
+  .tab,
+  .bn-item,
+  .theme-toggle {
+    box-shadow:
+      inset 0 1px 0 var(--btn-depth-top),
+      inset 0 -2px 0 var(--btn-depth-bot),
+      0 3px 0 rgba(0, 0, 0, 0.35),
+      0 6px 14px rgba(0, 0, 0, 0.22);
+    transform: translateY(0);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    background-image:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 42%),
+      repeating-linear-gradient(
+        -18deg,
+        transparent,
+        transparent 6px,
+        rgba(255, 255, 255, 0.015) 6px,
+        rgba(255, 255, 255, 0.015) 7px
+      );
+  }
+  .btn:active,
+  button.primary:active,
+  button.ghost:active,
+  .nav-item:active,
+  .nav-btn:active,
+  .tab:active {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Futuristic 3D result / readout boxes */
+  .hud-result,
+  .field.calc.hud-result,
+  .bunker-totals .field.calc {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 14px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--hud-edge);
+    background:
+      linear-gradient(145deg, rgba(87, 179, 171, 0.12), rgba(0, 0, 0, 0.28) 55%),
+      radial-gradient(120% 80% at 10% 0%, rgba(201, 154, 83, 0.12), transparent 50%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -2px 8px rgba(0, 0, 0, 0.35),
+      0 8px 22px rgba(0, 0, 0, 0.28),
+      0 0 18px var(--hud-glow);
+    min-height: 64px;
+  }
+  html.bright .hud-result,
+  html.bright .bunker-totals .field.calc {
+    background:
+      linear-gradient(145deg, rgba(23, 102, 95, 0.08), rgba(255, 255, 255, 0.92) 55%),
+      radial-gradient(120% 80% at 10% 0%, rgba(110, 72, 20, 0.08), transparent 50%);
+  }
+  .hud-result .hud-value,
+  .bunker-totals .field.calc input {
+    order: 1;
+    font-family: var(--mono, "IBM Plex Mono", Consolas, monospace);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    color: inherit;
+    width: 100%;
+  }
+  .hud-result label,
+  .bunker-totals .field.calc label {
+    order: 2;
+    margin: 0;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.72;
+    font-weight: 600;
+  }
+}
+
+@media print {
+  .panel::before,
+  .form-panel::before,
+  .bunker-side::before { display: none !important; }
+}

@@ -164,21 +164,29 @@
     }
   }
 
-  /** Android/mobile only — Windows desktop keeps AIO topbar/sidebar around embeds. */
-  function wantsMobileFullscreenEmbed() {
+  /** Full webapp embeds on Android and Windows/Electron — hide AIO chrome around Voyage/Tank. */
+  function wantsFullscreenEmbed() {
     const ua = navigator.userAgent || '';
     if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
     try {
-      if (window.ChengLicense && typeof ChengLicense.detectSeat === 'function'
-          && ChengLicense.detectSeat() === 'android') {
-        return true;
+      if (window.ChengLicense && typeof ChengLicense.detectSeat === 'function') {
+        const seat = ChengLicense.detectSeat();
+        if (seat === 'android' || seat === 'windows' || seat === 'desktop') return true;
       }
     } catch { /* ignore */ }
     try {
       const cap = window.Capacitor;
       const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
-      if (plat === 'android' || plat === 'ios') return true;
+      if (plat === 'android' || plat === 'ios' || plat === 'electron') return true;
     } catch { /* ignore */ }
+    try {
+      if (window.ChengSaveFile && typeof ChengSaveFile.isElectron === 'function' && ChengSaveFile.isElectron()) {
+        return true;
+      }
+    } catch { /* ignore */ }
+    if (/Electron/i.test(ua)) return true;
+    /* Windows desktop browser / Electron shell: treat as full webapp for embeds. */
+    if (/Windows/i.test(ua) && !/Mobile/i.test(ua)) return true;
     return false;
   }
 
@@ -189,7 +197,7 @@
   }
 
   function setFullscreenEmbed(on) {
-    const active = !!on && wantsMobileFullscreenEmbed();
+    const active = !!on && wantsFullscreenEmbed();
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
     if (active) closeSidebar();

@@ -26,6 +26,8 @@
 <!-- Non-critical scripts load at end of body so the shell HTML/CSS can paint first.
      ship_time / theme / license stay early (small; boot gate needs them). -->
 <script src="ship_time.js"></script>
+<script src="clock-picker.js"></script>
+<link rel="stylesheet" href="hud-effects.css">
 <script>
 /* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720).
    Android/iOS always keep bottom nav in landscape — never restore top tabs for width ≥1101. */
@@ -80,6 +82,10 @@
       if (aioEmbed && /[?&]eorbEmbed=1\b/.test(qs)) document.documentElement.classList.add('eorb-embed');
       if (aioEmbed && /[?&]page=bunkerplan\b/.test(qs)) document.documentElement.classList.add('bunkerplan-embed');
       if (aioEmbed && /[?&]page=data\b/.test(qs)) document.documentElement.classList.add('aio-data-embed');
+      try {
+        var ua = navigator.userAgent || '';
+        if (/Windows|Electron/i.test(ua) || aioEmbed) document.documentElement.classList.add('aio-webapp-chrome');
+      } catch (_eWin) {}
     } catch (_e3) {}
   }catch(_e){}
 })();
@@ -250,9 +256,19 @@
   }
   /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
   html.chengaio-embed .masthead{
-    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
+    display:none !important;
   }
   html.chengaio-embed .status-row{align-items:flex-end;}
+  /* Standalone + Windows webapp: hide Voyage Chief title block — tabs/menu stay on top */
+  html.aio-webapp-chrome .masthead,
+  html.chengaio-embed .masthead{
+    display:none !important;
+  }
+  html.aio-webapp-chrome .tabs,
+  html.chengaio-embed .tabs{
+    position:sticky; top:0; z-index:40;
+    margin-top:0;
+  }
 
   /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
   html.chengaio-embed #vesselSelectionPanel,
@@ -3426,14 +3442,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <div class="page" id="page-bunkerplan">
     <div class="panel">
       <h2>Bunker Consumption Calculation</h2>
-      <div class="hint">Plan fuel burn by voyage leg for residual (HFO/LSFO) and distillate (MDO/MGO/LSMGO). Sea days auto-fill from Distance ÷ (Speed × 24) when Port/Anchor is unchecked (1 kn = 1 nm/h). Quantity = Daily Cons × Days. Required Quantity = Total Consumption + Margin %. Arrival ROB = Current ROB − Required (conservative). Next Departure ROB adds bunkers to be received.</div>
       <div class="bunker-plan-head">
-        <div class="field"><label>Vessel</label><input id="bp_vessel" readonly></div>
         <div class="field"><label>Voyage No.</label><input id="bp_voyageNo"></div>
         <div class="field"><label>Date</label><input type="date" id="bp_date"></div>
+        <div class="field span2"><label>Voyage description</label><input id="bp_voyageDesc" placeholder="e.g. Singapore → Rotterdam · laden · winter margin" autocomplete="off"></div>
         <div class="btn-row" style="margin:0;">
-          <button type="button" class="ghost small" id="btnBpLoadRob">Load Voyage ROB</button>
-          <button type="button" class="ghost small" id="btnBpLoadTankRob" style="display:none;">Load Tank ROB</button>
           <button type="button" class="ghost small" id="btnBpClear">Clear</button>
         </div>
         <div class="btn-row" style="margin:4px 0 0;">
@@ -3442,15 +3455,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <button type="button" class="primary small" id="btnBpPrint">Print &amp; Save</button>
         </div>
       </div>
+      <p class="hint bp-pa-hint" style="margin:4px 0 12px;">Tick <strong>P/A</strong> when the line is a <strong>port or anchorage stay</strong> (not steaming). Distance and speed lock; enter days directly. Leave P/A unchecked for sea legs — days auto-fill from Distance ÷ (Speed × 24).</p>
       <div class="bunker-plan-grid" id="bunkerPlanGrid"></div>
-      <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly. Start with one destination or stay, set a <strong>Margin %</strong> on that line if you want a reserve for it, then <strong>Add destination / stay</strong> for the next leg — each line can carry its own margin (e.g. different % to a bunkering port vs an anchorage).</div>
     </div>
     <div class="panel" id="bunkerPlanHistory" style="display:none;">
       <h2>Saved Calculations</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Date</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
-          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="5">No saved calculations yet.</td></tr></tbody>
+          <thead><tr><th>Date</th><th>Voyage</th><th>Description</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
+          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="6">No saved calculations yet.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -11917,6 +11930,7 @@ function emptyBunkerSide(defaultGrade){
 function defaultBunkerPlan(){
   return {
     voyageNo: '',
+    voyageDescription: '',
     date: '',
     residual: emptyBunkerSide('HFO'),
     distillate: emptyBunkerSide('MDO/MGO')
@@ -11989,7 +12003,16 @@ function summarizeBunkerSide(side){
   const arrivalRob = rob==null ? null : rob - required;
   const nextDepRob = arrivalRob==null ? null : arrivalRob + receive;
   const stem = rob==null ? null : Math.max(0, required - rob - receive);
-  return { daysPort, daysSea, totalDist, totalCons, margin, required, arrivalRob, nextDepRob, stem, receive };
+  /* Minimum Required Fuel = planned burn + line margins (same as Required Quantity).
+     Maximum Safe Fuel Intake = stem still needed to cover the plan after ROB + planned receive.
+     Charterer Redelivery Quantity = target arrival ROB after the plan (charter often “about same as delivery”). */
+  const minRequiredFuel = required;
+  const maxSafeFuelIntake = stem;
+  const chartererRedelivery = arrivalRob;
+  return {
+    daysPort, daysSea, totalDist, totalCons, margin, required, arrivalRob, nextDepRob, stem, receive,
+    minRequiredFuel, maxSafeFuelIntake, chartererRedelivery
+  };
 }
 function autoFillBunkerSeaDays(leg){
   if (leg.port) return;
@@ -12021,10 +12044,9 @@ function renderBunkerPlan(){
   const grid = document.getElementById('bunkerPlanGrid');
   if (!grid) return;
   const bp = ensureBunkerPlan();
-  const vesselEl = document.getElementById('bp_vessel');
   const voyEl = document.getElementById('bp_voyageNo');
   const dateEl = document.getElementById('bp_date');
-  if (vesselEl) vesselEl.value = state.setup.vesselName || '';
+  const descEl = document.getElementById('bp_voyageDesc');
   if (voyEl && document.activeElement !== voyEl){
     if (!bp.voyageNo) bp.voyageNo = state.setup.voyageNumber || '';
     voyEl.value = bp.voyageNo || '';
@@ -12032,6 +12054,9 @@ function renderBunkerPlan(){
   if (dateEl && document.activeElement !== dateEl){
     if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
     dateEl.value = bp.date || '';
+  }
+  if (descEl && document.activeElement !== descEl){
+    descEl.value = bp.voyageDescription || '';
   }
 
   grid.innerHTML = BUNKER_PLAN_SIDES.map(meta=>{
@@ -12053,6 +12078,8 @@ function renderBunkerPlan(){
         <td class="col-margin"><input type="number" step="0.1" data-f="marginPct" value="${leg.marginPct ?? ''}" placeholder="%" title="Safety margin % for this destination / stay only" inputmode="decimal"></td>
       </tr>`;
     }).join('');
+    const hud = (label, value) =>
+      `<div class="field calc hud-result"><span class="hud-value">${value}</span><label>${label}</label></div>`;
     return `<div class="bunker-side" data-side="${meta.key}">
       <h3>${meta.title}</h3>
       <div class="field bunker-grade"><label>Grade for ROB / stem</label>
@@ -12077,21 +12104,24 @@ function renderBunkerPlan(){
       <div class="bunker-leg-actions">
         <button type="button" class="ghost small" data-bp-add-leg="${meta.key}">Add destination / stay</button>
         <button type="button" class="ghost small" data-bp-remove-leg="${meta.key}" ${side.legs.length<=1?'disabled':''}>Remove last line</button>
+        <button type="button" class="ghost small" data-bp-load-rob="${meta.key}">Load Voyage ROB</button>
       </div>
       <div class="bunker-totals">
         <div class="field"><label>Current ROB (MT)</label><input type="number" step="0.001" data-side-f="currentRob" data-side="${meta.key}" value="${side.currentRob ?? ''}"></div>
         <div class="field"><label>Quantity to Receive (MT)</label><input type="number" step="0.001" data-side-f="qtyReceive" data-side="${meta.key}" value="${side.qtyReceive ?? ''}"></div>
-        <div class="field calc"><label>Days at Port / Anchor</label><input readonly tabindex="-1" value="${fmt(sum.daysPort, 3)}"></div>
-        <div class="field calc"><label>Days at Sea</label><input readonly tabindex="-1" value="${fmt(sum.daysSea, 3)}"></div>
-        <div class="field calc"><label>Total Distance (nm)</label><input readonly tabindex="-1" value="${fmt(sum.totalDist, 2)}"></div>
-        <div class="field calc"><label>Total Consumption (MT)</label><input readonly tabindex="-1" value="${fmtFuel(sum.totalCons)}"></div>
-        <div class="field calc"><label>Total Margin (MT)</label><input readonly tabindex="-1" value="${fmtFuel(sum.margin)}"></div>
-        <div class="field calc"><label>Required Quantity (MT)</label><input readonly tabindex="-1" value="${fmtFuel(sum.required)}"></div>
-        <div class="field calc"><label>Arrival ROB (MT)</label><input readonly tabindex="-1" value="${sum.arrivalRob==null?'—':fmtFuel(sum.arrivalRob)}"></div>
-        <div class="field calc"><label>Next Departure ROB (MT)</label><input readonly tabindex="-1" value="${sum.nextDepRob==null?'—':fmtFuel(sum.nextDepRob)}"></div>
-        <div class="field calc full"><label>Stem still needed (MT)</label><input readonly tabindex="-1" value="${sum.stem==null?'—':fmtFuel(sum.stem)}"></div>
+        ${hud('Days at Port / Anchor', fmt(sum.daysPort, 3))}
+        ${hud('Days at Sea', fmt(sum.daysSea, 3))}
+        ${hud('Total Distance (nm)', fmt(sum.totalDist, 2))}
+        ${hud('Total Consumption (MT)', fmtFuel(sum.totalCons))}
+        ${hud('Total Margin (MT)', fmtFuel(sum.margin))}
+        ${hud('Required Quantity (MT)', fmtFuel(sum.required))}
+        ${hud('Arrival ROB (MT)', sum.arrivalRob==null?'—':fmtFuel(sum.arrivalRob))}
+        ${hud('Next Departure ROB (MT)', sum.nextDepRob==null?'—':fmtFuel(sum.nextDepRob))}
+        ${hud('Stem still needed (MT)', sum.stem==null?'—':fmtFuel(sum.stem))}
+        ${hud('Minimum Required Fuel (MT)', fmtFuel(sum.minRequiredFuel))}
+        ${hud('Maximum Safe Fuel Intake (MT)', sum.maxSafeFuelIntake==null?'—':fmtFuel(sum.maxSafeFuelIntake))}
+        ${hud('Charterer Redelivery Quantity (MT)', sum.chartererRedelivery==null?'—':fmtFuel(sum.chartererRedelivery))}
       </div>
-      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Line margin = Qty × Margin% · Required = Σ Qty + Σ margins · Arrival ROB = Current ROB − Required · Next Dep ROB = Arrival ROB + Qty to Receive</div>
     </div>`;
   }).join('');
 }
@@ -12101,8 +12131,10 @@ function readBunkerPlanFromDom(){
   const bp = ensureBunkerPlan();
   const voyEl = document.getElementById('bp_voyageNo');
   const dateEl = document.getElementById('bp_date');
+  const descEl = document.getElementById('bp_voyageDesc');
   if (voyEl) bp.voyageNo = voyEl.value.trim();
   if (dateEl) bp.date = dateEl.value;
+  if (descEl) bp.voyageDescription = descEl.value.trim();
   BUNKER_PLAN_SIDES.forEach(meta=>{
     const side = bp[meta.key];
     const gradeSel = document.querySelector(`select[data-side-grade="${meta.key}"]`);
@@ -12205,7 +12237,10 @@ function buildBunkerPlanPrintHtml(){
             {label:'Required Quantity', value: fmtFuel(sum.required)+' MT'},
             {label:'Arrival ROB', value: sum.arrivalRob==null ? '—' : fmtFuel(sum.arrivalRob)+' MT'},
             {label:'Next Departure ROB', value: sum.nextDepRob==null ? '—' : fmtFuel(sum.nextDepRob)+' MT'},
-            {label:'Stem still needed', value: sum.stem==null ? '—' : fmtFuel(sum.stem)+' MT'}
+            {label:'Stem still needed', value: sum.stem==null ? '—' : fmtFuel(sum.stem)+' MT'},
+            {label:'Minimum Required Fuel', value: fmtFuel(sum.minRequiredFuel)+' MT'},
+            {label:'Maximum Safe Fuel Intake', value: sum.maxSafeFuelIntake==null ? '—' : fmtFuel(sum.maxSafeFuelIntake)+' MT'},
+            {label:'Charterer Redelivery Quantity', value: sum.chartererRedelivery==null ? '—' : fmtFuel(sum.chartererRedelivery)+' MT'}
           ], 4)}
         </div>
       </section>`;
@@ -12214,20 +12249,17 @@ function buildBunkerPlanPrintHtml(){
   return `<div class="pr-sheet pr-bunker-sheet">
     ${printDocHeader({
       title: 'Bunker Consumption Calculation',
-      subtitle: 'Voyage fuel plan — sea / port legs with margin',
+      subtitle: bp.voyageDescription || 'Voyage fuel plan — sea / port legs with margin',
       badge: voyageNo
     })}
     ${printMetaGrid([
       {label:'Voyage No.', value: escPrint(voyageNo)},
       {label:'Date', value: escPrint(bp.date || '—')},
       {label:'Vessel', value: escPrint(state.setup.vesselName || '—')},
+      {label:'Voyage description', value: escPrint(bp.voyageDescription || '—')},
       {label:'Condition', value: escPrint(state.setup.shipCondition || '—')}
     ], 4)}
     ${sidesHtml}
-    <div class="pr-remarks">
-      <div class="pr-remarks-title">Calculation basis</div>
-      <div class="pr-remarks-body">Sea days = Dist ÷ (Speed × 24). Quantity = Daily Cons × Days. Each line may carry its own Margin % (line margin = Qty × Margin%). Required = Σ Qty + Σ line margins. Arrival ROB = Current ROB − Required. Next Departure ROB = Arrival ROB + Quantity to Receive.</div>
-    </div>
     ${printSignatory()}
   </div>`;
 }
@@ -12261,6 +12293,7 @@ function renderBunkerPlanHistory(){
     return `<tr>
       <td>${escAttr(date)}</td>
       <td>${escAttr(h.voyageNo || '—')}</td>
+      <td>${escAttr(h.voyageDescription || '—')}</td>
       <td>${fmtFuel(resSum.required)} MT req</td>
       <td>${fmtFuel(distSum.required)} MT req</td>
       <td><button class="ghost small" data-bp-load="${i}">Load</button> <button class="ghost small" data-bp-del="${i}">Del</button></td>
@@ -12329,12 +12362,6 @@ function bindBunkerPlanUi(){
   const page = document.getElementById('page-bunkerplan');
   if (!page || page.dataset.bound) return;
   page.dataset.bound = '1';
-  if (isChengAioEmbedded()){
-    const tankBtn = document.getElementById('btnBpLoadTankRob');
-    if (tankBtn) tankBtn.style.display = '';
-  }
-  document.getElementById('btnBpLoadRob')?.addEventListener('click', loadBunkerPlanRob);
-  document.getElementById('btnBpLoadTankRob')?.addEventListener('click', loadBunkerPlanFromTankRob);
   document.getElementById('btnBpClear')?.addEventListener('click', clearBunkerPlan);
   document.getElementById('btnBpPrint')?.addEventListener('click', printBunkerPlan);
   document.getElementById('btnBpPrintOnly')?.addEventListener('click', printBunkerPlanOnly);
@@ -12347,9 +12374,14 @@ function bindBunkerPlanUi(){
     ensureBunkerPlan().date = document.getElementById('bp_date').value;
     scheduleBunkerPlanSave();
   });
+  document.getElementById('bp_voyageDesc')?.addEventListener('change', ()=>{
+    ensureBunkerPlan().voyageDescription = document.getElementById('bp_voyageDesc').value.trim();
+    scheduleBunkerPlanSave();
+  });
   page.addEventListener('click', (e)=>{
     const addBtn = e.target.closest('[data-bp-add-leg]');
     const remBtn = e.target.closest('[data-bp-remove-leg]');
+    const loadRob = e.target.closest('[data-bp-load-rob]');
     if (addBtn){
       e.preventDefault();
       readBunkerPlanFromDom();
@@ -12360,6 +12392,11 @@ function bindBunkerPlanUi(){
       e.preventDefault();
       readBunkerPlanFromDom();
       removeBunkerPlanLeg(remBtn.dataset.bpRemoveLeg);
+      return;
+    }
+    if (loadRob){
+      e.preventDefault();
+      loadBunkerPlanRob();
       return;
     }
   });
@@ -27289,5 +27326,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
   }
 })();
 </script>
+
+<script>try{ if(window.ChengClockPicker) ChengClockPicker.install(); }catch(_e){}</script>
 </body>
 </html>

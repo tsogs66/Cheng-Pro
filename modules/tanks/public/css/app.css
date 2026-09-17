@@ -1121,7 +1121,8 @@ table.fr-sheet tfoot th { text-align: left; }
 }
 
 /* ---------- Bunkering plan / summary screens ---------- */
-.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 10px; align-items: start; }
+/* Sequence then monitor (tablet portrait order) — also Windows + tablet landscape. */
+.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
 table.bp-sheet thead th { min-width: 40px; }
 table.bp-sheet tbody th.fr-tank-name { min-width: 168px; }
 table.bp-sheet tbody th.fr-tank-name select { min-width: 130px; margin-left: 4px; }
@@ -1148,8 +1149,11 @@ td.bp-valve { min-width: 102px; text-align: center; padding: 3px 3px; }
 tr.bp-row-filling th.fr-tank-name { box-shadow: inset 3px 0 0 var(--good); }
 tr.bp-row-done td.fr-calc, tr.bp-row-done th.fr-tank-name { opacity: .72; }
 
-.bp-monitor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.bp-monitor-stats { display: flex; flex-direction: column; gap: 10px; }
+.bp-monitor { display: flex; flex-direction: column; gap: 10px; min-width: 0; align-items: stretch; }
+.bp-monitor-stats { display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px; }
+.bp-monitor-box { flex: 1 1 150px; }
+.bp-progress { flex: 1 1 100%; }
+.bp-clock { flex: 1 1 100%; width: 100%; max-width: none; }
 .bp-monitor-progress-text { margin: 0; flex: 1 1 100%; }
 .bp-clock {
   border: 1px solid var(--border); border-radius: 8px; padding: 10px;
@@ -2522,3 +2526,99 @@ html.bright .tsp-dialog { background: #fff; color: #122238; border-color: rgba(1
     caret-color: transparent;
   }
 }
+
+/* ---- Windows / desktop: top collapsing category menu (no Tank Chief header) ---- */
+html.tc-top-nav:not(.is-mobile-chrome) {
+  --sidebar-w: 0px;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .app-shell {
+  flex-direction: column;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .menu-toggle { display: none !important; }
+html.tc-top-nav:not(.is-mobile-chrome) .sidebar {
+  position: sticky;
+  top: 0;
+  left: auto;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 10px;
+  z-index: 50;
+  transform: none !important;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .sidebar .brand,
+html.tc-top-nav:not(.is-mobile-chrome) .sidebar .nav-credit {
+  display: none !important;
+}
+html.tc-top-nav:not(.is-mobile-chrome) #sidebar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  width: 100%;
+  align-items: flex-start;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(0,0,0,.12);
+  overflow: hidden;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group-label {
+  margin: 0;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group-label::after {
+  content: "▾";
+  opacity: .7;
+  font-size: 10px;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group.collapsed .nav-group-label::after { content: "▸"; }
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px 6px;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .nav-group.collapsed .nav-group-body { display: none; }
+html.tc-top-nav:not(.is-mobile-chrome) .nav-btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+html.tc-top-nav:not(.is-mobile-chrome) .main {
+  width: 100%;
+  max-width: none;
+}
+html.chengaio-embed .sidebar .brand .sub { display: none !important; }
+
+/* Collapsible groups flatten into the sidebar on mobile/drawer layouts */
+html:not(.tc-top-nav) .nav-group { display: contents; }
+html:not(.tc-top-nav) .nav-group-body { display: contents; }
+html:not(.tc-top-nav) .nav-group-label {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  cursor: default;
+  pointer-events: none;
+}
+html:not(.tc-top-nav) .nav-group-label::after { display: none; }
