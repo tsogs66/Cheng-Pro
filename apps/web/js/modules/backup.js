@@ -771,6 +771,13 @@
       const libList = root.querySelector('#bk-lib-list');
       const syncStatus = root.querySelector('#bk-sync-status');
       const setLib = (t) => { if (libStatus) libStatus.textContent = t; };
+
+      /* Pulling a ship's legs or adopting a vessel means several round trips to
+         two servers. A status line that says "Asking the server…" and then sits
+         there is indistinguishable from a hang, so the panel wears a sweep
+         while it works — see .is-working in css/hud-effects.css. */
+      const libPanel = libList && libList.closest ? libList.closest('.form-panel') : null;
+      const working = (on) => { if (libPanel) libPanel.classList.toggle('is-working', !!on); };
       const setSync = (t) => { if (syncStatus) syncStatus.textContent = t; };
 
       async function serverTankApi(path, options = {}) {
@@ -990,6 +997,7 @@
               }
 
               setLib(`Asking the server which voyages ${vesselId} has…`);
+              working(true);
               try {
                 /* Point the frame at this row's ship, not at whatever slug the
                    Voyage server form happens to hold — with that form folded
@@ -1070,6 +1078,8 @@
               } catch (e) {
                 setLib(e.message || 'Voyage pull failed');
                 toast(e.message || 'Voyage pull failed');
+              } finally {
+                working(false);
               }
             };
           });
@@ -1080,6 +1090,7 @@
               const ownerSlug = btn.getAttribute('data-lib-owner') || null;
               if (!confirm(`Import ship particulars for ${vesselId} into your account (server + this device)? Latest voyage leg will be copied when available.`)) return;
               setLib('Importing…');
+              working(true);
               try {
                 const res = await serverTankApi('/api/vessel-library/import', {
                   method: 'POST',
@@ -1132,6 +1143,8 @@
               } catch (e) {
                 setLib(e.message || 'Import failed');
                 toast(e.message || 'Import failed');
+              } finally {
+                working(false);
               }
             };
           });
@@ -1171,6 +1184,8 @@
                 + 'legs are not — use the pull buttons beside this one for those.')) return;
 
               setLib(`Adding ${label} to your list…`);
+              working(true);
+              try {
               const notes = [];
 
               /* Tank Chief.
@@ -1291,6 +1306,12 @@
               await refreshVesselLibrary();
               setLib(`${label}: ${notes.join(' ')}`);
               toast(`${label} added to your list`);
+              } finally {
+                /* A sweep that never stops looks like a hung program. Every
+                   step below has its own catch, but the one that does not is
+                   the one that would leave it running. */
+                working(false);
+              }
             };
           });
 
