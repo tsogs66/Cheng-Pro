@@ -828,49 +828,80 @@ html.bright .tg-schematic-empty {
 }
 
 /* Full-screen program embed on Android/mobile (portrait + landscape) — hide AIO chrome.
-   Windows desktop also uses fullscreen embeds (see shell.js wantsFullscreenEmbed). */
+   Windows desktop also uses fullscreen embeds (see shell.js wantsFullscreenEmbed).
+
+   The AIO used to leave two buttons floating over the module's own header row;
+   inside Tank Chief they landed on top of its toolbar. This is a strip instead:
+   it takes its own 44px, overlaps nothing, and carries the one thing a module
+   cannot tell you — which vessel the suite has active. */
+:root { --embed-bar-h: 44px; }
+
 .aio-return-fabs {
   display: none;
   position: fixed;
-  top: max(10px, env(safe-area-inset-top, 0px));
-  right: max(10px, env(safe-area-inset-right, 0px));
-  left: auto;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
   z-index: 90;
-  flex-direction: row;
+  height: var(--embed-bar-h);
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--panel-solid, #122238);
+  border-bottom: 1px solid var(--line-strong);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
+html.bright .aio-return-fabs { background: #ffffff; }
+
+.aio-embed-module {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent, var(--teal));
+  white-space: nowrap;
+}
+/* The vessel takes the slack, and is the first thing to go when there is none. */
+.aio-embed-vessel {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .aio-home-fab,
 .aio-return-fabs .aio-theme-fab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   position: static;
-  min-width: 48px;
-  min-height: 40px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  flex: 0 0 auto;
+  min-height: var(--ctl-h-sm, 32px);
+  padding: 6px 10px;
+  border-radius: var(--ctl-r-sm, 8px);
   border: 1px solid var(--brass-dim);
   background: rgba(10, 20, 32, 0.92);
   color: var(--brass);
   font-family: var(--display);
-  font-size: 0.68rem;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: var(--shadow);
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
 }
-/* Match Dashboard chrome — do not keep the pill .theme-toggle look here. */
 .aio-return-fabs .aio-theme-fab.theme-toggle {
-  border-radius: 10px;
+  border-radius: var(--ctl-r-sm, 8px);
   letter-spacing: 0.06em;
   font-family: var(--display);
-  font-size: 0.68rem;
+  font-size: 12px;
   font-weight: 700;
-  padding: 8px 10px;
+  padding: 6px 10px;
 }
 html.bright .aio-home-fab,
 html.bright .aio-return-fabs .aio-theme-fab {
@@ -911,11 +942,14 @@ html.aio-fullscreen-embed .eorb-embed-wrap {
 }
 html.aio-fullscreen-embed .aio-embed-frame,
 html.aio-fullscreen-embed .eorb-embed-frame {
-  min-height: 100dvh !important;
-  height: 100dvh;
+  /* Below the strip, not under it — a module's own toolbar is usually the
+     first thing at its top, and it was being covered. */
+  min-height: calc(100dvh - var(--embed-bar-h)) !important;
+  height: calc(100dvh - var(--embed-bar-h));
+  margin-top: calc(var(--embed-bar-h) + env(safe-area-inset-top, 0px));
 }
 html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
-  display: inline-flex;
+  display: flex;
 }
 
 /* About / guide */
