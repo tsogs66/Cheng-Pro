@@ -1335,3 +1335,69 @@ html.bright code { color: var(--accent-2); }
     letter-spacing: 0.05em;
   }
 }
+
+
+/* One control scale for the whole suite.
+ *
+ * Measured before this existed: thirteen distinct button heights across the
+ * AIO and its two modules (27, 28, 29, 30, 34, 36, 37, 38, 39, 40, 44, 70),
+ * eleven input heights, seven border radii. Each program had a scale; they
+ * disagreed, so a button beside a field was never quite the same height.
+ *
+ * These values are duplicated in apps/web/css/shell.css,
+ * modules/tanks/public/css/app.css and the <style> block in
+ * modules/voyage/www/voyage_manager.html — three documents that cannot share
+ * a file. Change one, change all three.
+ *
+ * The coarse-pointer step is not cosmetic: the same pages run on an engine
+ * room tablet, where a 32px control is a missed tap.
+ */
+:root {
+  --ctl-h: 38px;      /* buttons and fields, so they line up side by side */
+  --ctl-h-sm: 32px;   /* in-table actions, chips, toggles */
+  --ctl-r: 10px;
+  --ctl-r-sm: 8px;
+  --cell-pad-y: 6px;
+  --cell-pad-x: 10px;
+}
+@media (pointer: coarse) {
+  :root {
+    --ctl-h: 44px;
+    --ctl-h-sm: 38px;
+  }
+}
+
+/* Applied to the AIO shell's own controls. Heights are a floor, not a fix:
+   a button whose label wraps still grows. */
+.btn {
+  min-height: var(--ctl-h);
+  border-radius: var(--ctl-r);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn.small {
+  min-height: var(--ctl-h-sm);
+  border-radius: var(--ctl-r-sm);
+}
+.vessel-switcher select,
+.field input, .field select, .field textarea {
+  min-height: var(--ctl-h);
+  border-radius: var(--ctl-r);
+}
+.field textarea { min-height: calc(var(--ctl-h) * 2); }
+.theme-toggle, .btn.theme-toggle { min-height: var(--ctl-h-sm); }
+.chip { min-height: var(--ctl-h-sm); }
+table.data th, table.data td,
+table.data-table th, table.data-table td {
+  padding: var(--cell-pad-y) var(--cell-pad-x);
+}
+/* In-table actions are the small size — a full-height button in a row of
+   figures makes the row taller than the data in it. */
+table .btn {
+  min-height: var(--ctl-h-sm);
+  /* The padding has to come down with it — a floor cannot shrink a
+     button that its own padding already makes taller. */
+  padding: 4px 10px;
+  border-radius: var(--ctl-r-sm);
+}

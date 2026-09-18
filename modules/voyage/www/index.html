@@ -713,6 +713,38 @@
     #btnRecalcSummaryPage, #vsTopActions{display:inline-flex !important;}
     #summaryRecalcHint{display:none;}
   }
+
+  /* One control scale for the whole suite — see apps/web/css/shell.css and
+     modules/tanks/public/css/app.css, which carry the same block. Three
+     documents that cannot share a file: change one, change all three.
+
+     Heights are shared because a control's size is ergonomics. The radius is
+     not: Voyage Chief's square 3px edge is its instrument look, and flattening
+     it to match the AIO's rounded shell would cost the program its character
+     for no gain. Each program keeps one radius; they need not be the same one.
+
+     The coarse-pointer step is not cosmetic — these pages run on an engine
+     room tablet, where a 32px control is a missed tap. */
+  :root {
+    --ctl-h: 38px;
+    --ctl-h-sm: 32px;
+    --ctl-r: 3px;
+    --cell-pad-y: 6px;
+    --cell-pad-x: 10px;
+  }
+  @media (pointer: coarse) {
+    :root { --ctl-h: 44px; --ctl-h-sm: 38px; }
+  }
+  button { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
+  input, select, textarea { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
+  input[type="checkbox"], input[type="radio"] { min-height: 0; }
+  /* A field inside a dense grid takes the row's height, not the form's. */
+  table input, table select, table textarea { min-height: var(--ctl-h-sm); }
+  /* A control sitting in a row of figures takes the row's height, not the
+     form's, or it makes the row taller than the data in it. */
+  table button, .voyage-bf-samples button { min-height: var(--ctl-h-sm); }
+  th, td { padding: var(--cell-pad-y) var(--cell-pad-x); }
+
   button{font-family:'Oswald',sans-serif; letter-spacing:0.06em; text-transform:uppercase; font-size:12px; padding:10px 18px; border-radius:3px; border:1px solid var(--brass-dim); cursor:pointer; background:transparent; color:var(--brass); transition:all .15s ease;}
   button.primary{background:var(--brass); color:var(--ink); font-weight:600;}
   button.primary:hover{background:#dcae6c;}
