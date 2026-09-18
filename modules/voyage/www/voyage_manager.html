@@ -735,6 +735,9 @@
   .gauge-grid.large .gauge-cap{font-size:11px;}
   .gauge-label{font-family:'Oswald',sans-serif; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:2px;}
   .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:600;}
+  .gauge-value .unit,.stat .num .unit,.cii-card .val .unit{
+    font-size:0.72em; font-weight:500; color:var(--paper-dim); margin-left:0.28em; letter-spacing:0.02em;
+  }
   .gauge-cap{font-size:9px; color:var(--paper-dim); font-family:'IBM Plex Mono',monospace;}
   .gauge-box .analog-gauge{filter:drop-shadow(0 8px 14px rgba(0,0,0,0.45));}
   /* Match AIO Home voyage progress: dashed-stroke wave scroll, not translateX. */
@@ -8246,6 +8249,15 @@ function geLoadBandMax(loadPct){
 }
 
 function fmtFuel(n){ return fmt(n, FUEL_DECIMALS); }
+/* Append measurement unit immediately after a formatted result (not table cells). */
+function unitSpan(u){
+  return u ? ` <span class="unit">${escHtml(String(u))}</span>` : '';
+}
+function withUnit(formatted, u){
+  if (formatted == null || formatted === '' || formatted === '—') return (formatted == null || formatted === '') ? '—' : formatted;
+  if (!u) return String(formatted);
+  return `${formatted}${unitSpan(u)}`;
+}
 /* Lube oil quantities — whole litres, no decimals. */
 function fmtLube(n){ return fmt(n, 0); }
 /** Fuel & Lube ROB decimals: fuel 3, lube oil none, fresh water 2. */
@@ -11117,40 +11129,40 @@ function renderRangeTotals(){
 
   const agg = rangeAggregate(rangeEntryIds());
   const robBook = rangeRobBookends();
-  const stat = (v, l) => `<div class="stat"><div class="num">${v}</div><div class="lbl">${escHtml(l)}</div></div>`;
+  const stat = (v, l, unit) => `<div class="stat"><div class="num">${withUnit(v, unit)}</div><div class="lbl">${escHtml(l)}</div></div>`;
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
 
   totalsBox.innerHTML = [
     stat(String(agg.reports), 'Reports in range'),
-    stat(n(agg.hrs), 'Period hours'),
-    stat(n(agg.meHrs), 'M/E running hours'),
-    stat(n(agg.distShip), 'Distance by ship (nm)'),
-    stat(n(agg.distEngine), 'Distance by engine (nm)'),
-    stat(n(agg.revs, 0), 'Total revolutions'),
-    ...FUEL_CONS_GROUPS.map(g => stat(n(agg.fuel[g.label], 3), `${g.label} burned (MT)`)),
-    ...Object.keys(agg.byConsumer).map(k => stat(n(agg.byConsumer[k], 3), `${k} (MT)`)),
-    stat(n(agg.fuelTotal, 3), 'All fuel (MT)'),
-    stat(n(agg.co2, 2), 'CO₂ (MT)'),
-    stat(n(agg.cylCons, 0), 'Cylinder oil (L)'),
-    stat(n(litresToM3(agg.fwProd), 2), 'FW produced (m³)'),
-    stat(n(litresToM3(agg.fwCons), 2), 'FW consumed (m³)')
+    stat(n(agg.hrs), 'Period hours', 'hrs'),
+    stat(n(agg.meHrs), 'M/E running hours', 'hrs'),
+    stat(n(agg.distShip), 'Distance by ship', 'nm'),
+    stat(n(agg.distEngine), 'Distance by engine', 'nm'),
+    stat(n(agg.revs, 0), 'Total revolutions', 'rev'),
+    ...FUEL_CONS_GROUPS.map(g => stat(n(agg.fuel[g.label], 3), `${g.label} burned`, 'MT')),
+    ...Object.keys(agg.byConsumer).map(k => stat(n(agg.byConsumer[k], 3), k, 'MT')),
+    stat(n(agg.fuelTotal, 3), 'All fuel', 'MT'),
+    stat(n(agg.co2, 2), 'CO₂', 'MT'),
+    stat(n(agg.cylCons, 0), 'Cylinder oil', 'L'),
+    stat(n(litresToM3(agg.fwProd), 2), 'FW produced', 'm³'),
+    stat(n(litresToM3(agg.fwCons), 2), 'FW consumed', 'm³')
   ].join('');
 
   avgBox.innerHTML = [
     /* Core set matching classic voyage Average panel (RPM → Slip → Load → distances/speeds). */
-    stat(n(agg.avgRpm), 'RPM'),
-    stat(n(agg.avgSlip), 'Slip %'),
-    stat(n(agg.avgKw), 'Load (kW)'),
-    stat(n(agg.avgMcr), 'Load % (MCR)'),
-    stat(n(agg.avgDistEngine), 'Engine Distance (nm)'),
-    stat(n(agg.avgSpeedEngine), 'Engine Speed (kn)'),
-    stat(n(agg.avgDistShip), 'Ship Distance (nm)'),
-    stat(n(agg.avgSpeed), 'Ship Speed (kn)'),
-    stat(n(agg.avgSfoc), 'Actual SFOC (g/kWh)'),
-    stat(n(agg.avgSfocRef), 'Reference SFOC (g/kWh)'),
-    stat(n(agg.fuelPerDay, 3), 'Fuel per day (MT)'),
+    stat(n(agg.avgRpm), 'RPM', 'rpm'),
+    stat(n(agg.avgSlip), 'Slip', '%'),
+    stat(n(agg.avgKw), 'Load', 'kW'),
+    stat(n(agg.avgMcr), 'Load', '% MCR'),
+    stat(n(agg.avgDistEngine), 'Engine Distance', 'nm'),
+    stat(n(agg.avgSpeedEngine), 'Engine Speed', 'kn'),
+    stat(n(agg.avgDistShip), 'Ship Distance', 'nm'),
+    stat(n(agg.avgSpeed), 'Ship Speed', 'kn'),
+    stat(n(agg.avgSfoc), 'Actual SFOC', 'g/kWh'),
+    stat(n(agg.avgSfocRef), 'Reference SFOC', 'g/kWh'),
+    stat(n(agg.fuelPerDay, 3), 'Fuel per day', 'MT'),
     ...Object.keys(agg.byConsumerPerDay).map(k =>
-      stat(n(agg.byConsumerPerDay[k], 3), `${k} per day (MT)`))
+      stat(n(agg.byConsumerPerDay[k], 3), `${k} per day`, 'MT'))
   ].join('');
 
   const robHint = document.getElementById('rangeRobHint');
@@ -11499,29 +11511,29 @@ function render(){
     const cap = tankCapValue(state.setup.capacity, t)||1;
     const val = rob[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${fmtFuel(val)}</div><div class="gauge-cap">of ${fmtFuel(cap)} MT</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${withUnit(fmtFuel(val), 'MT')}</div><div class="gauge-cap">of ${withUnit(fmtFuel(cap), 'MT')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeGauges').innerHTML = lubeTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacityLube, t)||1;
     const val = robLube[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${fmtLube(val)}</div><div class="gauge-cap">of ${fmtLube(cap)} L</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${withUnit(fmtLube(val), 'L')}</div><div class="gauge-cap">of ${withUnit(fmtLube(cap), 'L')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   const totalLube = totalLubeRob(robLube);
   document.getElementById('lubeTotalStrip').innerHTML = `
-    <div class="stat"><div class="num">${fmtLube(totalLube)}</div><div class="lbl">Total Lube Oil (L)</div></div>`;
+    <div class="stat"><div class="num">${withUnit(fmtLube(totalLube), 'L')}</div><div class="lbl">Total Lube Oil</div></div>`;
   document.getElementById('fwGauge').innerHTML = fwTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacityLube, t)||1;
     const val = robLube[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, GAUGE_COLORS['FRESH WATER'])}<div class="gauge-value">${fmtFw(val)}</div><div class="gauge-cap">of ${fmtFw(cap)} m³</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box">${gaugeSVG(pct, GAUGE_COLORS['FRESH WATER'])}<div class="gauge-value">${withUnit(fmtFw(val), 'm³')}</div><div class="gauge-cap">of ${withUnit(fmtFw(cap), 'm³')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   const fwTotalEl = document.getElementById('fwTotalStrip');
   if (fwTotalEl){
     if (showFwTotal()){
       fwTotalEl.style.display = '';
       fwTotalEl.innerHTML = `
-    <div class="stat"><div class="num">${fmtFw(totalFwRob(robLube))}</div><div class="lbl">Total Fresh Water (m³)</div></div>`;
+    <div class="stat"><div class="num">${withUnit(fmtFw(totalFwRob(robLube)), 'm³')}</div><div class="lbl">Total Fresh Water</div></div>`;
     } else {
       fwTotalEl.style.display = 'none';
       fwTotalEl.innerHTML = '';
@@ -11579,7 +11591,7 @@ function render(){
   // Average consumption per day — consumer rates use that consumer's running hours;
   // grade / FW rates use elapsed voyage hours; sea vs port splits total fuel by op.
   const mtPerDay = (cons, hrs) => (hrs > 0 ? (cons / hrs) * 24 : null);
-  const statCell = (num, lbl) => `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+  const statCell = (num, lbl, unit) => `<div class="stat"><div class="num">${withUnit(num, unit)}</div><div class="lbl">${lbl}</div></div>`;
   const extraDoTotal = (src) => EXTRA_DO_GRADES.reduce((a, t) => a + ((extraDoMap(src)[t]) || 0), 0);
   let meRunHrs = 0, geRunHrs = 0, blrRunHrs = 0;
   let meFuelTot = 0, geFuelTot = 0, blrFuelTot = 0;
@@ -11621,33 +11633,33 @@ function render(){
   if (consumerStrip){
     const fmtMt = (v) => v == null ? '—' : fmtFuel(v);
     consumerStrip.innerHTML =
-      statCell(fmtMt(mtPerDay(meFuelTot, meRunHrs)), 'M/E MT/day') +
-      statCell(fmtMt(mtPerDay(geFuelTot, geRunHrs)), 'G/E MT/day') +
-      statCell(fmtMt(mtPerDay(blrFuelTot, blrRunHrs)), 'Boiler MT/day');
+      statCell(fmtMt(mtPerDay(meFuelTot, meRunHrs)), 'M/E', 'MT/day') +
+      statCell(fmtMt(mtPerDay(geFuelTot, geRunHrs)), 'G/E', 'MT/day') +
+      statCell(fmtMt(mtPerDay(blrFuelTot, blrRunHrs)), 'Boiler', 'MT/day');
   }
   const seaPortStrip = document.getElementById('seaPortFuelStrip');
   if (seaPortStrip){
     const fmtMt = (v) => v == null ? '—' : fmtFuel(v);
     seaPortStrip.innerHTML =
-      statCell(fmtMt(mtPerDay(seaFuelTot, seaHrsTot)), 'At sea MT/day') +
-      statCell(fmtMt(mtPerDay(portFuelTot, portHrsTot)), 'Port / anch. MT/day') +
-      statCell(seaHrsTot > 0 ? fmtFuel(seaFuelTot) : '—', 'At sea total MT') +
-      statCell(portHrsTot > 0 ? fmtFuel(portFuelTot) : '—', 'Port / anch. total MT');
+      statCell(fmtMt(mtPerDay(seaFuelTot, seaHrsTot)), 'At sea', 'MT/day') +
+      statCell(fmtMt(mtPerDay(portFuelTot, portHrsTot)), 'Port / anch.', 'MT/day') +
+      statCell(seaHrsTot > 0 ? fmtFuel(seaFuelTot) : '—', 'At sea total', 'MT') +
+      statCell(portHrsTot > 0 ? fmtFuel(portFuelTot) : '—', 'Port / anch. total', 'MT');
   }
   document.getElementById('fuelPerDayStrip').innerHTML = FUEL_TYPES.map(t=>`
-    <div class="stat"><div class="num">${daysAtSea>0 ? fmtFuel(consByFuel[t]/daysAtSea) : '—'}</div><div class="lbl">${t} /day</div></div>`).join('');
+    <div class="stat"><div class="num">${withUnit(daysAtSea>0 ? fmtFuel(consByFuel[t]/daysAtSea) : '—', 'MT/day')}</div><div class="lbl">${t}</div></div>`).join('');
   const meRunDays = meRunHrs / 24;
   document.getElementById('lubePerDayStrip').innerHTML = ["CYL HIGH","CYL LOW","ME SYS OIL","GE SYS OIL"].map(t=>{
     const cyl = (t === 'CYL HIGH' || t === 'CYL LOW');
     const days = cyl ? meRunDays : daysAtSea;
-    return `<div class="stat"><div class="num">${days>0 ? fmtLube((consByLube[t]||0)/days) : '—'}</div><div class="lbl">${t} /day</div></div>`;
+    return `<div class="stat"><div class="num">${withUnit(days>0 ? fmtLube((consByLube[t]||0)/days) : '—', 'L/day')}</div><div class="lbl">${t}</div></div>`;
   }).join('');
   const fwPerDay = document.getElementById('fwPerDayStrip');
   if (fwPerDay){
     /* FW stocks are litres; daily rate must convert once to m³ — never treat litres as m³. */
     const fwLitres = Number(consByLube['FRESH WATER']) || 0;
     const fwM3Day = daysAtSea > 0 ? litresToM3(fwLitres) / daysAtSea : null;
-    fwPerDay.innerHTML = `<div class="stat"><div class="num">${fwM3Day==null || !isFinite(fwM3Day) ? '—' : fwM3Day.toFixed(2)}</div><div class="lbl">Fresh Water m³/day</div></div>`;
+    fwPerDay.innerHTML = `<div class="stat"><div class="num">${withUnit(fwM3Day==null || !isFinite(fwM3Day) ? '—' : fwM3Day.toFixed(2), 'm³/day')}</div><div class="lbl">Fresh Water</div></div>`;
   }
 
   // Voyage Progress strip: merges former Voyage Summary + ETA stats
@@ -11665,8 +11677,8 @@ function render(){
     distToGoStr = fmt(distToGo,2);
   }
   document.getElementById('voyageProgressStrip').innerHTML = `
-    <div class="stat"><div class="num">${fmt(perf.totalHrs/24,2)}</div><div class="lbl">Days at Sea</div></div>
-    <div class="stat"><div class="num">${daysToGoStr}</div><div class="lbl">Days To Go</div></div>
+    <div class="stat"><div class="num">${withUnit(fmt(perf.totalHrs/24,2), 'days')}</div><div class="lbl">Days at Sea</div></div>
+    <div class="stat"><div class="num">${withUnit(daysToGoStr, daysToGoStr === '—' ? '' : 'days')}</div><div class="lbl">Days To Go</div></div>
     <div class="stat"><div class="num">${etaStr}</div><div class="lbl">ETA</div></div>
   `;
 
@@ -11686,8 +11698,8 @@ function render(){
     const curVal = row ? row.present : 0;
     const usedVal = row ? row.consumed : 0;
     return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
-      <div class="gauge-value">${fmtFuel(curVal)}</div>
-      <div class="gauge-cap">start ${fmtFuel(startVal)} · used ${fmtFuel(usedVal)} MT</div>
+      <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
+      <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(usedVal), 'MT')}</div>
       <div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeDualGauges').innerHTML = lubeTankList().map(t=>{
@@ -11697,12 +11709,12 @@ function render(){
     const curVal = row ? row.present : 0;
     const usedVal = row ? row.consumed : 0;
     return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
-      <div class="gauge-value">${fmtLube(curVal)}</div>
-      <div class="gauge-cap">start ${fmtLube(startVal)} · used ${fmtLube(usedVal)} L</div>
+      <div class="gauge-value">${withUnit(fmtLube(curVal), 'L')}</div>
+      <div class="gauge-cap">start ${withUnit(fmtLube(startVal), 'L')} · used ${withUnit(fmtLube(usedVal), 'L')}</div>
       <div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeTotalSummaryStrip').innerHTML = `
-    <div class="stat"><div class="num">${fmtLube(totalLubeRob(calcRobLube))}</div><div class="lbl">Total Lube Oil (L)</div></div>`;
+    <div class="stat"><div class="num">${withUnit(fmtLube(totalLubeRob(calcRobLube)), 'L')}</div><div class="lbl">Total Lube Oil</div></div>`;
   const fwDual = document.getElementById('fwDualGauges');
   if (fwDual){
     const fwTanks = fwTankList();
@@ -11711,10 +11723,10 @@ function render(){
       const startVal = tankRobValue(state.setup.robLube, t) || 0;
       const row = calcById[t.id];
       const curVal = row ? row.present : 0;
-      const usedBit = fwTanks.length===1 ? ` · used ${fmtFw(row ? row.consumed : 0)}` : '';
+      const usedBit = fwTanks.length===1 ? ` · used ${withUnit(fmtFw(row ? row.consumed : 0), 'm³')}` : '';
       return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, GAUGE_COLORS['FRESH WATER'])}
-        <div class="gauge-value">${fmtFw(curVal)}</div>
-        <div class="gauge-cap">start ${fmtFw(startVal)}${usedBit} m³</div>
+        <div class="gauge-value">${withUnit(fmtFw(curVal), 'm³')}</div>
+        <div class="gauge-cap">start ${withUnit(fmtFw(startVal), 'm³')}${usedBit}</div>
         <div class="gauge-label">${t.name}</div></div>`;
     }).join('');
   }
@@ -11723,7 +11735,7 @@ function render(){
     if (showFwTotal()){
       fwTotalSummary.style.display = '';
       fwTotalSummary.innerHTML = `
-    <div class="stat"><div class="num">${fmtFw(totalFwRob(calcRobLube))}</div><div class="lbl">Total Fresh Water (m³)</div></div>`;
+    <div class="stat"><div class="num">${withUnit(fmtFw(totalFwRob(calcRobLube)), 'm³')}</div><div class="lbl">Total Fresh Water</div></div>`;
     } else {
       fwTotalSummary.style.display = 'none';
       fwTotalSummary.innerHTML = '';
@@ -11747,20 +11759,20 @@ function render(){
   }
 
   document.getElementById('perfTotalsStrip').innerHTML = `
-    <div class="stat"><div class="num">${perf.avgRpm===null?'—':fmt(perf.avgRpm,2)}</div><div class="lbl">RPM</div></div>
-    <div class="stat"><div class="num">${perf.avgSlip===null?'—':fmt(perf.avgSlip,2)}</div><div class="lbl">Slip %</div></div>
-    <div class="stat"><div class="num">${perf.avgKw===null?'—':fmt(perf.avgKw,1)}</div><div class="lbl">Load (kW)</div></div>
-    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">Load % (MCR)</div></div>
-    <div class="stat"><div class="num">${(() => {
+    <div class="stat"><div class="num">${withUnit(perf.avgRpm===null?'—':fmt(perf.avgRpm,2), 'rpm')}</div><div class="lbl">RPM</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgSlip===null?'—':fmt(perf.avgSlip,2), '%')}</div><div class="lbl">Slip</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgKw===null?'—':fmt(perf.avgKw,1), 'kW')}</div><div class="lbl">Load</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2), '% MCR')}</div><div class="lbl">Load</div></div>
+    <div class="stat"><div class="num">${withUnit((() => {
       const samples = rows.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
       return samples.length ? fmt(samples.reduce((s, r) => s + r.distEngine, 0) / samples.length, 2) : '—';
-    })()}</div><div class="lbl">Engine Distance (nm)</div></div>
-    <div class="stat"><div class="num">${(perf.totalHrs > 0 && perf.totalDistEngine > 0) ? fmt(perf.totalDistEngine / perf.totalHrs, 2) : '—'}</div><div class="lbl">Engine Speed (kn)</div></div>
-    <div class="stat"><div class="num">${(() => {
+    })(), 'nm')}</div><div class="lbl">Engine Distance</div></div>
+    <div class="stat"><div class="num">${withUnit((perf.totalHrs > 0 && perf.totalDistEngine > 0) ? fmt(perf.totalDistEngine / perf.totalHrs, 2) : '—', 'kn')}</div><div class="lbl">Engine Speed</div></div>
+    <div class="stat"><div class="num">${withUnit((() => {
       const samples = rows.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
       return samples.length ? fmt(samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length, 2) : '—';
-    })()}</div><div class="lbl">Ship Distance (nm)</div></div>
-    <div class="stat"><div class="num">${perf.avgSpeedShip===null?'—':fmt(perf.avgSpeedShip,2)}</div><div class="lbl">Ship Speed (kn)</div></div>
+    })(), 'nm')}</div><div class="lbl">Ship Distance</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgSpeedShip===null?'—':fmt(perf.avgSpeedShip,2), 'kn')}</div><div class="lbl">Ship Speed</div></div>
   `;
 
   const sfoc100 = state.setup.sfoc100;
@@ -11768,11 +11780,11 @@ function render(){
   const refAtAvgLoad = perf.avgMcrTimeWeighted!=null ? referenceSfocAtLoad(perf.avgMcrTimeWeighted) : null;
   const avgLoadLbl = perf.avgMcrTimeWeighted!=null ? `Ref. @ ${fmt(perf.avgMcrTimeWeighted,2)}% MCR` : 'Ref. @ avg load';
   document.getElementById('sfocStrip').innerHTML = `
-    <div class="stat"><div class="num">${sfoc100==null?'—':fmt(sfoc100,2)}</div><div class="lbl">SFOC @ 100% MCR (setup)</div></div>
-    <div class="stat"><div class="num">${refAtAvgLoad===null?'—':fmt(refAtAvgLoad,2)}</div><div class="lbl">${avgLoadLbl}</div></div>
-    <div class="stat"><div class="num">${perf.avgSfocActual===null?'—':fmt(perf.avgSfocActual,2)}</div><div class="lbl">Actual SFOC (g/kWh)${lcvCorrectionFactor()!==1?' ISO':''}</div></div>
-    <div class="stat"><div class="num">${perf.avgSfocDelta===null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta,2))}</div><div class="lbl">Δ vs reference %</div></div>
-    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?'—':fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">Avg %MCR (hrs-wtd)</div></div>
+    <div class="stat"><div class="num">${withUnit(sfoc100==null?'—':fmt(sfoc100,2), 'g/kWh')}</div><div class="lbl">SFOC @ 100% MCR (setup)</div></div>
+    <div class="stat"><div class="num">${withUnit(refAtAvgLoad===null?'—':fmt(refAtAvgLoad,2), 'g/kWh')}</div><div class="lbl">${avgLoadLbl}</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgSfocActual===null?'—':fmt(perf.avgSfocActual,2), 'g/kWh')}</div><div class="lbl">Actual SFOC${lcvCorrectionFactor()!==1?' ISO':''}</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgSfocDelta===null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta,2)), '%')}</div><div class="lbl">Δ vs reference</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgMcrTimeWeighted===null?'—':fmt(perf.avgMcrTimeWeighted,2), '% MCR')}</div><div class="lbl">Avg (hrs-wtd)</div></div>
   `;
   const sfocHint = document.getElementById('sfocSetupHint');
   if (sfocHint){
@@ -11795,13 +11807,13 @@ function render(){
   const geCells = machineryGeHourCells(perf.geTotals?.hrs, geUnitCount());
   const geShown = geCells.some(c => c.used) ? geCells.filter(c => c.used) : geCells;
   const geStats = geShown.map(c =>
-    `<div class="stat"><div class="num">${c.used ? fmt(c.hours, 2) : '—'}</div><div class="lbl">A/E #${c.n} hrs</div></div>`
+    `<div class="stat"><div class="num">${withUnit(c.used ? fmt(c.hours, 2) : '—', 'hrs')}</div><div class="lbl">A/E #${c.n}</div></div>`
   ).join('');
   document.getElementById('voyageTimeAvgStrip').innerHTML = `
-    <div class="stat"><div class="num">${fmt(perf.totalHrs/24,2)}</div><div class="lbl">Days at sea</div></div>
-    <div class="stat"><div class="num">${perf.avgMcrTimeWeighted===null?'—':fmt(perf.avgMcrTimeWeighted,2)}</div><div class="lbl">%MCR (hrs-wtd)</div></div>
-    <div class="stat"><div class="num">${perf.avgGeLoadPct===null?'—':fmt(perf.avgGeLoadPct,2)}</div><div class="lbl">Gen load % (hrs-wtd)</div></div>
-    <div class="stat"><div class="num">${perf.avgGeKwTimeWeighted===null?'—':fmt(perf.avgGeKwTimeWeighted,2)}</div><div class="lbl">Gen kW (hrs-wtd)</div></div>
+    <div class="stat"><div class="num">${withUnit(fmt(perf.totalHrs/24,2), 'days')}</div><div class="lbl">Days at sea</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgMcrTimeWeighted===null?'—':fmt(perf.avgMcrTimeWeighted,2), '% MCR')}</div><div class="lbl">hrs-wtd</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgGeLoadPct===null?'—':fmt(perf.avgGeLoadPct,2), '%')}</div><div class="lbl">Gen load (hrs-wtd)</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgGeKwTimeWeighted===null?'—':fmt(perf.avgGeKwTimeWeighted,2), 'kW')}</div><div class="lbl">Gen (hrs-wtd)</div></div>
     ${geStats}
   `;
   const geHint = document.getElementById('geHoursHint');
@@ -11839,7 +11851,7 @@ function renderCiiStrip(consByFuel, perf){
   const required = computeRequiredCII(shipType, dwt, year, Number.isFinite(manualReq)?manualReq:null);
   const rating = ciiRatingBand(cii, required);
   const card = (val, label, unit='') =>
-    `<div class="cii-card"><div class="val">${val==null?'—':val}${unit?`<span style="font-size:11px;color:var(--paper-dim)"> ${unit}</span>`:''}</div><div class="lbl">${label}</div></div>`;
+    `<div class="cii-card"><div class="val">${val==null?'—':withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   strip.innerHTML =
     card(fmtFuel(totalFuel), 'Total fuel', 'MT') +
     card(fmt(co2,2), 'Total CO₂', 't') +
@@ -12084,8 +12096,8 @@ function renderBunkerPlan(){
         <td class="col-margin"><input type="number" step="0.1" data-f="marginPct" value="${leg.marginPct ?? ''}" placeholder="%" title="Safety margin % for this destination / stay only" inputmode="decimal"></td>
       </tr>`;
     }).join('');
-    const hud = (label, value) =>
-      `<div class="field calc hud-result"><span class="hud-value">${value}</span><label>${label}</label></div>`;
+      const hud = (label, value, unit) =>
+      `<div class="field calc hud-result"><span class="hud-value">${withUnit(value, unit)}</span><label>${label}</label></div>`;
     return `<div class="bunker-side" data-side="${meta.key}">
       <h3>${meta.title}</h3>
       <div class="field bunker-grade"><label>Grade for ROB / stem</label>
@@ -12115,16 +12127,16 @@ function renderBunkerPlan(){
       <div class="bunker-totals">
         <div class="field"><label>Current ROB (MT)</label><input type="number" step="0.001" data-side-f="currentRob" data-side="${meta.key}" value="${side.currentRob ?? ''}"></div>
         <div class="field"><label>Quantity to Receive (MT)</label><input type="number" step="0.001" data-side-f="qtyReceive" data-side="${meta.key}" value="${side.qtyReceive ?? ''}"></div>
-        ${hud('Days at Port / Anchor', fmt(sum.daysPort, 3))}
-        ${hud('Days at Sea', fmt(sum.daysSea, 3))}
-        ${hud('Total Distance (nm)', fmt(sum.totalDist, 2))}
-        ${hud('Total Consumption (MT)', fmtFuel(sum.totalCons))}
-        ${hud('Total Margin (MT)', fmtFuel(sum.margin))}
-        ${hud('Required Quantity (MT)', fmtFuel(sum.required))}
-        ${hud('Arrival ROB (MT)', sum.arrivalRob==null?'—':fmtFuel(sum.arrivalRob))}
-        ${hud('Next Departure ROB (MT)', sum.nextDepRob==null?'—':fmtFuel(sum.nextDepRob))}
-        ${hud('Stem still needed (MT)', sum.stem==null?'—':fmtFuel(sum.stem))}
-        ${hud('Minimum Required Fuel (MT)', fmtFuel(sum.minRequiredFuel))}
+        ${hud('Days at Port / Anchor', fmt(sum.daysPort, 3), 'days')}
+        ${hud('Days at Sea', fmt(sum.daysSea, 3), 'days')}
+        ${hud('Total Distance', fmt(sum.totalDist, 2), 'nm')}
+        ${hud('Total Consumption', fmtFuel(sum.totalCons), 'MT')}
+        ${hud('Total Margin', fmtFuel(sum.margin), 'MT')}
+        ${hud('Required Quantity', fmtFuel(sum.required), 'MT')}
+        ${hud('Arrival ROB', sum.arrivalRob==null?'—':fmtFuel(sum.arrivalRob), 'MT')}
+        ${hud('Next Departure ROB', sum.nextDepRob==null?'—':fmtFuel(sum.nextDepRob), 'MT')}
+        ${hud('Stem still needed', sum.stem==null?'—':fmtFuel(sum.stem), 'MT')}
+        ${hud('Minimum Required Fuel', fmtFuel(sum.minRequiredFuel), 'MT')}
         ${hud('Maximum Safe Fuel Intake (MT)', sum.maxSafeFuelIntake==null?'—':fmtFuel(sum.maxSafeFuelIntake))}
         ${hud('Charterer Redelivery Quantity (MT)', sum.chartererRedelivery==null?'—':fmtFuel(sum.chartererRedelivery))}
       </div>
@@ -13156,18 +13168,18 @@ function renderRunningHoursStrip(rows, perf){
     }
     if (e.report?.purifierHrs!=null && !isNaN(e.report.purifierHrs)) purHrs += Number(e.report.purifierHrs)||0;
   });
-  const stat = (num,lbl)=>`<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+  const stat = (num,lbl,unit)=>`<div class="stat"><div class="num">${withUnit(num, unit)}</div><div class="lbl">${lbl}</div></div>`;
   const geCells = machineryGeHourCells(perf?.geTotals?.hrs, geUnitCount());
   const geShown = geCells.some(c => c.used) ? geCells.filter(c => c.used) : geCells;
   const geHtml = geShown.map(c =>
-    stat(c.used ? fmt(c.hours, 1) : '—', `A/E #${c.n} hrs`)
+    stat(c.used ? fmt(c.hours, 1) : '—', `A/E #${c.n}`, 'hrs')
   ).join('');
   el.innerHTML =
-    stat(fmt(meHrs,1), 'M/E steaming hrs') +
+    stat(fmt(meHrs,1), 'M/E steaming', 'hrs') +
     geHtml +
-    stat(fmt(blrHrs,1), 'Boiler hrs') +
-    stat(fmt(incHrs,1), 'Incinerator hrs') +
-    stat(fmt(purHrs,1), 'LO purifier hrs');
+    stat(fmt(blrHrs,1), 'Boiler', 'hrs') +
+    stat(fmt(incHrs,1), 'Incinerator', 'hrs') +
+    stat(fmt(purHrs,1), 'LO purifier', 'hrs');
 }
 
 /**
@@ -17317,30 +17329,30 @@ function openVoyageSummary(entryId){
   const daysToGoVal = (distanceToGo!=null && refSpeed>0) ? (distanceToGo/refSpeed)/24 : null;
   const eta = (daysToGoVal!=null) ? new Date(dt.getTime() + daysToGoVal*24*3600000) : null;
 
-  const stat = (label,val) => `<div class="stat"><div class="num">${val}</div><div class="lbl">${label}</div></div>`;
+  const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   const etaStr = eta ? eta.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
   const sfocDeltaStr = row.sfocDelta==null ? '—' : ((row.sfocDelta>0?'+':'')+fmt(row.sfocDelta, 2));
   document.getElementById('vsTopStrip').innerHTML = `
     ${stat('Voyage', state.setup.voyageNumber||'—')}
     ${stat('Date', dtStr)}
-    ${stat('Ship Distance', fmt(entry.distanceShip, 2))}
-    ${stat('Ship Speed', row.speedShip==null?'—':fmt(row.speedShip,2)+' kn')}
-    ${stat('Run Time (hrs)', fmt(row.hrs, 2))}
-    ${stat('Load (kW)', fmt(row.kwEst, 2))}
-    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—')}
-    ${stat('Days To Go', daysToGoVal!=null? fmt(daysToGoVal,2):'—')}
-    ${stat('Total Rev.', fmt(row.dailyRevs, 2))}
-    ${stat('Load %', fmt(row.mcrPct,2))}
-    ${stat('Engine Distance', fmt(row.distEngine,2))}
-    ${stat('Engine Speed', row.speedEngine==null?'—':fmt(row.speedEngine,2)+' kn')}
-    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2))}
-    ${stat('Ave. kW', fmt(perf.avgKw, 2))}
-    ${stat('Slip %', fmt(row.slip,2))}
+    ${stat('Ship Distance', fmt(entry.distanceShip, 2), 'nm')}
+    ${stat('Ship Speed', row.speedShip==null?'—':fmt(row.speedShip,2), 'kn')}
+    ${stat('Run Time', fmt(row.hrs, 2), 'hrs')}
+    ${stat('Load', fmt(row.kwEst, 2), 'kW')}
+    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—', 'nm')}
+    ${stat('Days To Go', daysToGoVal!=null? fmt(daysToGoVal,2):'—', 'days')}
+    ${stat('Total Rev.', fmt(row.dailyRevs, 2), 'rev')}
+    ${stat('Load', fmt(row.mcrPct,2), '%')}
+    ${stat('Engine Distance', fmt(row.distEngine,2), 'nm')}
+    ${stat('Engine Speed', row.speedEngine==null?'—':fmt(row.speedEngine,2), 'kn')}
+    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2), 'rpm')}
+    ${stat('Ave. kW', fmt(perf.avgKw, 2), 'kW')}
+    ${stat('Slip', fmt(row.slip,2), '%')}
     ${stat('ETA', etaStr)}
-    ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2))}
-    ${stat('Ref. SFOC', fmt(row.sfocRef, 2))}
-    ${stat('Actual SFOC', fmt(row.sfocActual, 2))}
-    ${stat('SFOC Δ %', sfocDeltaStr)}
+    ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2), 'g/kWh')}
+    ${stat('Ref. SFOC', fmt(row.sfocRef, 2), 'g/kWh')}
+    ${stat('Actual SFOC', fmt(row.sfocActual, 2), 'g/kWh')}
+    ${stat('SFOC Δ', sfocDeltaStr, '%')}
   `;
 
   /* Arrangement reflects the generators actually in service for this entry, not how
@@ -19303,24 +19315,24 @@ function updateLivePreview(){
   const sfocRef = mcrPct!=null ? referenceSfocAtLoad(mcrPct) : null;
   const sfocAct = isoCorrectedSfoc(actualMeSfoc(meCons, kwEst, hrs));
   const sfocDelta = sfocDeltaPct(sfocAct, sfocRef);
-  const stat = (label,val) => `<div class="stat"><div class="num">${val}</div><div class="lbl">${label}</div></div>`;
+  const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   box.className = 'stat-strip cols4';
   box.innerHTML =
-    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2)) +
-    stat('Daily Revs', dailyRevs==null?'—':fmt(dailyRevs, 2)) +
-    stat('Engine Speed', speedEngine==null?'—':fmt(speedEngine,2)) +
-    stat('Actual SFOC', sfocAct==null?'—':fmt(sfocAct, 2)) +
-    stat('M/E Cons (MT)', meCons==null?'—':fmtFuel(meCons)) +
-    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2)) +
-    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2)) +
-    stat('SFOC @ 100%', sfoc100==null?'—':fmt(sfoc100, 2)) +
-    stat('G/E Cons (MT)', geCons==null?'—':fmtFuel(geCons)) +
-    stat('M/E Load (kW)', kwEst==null?'—':fmt(kwEst, 2)) +
-    stat('Slip %', slip==null?'—':fmt(slip,2)) +
-    stat('Ref. SFOC', sfocRef==null?'—':fmt(sfocRef, 2)) +
-    stat('Boiler Cons (MT)', blrCons==null?'—':fmtFuel(blrCons)) +
-    stat('M/E Load %', mcrPct==null?'—':fmt(mcrPct, 2)) +
-    stat('SFOC Δ %', sfocDelta==null?'—':((sfocDelta>0?'+':'')+fmt(sfocDelta, 2)));
+    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2), 'hrs') +
+    stat('Daily Revs', dailyRevs==null?'—':fmt(dailyRevs, 2), 'rev') +
+    stat('Engine Speed', speedEngine==null?'—':fmt(speedEngine,2), 'kn') +
+    stat('Actual SFOC', sfocAct==null?'—':fmt(sfocAct, 2), 'g/kWh') +
+    stat('M/E Cons', meCons==null?'—':fmtFuel(meCons), 'MT') +
+    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2), 'rpm') +
+    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2), 'nm') +
+    stat('SFOC @ 100%', sfoc100==null?'—':fmt(sfoc100, 2), 'g/kWh') +
+    stat('G/E Cons', geCons==null?'—':fmtFuel(geCons), 'MT') +
+    stat('M/E Load', kwEst==null?'—':fmt(kwEst, 2), 'kW') +
+    stat('Slip', slip==null?'—':fmt(slip,2), '%') +
+    stat('Ref. SFOC', sfocRef==null?'—':fmt(sfocRef, 2), 'g/kWh') +
+    stat('Boiler Cons', blrCons==null?'—':fmtFuel(blrCons), 'MT') +
+    stat('M/E Load', mcrPct==null?'—':fmt(mcrPct, 2), '%') +
+    stat('SFOC Δ', sfocDelta==null?'—':((sfocDelta>0?'+':'')+fmt(sfocDelta, 2)), '%');
 }
 /* ---------------- editable consumption helpers (Voyage Summary) ---------------- */
 function computeRawUnitCons(curEntry, prevRef, rolls){
