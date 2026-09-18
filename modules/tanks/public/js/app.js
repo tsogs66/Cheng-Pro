@@ -530,6 +530,7 @@ function renderMoreNav() {
 const PAGE_ALIASES = { bunkering: 'bunker-plan' };
 
 function navigate(page, tankId = null) {
+  try { if (window.ChengClockPicker) ChengClockPicker.close(); } catch (_) {}
   let next = PAGE_ALIASES[page] || page;
   if (next === 'setup' && isAioEmbedded()) {
     showToast('Open Vessel Setup from the ChEng AIO menu');
@@ -773,6 +774,7 @@ function renderNav() {
 }
 
 function render() {
+  try { if (window.ChengClockPicker) ChengClockPicker.close(); } catch (_) {}
   renderNav();
   syncBottomNav();
   const main = document.getElementById('main');
