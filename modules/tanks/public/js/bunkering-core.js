@@ -130,6 +130,7 @@ function readingForVolume(tank, targetVolume, ctx = {}) {
     list: ctx.list || 0,
     tempC: 15,
     density15: null,
+    entryMethod: tank.soundingMethod || 'sounding',
   }).volumeObserved;
 
   let lo = 0;
@@ -565,15 +566,15 @@ function computeBunkerPlan(bundle, form, conversion) {
     }
 
     if (out.currentSoundingMM != null) {
-      const native = out.startingMethod === FuelReport.normalizeMethod(tank.soundingMethod)
-        ? out.currentSoundingMM
-        : (scaleTop(tank) || 0) - out.currentSoundingMM;
+      // Pass the reading in the column's entry method; computeTank converts to
+      // table scale before trim. Trim is the direct by-stern table value.
       const res = computeTank(tank, {
-        reading: native,
+        reading: out.currentSoundingMM,
         trim: trimByStern,
         list: heel,
         tempC,
         density15,
+        entryMethod: out.startingMethod,
       });
       out.currentVolumeM3 = round(res.volumeObserved, 3);
       out.currentVolumePercent = capacity > 0 ? round((res.volumeObserved / capacity) * 100, 1) : null;
@@ -606,9 +607,17 @@ function computeBunkerPlan(bundle, form, conversion) {
       if (out.currentVolumeM3 >= capacity - fillTolerance(capacity)) {
         // A flipped reading of exactly zero is a real reading — an empty
         // dipped tank — so the bound is inclusive.
-        const alt = (scaleTop(tank) || 0) - native;
+        const alt = (scaleTop(tank) || 0) - out.currentSoundingMM;
+        const altMethod = out.startingMethod === 'ullage' ? 'dip' : 'ullage';
         const altRes = alt >= 0
-          ? computeTank(tank, { reading: alt, trim: trimByStern, list: heel, tempC, density15 })
+          ? computeTank(tank, {
+            reading: alt,
+            trim: trimByStern,
+            list: heel,
+            tempC,
+            density15,
+            entryMethod: altMethod,
+          })
           : null;
         const altVol = altRes ? altRes.volumeObserved : null;
         /* The opening volume came off the fuel report's own interpolation, so
