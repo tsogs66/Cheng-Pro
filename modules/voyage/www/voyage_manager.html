@@ -28,6 +28,7 @@
 <script src="ship_time.js"></script>
 <script src="clock-picker.js"></script>
 <link rel="stylesheet" href="hud-effects.css">
+<script defer src="num-align.js"></script>
 <script>
 /* Prefer bottom nav in Capacitor/Android and on touch devices (WebView CSS width is often >720).
    Android/iOS always keep bottom nav in landscape — never restore top tabs for width ≥1101. */
@@ -808,6 +809,16 @@
   .stat .lbl{font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:2px;}
 
   table{width:100%; border-collapse:collapse; font-family:'IBM Plex Mono',monospace; font-size:11.5px;}
+
+  /* Screen only. The printed forms are laid out deliberately and a column
+     moving on a signed sheet is not a styling detail. */
+  @media screen {
+    /* Numbers line up or they cannot be compared — see num-align.js, which
+       decides which columns these apply to by reading what is in them. */
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table td, table th { font-variant-numeric: tabular-nums; }
+  }
+
   thead th{text-align:left; font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--brass); border-bottom:1px solid var(--line-strong); padding:6px 7px; white-space:nowrap; position:sticky; top:0; background:var(--panel2);}
   tbody td{padding:6px 7px; border-bottom:1px solid var(--line); color:var(--paper); white-space:nowrap;}
   tbody tr:hover{background:rgba(255,255,255,0.03);}

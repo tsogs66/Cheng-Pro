@@ -2662,3 +2662,15 @@ html:not(.tc-top-nav) .nav-group-label {
   pointer-events: none;
 }
 html:not(.tc-top-nav) .nav-group-label::after { display: none; }
+
+/* Screen only. The printed forms are laid out deliberately and a
+   column moving on a signed sheet is not a styling detail. */
+@media screen {
+  /* Numbers line up or they cannot be compared — see num-align.js, which decides
+     which columns these apply to by reading what is in them. */
+  td.num, th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  table td, table th { font-variant-numeric: tabular-nums; }
+}

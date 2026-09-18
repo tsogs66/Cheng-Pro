@@ -1306,3 +1306,32 @@ html.bright table th { color: var(--muted); }
 html.bright table td { color: var(--text); }
 html.bright .btn:not(.primary) { color: var(--text); border-color: var(--line-strong); }
 html.bright code { color: var(--accent-2); }
+
+/* Screen only. The printed forms are laid out deliberately and a
+   column moving on a signed sheet is not a styling detail. */
+@media screen {
+  /* Numbers line up or they cannot be compared — see js/num-align.js, which
+     decides which columns these apply to by reading what is in them. */
+  td.num, th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Figures stay the same width in every cell even where a column is mixed. */
+  table td, table th { font-variant-numeric: tabular-nums; }
+
+  /* The vessel library asks for .data-table, which nothing styled — leaving it
+     with the browser's 1px cell padding and no rules. Same treatment as the
+     suite's other tables. */
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.data-table th, table.data-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+  }
+  table.data-table th {
+    color: var(--muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
