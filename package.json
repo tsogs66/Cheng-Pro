@@ -1,10 +1,6 @@
 {
   "name": "cheng-pro",
-<<<<<<< HEAD
-  "version": "0.3.211",
-=======
-  "version": "0.3.206",
->>>>>>> 115ba07 (Fix Windows AIO license and Voyage data vanishing on close/update)
+  "version": "0.3.212",
   "description": "ChEng AIO \u2014 Marine Engineer Suite (Voyage Chief + Tank Chief)",
   "author": "ts0gs (Marvin C. Endozo)",
   "main": "desktop/main.js",

@@ -81,10 +81,16 @@ async function main() {
 
   const indexSrc = fs.readFileSync(path.join(__dirname, '..', 'server', 'index.js'), 'utf8');
   assert(/\/api\/shell\/local-license/.test(indexSrc), 'gateway must expose local-license mirror');
+  assert(/\/api\/shell\/local-sync-creds/.test(indexSrc), 'gateway must expose local-sync-creds mirror');
 
   const licSrc = fs.readFileSync(path.join(__dirname, '..', 'apps', 'web', 'js', 'license.js'), 'utf8');
   assert(/hydrateEntitlementFromDisk/.test(licSrc), 'license client must restore from disk mirror');
   assert(/mirrorEntitlementToDisk/.test(licSrc), 'license client must write disk mirror');
+
+  const voyageSrc = fs.readFileSync(path.join(__dirname, '..', 'modules', 'voyage', 'www', 'voyage_manager.html'), 'utf8');
+  assert(/hydrateSyncCredentialsFromDisk/.test(voyageSrc), 'voyage must restore sync creds from disk mirror');
+  assert(/mirrorSyncCredentialsToDisk/.test(voyageSrc), 'voyage must write sync creds disk mirror');
+  assert(/\/api\/shell\/local-sync-creds/.test(voyageSrc), 'voyage must call local-sync-creds API');
 
   console.log('ok — desktop paths keep ports sticky and reject TEMP data roots');
 }

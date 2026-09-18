@@ -21330,6 +21330,44 @@ function syncCredentialsMirrorValue(sync){
   };
 }
 
+/** Electron/AIO loopback disk mirror — survives Chromium origin wipe when the HTTP port changes. */
+function localSyncCredsMirrorUrl(){
+  try{
+    if (typeof location === 'undefined') return '';
+    if (!/^https?:$/i.test(location.protocol || '')) return '';
+    const host = location.hostname || '';
+    if (host !== '127.0.0.1' && host !== 'localhost') return '';
+    return '/api/shell/local-sync-creds';
+  }catch(_){ return ''; }
+}
+
+function mirrorSyncCredentialsToDisk(creds){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return;
+  try{
+    const has = creds && (creds.serverUrl || creds.apiToken);
+    fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentials: has ? syncCredentialsMirrorValue(creds) : null }),
+      credentials: 'same-origin',
+      keepalive: true
+    }).catch(()=>{});
+  }catch(_){}
+}
+
+async function hydrateSyncCredentialsFromDisk(){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return null;
+  try{
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const creds = data && data.credentials;
+    return (creds && typeof creds === 'object') ? creds : null;
+  }catch(_){ return null; }
+}
+
 function readSyncCredentialsFromLocalStorage(){
   try{
     const raw = localStorage.getItem(SYNC_CREDS_LS_KEY);
@@ -21343,13 +21381,14 @@ function writeSyncCredentialsToLocalStorage(creds){
   const value = syncCredentialsMirrorValue(creds || {});
   localStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value));
   try{ sessionStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value)); }catch(_){}
+  mirrorSyncCredentialsToDisk(value);
   return value;
 }
 
 async function persistSyncCredentialsMirror(sync){
   /*
    * localStorage first — synchronous, works on fresh tablets even while IndexedDB
-   * is busy seeding the demo fleet. IndexedDB mirror is best-effort afterward.
+   * is busy seeding the demo fleet. IndexedDB + disk mirrors are best-effort afterward.
    */
   const value = writeSyncCredentialsToLocalStorage(sync);
   try{
@@ -21525,6 +21564,16 @@ async function applyMirroredSyncCredentials(){
         const row = await dbGet('meta', 'syncCredentials');
         creds = row && row.value;
         if (creds) writeSyncCredentialsToLocalStorage(creds);
+      }catch(_){}
+    }
+    /* Electron disk mirror — recovers Backup→Server Sync after a loopback port change. */
+    if (!creds || !(creds.apiToken || creds.serverUrl)){
+      try{
+        const fromDisk = await hydrateSyncCredentialsFromDisk();
+        if (fromDisk && (fromDisk.apiToken || fromDisk.serverUrl)){
+          creds = Object.assign({}, creds || {}, fromDisk);
+          writeSyncCredentialsToLocalStorage(creds);
+        }
       }catch(_){}
     }
     if (creds && typeof creds !== 'object') creds = null;
