@@ -2752,3 +2752,12 @@ table.leg-table input, table.calib-table input { min-height: var(--ctl-h-sm); }
   }
 }
 
+
+/* Tank Chief was the one surface of the three with no reduced-motion block at
+ * all — the AIO shell and Voyage Chief already had theirs. Its own animation
+ * is the PDF progress bar; the shared ones live in hud-effects.css, which
+ * carries its own block. */
+@media (prefers-reduced-motion: reduce) {
+  .pdf-progress, .pdf-progress::after { animation: none !important; }
+  * { scroll-behavior: auto !important; }
+}
