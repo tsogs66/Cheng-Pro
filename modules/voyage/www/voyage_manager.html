@@ -7617,27 +7617,55 @@ function vesselOwnSyncSlug(vesselId){
 }
 
 /**
+ * Registry-only slug for a ship — never the Setup form field.
+ * vesselOwnSyncSlug(active) returns Backup/Setup's typed vesselId, which would
+ * make every pull "match" whichever hull the hidden Voyage frame still has open.
+ */
+function vesselRegistrySyncSlug(vessel){
+  if (!vessel) return '';
+  return sanitizeSyncSlug(vessel.slug || vesselSlugFromName(vessel.name || '')) || '';
+}
+
+/** Name/slug cores may include a trailing IMO (flag-evi-9619799 ≡ flag-evi). */
+function syncSlugCoreWithoutImo(raw){
+  let s = syncSlugCore(raw).replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  const stripped = s.replace(/-\d{6,8}$/, '');
+  return stripped || s || syncSlugCore(raw);
+}
+
+/**
  * Resolve a sync-server vessel folder (slug) to a local registry ship, creating
  * one when missing. Pull-voyage-leg used to pin only the API path and then
  * archive under whatever activeVesselId the hidden Backup frame happened to
  * hold — so the fetch succeeded and the leg landed on the wrong ship (or
  * nowhere). Mirror pullVesselFromServer: open the right local vessel first.
+ *
+ * Match by registry id / slug / name only. Do not consult vesselOwnSyncSlug —
+ * for the active ship that helper returns the Setup form slug (often the ship
+ * just typed in AIO Backup), so Harbour Key would "match" mv-flag-evi and
+ * receive Flag Evi's pulled leg.
  */
 async function ensureLocalVesselForSyncSlug(asked){
   const raw = String(asked || '').trim();
   if (!raw) return null;
   const slug = sanitizeSyncSlug(raw);
   const core = syncSlugCore(raw);
+  const coreLoose = syncSlugCoreWithoutImo(raw);
   let vessel = (state.vessels || []).find((v) => {
     if (!v) return false;
     if (v.id === raw || v.id === slug) return true;
-    if (sanitizeSyncSlug(v.slug || '') === slug) return true;
+    const reg = vesselRegistrySyncSlug(v);
+    if (reg && (reg === slug || syncSlugsMatch(reg, raw))) return true;
     if (syncSlugsMatch(v.slug, raw)) return true;
-    if (syncSlugCore(vesselSlugFromName(v.name || '')) === core) return true;
-    try { return syncSlugsMatch(vesselOwnSyncSlug(v.id), raw); } catch (_) { return false; }
+    const nameCore = syncSlugCore(vesselSlugFromName(v.name || ''));
+    if (nameCore === core) return true;
+    if (syncSlugCoreWithoutImo(nameCore) === coreLoose) return true;
+    return false;
   }) || null;
   if (vessel) return vessel;
-  const pretty = raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || slug;
+  const pretty = syncSlugCoreWithoutImo(raw).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    || raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    || slug;
   vessel = await createNewVessel(pretty);
   if (!vessel) return null;
   vessel.slug = slug;
@@ -20997,7 +21025,8 @@ function syncSlugsMatch(a, b){
   const sa = sanitizeSyncSlug(a);
   const sb = sanitizeSyncSlug(b);
   if (sa.toLowerCase() === sb.toLowerCase()) return true;
-  return syncSlugCore(sa) === syncSlugCore(sb);
+  if (syncSlugCore(sa) === syncSlugCore(sb)) return true;
+  return syncSlugCoreWithoutImo(sa) === syncSlugCoreWithoutImo(sb);
 }
 
 function vesselSyncSlug(){
