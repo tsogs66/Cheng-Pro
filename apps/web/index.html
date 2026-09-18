@@ -131,9 +131,15 @@
       <button type="button" class="bottom-item" data-module="eorb">e-ORB</button>
       <button type="button" class="bottom-item" data-module="performance">Perf</button>
     </nav>
+    <!-- The AIO's one piece of chrome inside a module. It replaces two floating
+         buttons that sat on top of Voyage Chief's and Tank Chief's own header
+         rows, and it carries the thing a module cannot tell you: which vessel
+         the suite currently has active. -->
     <div class="aio-return-fabs" id="aioReturnFabs" hidden>
+      <button type="button" class="aio-home-fab" id="aioHomeFab" title="Back to Dashboard" aria-label="Back to Dashboard">‹ Dashboard</button>
+      <span class="aio-embed-module" id="aioEmbedModule"></span>
+      <span class="aio-embed-vessel" id="aioEmbedVessel" title="Active vessel"></span>
       <button type="button" class="theme-toggle aio-theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
-      <button type="button" class="aio-home-fab" id="aioHomeFab" title="Back to Dashboard" aria-label="Back to Dashboard">DASHBOARD</button>
     </div>
   </div>
 

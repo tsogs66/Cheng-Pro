@@ -196,6 +196,32 @@
     document.body.classList.toggle('aio-on-home', onHome);
   }
 
+  /**
+   * What the embed strip says while a module is open.
+   *
+   * The module name comes off the nav item that opened it, so the strip and
+   * the sidebar can never disagree about what this screen is called. The
+   * vessel is there because a module cannot tell you: open Tank Chief and
+   * nothing on screen says which ship the suite has active, which is a poor
+   * position to be in before you print a sounding sheet.
+   */
+  function fillEmbedBar() {
+    const nameEl = document.getElementById('aioEmbedModule');
+    const vesselEl = document.getElementById('aioEmbedVessel');
+    if (nameEl) {
+      const nav = document.querySelector(`.nav-item[data-module="${current}"]`);
+      nameEl.textContent = (nav && nav.textContent.trim()) || '';
+    }
+    if (vesselEl) {
+      let label = '';
+      try {
+        const v = ChengPro.vessel.getActive();
+        if (v) label = v.name + (v.imo ? ' · ' + v.imo : '');
+      } catch { /* a vessel list that will not load is the list's problem */ }
+      vesselEl.textContent = label || 'No vessel selected';
+    }
+  }
+
   function setFullscreenEmbed(on) {
     const active = !!on && wantsFullscreenEmbed();
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
@@ -205,6 +231,7 @@
     if (cluster) cluster.hidden = !active;
     const fab = document.getElementById('aioHomeFab');
     if (fab) fab.hidden = !active;
+    if (active) fillEmbedBar();
     syncThemeChrome();
   }
 
@@ -330,6 +357,10 @@
 
   ChengPro.vessel.subscribe(() => {
     fillVesselSelect();
+    /* The strip carries the active vessel, and the switcher it mirrors is
+       hidden while a module is open — so it has to hear about the change
+       from here rather than from the select. */
+    fillEmbedBar();
   });
 
   window.addEventListener('chengpro:navigate', (e) => {
