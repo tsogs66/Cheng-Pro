@@ -14,8 +14,15 @@ Everything stays beside the EXE under:
   ChEngAIO-data\
     server\              tank + voyage sync databases (JSON)
     electron-profile\    Electron / Chromium profile (IndexedDB, etc.)
+    desktop-ports.json   sticky local ports (keeps license + voyage DB)
+    server\desktop-license.json
+                         license backup (restored if browser storage is empty)
 
 Take the stick to another PC and the same vessels and voyages open again.
+
+The app always uses the same local ports when possible. Older builds picked a
+random port each launch, which made Windows treat each start as a new site and
+look like the license and Voyage data had been deleted — that is fixed here.
 
 
 STARTING IT

@@ -8,6 +8,7 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const { startVoyageSync, proxyToVoyage } = require('./voyage-sync');
@@ -259,6 +260,57 @@ app.delete('/api/shell/vessels/:id', (req, res) => {
     res.json(store.deleteVessel(req.params.id));
   } catch (e) {
     res.status(404).json({ error: e.message });
+  }
+});
+
+/**
+ * Disk mirror for the Windows/Electron license entitlement.
+ * Chromium scopes localStorage to host:port — if the desktop loopback port ever
+ * changes, browser storage looks empty. Keep a copy under CHENG_PRO_DATA_DIR so
+ * the shell can restore activation after relaunch / update.
+ */
+function localLicensePath() {
+  return path.join(DATA_DIR, 'desktop-license.json');
+}
+
+app.get('/api/shell/local-license', (req, res) => {
+  try {
+    const p = localLicensePath();
+    if (!fs.existsSync(p)) return res.json({ ok: true, entitlement: null });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    res.json({
+      ok: true,
+      entitlement: raw && raw.entitlement ? raw.entitlement : null,
+      deviceId: raw && raw.deviceId ? raw.deviceId : null,
+      savedAt: raw && raw.savedAt ? raw.savedAt : null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/shell/local-license', express.json({ limit: '256kb' }), (req, res) => {
+  try {
+    const entitlement = req.body && req.body.entitlement ? req.body.entitlement : null;
+    const deviceId = req.body && req.body.deviceId ? String(req.body.deviceId) : null;
+    const p = localLicensePath();
+    if (!entitlement) {
+      try { fs.unlinkSync(p); } catch { /* ignore missing */ }
+      return res.json({ ok: true, cleared: true });
+    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        entitlement,
+        deviceId,
+        savedAt: new Date().toISOString(),
+      }, null, 2),
+      'utf8'
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

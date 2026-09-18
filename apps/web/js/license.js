@@ -199,6 +199,60 @@
     }
   }
 
+  /** Same-origin disk mirror (Electron / local gateway) survives loopback port changes. */
+  function localLicenseMirrorUrl() {
+    try {
+      if (typeof location === 'undefined') return '';
+      if (!/^https?:$/i.test(location.protocol || '')) return '';
+      const host = location.hostname || '';
+      if (host !== '127.0.0.1' && host !== 'localhost') return '';
+      if (productSku() !== 'cheng-aio') return '';
+      return '/api/shell/local-license';
+    } catch {
+      return '';
+    }
+  }
+
+  function mirrorEntitlementToDisk(ent) {
+    const url = localLicenseMirrorUrl();
+    if (!url) return;
+    try {
+      const body = JSON.stringify({
+        entitlement: ent || null,
+        deviceId: ent ? (readStorage(DEVICE_KEY) || null) : null,
+      });
+      if (typeof fetch === 'function') {
+        fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          credentials: 'same-origin',
+          keepalive: true,
+        }).catch(() => { /* ignore */ });
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function hydrateEntitlementFromDisk() {
+    if (loadEntitlement()) return loadEntitlement();
+    const url = localLicenseMirrorUrl();
+    if (!url || typeof fetch !== 'function') return null;
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const ent = data && data.entitlement;
+      if (!ent) return null;
+      const payload = JSON.stringify(ent);
+      writeStorage(STORAGE_KEY, payload);
+      writeStorage(STORAGE_FALLBACK_KEY, payload);
+      if (data.deviceId) writeStorage(DEVICE_KEY, String(data.deviceId));
+      return loadEntitlement();
+    } catch {
+      return null;
+    }
+  }
+
   function saveEntitlement(ent) {
     try {
       if (ent) {
@@ -207,10 +261,12 @@
           throw new Error('Could not save license on this device — allow site storage (not private/incognito).');
         }
         writeStorage(STORAGE_FALLBACK_KEY, payload);
+        mirrorEntitlementToDisk(ent);
         return true;
       }
       writeStorage(STORAGE_KEY, null);
       writeStorage(STORAGE_FALLBACK_KEY, null);
+      mirrorEntitlementToDisk(null);
       return true;
     } catch (e) {
       if (e && e.message && e.message.includes('Could not save')) throw e;
@@ -633,6 +689,7 @@
       const sku = productSku();
       if (sku === 'voyage-chief' || sku === 'tank-chief') enforce = true;
     }
+    await hydrateEntitlementFromDisk();
     const ent = loadEntitlement();
     if (isValid(ent) && skuAllowed(ent)) {
       if (daysLeft(ent) <= 7 && navigator.onLine) {
