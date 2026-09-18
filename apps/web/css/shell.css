@@ -277,6 +277,22 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
   font-family: var(--mono); color: var(--muted); word-break: break-word; margin-top: 2px; font-size: 0.7rem;
 }
 .sidebar-meta .author:empty, .sidebar-meta .ver:empty, .sidebar-meta .registered:empty { display: none; }
+
+/* Day/night lives at the foot of the menu, with the version and the licensed
+   email. On a desktop the sidebar is always there, so the top bar's copy is a
+   duplicate and goes; below 900px the sidebar is a drawer you have to open, so
+   the top bar keeps its own. */
+.sidebar-meta .theme-sidebar {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  /* Two toggles on one screen would both say "Bright" and both work; the
+     drawer's copy is the redundant one while the top bar's is in reach. */
+  .sidebar-meta .theme-sidebar { display: none; }
+}
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -327,6 +343,13 @@ html.bright .btn.primary:hover {
 }
 html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
   display: inline-flex;
+}
+/* Above 900px the sidebar is always on screen, so the foot of the menu holds
+   the toggle and the top bar's copy is a duplicate. It has to match the rule
+   above selector for selector — a plainer one loses to it and both were
+   showing. */
+@media (min-width: 901px) {
+  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar { display: none; }
 }
 .nav-fab {
   display: none;
