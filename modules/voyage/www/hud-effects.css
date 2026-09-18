@@ -222,3 +222,81 @@ html.bright {
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Motion, tier 2.
+ *
+ * Tier 1 moved things that carry information. These three are atmosphere, and
+ * they are kept to the places where atmosphere costs nothing: a panel arriving,
+ * a wait that would otherwise look like a hang, and the surface of a tank that
+ * is drawn as a picture anyway.
+ *
+ * Still transform and opacity only, and still nothing under a figure being
+ * read off the screen.
+ * ------------------------------------------------------------------------- */
+
+@media (min-width: 901px), (orientation: landscape) and (min-width: 721px) {
+
+  /* Panels arrive rather than appear. 8px and 240ms — enough to read as
+     deliberate, not enough to wait for. The stagger stops at six because a
+     seventh panel starting a third of a second late reads as a slow page. */
+  .panel, .form-panel {
+    animation: cheng-panel-in 240ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+  .panel:nth-of-type(2), .form-panel:nth-of-type(2) { animation-delay: 30ms; }
+  .panel:nth-of-type(3), .form-panel:nth-of-type(3) { animation-delay: 60ms; }
+  .panel:nth-of-type(4), .form-panel:nth-of-type(4) { animation-delay: 90ms; }
+  .panel:nth-of-type(5), .form-panel:nth-of-type(5) { animation-delay: 120ms; }
+  .panel:nth-of-type(n+6), .form-panel:nth-of-type(n+6) { animation-delay: 150ms; }
+
+  @keyframes cheng-panel-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* A panel that is working. Add .is-working while something slow runs and a
+     line sweeps down it — a wait that shows it is a wait rather than a hang.
+     Nothing removes it on its own; whoever sets it takes it off. */
+  .is-working { position: relative; }
+  .is-working::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent 0%, var(--hud-glow) 48%, transparent 96%);
+    background-size: 100% 42%;
+    background-repeat: no-repeat;
+    animation: cheng-sweep 1.15s linear infinite;
+    z-index: 2;
+  }
+  @keyframes cheng-sweep {
+    from { background-position: 0 -45%; }
+    to   { background-position: 0 145%; }
+  }
+
+  /* The tank schematics are the best drawing in the suite. The liquid gets a
+     soft inner glow in its own grade colour, and its surface breathes — a
+     3.2s cycle, slow enough to read as a ship at sea rather than a loading
+     spinner. */
+  .tg-liquid { filter: drop-shadow(0 0 3px currentColor); }
+  .tg-surface {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: cheng-surface 3.2s ease-in-out infinite;
+  }
+  @keyframes cheng-surface {
+    0%, 100% { opacity: 0.28; transform: translateY(0); }
+    50%      { opacity: 0.42; transform: translateY(0.6px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel, .form-panel,
+  .is-working::after,
+  .tg-surface {
+    animation: none !important;
+  }
+  /* The sweep still marks the panel as busy; it just stops moving. */
+  .is-working::after { background: var(--hud-glow); opacity: 0.35; }
+}
