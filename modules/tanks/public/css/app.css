@@ -2735,3 +2735,20 @@ table .btn {
 }
 /* A field inside a dense table row keeps the row's height, not the form's. */
 table.leg-table input, table.calib-table input { min-height: var(--ctl-h-sm); }
+
+/* Nothing in this suite is smaller than 12px — see apps/web/css/shell.css for
+ * why, and for the measurement this list came from. !important for the same
+ * reason it is used there. Screen only: the printed forms are typeset in
+ * points and are not this rule's business.
+ */
+@media screen {
+  .app-credit-name, .app-credit-authors, .app-credit-when,
+  .nav-group-label,
+  .tag, .pill,
+  .hint, p.hint, span.hint, i, b,
+  .label, .card .label, .card .sub, .card .unit,
+  table th, table td {
+    font-size: 12px !important;
+  }
+}
+

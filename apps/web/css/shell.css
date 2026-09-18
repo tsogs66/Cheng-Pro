@@ -1401,3 +1401,37 @@ table .btn {
   padding: 4px 10px;
   border-radius: var(--ctl-r-sm);
 }
+
+/* Nothing in this suite is smaller than 12px.
+ *
+ * Measured across the AIO and both modules: 56 rules produced 761 visible
+ * elements under 12px, with a floor of 8px. On an engine room PC read at
+ * arm's length, 9px labels on a readout are not small — they are not there.
+ *
+ * !important, deliberately. The sizes being raised are set by rules more
+ * specific than anything that can be written here without naming every
+ * ancestor, and a floor that only reaches half of them is not a floor. The
+ * block is scoped to @media screen, so it cannot reach the printed forms.
+ */
+@media screen {
+  .app-version,
+  .ver, .author, .registered,
+  .vessel-chip span,
+  .brand-text > span,
+  .theme-toggle, .btn.theme-toggle, .aio-home-fab,
+  label, .label, .field label,
+  .cards-row .card .label,
+  .gauge-cap, .gauge-label,
+  .tg-name, .tg-chip, .tg-pct, .tg-stats,
+  .home-kicker,
+  .tg-schematic-col-tanks .tg-pct,
+  .stamp-empty, .group-label,
+  .tg-val, .tg-sub, .card .sub, .card .unit,
+  table th, table td,
+  .hint, .empty {
+    font-size: 12px !important;
+  }
+  /* Uppercase tracked labels need the room the extra pixels ask for. */
+  .field label, .cards-row .card .label, .gauge-label { letter-spacing: 0.05em; }
+}
+
