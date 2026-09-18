@@ -314,6 +314,52 @@ app.put('/api/shell/local-license', express.json({ limit: '256kb' }), (req, res)
   }
 });
 
+/**
+ * Disk mirror for Voyage Backup → Server Sync credentials (URL + token).
+ * Same origin-wipe class as the license: Chromium localStorage is host:port scoped.
+ */
+function localSyncCredsPath() {
+  return path.join(DATA_DIR, 'desktop-sync-creds.json');
+}
+
+app.get('/api/shell/local-sync-creds', (req, res) => {
+  try {
+    const p = localSyncCredsPath();
+    if (!fs.existsSync(p)) return res.json({ ok: true, credentials: null });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    res.json({
+      ok: true,
+      credentials: raw && raw.credentials ? raw.credentials : null,
+      savedAt: raw && raw.savedAt ? raw.savedAt : null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/shell/local-sync-creds', express.json({ limit: '256kb' }), (req, res) => {
+  try {
+    const credentials = req.body && req.body.credentials ? req.body.credentials : null;
+    const p = localSyncCredsPath();
+    if (!credentials || typeof credentials !== 'object') {
+      try { fs.unlinkSync(p); } catch { /* ignore missing */ }
+      return res.json({ ok: true, cleared: true });
+    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        credentials,
+        savedAt: new Date().toISOString(),
+      }, null, 2),
+      'utf8'
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* Tank peer sync at gateway root — Android/clients often use http://host:8080 without /tanks */
 const { requireSyncAuth: requireGatewaySyncAuth } = require('./license-scope');
 function forwardTankApi(req, res, next) {
