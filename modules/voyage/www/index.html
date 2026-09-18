@@ -7606,6 +7606,40 @@ function vesselOwnSyncSlug(vesselId){
   return sanitizeSyncSlug(vessel.slug || vesselSlugFromName(vessel.name));
 }
 
+/**
+ * Resolve a sync-server vessel folder (slug) to a local registry ship, creating
+ * one when missing. Pull-voyage-leg used to pin only the API path and then
+ * archive under whatever activeVesselId the hidden Backup frame happened to
+ * hold — so the fetch succeeded and the leg landed on the wrong ship (or
+ * nowhere). Mirror pullVesselFromServer: open the right local vessel first.
+ */
+async function ensureLocalVesselForSyncSlug(asked){
+  const raw = String(asked || '').trim();
+  if (!raw) return null;
+  const slug = sanitizeSyncSlug(raw);
+  let vessel = (state.vessels || []).find((v) => {
+    if (!v) return false;
+    if (v.id === raw || v.id === slug) return true;
+    if (sanitizeSyncSlug(v.slug || '') === slug) return true;
+    try { return vesselOwnSyncSlug(v.id) === slug; } catch (_) { return false; }
+  }) || null;
+  if (vessel) return vessel;
+  const pretty = raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || slug;
+  vessel = await createNewVessel(pretty);
+  if (!vessel) return null;
+  vessel.slug = slug;
+  await saveVesselRegistry();
+  try {
+    const metaAll = await dbGetAll('meta');
+    const setupRow = (metaAll || []).find((m) => m.key === `setup:${vessel.id}`);
+    const setup = migrateSetup(setupRow ? setupRow.value : defaultSetupTemplate({ vesselName: pretty }));
+    setup.sync = { ...(setup.sync || {}), vesselId: slug };
+    setup.vesselName = setup.vesselName || pretty;
+    await dbPut('meta', { key: `setup:${vessel.id}`, value: setup });
+  } catch (_) { /* registry row alone is enough for archive keys */ }
+  return vessel;
+}
+
 async function pullVesselFromServer(vesselId){
   const vessel = state.vessels.find(v=>v.id===vesselId);
   if (!vessel) return;
@@ -22547,7 +22581,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v277';
+let androidInstallCacheName = 'noon-report-v278';
 
 /*
  * What the program is called.
@@ -23892,22 +23926,39 @@ window.addEventListener('message', async (ev)=>{
       const prevVn = state.setup.voyageNumber;
       const prevCond = state.setup.shipCondition;
       /* Same pinning as list-remote: the leg has to come from the ship that was
-         listed, not from the one this frame's Setup field names. */
+         listed, not from the one this frame's Setup field names. Then switch
+         the local registry to that ship so archiveActiveVoyageLeg writes under
+         the right voyageLegs key — API pin alone left legs on the wrong hull. */
       const prevPullOverride = _syncSlugOverride;
-      const askedVessel = String(msg.vessel || '').trim();
+      const askedVessel = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
       try {
-        if (askedVessel) _syncSlugOverride = askedVessel;
+        let localVessel = null;
+        if (askedVessel) {
+          localVessel = await ensureLocalVesselForSyncSlug(askedVessel);
+          if (!localVessel) {
+            throw new Error(`Could not open a local vessel for "${askedVessel}". Add it to your list, then pull again.`);
+          }
+          if (localVessel.id !== state.activeVesselId) await switchVessel(localVessel.id);
+          _syncSlugOverride = sanitizeSyncSlug(askedVessel) || vesselOwnSyncSlug(localVessel.id);
+        }
         await archiveActiveVoyageLeg();
         state.setup.voyageNumber = voyage;
         state.setup.shipCondition = condition;
         await syncNow({ pullOnly: true, policy: 'merge' });
         await archiveActiveVoyageLeg();
+        try { await persistAllToDb(); } catch (_) {}
         try { await renderVoyageLibrary(); } catch (_) {}
+        try { renderVesselSelector(); render(); } catch (_) {}
+        const shipLabel = (localVessel && localVessel.name)
+          || state.setup.vesselName
+          || askedVessel
+          || 'active vessel';
         reply({
-          message: `Merged voyage ${voyage} (${condition}) — ${state.entries.length} log entries on this device.`,
+          message: `Merged voyage ${voyage} (${condition}) into ${shipLabel} — ${state.entries.length} log entries on this device.`,
           voyage,
           condition,
           vessel: askedVessel || vesselSyncSlug(),
+          vesselId: state.activeVesselId,
           entryCount: state.entries.length,
         });
       } catch (e) {
