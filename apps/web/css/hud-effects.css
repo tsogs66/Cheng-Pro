@@ -142,3 +142,83 @@ html.bright {
   .form-panel::before,
   .bunker-side::before { display: none !important; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Motion, tier 1.
+ *
+ * Four things move, and only these four: a figure arriving, a level changing,
+ * the field that has focus, and the link to the server. Everything else on
+ * these pages is a number an engineer is reading in order to write it on a
+ * sheet, and motion under a number being read is a nuisance, not a delight.
+ *
+ * Transform and opacity only. A ship's PC is often a Celeron with no GPU
+ * worth the name, and a blur or a shadow animation on a full-width panel is
+ * how a dashboard starts dropping frames in an engine room.
+ * ------------------------------------------------------------------------- */
+
+/* A level that changes slides to its new height instead of cutting to it. */
+.fillbar-fill,
+.tg-liquid {
+  transition: width 460ms cubic-bezier(.2, .8, .2, 1),
+              height 460ms cubic-bezier(.2, .8, .2, 1),
+              background-color 300ms ease;
+}
+
+/* The field with focus is unmistakable.
+ *
+ * An earlier version drew corner brackets with clip-path. It looked the part
+ * and was wrong: clip-path cuts the element's content, so a long figure in a
+ * narrow field would lose a digit to the decoration. A ring that cannot
+ * overlap what it surrounds is worth more here than a clever shape. */
+@media (min-width: 901px), (orientation: landscape) and (min-width: 721px) {
+  .vessel-switcher select:focus-visible,
+  .field input:focus-visible,
+  .field select:focus-visible,
+  .field textarea:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  .btn:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent, #57b3ab);
+    outline-offset: 2px;
+    box-shadow: 0 0 14px var(--hud-glow) !important;
+    transition: box-shadow 120ms ease;
+  }
+}
+
+/* The link to the server, breathing when it is there and insistent when it
+   is not. Two seconds is a heartbeat at rest; the bad state is faster on
+   purpose, because it wants looking at. */
+.health-dot.ok { animation: cheng-led-idle 2.4s ease-in-out infinite; }
+.health-dot.bad { animation: cheng-led-alarm 900ms ease-in-out infinite; }
+
+@keyframes cheng-led-idle {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(95, 158, 110, 0.18); }
+  50%      { box-shadow: 0 0 0 7px rgba(95, 158, 110, 0.05); }
+}
+@keyframes cheng-led-alarm {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* A tank at or over its filling limit should look like it. */
+.fillbar-fill.is-over,
+.tg-liquid.is-over { animation: cheng-over-pulse 1.6s ease-in-out infinite; }
+@keyframes cheng-over-pulse {
+  0%, 100% { filter: none; }
+  50%      { filter: brightness(1.25); }
+}
+
+/* Nothing above is information the page depends on, so all of it stops. */
+@media (prefers-reduced-motion: reduce) {
+  .fillbar-fill,
+  .tg-liquid,
+  .health-dot.ok,
+  .health-dot.bad,
+  .fillbar-fill.is-over,
+  .tg-liquid.is-over {
+    transition: none !important;
+    animation: none !important;
+  }
+}

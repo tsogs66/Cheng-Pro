@@ -775,6 +775,11 @@
     const withReading = fam.heavy.withReading + fam.distillate.withReading;
     const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {
+      /* Let the figures count to their new values rather than jump. The grid
+         is replaced wholesale, so ChengCountUp reads the old ones off first —
+         see js/count-up.js. Absent (a stripped build, a stale cache), the
+         render happens exactly as before. */
+      const paint = () => {
       summaryEl.innerHTML = `
         <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>HFO / VLSFO Volume</div>
           <div class="value">${fmtNum(fam.heavy.volume, 1)}<span class="unit">m³ / ${fmtNum(fam.heavy.capacity, 0)}</span></div>
@@ -788,6 +793,9 @@
           <div class="value">${fmtNum(fam.distillate.weight, 1)}<span class="unit">MT</span></div></div>
         <div class="card"><div class="label">Fuel Readings</div>
           <div class="value">${withReading}<span class="unit">/ ${fromReport && fromReport.rows.length ? (fam.heavy.count + fam.distillate.count) : tanks.length}</span></div></div>`;
+      };
+      if (window.ChengCountUp) ChengCountUp.through(summaryEl, paint);
+      else paint();
     }
     if (!gridEl) return;
     if (!tanks.length) {
