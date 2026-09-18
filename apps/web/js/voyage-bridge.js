@@ -301,10 +301,13 @@
   }
 
   function folderIdKey(id) {
-    return String(id || '')
-      .toLowerCase()
-      .replace(/^m-?v-/, '')
-      .replace(/^-+/, '');
+    let s = String(id || '').toLowerCase();
+    let prev = '';
+    while (s !== prev) {
+      prev = s;
+      s = s.replace(/^m[._-]?v[._-]+/, '').replace(/^[-._]+/, '');
+    }
+    return s;
   }
 
   function findMatch(list, patch) {

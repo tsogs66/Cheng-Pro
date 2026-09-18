@@ -5753,12 +5753,22 @@ const state = {
 const LEGACY_VESSEL_ID = 'v-fangcheng';
 
 function vesselSlugFromName(name){
-  /* Strip MV / M/V / M.V. so Voyage, Tank, and AIO land on the same core slug. */
+  /* Strip MV / M/V / M.V. (spaced or already-slugified m-v-/mv-) so Voyage,
+     Tank, and AIO land on the same core slug — e.g. m-v-flag-evi ≡ flag-evi. */
   let core = String(name || 'vessel').trim();
   let prev = '';
   while (core !== prev) {
     prev = core;
     core = core.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+  }
+  if (!/\s/.test(core)) {
+    prev = '';
+    let slug = core.toLowerCase();
+    while (slug !== prev) {
+      prev = slug;
+      slug = slug.replace(/^m[._-]?v[._-]+/i, '').replace(/^[-._]+/, '');
+    }
+    core = slug || core;
   }
   return (core || 'vessel').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase().slice(0, 48) || 'vessel';
 }
@@ -7617,11 +7627,14 @@ async function ensureLocalVesselForSyncSlug(asked){
   const raw = String(asked || '').trim();
   if (!raw) return null;
   const slug = sanitizeSyncSlug(raw);
+  const core = syncSlugCore(raw);
   let vessel = (state.vessels || []).find((v) => {
     if (!v) return false;
     if (v.id === raw || v.id === slug) return true;
     if (sanitizeSyncSlug(v.slug || '') === slug) return true;
-    try { return vesselOwnSyncSlug(v.id) === slug; } catch (_) { return false; }
+    if (syncSlugsMatch(v.slug, raw)) return true;
+    if (syncSlugCore(vesselSlugFromName(v.name || '')) === core) return true;
+    try { return syncSlugsMatch(vesselOwnSyncSlug(v.id), raw); } catch (_) { return false; }
   }) || null;
   if (vessel) return vessel;
   const pretty = raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || slug;
@@ -20968,6 +20981,25 @@ function sanitizeSyncSlug(raw){
   return String(raw || '').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 64);
 }
 
+/** Strip leading m-v- / mv- / m.v- so sync folder aliases match one ship. */
+function syncSlugCore(raw){
+  let s = sanitizeSyncSlug(raw).toLowerCase().replace(/^-+|-+$/g, '');
+  let prev = '';
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(/^m[._-]?v[._-]+/i, '').replace(/^[-._]+/, '');
+  }
+  return s || 'vessel';
+}
+
+function syncSlugsMatch(a, b){
+  if (!a || !b) return false;
+  const sa = sanitizeSyncSlug(a);
+  const sb = sanitizeSyncSlug(b);
+  if (sa.toLowerCase() === sb.toLowerCase()) return true;
+  return syncSlugCore(sa) === syncSlugCore(sb);
+}
+
 function vesselSyncSlug(){
   const sync = ensureSyncConfig();
   if (_syncSlugOverride) return sanitizeSyncSlug(_syncSlugOverride);
@@ -22581,7 +22613,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v278';
+let androidInstallCacheName = 'noon-report-v279';
 
 /*
  * What the program is called.
