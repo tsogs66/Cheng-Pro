@@ -3,140 +3,21 @@
  *
  * Portable builds (USB): all databases live beside the .exe under ChEngAIO-data/
  * so the stick is fully standalone across PCs.
+ *
+ * HTTP + sync ports are sticky (see desktop/paths.js) so Chromium origin storage
+ * (license localStorage, Voyage IndexedDB) survives close / update / relaunch.
  */
 const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const {
+  resolvePaths,
+  resolveStablePorts,
+} = require('./paths');
 
 const isPackaged = app.isPackaged;
 
-function portableBaseDir() {
-  if (process.env.PORTABLE_EXECUTABLE_DIR) {
-    return process.env.PORTABLE_EXECUTABLE_DIR;
-  }
-  if (process.env.CHENG_PRO_PORTABLE === '1' || process.env.CHENG_AIO_PORTABLE === '1') {
-    return path.dirname(process.execPath);
-  }
-  /* electron-builder portable .exe name often contains "Portable". */
-  try {
-    if (/portable/i.test(path.basename(process.execPath))) {
-      return path.dirname(process.execPath);
-    }
-  } catch { /* ignore */ }
-  return '';
-}
-
-function dirHasContent(dir) {
-  try {
-    if (!fs.existsSync(dir)) return false;
-    return fs.readdirSync(dir).length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/** Copy directory tree when dest is missing/empty (one-time migration). */
-function migrateDirIfNeeded(src, dest, label) {
-  if (!src || !dest || src === dest) return false;
-  if (!dirHasContent(src)) return false;
-  if (dirHasContent(dest)) return false;
-  try {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.cpSync(src, dest, { recursive: true, errorOnExist: false, force: false });
-    console.log(`[desktop] migrated ${label}: ${src} → ${dest}`);
-    return true;
-  } catch (err) {
-    console.error(`[desktop] migrate ${label} failed:`, err && err.message ? err.message : err);
-    return false;
-  }
-}
-
-function legacyAppDataCandidates() {
-  const appData = process.env.APPDATA || process.env.HOME || '';
-  if (!appData) return [];
-  /* Older Electron / rebranded productName folders that held license + IndexedDB. */
-  return [
-    path.join(appData, 'cheng-pro'),
-    path.join(appData, 'Cheng-Pro'),
-    path.join(appData, 'ChEng AIO'),
-    path.join(appData, 'chengaio'),
-  ];
-}
-
-function resolvePaths() {
-  const portableBase = portableBaseDir();
-  if (portableBase) {
-    const root = path.join(portableBase, 'ChEngAIO-data');
-    const legacyRoots = [
-      path.join(portableBase, 'cheng-pro-data'),
-      path.join(portableBase, 'Cheng-Pro-data'),
-      path.join(portableBase, 'ChEng-Pro-data'),
-    ];
-    /* Prefer rename of the old USB folder when the new one is absent. */
-    if (!fs.existsSync(root)) {
-      for (const legacy of legacyRoots) {
-        if (!dirHasContent(legacy)) continue;
-        try {
-          fs.renameSync(legacy, root);
-          console.log(`[desktop] renamed portable data: ${legacy} → ${root}`);
-          break;
-        } catch (err) {
-          console.warn('[desktop] rename failed, will copy:', err && err.message);
-          migrateDirIfNeeded(legacy, root, 'portable-data');
-          break;
-        }
-      }
-    }
-    const serverData = path.join(root, 'server');
-    const userData = path.join(root, 'electron-profile');
-    /* Pre-portable-profile builds kept Chromium data in %APPDATA% — bring license + IDB over. */
-    if (!dirHasContent(userData)) {
-      for (const legacy of legacyAppDataCandidates()) {
-        if (migrateDirIfNeeded(legacy, userData, 'electron-profile')) break;
-      }
-    }
-    /* Old portable layout stored JSON under cheng-pro-data/ directly (not …/server). */
-    if (!dirHasContent(serverData)) {
-      for (const legacy of legacyRoots) {
-        if (!dirHasContent(legacy)) continue;
-        const nested = path.join(legacy, 'server');
-        if (dirHasContent(nested)) migrateDirIfNeeded(nested, serverData, 'server-data');
-        else migrateDirIfNeeded(legacy, serverData, 'server-data-flat');
-        if (dirHasContent(serverData)) break;
-      }
-    }
-    return {
-      portable: true,
-      root,
-      serverData,
-      userData,
-    };
-  }
-
-  const userData = app.getPath('userData');
-  const serverData = path.join(userData, 'data');
-  /* Installed build: if this profile is empty, copy from a previous productName folder. */
-  if (!dirHasContent(userData) || !dirHasContent(path.join(userData, 'Local Storage'))) {
-    for (const legacy of legacyAppDataCandidates()) {
-      if (legacy === userData) continue;
-      if (migrateDirIfNeeded(legacy, userData, 'installed-profile')) break;
-    }
-  }
-  if (!dirHasContent(serverData)) {
-    for (const legacy of legacyAppDataCandidates()) {
-      const legacyData = path.join(legacy, 'data');
-      if (migrateDirIfNeeded(legacyData, serverData, 'installed-server-data')) break;
-    }
-  }
-  return {
-    portable: false,
-    root: userData,
-    serverData,
-    userData,
-  };
-}
-
-const paths = resolvePaths();
+const paths = resolvePaths((name) => app.getPath(name));
 fs.mkdirSync(paths.serverData, { recursive: true });
 fs.mkdirSync(paths.userData, { recursive: true });
 if (paths.portable) {
@@ -251,8 +132,11 @@ app.whenReady().then(async () => {
   process.env.CHENG_PRO_DATA_DIR = DATA_DIR;
   process.env.TMS_DATA_DIR = DATA_DIR;
   process.env.HOST = '127.0.0.1';
-  process.env.PORT = '0';
-  process.env.SYNC_PORT = String(17800 + Math.floor(Math.random() * 2000));
+
+  const ports = await resolveStablePorts(paths.root, '127.0.0.1');
+  process.env.PORT = String(ports.port);
+  process.env.SYNC_PORT = String(ports.syncPort);
+  console.log(`[desktop] stable ports http=${ports.port} sync=${ports.syncPort}`);
 
   if (isPackaged) {
     const runtime = path.join(process.resourcesPath, 'runtime');
