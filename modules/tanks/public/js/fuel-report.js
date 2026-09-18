@@ -593,7 +593,7 @@ const FuelReport = (() => {
     setCell('[data-fr-head="trim"]', n(c.header.trim, 2));
     setCell('[data-fr-head="attitude"]',
       `Trim ${c.header.trimLabel} · heel ${c.header.heelLabel} — calibration tables are read at trim `
-      + `${signed(c.header.trimByStern, 2)} m by the stern.`);
+      + `${signed(c.header.trim, 2)} m ${Core.trimSense(c.header.trim)}.`);
 
     paintSectionCells(c.sections);
     for (const section of c.sections) {
@@ -1282,7 +1282,7 @@ const FuelReport = (() => {
           <td>${esc(r.methodLabel)} ${n(Core.mmToCm(r.reading, { soundingUnit: r.soundingUnit }), 1)}</td>
           <td>${t.flipped ? `${esc(t.nativeMethod)} ${n(t.nativeReading, 0)} (pipe ${n(t.pipeHeight, 0)})` : 'as read'}</td>
           <td>${esc(r.calcType)} · step ${n(t.soundingIncrement, 0)}</td>
-          <td>${signed(t.trimUsed, 2)} m</td>
+          <td>${signed(t.trimUsed, 2)} m ${esc(Core.trimSense(t.trimUsed))}</td>
           <td>${corrCell(r, t.trimCorrection)}</td>
           <td>${signed(t.heelUsed, 1)}°</td>
           <td>${corrCell(r, t.listCorrection)}</td>
@@ -1346,7 +1346,7 @@ const FuelReport = (() => {
         <thead><tr><th>Step</th><th>Formula</th><th>Source</th></tr></thead>
         <tbody>
           <tr><td class="fr-print-name">Mean draft</td><td>(draft fwd + draft aft) ÷ 2</td><td>Report header</td></tr>
-          <tr><td class="fr-print-name">Trim</td><td>draft fwd − draft aft (tables read at draft aft − draft fwd, trim by stern)</td><td>Report header</td></tr>
+          <tr><td class="fr-print-name">Trim</td><td>draft fwd − draft aft; positive is down by the bow (the book's TRIM BY STEM columns), negative down by the stern</td><td>Report header</td></tr>
           <tr><td class="fr-print-name">Dip ↔ ullage</td><td>reading on table scale = sounding-pipe height − reading</td><td>Setup sheet</td></tr>
           <tr><td class="fr-print-name">Trim correction</td><td>double interpolation on sounding × trim grid ÷ correction divisor</td><td>Tank calibration table</td></tr>
           <tr><td class="fr-print-name">Heel correction</td><td>double interpolation on corrected sounding × heel grid ÷ correction divisor</td><td>Tank calibration table</td></tr>
