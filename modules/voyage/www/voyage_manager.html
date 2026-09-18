@@ -745,6 +745,34 @@
   table button, .voyage-bf-samples button { min-height: var(--ctl-h-sm); }
   th, td { padding: var(--cell-pad-y) var(--cell-pad-x); }
 
+
+  /* Nothing in this suite is smaller than 12px — see apps/web/css/shell.css
+   * for why, and for the measurement this list came from. The densest screens
+   * in the product are here: Voyage Chief alone had 195 visible elements under
+   * 12px, down to 9px on the readout units.
+   *
+   * !important for the same reason it is used there: these sizes are set by
+   * rules more specific than anything that can be written without naming every
+   * ancestor. Screen only — everything under .pr- is a printed form typeset in
+   * points and is deliberately outside this block. */
+  @media screen {
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table),
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table) th,
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table) td,
+    .lbl, .unit, .gauge-cap, .gauge-label,
+    .hint, label, h3.sub, .footer-note, sub,
+    button, button.ghost, button.primary,
+    .orb-subtab, .nav-group-label, .orb-tank-head,
+    .tag, .pill {
+      font-size: 12px !important;
+    }
+    /* The Consumption Plan grid is table-layout:fixed with a min-width — it
+       cannot take the extra pixels without overflowing, so it keeps 11px.
+       Called out rather than silently excluded. */
+    .bunker-table, .bunker-table th, .bunker-table td { font-size: 11px !important; }
+  }
+
+
   button{font-family:'Oswald',sans-serif; letter-spacing:0.06em; text-transform:uppercase; font-size:12px; padding:10px 18px; border-radius:3px; border:1px solid var(--brass-dim); cursor:pointer; background:transparent; color:var(--brass); transition:all .15s ease;}
   button.primary{background:var(--brass); color:var(--ink); font-weight:600;}
   button.primary:hover{background:#dcae6c;}
