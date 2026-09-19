@@ -8,7 +8,7 @@
  */
 'use strict';
 const assert = require('assert');
-const calc = require('../modules/tanks/server/calc.js');
+const calc = require('../server/calc.js');
 
 let pass = 0;
 const is = (got, want, what) => { assert.strictEqual(got, want, what); pass += 1; };

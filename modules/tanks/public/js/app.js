@@ -2623,7 +2623,8 @@ function renderCalibrationEditor(main, tankId) {
           <option value="correction" ${tank.calcType==='correction'?'selected':''}>sounding correction (heel → volume)</option>
           <option value="trimHeel" ${tank.calcType==='trimHeel'||tank.calcType==='trim-heel'?'selected':''}>trim-heel (trim+heel at original → volume)</option>
           <option value="direct" ${tank.calcType==='direct'||!tank.calcType?'selected':''}>volume correction (trim m³ − heel m³)</option>
-        </select></div>
+        </select>
+        <div class="hint">Changing type rebuilds the grid layout — Save to keep it</div></div>
       <div class="form-row"><label>Capacity 100% m³</label><input id="c-cap" type="number" step="any" value="${tank.capacity||0}"></div>
       <div class="form-row"><label>Correction divisor</label><input id="c-div" type="number" step="any" value="${tank.correctionDivisor|| (isDirect?1:10)}"></div>
     </div>
@@ -2635,8 +2636,8 @@ function renderCalibrationEditor(main, tankId) {
         <div class="hint">${pipeHeightHint(tank)}</div></div>
       <div class="form-row"><label>Sounding method</label>
         <select id="c-method">
-          <option value="ullage" ${tank.soundingMethod==='ullage'?'selected':''}>ullage</option>
-          <option value="sounding" ${tank.soundingMethod==='sounding'?'selected':''}>sounding</option>
+          <option value="ullage" ${String(tank.soundingMethod||'ullage').toLowerCase()==='ullage'?'selected':''}>ullage</option>
+          <option value="sounding" ${String(tank.soundingMethod||'').toLowerCase()==='sounding'?'selected':''}>sounding</option>
         </select></div>
       <div class="form-row"><label>85% volume (ref)</label><input value="${fmt((tank.capacity||0)*0.85,2)}" disabled></div>
     </div>
@@ -2664,7 +2665,16 @@ function renderCalibrationEditor(main, tankId) {
     </div>`;
   main.appendChild(meta);
 
-  main.appendChild(buildExcelCalibrationTable(tank));
+  let excelPanel = buildExcelCalibrationTable(tank);
+  main.appendChild(excelPanel);
+
+  document.getElementById('c-type').onchange = () => {
+    const nextType = document.getElementById('c-type').value;
+    const draft = { ...tank, calcType: nextType };
+    const fresh = buildExcelCalibrationTable(draft);
+    excelPanel.replaceWith(fresh);
+    excelPanel = fresh;
+  };
 
   const sticky = document.createElement('div');
   sticky.className = 'calib-sticky-actions no-print';
@@ -2681,11 +2691,13 @@ function renderCalibrationEditor(main, tankId) {
       capacity: parseFloat(document.getElementById('c-cap').value) || 0,
       correctionDivisor: parseFloat(document.getElementById('c-div').value) || 10,
       pipeHeight: parseFloat(document.getElementById('c-pipe').value) || 0,
-      soundingMethod: document.getElementById('c-method').value,
+      soundingMethod: String(document.getElementById('c-method').value || 'ullage').toLowerCase(),
       soundingUnit: document.getElementById('c-sound-unit').value || null,
       correctionUnit: document.getElementById('c-corr-unit').value || null,
       soundingIncrement: parseFloat(document.getElementById('c-sound-inc').value) || 1,
       heelIncrement: parseFloat(document.getElementById('c-heel-inc').value) || 1,
+      calcTypeConfident: false,
+      calcTypeReason: null,
       ...parsed,
     };
     await Api.saveCalibration(STATE.activeVesselId, tankId, calibration);
@@ -2849,7 +2861,7 @@ function buildExcelCalibrationTable(tank) {
 }
 
 function readExcelCalibrationTable(tank) {
-  const isDirect = document.getElementById('c-type')?.value === 'direct' || tank.calcType === 'direct';
+  const isDirect = document.getElementById('c-type')?.value === 'direct';
   const trimVals = Array.from(document.querySelectorAll('input[data-excel="trimVal"]'))
     .map((el) => parseFloat(el.value)).filter((n) => !Number.isNaN(n));
   const listVals = Array.from(document.querySelectorAll('input[data-excel="listVal"]'))
