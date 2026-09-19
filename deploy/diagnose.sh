@@ -22,3 +22,6 @@ curl -fsS -m 3 "http://127.0.0.1:8788/api/health" && echo || echo "FAIL :8788 (n
 echo
 echo "=== Fix if install never completed ==="
 echo "apt-get update && apt-get install -y curl ca-certificates && curl -fsSL https://raw.githubusercontent.com/tsogs66/Cheng-Pro/main/deploy/proxmox-install.sh | bash"
+echo
+echo "=== Fix if git pull aborts on package-lock.json ==="
+echo "cd /opt/cheng-pro && git fetch origin && git checkout main && git reset --hard origin/main && curl -fsSL https://raw.githubusercontent.com/tsogs66/Cheng-Pro/main/deploy/proxmox-install.sh | bash"
