@@ -52,9 +52,15 @@ id -u "$APP_USER" >/dev/null 2>&1 || useradd --system --home "$APP_DIR" --shell 
 
 if [[ -d "$APP_DIR/.git" ]]; then
   log "Updating existing clone…"
+  # Deploy clones are not meant to carry local edits. npm install often rewrites
+  # package-lock.json (e.g. after a version bump), which then makes `git pull`
+  # abort with "local changes would be overwritten". Reset hard to origin and
+  # keep vessel data (gitignored under data/).
   git -C "$APP_DIR" fetch origin
   git -C "$APP_DIR" checkout "$BRANCH"
-  git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
+  git -C "$APP_DIR" reset --hard "origin/$BRANCH"
+  # Drop stray untracked build junk only — never touch data/ or env files.
+  git -C "$APP_DIR" clean -fd -e data -e 'data/**' -e node_modules -e 'node_modules/**'
 else
   log "Cloning Cheng-Pro…"
   rm -rf "$APP_DIR"
