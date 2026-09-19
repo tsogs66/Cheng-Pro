@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <title>Voyage Chief — Engine Log</title>
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
 <meta name="theme-color" content="#0a1420">
 <meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
@@ -94,7 +94,7 @@
 
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
     (function lockMobileViewport() {
-      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual';
       function apply() {
         let meta = document.querySelector('meta[name="viewport"]');
         if (!meta) {
@@ -498,13 +498,24 @@
     position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
     padding:max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px));
     background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
+    overflow:auto; -webkit-overflow-scrolling:touch;
   }
   .fm-quick-overlay.open{display:flex;}
+  html.keyboard-open .fm-quick-overlay{align-items:flex-start; padding-top:max(8px, env(safe-area-inset-top, 0px));}
   .fm-quick-dialog{
-    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; max-height:min(92vh, 900px);
+    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box;
+    max-height:min(92vh, 92dvh, 900px);
     overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
+  }
+  html.keyboard-open .fm-quick-dialog{max-height:min(88vh, 88dvh, 900px);}
+  @media (orientation: landscape){
+    .fm-quick-dialog{padding:12px 14px 10px; max-height:min(88vh, 88dvh, 900px);}
+    .fm-quick-rows{gap:8px; margin-bottom:10px;}
+    .fm-quick-block{padding:8px 10px;}
+    .fm-quick-dialog .field{margin-bottom:6px;}
+    .fm-quick-dialog .field input, .fm-quick-dialog .field select{min-height:36px; font-size:14px; padding:6px 8px;}
   }
   html.bright .fm-quick-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
   .fm-quick-dialog h3{margin:0 0 6px; font-size:16px;}
@@ -714,6 +725,9 @@
     #btnRecalcSummaryPage, #vsTopActions{display:inline-flex !important;}
     #summaryRecalcHint{display:none;}
   }
+  html.short-viewport.landscape-view #btnRecalcSummaryPage,
+  html.short-viewport.landscape-view #vsTopActions{display:inline-flex !important;}
+  html.short-viewport.landscape-view #summaryRecalcHint{display:none;}
 
   /* One control scale for the whole suite — see apps/web/css/shell.css and
      modules/tanks/public/css/app.css, which carry the same block. Three
@@ -1064,10 +1078,8 @@
   /* Keep install progress visible even when short landscape hides .hint */
   html.short-viewport #androidInstallProgressWrap{display:block !important;}
   html.short-viewport #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
-  @media (orientation: landscape) and (max-height:560px){
-    #androidInstallProgressWrap{display:block !important;}
-    #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
-  }
+  html.short-viewport.landscape-view #androidInstallProgressWrap{display:block !important;}
+  html.short-viewport.landscape-view #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
   .rob-total td{border-top:1px solid var(--brass-dim); color:var(--brass);}
   .bunker-plan-head{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:end; margin-bottom:14px;}
   .bunker-plan-head .field{min-width:140px; flex:1 1 140px;}
@@ -1496,63 +1508,89 @@
   html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
   html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
-  /* ---- Landscape phone / short viewports: maximize vertical content ---- */
-  @media (orientation: landscape) and (max-height:560px){
-    body{
-      padding:8px 10px 64px !important;
-      padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
-      padding-left:calc(10px + env(safe-area-inset-left, 0px)) !important;
-      padding-right:calc(10px + env(safe-area-inset-right, 0px)) !important;
-      padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    html.use-bottom-nav body{
-      padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    .masthead{padding-bottom:6px; margin-bottom:2px; gap:8px;}
-    .masthead-left{gap:8px;}
-    .app-logo{width:32px; height:32px;}
-    h1{font-size:15px;}
-    .subtitle{display:none;}
-    .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;}
-    #dbStatus,#syncStatus{font-size:9px;}
-    .panel{padding:10px 12px; margin-bottom:10px;}
-    .panel h2{font-size:12px; margin-bottom:8px;}
-    .panel h3.sub{margin:10px 0 6px;}
-    .hint{display:none;}
-    .form-grid,.form-grid.cols2,.form-grid.cols3,.form-grid.cols5,.form-grid.cols6{
-      grid-template-columns:repeat(3,1fr) !important; gap:8px;
-    }
-    .unit-group,.unit-group.cols2,.unit-group.cols3,
-    .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{
-      grid-template-columns:repeat(2,1fr) !important; gap:8px;
-    }
-    #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)) !important;}
-    #vsOthersFields.form-grid.cols2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}
-    .vs-blr-inc-row{grid-template-columns:1fr 1fr !important;}
-    .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
-    .vs-ge-blr-inc-grid > .vs-blr-inc-row{display:grid;}
-    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:grid; grid-template-columns:repeat(2,1fr) !important;}
-    .stat-strip,.stat-strip.cols5{grid-template-columns:repeat(3,1fr) !important; gap:8px;}
-    .gauge-grid,.gauge-grid.cols4,.gauge-grid.cols5{grid-template-columns:repeat(3,1fr) !important;}
-    .field label{font-size:9px;}
-    .field input,.field select,.field textarea,textarea{
-      font-size:14px !important; min-height:36px; padding:6px 8px;
-    }
-    .nv-leg-dialog .field input{
-      min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
-    }
-    .nv-leg-dialog .field-dest input{
-      min-height:56px !important; font-size:18px !important; padding:16px !important;
-    }
-    .table-scroll{max-height:min(42vh, 280px); -webkit-overflow-scrolling:touch;}
-    .bottom-nav{
-      padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
-    }
-    .bn-item{min-height:44px; padding:4px 2px 2px; font-size:8px; gap:1px;}
-    .bn-item svg{width:18px; height:18px;}
-    .bn-more-panel{padding:10px 12px calc(64px + env(safe-area-inset-bottom, 0px)); max-height:min(80vh, 360px);}
-    .btn-row > button{min-height:40px; padding:8px 12px;}
-    .footer-note{display:none;}
+  /* ---- Landscape phone / short viewports: maximize vertical content ----
+     Driven by html.short-viewport (screen-based in JS) — NOT raw max-height
+     media queries. Soft keyboards shrink innerHeight on older WebViews and
+     must not reflow tablet forms into the phone-compact grid. */
+  html.short-viewport.landscape-view body{
+    padding:8px 10px 64px !important;
+    padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
+    padding-left:calc(10px + env(safe-area-inset-left, 0px)) !important;
+    padding-right:calc(10px + env(safe-area-inset-right, 0px)) !important;
+    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.short-viewport.landscape-view.use-bottom-nav body{
+    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.short-viewport.landscape-view .masthead{padding-bottom:6px; margin-bottom:2px; gap:8px;}
+  html.short-viewport.landscape-view .masthead-left{gap:8px;}
+  html.short-viewport.landscape-view .app-logo{width:32px; height:32px;}
+  html.short-viewport.landscape-view h1{font-size:15px;}
+  html.short-viewport.landscape-view .subtitle{display:none;}
+  html.short-viewport.landscape-view .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;}
+  html.short-viewport.landscape-view #dbStatus,
+  html.short-viewport.landscape-view #syncStatus{font-size:9px;}
+  html.short-viewport.landscape-view .panel{padding:10px 12px; margin-bottom:10px;}
+  html.short-viewport.landscape-view .panel h2{font-size:12px; margin-bottom:8px;}
+  html.short-viewport.landscape-view .panel h3.sub{margin:10px 0 6px;}
+  html.short-viewport.landscape-view .hint{display:none;}
+  html.short-viewport.landscape-view .form-grid,
+  html.short-viewport.landscape-view .form-grid.cols2,
+  html.short-viewport.landscape-view .form-grid.cols3,
+  html.short-viewport.landscape-view .form-grid.cols5,
+  html.short-viewport.landscape-view .form-grid.cols6{
+    grid-template-columns:repeat(3,1fr) !important; gap:8px;
+  }
+  html.short-viewport.landscape-view .unit-group,
+  html.short-viewport.landscape-view .unit-group.cols2,
+  html.short-viewport.landscape-view .unit-group.cols3,
+  html.short-viewport.landscape-view .unit-group.cols4,
+  html.short-viewport.landscape-view .unit-group.cols5,
+  html.short-viewport.landscape-view .unit-group.cols6{
+    grid-template-columns:repeat(2,1fr) !important; gap:8px;
+  }
+  html.short-viewport.landscape-view #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)) !important;}
+  html.short-viewport.landscape-view #vsOthersFields.form-grid.cols2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}
+  html.short-viewport.landscape-view .vs-blr-inc-row{grid-template-columns:1fr 1fr !important;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid > .vs-blr-inc-row{display:grid;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:grid; grid-template-columns:repeat(2,1fr) !important;}
+  html.short-viewport.landscape-view .stat-strip,
+  html.short-viewport.landscape-view .stat-strip.cols5{grid-template-columns:repeat(3,1fr) !important; gap:8px;}
+  html.short-viewport.landscape-view .gauge-grid,
+  html.short-viewport.landscape-view .gauge-grid.cols4,
+  html.short-viewport.landscape-view .gauge-grid.cols5{grid-template-columns:repeat(3,1fr) !important;}
+  html.short-viewport.landscape-view .field label{font-size:9px;}
+  html.short-viewport.landscape-view .field input,
+  html.short-viewport.landscape-view .field select,
+  html.short-viewport.landscape-view .field textarea,
+  html.short-viewport.landscape-view textarea{
+    font-size:14px !important; min-height:36px; padding:6px 8px;
+  }
+  html.short-viewport.landscape-view .nv-leg-dialog .field input{
+    min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
+  }
+  html.short-viewport.landscape-view .nv-leg-dialog .field-dest input{
+    min-height:56px !important; font-size:18px !important; padding:16px !important;
+  }
+  html.short-viewport.landscape-view .table-scroll{max-height:min(42vh, 280px); -webkit-overflow-scrolling:touch;}
+  html.short-viewport.landscape-view .bottom-nav{
+    padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
+  }
+  html.short-viewport.landscape-view .bn-item{min-height:44px; padding:4px 2px 2px; font-size:8px; gap:1px;}
+  html.short-viewport.landscape-view .bn-item svg{width:18px; height:18px;}
+  html.short-viewport.landscape-view .bn-more-panel{padding:10px 12px calc(64px + env(safe-area-inset-bottom, 0px)); max-height:min(80vh, 360px);}
+  html.short-viewport.landscape-view .btn-row > button{min-height:40px; padding:8px 12px;}
+  html.short-viewport.landscape-view .footer-note{display:none;}
+
+  /* Soft keyboard open: keep chrome stable; do not push/resize form grids. */
+  html.keyboard-open .bottom-nav{transform:translateY(110%); pointer-events:none; opacity:0;}
+  html.keyboard-open.use-bottom-nav body{
+    padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.keyboard-open .ccp-overlay{
+    align-items:flex-start; padding-top:max(8px, env(safe-area-inset-top, 0px));
+    overflow:auto; -webkit-overflow-scrolling:touch;
   }
 
   /* ---- Tablet / large-phone landscape: single-row GE + Fuel Cons, wide Others ----
@@ -12805,7 +12843,9 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       const mobileLocked = native || mobileOs;
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
-      if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+      /* Prefer screen size for chrome decisions — soft keyboard shrinks innerHeight. */
+      const screenMin = Math.min(screen.width || 0, screen.height || 0);
+      if (mobileLocked || touch || screenMin <= 900 || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
         document.documentElement.classList.add('use-bottom-nav');
       }
       document.documentElement.classList.toggle('is-mobile-chrome', mobileLocked);
@@ -12818,19 +12858,31 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       } else {
         document.documentElement.classList.remove('use-top-tabs');
       }
-      const short = (window.innerHeight || 0) > 0 && (window.innerHeight || 0) <= 560;
-      const landscape = (window.innerWidth || 0) > (window.innerHeight || 0);
+      const vv = window.visualViewport;
+      const layoutH = window.innerHeight || 0;
+      const visH = (vv && vv.height) ? vv.height : layoutH;
+      /* Keyboard: visual viewport shorter than layout, or layout shorter than screen. */
+      const keyboardOpen = (vv && layoutH > 0 && (layoutH - visH) > 100)
+        || (screenMin > 560 && layoutH > 0 && layoutH <= 560);
+      /* True short device (phone landscape) — never treat keyboard-shrunk tablet as short. */
+      const short = screenMin > 0 && screenMin <= 560
+        && layoutH > 0 && layoutH <= 560
+        && !keyboardOpen;
+      /* Prefer orientation media — screen dims are stable across soft keyboard. */
+      const land = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches)
+        || ((screen.width || 0) > (screen.height || 0));
       const narrow = Math.min(window.innerWidth || 0, window.innerWidth || 0) <= 720
-        || Math.min(screen.width || 0, screen.height || 0) <= 720;
+        || screenMin <= 720;
       const compact = narrow || (document.documentElement.classList.contains('use-bottom-nav')
-        && Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900);
+        && screenMin > 0 && screenMin <= 900);
+      document.documentElement.classList.toggle('keyboard-open', !!keyboardOpen);
       document.documentElement.classList.toggle('short-viewport', short);
-      document.documentElement.classList.toggle('landscape-view', landscape);
-      document.documentElement.classList.toggle('compact-phone', compact && !landscape);
+      document.documentElement.classList.toggle('landscape-view', land);
+      document.documentElement.classList.toggle('compact-phone', compact && !land);
       /* Tablet / phone landscape with bottom nav: force GE + Fuel Cons single rows.
          Many Android tablets report CSS width >1400 (or skip orientation media), so
          media-query-only rules never fire and the desktop stack remains. */
-      const landRows = landscape && !short && (window.innerWidth || 0) >= 800
+      const landRows = land && !short && (window.innerWidth || 0) >= 800
         && (mobileLocked || touch || document.documentElement.classList.contains('use-bottom-nav'));
       document.documentElement.classList.toggle('vm-land-rows', !!landRows);
     }catch(_){}
@@ -12841,10 +12893,15 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
   window.addEventListener('capacitorReady', refreshBottomNavMode, { once:true });
   window.addEventListener('orientationchange', ()=> setTimeout(refreshBottomNavMode, 120));
   let _vpResizeTimer = null;
-  window.addEventListener('resize', ()=>{
+  function _scheduleVpRefresh(){
     clearTimeout(_vpResizeTimer);
     _vpResizeTimer = setTimeout(refreshBottomNavMode, 140);
-  });
+  }
+  window.addEventListener('resize', _scheduleVpRefresh);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', _scheduleVpRefresh);
+    window.visualViewport.addEventListener('scroll', _scheduleVpRefresh);
+  }
   setTimeout(refreshBottomNavMode, 0);
   setTimeout(refreshBottomNavMode, 300);
   nav.addEventListener('click', (e)=>{
@@ -22691,7 +22748,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v283';
+let androidInstallCacheName = 'noon-report-v284';
 
 /*
  * What the program is called.
