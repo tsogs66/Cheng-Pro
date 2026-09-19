@@ -8,7 +8,7 @@
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "seed": "node scripts/seed-demo.js",
-    "test": "node scripts/test-double-interp.js && node scripts/smoke-test.js && node scripts/test-license.js && node scripts/vessel-key-test.js && node scripts/num-align-test.js && node scripts/count-up-test.js && node scripts/test-home-calculated-rob.js && node scripts/test-python-spawn.js && node scripts/test-electron-save.js && node scripts/test-desktop-paths.js && node modules/tanks/scripts/test-python-asar-path.js && node modules/tanks/scripts/test-clock-picker-input.js",
+    "test": "node scripts/test-double-interp.js && node scripts/test-calc-type.js && node scripts/smoke-test.js && node scripts/test-license.js && node scripts/vessel-key-test.js && node scripts/num-align-test.js && node scripts/count-up-test.js && node scripts/test-home-calculated-rob.js && node scripts/test-python-spawn.js && node scripts/test-electron-save.js && node scripts/test-desktop-paths.js && node modules/tanks/scripts/test-python-asar-path.js && node modules/tanks/scripts/test-clock-picker-input.js",
     "license-host": "node server/license/host.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win --publish never",
