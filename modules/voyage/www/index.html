@@ -45,14 +45,16 @@
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
     var mobileLocked = native || mobileOs;
-    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var vw = window.innerWidth || 0;
+    var vh = window.innerHeight || 0;
+    if (mobileLocked || touch || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)){
       document.documentElement.classList.add('use-bottom-nav');
     }
     if (mobileLocked) {
       document.documentElement.classList.add('is-mobile-chrome');
       document.documentElement.classList.remove('use-top-tabs');
-    } else if ((window.innerWidth || 0) >= 1101) {
-      /* Windows desktop (incl. wide touch laptops): keep top tabs */
+    } else if (vw >= 1181 && Math.min(vw, vh) > 900) {
+      /* Wide Windows desktop: keep top tabs. Tablet landscape (≤1180) stays on the bar. */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -12915,7 +12917,8 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
       if (mobileLocked) {
         document.documentElement.classList.remove('use-top-tabs');
-      } else if ((window.innerWidth || 0) >= 1101) {
+      } else if ((window.innerWidth || 0) >= 1181
+        && Math.min(window.innerWidth || 0, window.innerHeight || 0) > 900) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {

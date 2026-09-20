@@ -48,10 +48,15 @@
         touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
           || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
       } catch (_eT) {}
-      if (mobileOs || native || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900) {
+      var vw = window.innerWidth || 0;
+      var vh = window.innerHeight || 0;
+      var tabletOrPhone = mobileOs || native || touch
+        || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900)
+        || (vw > 0 && vw <= 1180);
+      if (tabletOrPhone) {
         document.documentElement.classList.add('use-bottom-nav');
       }
-      if (!mobileOs && !native && (window.innerWidth || 0) >= 1101) {
+      if (!mobileOs && !native && vw >= 1181 && Math.min(vw, vh) > 900) {
         document.documentElement.classList.remove('use-bottom-nav');
       }
     } catch (_e) {}

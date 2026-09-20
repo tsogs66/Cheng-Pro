@@ -190,8 +190,10 @@
       if (native || mobileOs) return true;
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
+      const vw = window.innerWidth || 0;
+      const vh = window.innerHeight || 0;
       const screenMin = Math.min(screen.width || 0, screen.height || 0);
-      if (touch || screenMin <= 900 || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900) {
+      if (touch || screenMin <= 900 || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)) {
         return true;
       }
     } catch { /* ignore */ }
