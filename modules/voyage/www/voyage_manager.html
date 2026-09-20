@@ -507,19 +507,21 @@
     overflow:auto; -webkit-overflow-scrolling:touch;
   }
   .fm-quick-overlay.open{display:flex;}
-  /* Numpad / IME: pin the overlay to the visual viewport so the dialog sits
-     above the keys instead of 88vh of the layout viewport (which runs under
-     the pad on tablet portrait and landscape). */
+  /* Numpad / IME: keep a full-screen dimmer. Pinning the overlay box to
+     visualViewport (top/left/width/height) double-offsets on Android WebView
+     — position:fixed is already visual-viewport-relative — and leaves a dark
+     slab beside the 760px card on landscape tablets. Size the dialog to the
+     remaining visual viewport instead. */
   html.keyboard-open .fm-quick-overlay{
-    align-items:flex-start; justify-content:flex-start;
-    top: var(--vv-top, 0px); left: var(--vv-left, 0px);
-    right: auto; bottom: auto;
-    width: var(--vv-width, 100%); height: var(--vv-height, 100%);
+    align-items:flex-start; justify-content:center;
+    inset:0; top:0; left:0; right:0; bottom:0;
+    width:auto; height:auto;
     padding: 8px;
     overflow: auto; -webkit-overflow-scrolling: touch;
   }
+  html.bright .fm-quick-overlay{background:rgba(18,34,56,.32);}
   .fm-quick-dialog{
-    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box;
+    width:min(1100px, calc(100% - 4px)); max-width:100%; box-sizing:border-box;
     max-height:min(92vh, 92dvh, 900px);
     overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
@@ -528,15 +530,21 @@
   }
   html.keyboard-open .fm-quick-dialog{
     max-height: calc(var(--vv-height, 100dvh) - 16px);
-    width: min(760px, calc(var(--vv-width, 100vw) - 16px));
+    width: min(1100px, calc(100% - 4px));
     margin: 0 auto;
+  }
+  html.landscape-view .fm-quick-dialog,
+  html.vm-land-rows .fm-quick-dialog{
+    width: min(1180px, calc(100% - 8px));
   }
   html.keyboard-open .fm-quick-dialog .hint{display:none;}
   html.keyboard-open .fm-quick-dialog .field input,
   html.keyboard-open .fm-quick-dialog .field select{scroll-margin: 16px;}
-  html.keyboard-open.landscape-view .fm-quick-dialog{
+  html.keyboard-open.landscape-view .fm-quick-dialog,
+  html.keyboard-open.vm-land-rows .fm-quick-dialog{
     padding: 8px 10px;
     max-height: calc(var(--vv-height, 100dvh) - 12px);
+    width: min(1180px, calc(100% - 8px));
   }
   html.keyboard-open.landscape-view .fm-quick-dialog h3{margin:0 0 4px; font-size:14px;}
   html.keyboard-open.landscape-view .fm-quick-dialog h4{margin:0 0 4px;}
@@ -548,7 +556,7 @@
     min-height:34px; font-size:14px; padding:5px 8px;
   }
   @media (orientation: landscape){
-    .fm-quick-dialog{padding:12px 14px 10px; max-height:min(88vh, 88dvh, 900px);}
+    .fm-quick-dialog{width:min(1180px, calc(100% - 8px)); padding:12px 14px 10px; max-height:min(88vh, 88dvh, 900px);}
     .fm-quick-rows{gap:8px; margin-bottom:10px;}
     .fm-quick-block{padding:8px 10px;}
     .fm-quick-dialog .field{margin-bottom:6px;}
@@ -22804,7 +22812,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v287';
+let androidInstallCacheName = 'noon-report-v288';
 
 /*
  * What the program is called.
