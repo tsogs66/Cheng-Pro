@@ -45,14 +45,16 @@
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
     var mobileLocked = native || mobileOs;
-    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var vw = window.innerWidth || 0;
+    var vh = window.innerHeight || 0;
+    if (mobileLocked || touch || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)){
       document.documentElement.classList.add('use-bottom-nav');
     }
     if (mobileLocked) {
       document.documentElement.classList.add('is-mobile-chrome');
       document.documentElement.classList.remove('use-top-tabs');
-    } else if ((window.innerWidth || 0) >= 1101) {
-      /* Windows desktop (incl. wide touch laptops): keep top tabs */
+    } else if (vw >= 1181 && Math.min(vw, vh) > 900) {
+      /* Wide Windows desktop: keep top tabs. Tablet landscape (≤1180) stays on the bar. */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -2023,7 +2025,7 @@
     }
   }
   .bn-item{
-    flex:1 1 0; min-width:0; max-width:80px;
+    flex:1 1 0; min-width:0; max-width:none;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:2px; padding:4px 2px 3px;
     border:0 !important; background:transparent; color:var(--paper-dim);
@@ -4817,13 +4819,21 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <span class="bn-ic" aria-hidden="true">📝</span>
     <span>Log</span>
   </button>
+  <button type="button" class="bn-item" data-page="reports" aria-label="Reports">
+    <span class="bn-ic" aria-hidden="true">📄</span>
+    <span>Reports</span>
+  </button>
   <button type="button" class="bn-item" data-page="rob" aria-label="ROB">
     <span class="bn-ic" aria-hidden="true">⛽</span>
     <span>ROB</span>
   </button>
-  <button type="button" class="bn-item" data-page="bunkerplan" aria-label="Consumption Plan">
-    <span class="bn-ic" aria-hidden="true">📈</span>
-    <span>Cons.</span>
+  <button type="button" class="bn-item" data-page="rangetotals" aria-label="Range Totals">
+    <span class="bn-ic" aria-hidden="true">📐</span>
+    <span>Totals</span>
+  </button>
+  <button type="button" class="bn-item" data-page="voyageabstract" aria-label="Voyage Abstract">
+    <span class="bn-ic" aria-hidden="true">📋</span>
+    <span>Voyage</span>
   </button>
   <button type="button" class="bn-item" data-page="more" aria-label="More">
     <span class="bn-ic" aria-hidden="true">⋯</span>
@@ -4836,25 +4846,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="bn-more-handle" aria-hidden="true"></div>
     <div class="bn-more-title">More</div>
     <div class="bn-more-grid">
+      <button type="button" class="bn-more-item" data-page="bunkerplan">
+        <span class="bn-ic" aria-hidden="true">📈</span>
+        <span>Cons Plan</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="consumption">
         <span class="bn-ic" aria-hidden="true">⏱️</span>
         <span>Cons</span>
       </button>
-      <button type="button" class="bn-more-item" data-page="voyageabstract">
-        <span class="bn-ic" aria-hidden="true">📋</span>
-        <span>Abstract</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="rangetotals">
-        <span class="bn-ic" aria-hidden="true">📐</span>
-        <span>Totals</span>
-      </button>
       <button type="button" class="bn-more-item" data-page="receipts">
         <span class="bn-ic" aria-hidden="true">🧾</span>
         <span>Receipts</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="reports">
-        <span class="bn-ic" aria-hidden="true">📄</span>
-        <span>Reports</span>
       </button>
       <button type="button" class="bn-more-item" data-page="reference">
         <span class="bn-ic" aria-hidden="true">📖</span>
@@ -4870,7 +4872,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </button>
       <button type="button" class="bn-more-item" data-page="voyagesetup">
         <span class="bn-ic" aria-hidden="true">🚢</span>
-        <span>Voyage</span>
+        <span>Voy Setup</span>
       </button>
       <button type="button" class="bn-more-item" data-page="setup">
         <span class="bn-ic" aria-hidden="true">🗄️</span>
@@ -12137,7 +12139,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['consumption', 'voyageabstract', 'rangetotals', 'receipts', 'reports', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_MAX_LEGS = 30;
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
@@ -12915,7 +12917,8 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
       if (mobileLocked) {
         document.documentElement.classList.remove('use-top-tabs');
-      } else if ((window.innerWidth || 0) >= 1101) {
+      } else if ((window.innerWidth || 0) >= 1181
+        && Math.min(window.innerWidth || 0, window.innerHeight || 0) > 900) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {
