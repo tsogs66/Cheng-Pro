@@ -900,9 +900,25 @@
       scrolling = null;
       card = null;
       pointerId = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onStop);
+      window.removeEventListener('pointercancel', onStop);
       if (ev) ev.preventDefault();
       saveFuelGridLayout(vesselId, collectFuelGridLayout(gridEl));
       gridEl.dispatchEvent(new CustomEvent('chengpro:fuel-grid-layout', { bubbles: true }));
+    };
+
+    const onMove = (ev) => {
+      if (!card || ev.pointerId !== pointerId) return;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      placeAt(lastX, lastY);
+      ev.preventDefault();
+    };
+
+    const onStop = (ev) => {
+      if (!card || (ev && ev.pointerId !== pointerId)) return;
+      stop(ev);
     };
 
     gridEl.addEventListener('pointerdown', (ev) => {
@@ -917,20 +933,12 @@
       try { card.setPointerCapture(pointerId); } catch { /* keep dragging */ }
       card.classList.add('dragging');
       document.body.classList.add('home-grid-dragging');
+      window.addEventListener('pointermove', onMove, { passive: false });
+      window.addEventListener('pointerup', onStop);
+      window.addEventListener('pointercancel', onStop);
       scrolling = requestAnimationFrame(follow);
       ev.preventDefault();
     });
-
-    gridEl.addEventListener('pointermove', (ev) => {
-      if (!card || ev.pointerId !== pointerId) return;
-      lastX = ev.clientX;
-      lastY = ev.clientY;
-      placeAt(lastX, lastY);
-      ev.preventDefault();
-    });
-
-    gridEl.addEventListener('pointerup', stop);
-    gridEl.addEventListener('pointercancel', stop);
   }
 
   function renderHomeTankCard(tank, reading, reportMeta, rearrange) {
