@@ -558,7 +558,10 @@
 
   function isDistillateFuel(tank) {
     const g = String((tank && tank.fuelGrade) || '').toLowerCase();
-    return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
+    if (g === 'mdo' || g === 'mgo' || g === 'lsmgo') return true;
+    const u = String((tank && tank.name) || '').toUpperCase().replace(/\./g, '');
+    if (/\bHFO\b|VLSFO|LSFO/.test(u) && !/\bMGO\b|\bMDO\b|\bLSMGO\b/.test(u)) return false;
+    return /\bLSMGO\b|\bMGO\b|\bMDO\b|GAS OIL/.test(u);
   }
 
   /** Pull observed volume / air weight from a tank sounding when Monitoring left the cell blank. */
