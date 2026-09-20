@@ -835,6 +835,42 @@ html:not(.bright) .tg-schematic-col { background: rgba(255, 255, 255, 0.03); }
   padding: 12px 8px; text-align: center;
   border: 1px dashed var(--line); border-radius: 8px;
 }
+.tg-schematic-rearrange .tg-schematic-col-tanks {
+  min-height: 72px;
+}
+.tg-schematic-rearrange .tg-schematic-col.drop-target {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 2px rgba(201, 154, 83, 0.22);
+}
+.tg-schematic-rearrange .tg-card {
+  position: relative;
+  padding-left: 28px;
+}
+.tg-card-grip {
+  position: absolute;
+  left: 2px;
+  top: 4px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  padding: 8px 6px;
+  font-size: 16px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tg-card.dragging {
+  cursor: grabbing;
+  border-color: var(--brass);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  transform: scale(1.02);
+  z-index: 2;
+}
+.tg-card.dragging .tg-card-grip { cursor: grabbing; }
+body.home-grid-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
 /* Android / narrow phones: two columns. Tablets stay at four. */
 @media (max-width: 600px) {
   .tg-schematic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
