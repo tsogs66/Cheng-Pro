@@ -512,9 +512,6 @@ function computeFuelReport(bundle, form, conversion) {
   const draftFwd = num(header.draftFwd, 0) || 0;
   const draftAft = num(header.draftAft, 0) || 0;
   const meanDraft = (draftFwd + draftAft) / 2;
-  // Displayed trim keeps the workbook's fwd − aft sign (Data!J7); the
-  // calibration tables are indexed by trim *by the stern*, so the lookup uses
-  // aft − fwd.
   // One signed trim, printed the way the calibration book heads its columns
   // and shown the way the monitoring page shows it: positive down by the bow
   // (TRIM BY STEM), negative down by the stern (TRIM BY STERN). Carrying a
@@ -662,13 +659,12 @@ function readingsFromReport(bundle, computed) {
     for (const row of section.rows) {
       if (row.measuredM3 == null) continue;
       readings[row.tankId] = {
-        reading: num(row.reading),
+        reading: num(row.trace.nativeReading),
         trim: computed.header.trim,
         list: computed.header.heel,
         tempC: num(row.tempC, 15),
         density15: row.density15,
         gaugeType: 'meter',
-        entryMethod: row.method,
         source: 'fuel-report',
         result: {
           soundingIncrement: row.trace.soundingIncrement,
