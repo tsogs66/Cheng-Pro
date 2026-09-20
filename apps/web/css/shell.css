@@ -335,7 +335,8 @@ html.bright .btn.primary:hover {
 
 /*
  * Theme: home only, in topbar-meta left of the health dot (then menu).
- * When Dashboard FAB shows (fullscreen embeds), theme sits beside it.
+ * On fullscreen embeds, theme sits on the right of the strip with Dashboard
+ * immediately after it (rightmost).
  */
 .theme-topbar {
   display: none;
@@ -856,7 +857,8 @@ html.bright .tg-schematic-empty {
    The AIO used to leave two buttons floating over the module's own header row;
    inside Tank Chief they landed on top of its toolbar. This is a strip instead:
    it takes its own 44px, overlaps nothing, and carries the one thing a module
-   cannot tell you — which vessel the suite has active. */
+   cannot tell you — which vessel the suite has active. Module + vessel stay
+   left/center; theme then Dashboard sit together on the right. */
 :root { --embed-bar-h: 44px; }
 
 .aio-return-fabs {
