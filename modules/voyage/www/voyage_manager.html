@@ -20501,6 +20501,7 @@ function openFmQuickDialog(){
   setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
   setElVal('fmq_tbn', getElVal('in_tbn') || 'HIGH');
 
+  if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
   overlay.hidden = false;
   overlay.classList.add('open');
   const first = overlay.querySelector('input:not([type="hidden"]), select');
