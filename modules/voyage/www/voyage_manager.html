@@ -494,6 +494,12 @@
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
   /* Log Entry → Enter Flowmeters popup */
+  :root{
+    --vv-top: 0px;
+    --vv-left: 0px;
+    --vv-height: 100dvh;
+    --vv-width: 100vw;
+  }
   .fm-quick-overlay{
     position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
     padding:max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px));
@@ -501,15 +507,46 @@
     overflow:auto; -webkit-overflow-scrolling:touch;
   }
   .fm-quick-overlay.open{display:flex;}
-  html.keyboard-open .fm-quick-overlay{align-items:flex-start; padding-top:max(8px, env(safe-area-inset-top, 0px));}
+  /* Numpad / IME: pin the overlay to the visual viewport so the dialog sits
+     above the keys instead of 88vh of the layout viewport (which runs under
+     the pad on tablet portrait and landscape). */
+  html.keyboard-open .fm-quick-overlay{
+    align-items:flex-start; justify-content:flex-start;
+    top: var(--vv-top, 0px); left: var(--vv-left, 0px);
+    right: auto; bottom: auto;
+    width: var(--vv-width, 100%); height: var(--vv-height, 100%);
+    padding: 8px;
+    overflow: auto; -webkit-overflow-scrolling: touch;
+  }
   .fm-quick-dialog{
     width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box;
     max-height:min(92vh, 92dvh, 900px);
     overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
     border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
+    overscroll-behavior: contain;
   }
-  html.keyboard-open .fm-quick-dialog{max-height:min(88vh, 88dvh, 900px);}
+  html.keyboard-open .fm-quick-dialog{
+    max-height: calc(var(--vv-height, 100dvh) - 16px);
+    width: min(760px, calc(var(--vv-width, 100vw) - 16px));
+    margin: 0 auto;
+  }
+  html.keyboard-open .fm-quick-dialog .hint{display:none;}
+  html.keyboard-open .fm-quick-dialog .field input,
+  html.keyboard-open .fm-quick-dialog .field select{scroll-margin: 16px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog{
+    padding: 8px 10px;
+    max-height: calc(var(--vv-height, 100dvh) - 12px);
+  }
+  html.keyboard-open.landscape-view .fm-quick-dialog h3{margin:0 0 4px; font-size:14px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog h4{margin:0 0 4px;}
+  html.keyboard-open.landscape-view .fm-quick-rows{gap:6px; margin-bottom:8px;}
+  html.keyboard-open.landscape-view .fm-quick-block{padding:6px 8px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog .field{margin-bottom:4px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog .field input,
+  html.keyboard-open.landscape-view .fm-quick-dialog .field select{
+    min-height:34px; font-size:14px; padding:5px 8px;
+  }
   @media (orientation: landscape){
     .fm-quick-dialog{padding:12px 14px 10px; max-height:min(88vh, 88dvh, 900px);}
     .fm-quick-rows{gap:8px; margin-bottom:10px;}
@@ -12861,6 +12898,11 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       const vv = window.visualViewport;
       const layoutH = window.innerHeight || 0;
       const visH = (vv && vv.height) ? vv.height : layoutH;
+      const root = document.documentElement;
+      root.style.setProperty('--vv-top', ((vv && vv.offsetTop) ? Math.max(0, vv.offsetTop) : 0) + 'px');
+      root.style.setProperty('--vv-left', ((vv && vv.offsetLeft) ? Math.max(0, vv.offsetLeft) : 0) + 'px');
+      root.style.setProperty('--vv-height', ((visH > 0 ? visH : layoutH) || 0) + 'px');
+      root.style.setProperty('--vv-width', ((vv && vv.width) ? vv.width : (window.innerWidth || 0)) + 'px');
       /* Keyboard: visual viewport shorter than layout, or layout shorter than screen. */
       const keyboardOpen = (vv && layoutH > 0 && (layoutH - visH) > 100)
         || (screenMin > 560 && layoutH > 0 && layoutH <= 560);
@@ -12885,6 +12927,7 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       const landRows = land && !short && (window.innerWidth || 0) >= 800
         && (mobileLocked || touch || document.documentElement.classList.contains('use-bottom-nav'));
       document.documentElement.classList.toggle('vm-land-rows', !!landRows);
+      keepFmQuickFieldVisible(document.activeElement);
     }catch(_){}
     syncBottomNav(_activeTab);
   }
@@ -20374,6 +20417,16 @@ function closeFmQuickDialog(){
   overlay.classList.remove('open');
   overlay.hidden = true;
 }
+/** Keep the focused flowmeter field above the tablet numpad. */
+function keepFmQuickFieldVisible(el){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.hidden || !overlay.classList.contains('open')) return;
+  const target = (el && el.nodeType === 1) ? el : document.activeElement;
+  if (!target || !overlay.contains(target)) return;
+  try{
+    target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+  }catch(_e){}
+}
 function syncFmqRpmRev(sourceId){
   if (fmqRpmSyncGuard) return;
   const ctx = getActivePeriodContext();
@@ -22748,7 +22801,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v285';
+let androidInstallCacheName = 'noon-report-v286';
 
 /*
  * What the program is called.
@@ -26143,8 +26196,8 @@ function isLogEntryRemarksField(el){
 }
 function isLogEntryInput(el){
   if (!el || !el.closest) return false;
-  if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return false;
-  if (el.closest('#page-entry') || el.closest('#page-reports')) return true;
+  if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return false;
+  if (el.closest('#page-entry') || el.closest('#page-reports') || el.closest('#fmQuickOverlay')) return true;
   return false;
 }
 function isLogEntryNumericInput(el){
@@ -26186,6 +26239,10 @@ function coerceLogEntryDecimalInput(el){
 }
 document.addEventListener('focusin', (e)=>{
   const el = e.target;
+  if (el && el.closest && el.closest('#fmQuickOverlay')){
+    setTimeout(()=> keepFmQuickFieldVisible(el), 80);
+    setTimeout(()=> keepFmQuickFieldVisible(el), 280);
+  }
   if (!isLogEntryInput(el)) return;
   if (el.tagName === 'INPUT'){
     const t = (el.type || '').toLowerCase();
