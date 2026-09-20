@@ -90,17 +90,15 @@
             <span>Marine Engineer Suite</span>
           </div>
         </div>
-        <button type="button" class="theme-toggle theme-topbar" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+        <div class="title-header-meta">
+          <span class="registered" id="headerRegistered"></span>
+          <span class="ver" id="headerVersion"></span>
+          <button type="button" class="theme-toggle theme-topbar" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+        </div>
       </div>
       <div class="vessel-switcher" id="vesselSwitcher">
-        <div class="vessel-switcher-head">
-          <label for="activeVessel">Active vessel</label>
-          <span class="registered" id="headerRegistered"></span>
-        </div>
-        <div class="vessel-switcher-row">
-          <select id="activeVessel" aria-label="Active vessel"></select>
-          <span class="ver" id="headerVersion"></span>
-        </div>
+        <label for="activeVessel">Active vessel</label>
+        <select id="activeVessel" aria-label="Active vessel"></select>
       </div>
       <div class="topbar-meta" id="topbarMeta">
         <span id="healthDot" class="health-dot" title="Server"></span>

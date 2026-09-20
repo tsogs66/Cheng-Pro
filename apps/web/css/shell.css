@@ -160,10 +160,34 @@ html.bright .topbar { background: rgba(255,255,255,0.92); }
   min-width: 0;
 }
 .title-header .brand { flex: 1 1 auto; }
-.title-header .theme-topbar {
+.title-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-left: auto;
   align-self: flex-start;
+  min-width: 0;
+  padding-top: 2px;
 }
+.title-header-meta .registered {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.title-header-meta .ver {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.title-header-meta .registered:empty,
+.title-header-meta .ver:empty { display: none; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
 .brand:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 8px; }
 .brand-mark {
@@ -178,43 +202,10 @@ html.bright .topbar { background: rgba(255,255,255,0.92); }
   letter-spacing: 0.04em; text-transform: uppercase;
 }
 .brand-text > span { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.vessel-switcher { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.vessel-switcher-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-}
-.vessel-switcher-head .registered {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-.vessel-switcher-head .registered:empty { display: none; }
-.vessel-switcher-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.vessel-switcher-row .ver {
-  flex: 0 0 auto;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-}
-.vessel-switcher-row .ver:empty { display: none; }
+.vessel-switcher { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .vessel-switcher label {
   font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
-  flex: 0 0 auto;
 }
-.vessel-switcher-row select { flex: 1 1 auto; width: auto; }
 .vessel-switcher select, .field input, .field select, .field textarea {
   width: 100%; min-width: 160px; max-width: 360px;
   background: rgba(0,0,0,0.22); border: 1px solid var(--line-strong);
