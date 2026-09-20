@@ -3117,7 +3117,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Boiler</h4>
-              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
+              <div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_blr_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>Fuel in Use</h4>
@@ -3127,7 +3127,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Cylinder Oil</h4>
-              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
+              <div class="field"><label>Cylinder Oil Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_cyl_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>TBN in Use</h4>
@@ -3137,17 +3137,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Revolution Counter</h4>
-              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
+              <div class="field"><label>Rev. Counter (cumulative)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_revCounter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>M/E Avg RPM</h4>
-              <div class="field"><label>RPM</label><input type="number" step="0.1" id="fmq_rpm"></div>
+              <div class="field"><label>RPM</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_rpm"></div>
             </div>
           </div>
           <div class="fm-quick-row fm-quick-row-single">
             <div class="fm-quick-block">
               <h4>FWG Flowmeter</h4>
-              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="fmq_fwProd"></div>
+              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_fwProd"></div>
             </div>
           </div>
         </div>
@@ -20398,9 +20398,9 @@ function flowArrIsGeDual(){
 function paintFmQuickMeterBox(box, dual, prefix){
   if (!box) return;
   box.innerHTML = dual
-    ? `<div class="field"><label>Inlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_in"></div>
-       <div class="field"><label>Outlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_out"></div>`
-    : `<div class="field"><label>Fuel Meter</label><input type="number" id="fmq_${prefix}_meter"></div>`;
+    ? `<div class="field"><label>Inlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_in"></div>
+       <div class="field"><label>Outlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_out"></div>`
+    : `<div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter"></div>`;
 }
 function setElVal(id, val){
   const el = document.getElementById(id);
@@ -20495,8 +20495,11 @@ function openFmQuickDialog(){
 
   overlay.hidden = false;
   overlay.classList.add('open');
-  const first = overlay.querySelector('input, select');
-  if (first) setTimeout(() => first.focus(), 30);
+  const first = overlay.querySelector('input:not([type="hidden"]), select');
+  if (first) setTimeout(() => {
+    first.focus();
+    if (first.tagName === 'INPUT') selectAllEditableField(first);
+  }, 30);
 }
 function acceptFmQuickDialog(){
   if (typeof renderFuelMeterFields === 'function') renderFuelMeterFields();
@@ -22801,7 +22804,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v286';
+let androidInstallCacheName = 'noon-report-v287';
 
 /*
  * What the program is called.
@@ -26210,10 +26213,27 @@ function isLogEntryNumericInput(el){
   if (el.dataset.vmNumeric === '1' || t === 'number') return true;
   if (el.getAttribute('inputmode') === 'decimal' || el.getAttribute('inputmode') === 'numeric') return true;
   /* Text-like number fields on the log entry form (calc outputs stay readonly). */
-  if (t === 'text' && el.id && /^vs_|^rep_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
+  if (t === 'text' && el.id && /^vs_|^rep_|^fmq_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
     return true;
   }
   return false;
+}
+/** Highlight the current value so the next keystroke replaces it (tablet + mouse). */
+function selectAllEditableField(el){
+  if (!el || el.readOnly || el.disabled) return;
+  if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+  const t = String(el.type || 'text').toLowerCase();
+  if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'submit' || t === 'file' || t === 'hidden') return;
+  if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week' || t === 'color' || t === 'range') return;
+  const run = ()=>{
+    try { el.select(); } catch(_e){}
+    try {
+      const len = String(el.value ?? '').length;
+      if (typeof el.setSelectionRange === 'function') el.setSelectionRange(0, len);
+    } catch(_e){}
+  };
+  run();
+  setTimeout(run, 0);
 }
 /** Live typing: any non-digit (except leading minus) becomes a single decimal point. */
 function coerceLogEntryDecimalInput(el){
@@ -26252,11 +26272,30 @@ document.addEventListener('focusin', (e)=>{
     if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week') return;
   }
   /* Select all so the next keystroke replaces the previous value (touch + mouse). */
-  setTimeout(()=>{ try{ el.select(); }catch(_e){} }, 0);
+  selectAllEditableField(el);
 }, true);
 document.addEventListener('input', (e)=>{
   if (e.target && isLogEntryNumericInput(e.target)) coerceLogEntryDecimalInput(e.target);
 }, true);
+(function bindFmQuickSelectAll(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.dataset.fmqSelectAll === '1') return;
+  overlay.dataset.fmqSelectAll = '1';
+  const keep = (e)=>{
+    const el = e.target;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+    if (document.activeElement === el){
+      if (e.cancelable && e.type !== 'touchend') e.preventDefault();
+      selectAllEditableField(el);
+    }
+  };
+  overlay.addEventListener('mouseup', keep);
+  overlay.addEventListener('pointerup', keep);
+  overlay.addEventListener('touchend', ()=>{
+    const el = document.activeElement;
+    if (el && overlay.contains(el)) selectAllEditableField(el);
+  });
+})();
 
 
 
