@@ -275,20 +275,26 @@
   }
 
   function updateSidebarMeta() {
-    const verEl = document.getElementById('sidebarVersion');
-    const regEl = document.getElementById('sidebarRegistered');
+    const verEls = [
+      document.getElementById('headerVersion'),
+      document.getElementById('sidebarVersion'),
+    ];
+    const regEls = [
+      document.getElementById('headerRegistered'),
+      document.getElementById('sidebarRegistered'),
+    ];
     const authorEl = document.getElementById('sidebarAuthor');
     const ver = resolveAppVersion();
-    if (verEl) verEl.textContent = ver ? ('v' + ver) : '';
-    if (regEl) {
-      let email = '';
-      try {
-        if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
-          email = String(ChengLicense.licenseEmail() || '').trim();
-        }
-      } catch (_e) { /* ignore */ }
-      regEl.textContent = email ? ('registered: ' + email) : '';
-    }
+    const verText = ver ? ('v' + ver) : '';
+    verEls.forEach((el) => { if (el) el.textContent = verText; });
+    let email = '';
+    try {
+      if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
+        email = String(ChengLicense.licenseEmail() || '').trim();
+      }
+    } catch (_e) { /* ignore */ }
+    const regText = email ? ('registered: ' + email) : '';
+    regEls.forEach((el) => { if (el) el.textContent = regText; });
     if (authorEl) {
       authorEl.textContent = window.CHENG_PRO_AUTHOR || 'ts0gs · Marvin C. Endozo';
     }

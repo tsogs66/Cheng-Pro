@@ -153,6 +153,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 2px solid var(--brass-dim);
 }
 html.bright .topbar { background: rgba(255,255,255,0.92); }
+.title-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.title-header .brand { flex: 1 1 auto; }
+.title-header .theme-topbar {
+  margin-left: auto;
+  align-self: flex-start;
+}
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
 .brand:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 8px; }
 .brand-mark {
@@ -167,10 +178,43 @@ html.bright .topbar { background: rgba(255,255,255,0.92); }
   letter-spacing: 0.04em; text-transform: uppercase;
 }
 .brand-text > span { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.vessel-switcher { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vessel-switcher { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vessel-switcher-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.vessel-switcher-head .registered {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.vessel-switcher-head .registered:empty { display: none; }
+.vessel-switcher-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.vessel-switcher-row .ver {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.vessel-switcher-row .ver:empty { display: none; }
 .vessel-switcher label {
   font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+  flex: 0 0 auto;
 }
+.vessel-switcher-row select { flex: 1 1 auto; width: auto; }
 .vessel-switcher select, .field input, .field select, .field textarea {
   width: 100%; min-width: 160px; max-width: 360px;
   background: rgba(0,0,0,0.22); border: 1px solid var(--line-strong);
@@ -278,20 +322,11 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
 }
 .sidebar-meta .author:empty, .sidebar-meta .ver:empty, .sidebar-meta .registered:empty { display: none; }
 
-/* Day/night lives at the foot of the menu, with the version and the licensed
-   email. On a desktop the sidebar is always there, so the top bar's copy is a
-   duplicate and goes; below 900px the sidebar is a drawer you have to open, so
-   the top bar keeps its own. */
-.sidebar-meta .theme-sidebar {
-  display: block;
-  width: 100%;
-  margin: 0 0 8px;
-  text-align: center;
-}
-@media (max-width: 900px) {
-  /* Two toggles on one screen would both say "Bright" and both work; the
-     drawer's copy is the redundant one while the top bar's is in reach. */
-  .sidebar-meta .theme-sidebar { display: none; }
+/* Theme, registered email, and version live in the top bar now. */
+.sidebar-meta .theme-sidebar,
+.sidebar-meta .ver,
+.sidebar-meta .registered {
+  display: none;
 }
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
@@ -334,24 +369,15 @@ html.bright .btn.primary:hover {
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
 /*
- * Theme: home only, in topbar-meta left of the health dot (then menu).
- * On fullscreen embeds, theme sits on the right of the strip with Dashboard
- * immediately after it (rightmost).
+ * Theme sits at the top-right of the title header. Sidebar / phone-home
+ * copies would duplicate it, so they stay off while the header is visible.
  */
 .theme-topbar {
-  display: none;
+  display: inline-flex;
   flex-shrink: 0;
 }
-html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
-  display: inline-flex;
-}
-/* Above 900px the sidebar is always on screen, so the foot of the menu holds
-   the toggle and the top bar's copy is a duplicate. It has to match the rule
-   above selector for selector — a plainer one loses to it and both were
-   showing. */
-@media (min-width: 901px) {
-  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar { display: none; }
-}
+html.aio-fullscreen-embed .theme-topbar { display: none !important; }
+.sidebar-meta .theme-sidebar { display: none; }
 .nav-fab {
   display: none;
   width: 40px;
@@ -443,6 +469,7 @@ html.bright .toast {
   .topbar { grid-template-columns: auto 1fr auto; }
   .vessel-switcher { grid-column: 1 / -1; }
   .vessel-switcher select { max-width: none; }
+  .title-header { min-width: 0; }
   .body { grid-template-columns: 1fr; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; width: min(280px, 86vw); z-index: 50;
@@ -485,8 +512,7 @@ html.bright .toast {
   .brand-text strong { font-size: 1rem; }
   .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  /* Bright on home only — left of health dot / menu on the right */
-  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
+  .theme-topbar {
     display: inline-flex;
     padding: 6px 10px;
     font-size: 11px;
