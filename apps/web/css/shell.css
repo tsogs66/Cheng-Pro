@@ -194,6 +194,15 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
   min-width: 0;
   justify-self: end;
 }
+.topbar-id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
+}
 .topbar-meta .registered {
   min-width: 0;
   max-width: 28vw;
@@ -205,7 +214,6 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
   color: var(--muted);
 }
 .topbar-meta .ver {
-  flex: 0 0 auto;
   font-family: var(--mono);
   font-size: 0.78rem;
   font-weight: 600;
@@ -214,6 +222,7 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
 }
 .topbar-meta .registered:empty,
 .topbar-meta .ver:empty { display: none; }
+.topbar-id:not(:has(:not(:empty))) { display: none; }
 .topbar-meta .theme-topbar { flex: 0 0 auto; }
 .app-version { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .theme-toggle, .btn.theme-toggle {
