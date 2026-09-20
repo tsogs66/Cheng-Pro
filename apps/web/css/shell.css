@@ -466,10 +466,11 @@ html.bright .toast {
 .bottom-nav { display: none; }
 .sidebar-backdrop { display: none; }
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: auto 1fr auto; }
-  .vessel-switcher { grid-column: 1 / -1; }
+  .topbar { grid-template-columns: auto minmax(0,1fr) auto; }
+  .title-header { grid-column: 2; grid-row: 1; min-width: 0; justify-self: stretch; }
+  .topbar-meta { grid-column: 3; grid-row: 1; }
+  .vessel-switcher { grid-column: 1 / -1; grid-row: 2; }
   .vessel-switcher select { max-width: none; }
-  .title-header { min-width: 0; }
   .body { grid-template-columns: 1fr; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; width: min(280px, 86vw); z-index: 50;
