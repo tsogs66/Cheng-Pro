@@ -492,6 +492,13 @@
     min-height:52px; font-size:17px; padding:14px 16px;
   }
   .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .nv-leg-actions.unsaved-leg-actions{justify-content:stretch;}
+  .nv-leg-actions.unsaved-leg-actions button{min-height:44px; flex:1 1 auto;}
+  #unsavedLegMessage{white-space:pre-wrap; margin:0 0 14px;}
+  @media (max-width:720px){
+    .nv-leg-actions.unsaved-leg-actions{flex-direction:column-reverse;}
+    .nv-leg-actions.unsaved-leg-actions button{width:100%; flex:1 1 100%;}
+  }
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
@@ -2859,7 +2866,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <tbody id="voyageLibraryBody"><tr class="empty-row"><td colspan="4">No archived voyage legs yet.</td></tr></tbody>
         </table>
       </div>
-      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Switch legs here without mixing ballast and laden into one long list.</div>
+      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Loading another leg warns if the current one is not yet in this library, with an option to save first.</div>
     </div>
 
     <div class="panel">
@@ -3050,6 +3057,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="nv-leg-actions">
           <button type="button" class="ghost small" id="nvLegCancel">Cancel</button>
           <button type="button" class="primary small" id="nvLegAccept">Create New Voyage</button>
+        </div>
+      </div>
+    </div>
+    <div id="unsavedLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="unsavedLegTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="unsavedLegTitle">Unsaved voyage leg</h3>
+        <p class="hint" id="unsavedLegMessage">The current voyage leg is not saved in the voyage library.</p>
+        <div class="nv-leg-actions unsaved-leg-actions">
+          <button type="button" class="ghost small" id="unsavedLegCancel">Cancel</button>
+          <button type="button" class="ghost small" id="unsavedLegDiscard">Load without saving</button>
+          <button type="button" class="primary small" id="unsavedLegSave">Save, then load</button>
         </div>
       </div>
     </div>
@@ -7268,6 +7286,147 @@ async function archiveActiveVoyageLeg(){
   );
 }
 
+function activeVoyageIdentity(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  const vn = formVn || (state.setup.voyageNumber || '').trim();
+  const formCondEl = document.getElementById('s_shipCondition');
+  const formCond = formCondEl && formCondEl.value !== '' ? formCondEl.value : null;
+  const cond = normalizeCondition(formCond != null ? formCond : state.setup.shipCondition);
+  return { vn, cond };
+}
+
+function currentLegHasWork(){
+  const { vn } = activeVoyageIdentity();
+  return !!(vn
+    || (state.entries && state.entries.length)
+    || (state.receipts && state.receipts.length)
+    || (state.documents && state.documents.length)
+    || (state.abstracts && state.abstracts.length));
+}
+
+async function currentVoyageLegIsInLibrary(){
+  const { vn, cond } = activeVoyageIdentity();
+  if (!vn || !state.activeVesselId) return false;
+  const id = voyageLegId(state.activeVesselId, vn, cond);
+  const all = await listVoyageLegsForVessel(state.activeVesselId);
+  return all.some(l => l.id === id
+    || ((l.voyageNumber || '').trim() === vn && normalizeCondition(l.condition) === cond));
+}
+
+function confirmUnsavedLegChoice(message){
+  return new Promise(resolve => {
+    const overlay = document.getElementById('unsavedLegOverlay');
+    const msg = document.getElementById('unsavedLegMessage');
+    const btnSave = document.getElementById('unsavedLegSave');
+    const btnDiscard = document.getElementById('unsavedLegDiscard');
+    const btnCancel = document.getElementById('unsavedLegCancel');
+    if (!overlay || !btnSave || !btnDiscard || !btnCancel){
+      const ok = confirm(message + '\n\nOK = save then load. Cancel = stay on this leg.');
+      resolve(ok ? 'save' : 'cancel');
+      return;
+    }
+    if (msg) msg.textContent = message;
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    let done = false;
+    const finish = (choice) => {
+      if (done) return;
+      done = true;
+      overlay.classList.remove('open');
+      overlay.hidden = true;
+      overlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKey);
+      resolve(choice);
+    };
+    const onOverlayClick = (ev) => {
+      if (ev.target === overlay) finish('cancel');
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape'){
+        ev.preventDefault();
+        finish('cancel');
+      }
+    };
+    btnSave.onclick = () => finish('save');
+    btnDiscard.onclick = () => finish('discard');
+    btnCancel.onclick = () => finish('cancel');
+    overlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKey);
+    overlay.hidden = false;
+    overlay.classList.add('open');
+    try { btnSave.focus(); } catch (_){}
+  });
+}
+
+async function confirmUnsavedVoyageLegBeforeLoad(targetVn, targetCond){
+  if (!currentLegHasWork()) return 'ok';
+  const { vn, cond } = activeVoyageIdentity();
+  const wantVn = (targetVn || '').trim();
+  const wantCond = normalizeCondition(targetCond);
+  if (vn && vn === wantVn && cond === wantCond && await currentVoyageLegIsInLibrary()){
+    return 'ok';
+  }
+  if (vn && await currentVoyageLegIsInLibrary()) return 'ok';
+  const count = (state.entries || []).length;
+  const currentLabel = vn ? `${vn} / ${cond}` : '(no voyage number)';
+  const entryBit = count
+    ? ` It currently has ${count} log ${count === 1 ? 'entry' : 'entries'}.`
+    : '';
+  const message = `The current voyage leg ${currentLabel} is not saved in the voyage library.${entryBit}\n\nLoading ${wantVn} / ${wantCond} will replace the working set. Save this leg first, load without saving, or cancel.`;
+  return confirmUnsavedLegChoice(message);
+}
+
+async function saveActiveVoyageLegFromLoadWarning(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  if (formVn) state.setup.voyageNumber = formVn;
+  const formCond = document.getElementById('s_shipCondition')?.value;
+  if (formCond) state.setup.shipCondition = normalizeCondition(formCond);
+  const leg = await archiveActiveVoyageLeg();
+  if (!leg){
+    alert('Set a Voyage No. on Voyage Setup before saving this leg.');
+    return false;
+  }
+  await saveSetup();
+  return true;
+}
+
+async function loadSelectedVoyageLeg(vn, cond, opts){
+  vn = (vn || '').trim();
+  cond = normalizeCondition(cond);
+  if (!vn){
+    alert('Select a voyage number from the library list.');
+    return false;
+  }
+  const fromVid = state.activeVesselId;
+  const choice = await confirmUnsavedVoyageLegBeforeLoad(vn, cond);
+  if (choice === 'cancel') return false;
+  if (choice === 'save'){
+    const saved = await saveActiveVoyageLegFromLoadWarning();
+    if (!saved) return false;
+  }
+  const persistSource = choice !== 'discard';
+  try {
+    const scopeVid = libraryScopeVesselId();
+    if (scopeVid && scopeVid !== state.activeVesselId){
+      await switchVessel(scopeVid, { persistCurrent: persistSource });
+    }
+    const persistTarget = (state.activeVesselId !== fromVid) || persistSource;
+    await activateVoyageLeg(state.activeVesselId, vn, cond, { persistCurrent: persistTarget });
+    render();
+    applyEntryDefaults();
+    prefillFromLastEntry();
+    renderSyncUi();
+    await renderVoyageLibrary();
+    if (opts && opts.goSummary) switchTab('summary');
+    if (opts && opts.successAlert){
+      alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
+    }
+    return true;
+  } catch (e){
+    alert('Load failed: ' + e.message);
+    return false;
+  }
+}
+
 async function listVoyageLegsForVessel(vesselId){
   const vid = vesselRegistryId(vesselId || state.activeVesselId || LEGACY_VESSEL_ID);
   const all = await dbGetAll('voyageLegs');
@@ -7313,7 +7472,7 @@ async function clearActiveVesselWorkingData(vesselId){
   }
 }
 
-async function activateVoyageLeg(vesselId, voyageNumber, condition){
+async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
   const vid = vesselId || state.activeVesselId;
   const vn = (voyageNumber || '').trim();
   const cond = normalizeCondition(condition);
@@ -7322,8 +7481,10 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition){
   if (own) beginActivity('load-leg', `Loading voyage ${vn} ${cond} on this device…`, { source: 'program' });
   try {
 
-  /* Persist whatever is on screen first so switching never loses work. */
-  if (state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
+  /* Persist whatever is on screen first so switching never loses work —
+     unless the library-load warning already asked and the user chose not to. */
+  const persistCurrent = !opts || opts.persistCurrent !== false;
+  if (persistCurrent && state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
     await archiveActiveVoyageLeg();
     await saveSetup();
   }
@@ -7622,13 +7783,15 @@ async function saveCurrentVesselState(){
   }
 }
 
-async function switchVessel(vesselId){
+async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
   if (!target) return;
   return withActivity('switch-vessel', `Switching to ${target.name}…`, async ({ update })=>{
-    update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
-    await saveCurrentVesselState();
+    if (!opts || opts.persistCurrent !== false){
+      update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
+      await saveCurrentVesselState();
+    }
     update({ label: `Loading ${target.name}…` });
     await loadVesselFromDb(vesselId);
     await dbPut('meta', { key:'activeVesselId', value: vesselId });
@@ -22738,22 +22901,7 @@ document.getElementById('btnPullVoyageLeg')?.addEventListener('click', async ()=
 document.getElementById('btnLoadVoyageLeg')?.addEventListener('click', async ()=>{
   const vn = (document.getElementById('s_voyageSelect')?.value || '').trim();
   const cond = normalizeCondition(document.getElementById('s_legCondition')?.value);
-  if (!vn){ alert('Select a voyage number from the library list.'); return; }
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { successAlert: true });
 });
 
 document.getElementById('btnSaveVoyageLeg')?.addEventListener('click', async ()=>{
@@ -22778,21 +22926,7 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
   const vn = (btn.dataset.voyage || '').trim();
   const cond = normalizeCondition(btn.dataset.cond);
   if (!vn) return;
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    switchTab('summary');
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { goSummary: true });
 });
 
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
