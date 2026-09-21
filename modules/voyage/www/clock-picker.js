@@ -56,6 +56,21 @@ html.bright .ccp-face{background:radial-gradient(circle at 35% 30%,rgba(23,102,9
 .ccp-actions{display:flex;gap:8px;justify-content:flex-end}
 .ccp-actions button{padding:8px 14px;border-radius:10px;border:1px solid rgba(233,228,214,.2);background:rgba(0,0,0,.25);color:inherit;cursor:pointer;font-weight:600;letter-spacing:normal;text-transform:none}
 .ccp-actions .ccp-ok{background:linear-gradient(180deg,rgba(87,179,171,.45),rgba(87,179,171,.2));border-color:#57b3ab}
+.ccp-tabs{display:flex;gap:8px;margin-bottom:12px}
+.ccp-tabs button{flex:1;min-height:40px;padding:8px 10px;border-radius:10px;border:1px solid rgba(201,154,83,.35);background:rgba(0,0,0,.2);color:inherit;font-weight:700;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;font-size:11px}
+.ccp-tabs button.active{background:rgba(87,179,171,.25);border-color:#57b3ab}
+.ccp-date-readout{text-align:center;font-variant-numeric:tabular-nums;font-size:1.15rem;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
+.ccp-date-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.ccp-date-nav button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid rgba(201,154,83,.35);background:rgba(0,0,0,.2);color:inherit;font-weight:700;cursor:pointer;font-size:18px;line-height:1}
+.ccp-date-nav span{flex:1;text-align:center;font-weight:700;font-size:13px;letter-spacing:.04em}
+.ccp-date-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px}
+.ccp-day-head{text-align:center;font-size:10px;font-weight:700;opacity:.55;padding:2px 0}
+.ccp-day{min-height:36px;padding:0;border-radius:8px;border:1px solid transparent;background:rgba(0,0,0,.15);color:inherit;font-weight:600;font-size:12px;cursor:pointer;letter-spacing:normal;text-transform:none}
+.ccp-day:hover{background:rgba(201,154,83,.18)}
+.ccp-day.other{opacity:.35}
+.ccp-day.today{box-shadow:0 0 0 1px rgba(87,179,171,.55)}
+.ccp-day.selected{background:rgba(87,179,171,.32);border-color:#57b3ab}
+html.bright .ccp-day{background:rgba(18,34,56,.06)}
 input.ccp-bound{cursor:pointer}
 /* Tablet + Windows / desktop: larger dial and hit targets */
 @media (min-width:721px) and (min-height:480px), (min-width:900px) and (hover:hover) and (pointer:fine){
@@ -84,6 +99,38 @@ input.ccp-bound{cursor:pointer}
   }
 
   function pad(n) { return String(n).padStart(2, '0'); }
+
+  const MONTH_LABELS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const DOW_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  function parseDateParts(datePart) {
+    const m = String(datePart || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      return { y: Number(m[1]), mo: Number(m[2]), d: Number(m[3]) };
+    }
+    const now = new Date();
+    return { y: now.getFullYear(), mo: now.getMonth() + 1, d: now.getDate() };
+  }
+
+  function formatDatePart(y, mo, d) {
+    return `${y}-${pad(mo)}-${pad(d)}`;
+  }
+
+  function daysInMonth(y, mo) {
+    return new Date(y, mo, 0).getDate();
+  }
+
+  function clampDay(y, mo, d) {
+    const dim = daysInMonth(y, mo);
+    let day = Math.round(Number(d));
+    if (!Number.isFinite(day)) day = 1;
+    if (day < 1) day = 1;
+    if (day > dim) day = dim;
+    return day;
+  }
 
   function clampMinute(m) {
     let v = Math.round(Number(m));
@@ -198,27 +245,55 @@ input.ccp-bound{cursor:pointer}
   function open(el) {
     ensureCss();
     close();
-    const state = Object.assign({ step: 'hour' }, parseValue(el));
+    const parsed = parseValue(el);
+    const dp = parseDateParts(parsed.datePart);
+    const state = Object.assign({
+      step: 'hour',
+      tab: 'time',
+      y: dp.y,
+      mo: dp.mo,
+      d: dp.d,
+      viewY: dp.y,
+      viewMo: dp.mo,
+      datePart: parsed.datePart || formatDatePart(dp.y, dp.mo, dp.d),
+    }, parsed);
+    const isDateTime = el.type === 'datetime-local';
     const overlay = document.createElement('div');
     overlay.className = 'ccp-overlay';
     overlay.innerHTML = `
-      <div class="ccp-dialog" role="dialog" aria-modal="true" aria-label="Time picker">
-        <div class="ccp-title">Ship clock</div>
-        <div class="ccp-readout" data-ccp-readout>
-          <input class="ccp-part" data-ccp-part="hour" type="text" inputmode="numeric" maxlength="2" aria-label="Hour" title="Type hour or scroll">
-          <span class="ccp-colon">:</span>
-          <input class="ccp-part" data-ccp-part="minute" type="text" inputmode="numeric" maxlength="2" aria-label="Minutes" title="Type minutes or scroll">
+      <div class="ccp-dialog" role="dialog" aria-modal="true" aria-label="${isDateTime ? 'Date and time picker' : 'Time picker'}">
+        <div class="ccp-title">${isDateTime ? "Ship's date &amp; time" : 'Ship clock'}</div>
+        <div class="ccp-tabs" data-ccp-tabs ${isDateTime ? '' : 'hidden'}>
+          <button type="button" data-ccp-tab="date">Date</button>
+          <button type="button" data-ccp-tab="time">Time</button>
         </div>
-        <div class="ccp-step" data-ccp-step></div>
-        <div class="ccp-hint" data-ccp-hint></div>
-        <div class="ccp-face" data-ccp-face>
-          <div class="ccp-hand" data-ccp-hand-h></div>
-          <div class="ccp-hand min" data-ccp-hand-m></div>
-          <div class="ccp-center"></div>
+        <div class="ccp-date-panel" data-ccp-date hidden>
+          <div class="ccp-date-readout" data-ccp-date-readout></div>
+          <div class="ccp-date-nav">
+            <button type="button" data-ccp-prev-month aria-label="Previous month">‹</button>
+            <span data-ccp-month-label></span>
+            <button type="button" data-ccp-next-month aria-label="Next month">›</button>
+          </div>
+          <div class="ccp-date-grid" data-ccp-date-grid></div>
+          <div class="ccp-hint">Pick the report date, then switch to Time for the ship's clock.</div>
         </div>
-        <div class="ccp-ampm" data-ccp-ampm hidden>
-          <button type="button" data-ampm="am">AM</button>
-          <button type="button" data-ampm="pm">PM</button>
+        <div class="ccp-time-panel" data-ccp-time-panel>
+          <div class="ccp-readout" data-ccp-readout>
+            <input class="ccp-part" data-ccp-part="hour" type="text" inputmode="numeric" maxlength="2" aria-label="Hour" title="Type hour or scroll">
+            <span class="ccp-colon">:</span>
+            <input class="ccp-part" data-ccp-part="minute" type="text" inputmode="numeric" maxlength="2" aria-label="Minutes" title="Type minutes or scroll">
+          </div>
+          <div class="ccp-step" data-ccp-step></div>
+          <div class="ccp-hint" data-ccp-hint></div>
+          <div class="ccp-face" data-ccp-face>
+            <div class="ccp-hand" data-ccp-hand-h></div>
+            <div class="ccp-hand min" data-ccp-hand-m></div>
+            <div class="ccp-center"></div>
+          </div>
+          <div class="ccp-ampm" data-ccp-ampm hidden>
+            <button type="button" data-ampm="am">AM</button>
+            <button type="button" data-ampm="pm">PM</button>
+          </div>
         </div>
         <div class="ccp-actions">
           <button type="button" data-ccp-cancel>Cancel</button>
@@ -227,6 +302,12 @@ input.ccp-bound{cursor:pointer}
       </div>`;
     document.body.appendChild(overlay);
 
+    const tabsRow = overlay.querySelector('[data-ccp-tabs]');
+    const datePanel = overlay.querySelector('[data-ccp-date]');
+    const timePanel = overlay.querySelector('[data-ccp-time-panel]');
+    const dateReadout = overlay.querySelector('[data-ccp-date-readout]');
+    const monthLabel = overlay.querySelector('[data-ccp-month-label]');
+    const dateGrid = overlay.querySelector('[data-ccp-date-grid]');
     const face = overlay.querySelector('[data-ccp-face]');
     const readout = overlay.querySelector('[data-ccp-readout]');
     const partH = overlay.querySelector('[data-ccp-part="hour"]');
@@ -240,6 +321,78 @@ input.ccp-bound{cursor:pointer}
     let dragging = false;
     let lastStep = null;
     let suppressReadout = false;
+
+    function syncDatePart() {
+      state.d = clampDay(state.y, state.mo, state.d);
+      state.datePart = formatDatePart(state.y, state.mo, state.d);
+    }
+
+    function setTab(tab) {
+      state.tab = tab === 'date' ? 'date' : 'time';
+      if (tabsRow) {
+        tabsRow.querySelectorAll('[data-ccp-tab]').forEach((btn) => {
+          btn.classList.toggle('active', btn.getAttribute('data-ccp-tab') === state.tab);
+        });
+      }
+      if (datePanel) datePanel.hidden = state.tab !== 'date';
+      if (timePanel) timePanel.hidden = state.tab !== 'time';
+      refresh();
+    }
+
+    function renderDateGrid() {
+      if (!dateGrid) return;
+      dateGrid.innerHTML = '';
+      DOW_LABELS.forEach((label) => {
+        const head = document.createElement('div');
+        head.className = 'ccp-day-head';
+        head.textContent = label;
+        dateGrid.appendChild(head);
+      });
+      const y = state.viewY;
+      const mo = state.viewMo;
+      const firstDow = new Date(y, mo - 1, 1).getDay();
+      const dim = daysInMonth(y, mo);
+      const prevDim = daysInMonth(y, mo - 1 < 1 ? 12 : mo - 1);
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) {
+        cells.push({ day: prevDim - firstDow + i + 1, other: true, moOff: -1 });
+      }
+      for (let day = 1; day <= dim; day++) cells.push({ day, other: false, moOff: 0 });
+      let tailDay = 1;
+      while (cells.length % 7 !== 0) {
+        cells.push({ day: tailDay++, other: true, moOff: 1 });
+      }
+      const today = new Date();
+      cells.forEach((cell) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ccp-day' + (cell.other ? ' other' : '');
+        btn.textContent = String(cell.day);
+        let cy = y;
+        let cm = mo + cell.moOff;
+        if (cm < 1) { cm = 12; cy -= 1; }
+        if (cm > 12) { cm = 1; cy += 1; }
+        if (
+          cy === today.getFullYear() && cm === today.getMonth() + 1 && cell.day === today.getDate()
+        ) btn.classList.add('today');
+        if (cy === state.y && cm === state.mo && cell.day === state.d) btn.classList.add('selected');
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          state.y = cy;
+          state.mo = cm;
+          state.d = cell.day;
+          state.viewY = cy;
+          state.viewMo = cm;
+          syncDatePart();
+          refresh();
+        };
+        dateGrid.appendChild(btn);
+      });
+      if (monthLabel) {
+        monthLabel.textContent = `${MONTH_LABELS[mo - 1]} ${y}`;
+      }
+      if (dateReadout) dateReadout.textContent = formatDatePart(state.y, state.mo, state.d);
+    }
 
     function clearDecor() {
       face.querySelectorAll('.ccp-num, .ccp-tick').forEach((n) => n.remove());
@@ -284,6 +437,10 @@ input.ccp-bound{cursor:pointer}
     }
 
     function refresh(opts) {
+      if (isDateTime && state.tab === 'date') {
+        renderDateGrid();
+        return;
+      }
       const keepNums = opts && opts.keepNums;
       const { h, m } = to24(state.h12, state.m, state.isPm);
       suppressReadout = true;
@@ -492,7 +649,10 @@ input.ccp-bound{cursor:pointer}
     window.addEventListener('touchend', pointerUp);
 
     function finish(commit) {
-      if (commit) writeValue(el, state);
+      if (commit) {
+        if (isDateTime) syncDatePart();
+        writeValue(el, state);
+      }
       close();
       try { el.blur(); } catch (_) {}
     }
@@ -509,8 +669,35 @@ input.ccp-bound{cursor:pointer}
     overlay.addEventListener('click', (ev) => {
       if (ev.target === overlay) finish(false);
     });
+    if (tabsRow) {
+      tabsRow.querySelectorAll('[data-ccp-tab]').forEach((btn) => {
+        btn.onclick = () => setTab(btn.getAttribute('data-ccp-tab'));
+      });
+    }
+    const prevMo = overlay.querySelector('[data-ccp-prev-month]');
+    const nextMo = overlay.querySelector('[data-ccp-next-month]');
+    if (prevMo) {
+      prevMo.onclick = () => {
+        state.viewMo -= 1;
+        if (state.viewMo < 1) { state.viewMo = 12; state.viewY -= 1; }
+        refresh();
+      };
+    }
+    if (nextMo) {
+      nextMo.onclick = () => {
+        state.viewMo += 1;
+        if (state.viewMo > 12) { state.viewMo = 1; state.viewY += 1; }
+        refresh();
+      };
+    }
+
     overlay.querySelector('[data-ccp-cancel]').onclick = () => finish(false);
     overlay.querySelector('[data-ccp-ok]').onclick = () => {
+      if (isDateTime && state.tab === 'date') {
+        syncDatePart();
+        finish(true);
+        return;
+      }
       applyHourTyped();
       applyMinuteTyped();
       if (state.step === 'hour') {
@@ -532,8 +719,11 @@ input.ccp-bound{cursor:pointer}
       el,
       listeners: { pointerMove, pointerUp, onKey },
     };
-    refresh();
-    try { partH.focus(); partH.select(); } catch (_) {}
+    if (isDateTime) setTab('time');
+    else refresh();
+    try {
+      if (state.tab === 'time') { partH.focus(); partH.select(); }
+    } catch (_) {}
   }
 
   function bindInput(el) {

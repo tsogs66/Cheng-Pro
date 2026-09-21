@@ -28,6 +28,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --topbar-h: 72px;
   --bottom-h: 0px;
+  /* Bottom navigation — keep in step with Voyage Chief / Tank Chief. */
+  --nav-bg: rgba(10, 20, 32, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  --nav-item-bg: rgba(0, 0, 0, 0.18);
+  --nav-active-bg: rgba(201, 154, 83, 0.12);
   color-scheme: dark;
 }
 html.bright {
@@ -51,6 +56,10 @@ html.bright {
   --danger: #b33a22;
   --ok: #2f7a45;
   --shadow: 0 12px 36px rgba(18, 34, 56, 0.12);
+  --nav-bg: rgba(255, 255, 255, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(18, 34, 56, 0.14);
+  --nav-item-bg: rgba(18, 34, 56, 0.04);
+  --nav-active-bg: rgba(138, 90, 26, 0.14);
   color-scheme: light;
 }
 
@@ -296,10 +305,10 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
 .nav-item { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
 .nav-item:hover, .bottom-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 html.bright .nav-item:hover, html.bright .bottom-item:hover { background: rgba(18,34,56,0.06); }
-.nav-item.active, .bottom-item.active {
+.nav-item.active {
   color: var(--brass); background: rgba(201,154,83,0.12); border-color: rgba(201,154,83,0.28);
 }
-html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba(138,90,26,0.12); }
+html.bright .nav-item.active { background: rgba(138,90,26,0.12); }
 .sidebar-note { margin-top: auto; font-size: 0.72rem; color: var(--muted); line-height: 1.45; padding: 0 8px; }
 .sidebar-meta {
   margin-top: auto;
@@ -486,13 +495,13 @@ html.use-bottom-nav .bottom-nav {
   height: auto;
   min-height: calc(var(--bottom-h) + var(--safe-bottom));
   padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + var(--safe-bottom));
-  background: rgba(10,20,32,0.97);
+  background: var(--nav-bg, rgba(10,20,32,0.97));
   border-top: 1px solid var(--line);
-  box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
+  box-shadow: var(--nav-shadow, 0 -8px 24px rgba(0,0,0,0.35));
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-html.bright.use-bottom-nav .bottom-nav { background: rgba(255,255,255,0.97); }
+html.bright.use-bottom-nav .bottom-nav { background: var(--nav-bg, rgba(255,255,255,0.97)); }
 html.use-bottom-nav .bottom-item {
   flex: 1 1 0;
   min-width: 0;
@@ -515,8 +524,12 @@ html.use-bottom-nav .bottom-item {
 html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height: 1; }
 /* Same press feedback as Voyage Chief's bar: colour eases in, the item dips
    under the finger. */
-html.use-bottom-nav .bottom-item { transition: color .15s ease, background .15s ease; }
-html.use-bottom-nav .bottom-item:active { transform: scale(0.96); }
+html.use-bottom-nav .bottom-item:hover { color: var(--text); background: transparent; }
+html.use-bottom-nav .bottom-item.active {
+  color: var(--brass);
+  background: var(--nav-active-bg, rgba(201,154,83,0.12));
+}
+html.use-bottom-nav .bottom-item.active:hover { color: var(--brass); }
 html.use-bottom-nav .bottom-item:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 html.use-bottom-nav .main {
   padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
@@ -576,14 +589,17 @@ html.use-bottom-nav .bn-more-item {
   text-transform: uppercase;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 html.bright.use-bottom-nav .bn-more-item { background: rgba(18,34,56,0.06); }
 html.use-bottom-nav .bn-more-item .bn-ic { font-size: 24px; line-height: 1; }
 html.use-bottom-nav .bn-more-item.active {
   color: var(--brass);
   border-color: var(--brass);
-  background: rgba(201,154,83,0.14);
+  background: var(--nav-active-bg, rgba(201,154,83,0.14));
 }
+html.use-bottom-nav .bn-more-item:hover { color: var(--text); }
+html.use-bottom-nav .bn-more-item.active:hover { color: var(--brass); }
 @media (max-width: 420px) {
   html.use-bottom-nav .bn-more-grid { grid-template-columns: repeat(2, 1fr); }
 }
