@@ -17,7 +17,8 @@ console.log('\nLoading splash — shared assets and hooks');
 const css = fs.readFileSync(path.join(ROOT, 'apps/web/css/loading-splash.css'), 'utf8');
 const js = fs.readFileSync(path.join(ROOT, 'apps/web/js/loading-splash.js'), 'utf8');
 
-check('CSS defines ship pull motion', /loading-splash-ship-motion/.test(css));
+check('CSS matches voyage overview wave motion', /loading-splash-voyage-wave/.test(css) && /\.voyage-wave/.test(css));
+check('JS uses side-view bulk carrier toward port', /loading-splash-ship-run/.test(js) && /Departure/.test(js) && /Port/.test(js));
 check('JS exports LoadingSplash stack API', /function show\(id, label/.test(js) && /window\.LoadingSplash/.test(js));
 
 const copies = [
