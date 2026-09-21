@@ -52,7 +52,6 @@ html.bright {
   .nav-item,
   .nav-btn,
   .tab,
-  .bn-item,
   .theme-toggle {
     box-shadow:
       inset 0 1px 0 var(--btn-depth-top),
@@ -299,4 +298,132 @@ html.bright {
   }
   /* The sweep still marks the panel as busy; it just stops moving. */
   .is-working::after { background: var(--hud-glow); opacity: 0.35; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Bottom navigation — Voyage Chief tab rail (AIO shell + Tank + Voyage).
+ *
+ * On a ten-inch tablet in bright mode the bar reads as a grey rail: inactive
+ * cells sit flat with a carved groove between them, and the active cell lifts
+ * as a white tab with a soft scoop where it meets its neighbours. Phone sizes
+ * keep the simpler tint from each module's stylesheet.
+ * ------------------------------------------------------------------------- */
+
+.bottom-nav .bn-item,
+.bottom-nav .bottom-item {
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.bottom-nav .bn-item:active,
+.bottom-nav .bottom-item:active {
+  transform: scale(0.96);
+}
+
+@media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+  .bottom-nav {
+    align-items: flex-end;
+    gap: 0;
+    padding-top: 0;
+  }
+
+  .bottom-nav .bn-item,
+  .bottom-nav .bottom-item {
+    position: relative;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .bottom-nav .bn-item + .bn-item,
+  .bottom-nav .bottom-item + .bottom-item {
+    box-shadow:
+      inset 1px 0 0 rgba(255, 255, 255, 0.22),
+      inset 2px 0 0 rgba(0, 0, 0, 0.18);
+  }
+
+  html.bright .bottom-nav .bn-item + .bn-item,
+  html.bright .bottom-nav .bottom-item + .bottom-item {
+    box-shadow:
+      inset 1px 0 0 rgba(255, 255, 255, 0.58),
+      inset 2px 0 0 rgba(18, 34, 56, 0.1);
+  }
+
+  html.bright .bottom-nav {
+    background: #bcc3cf;
+    border-top: 1px solid rgba(18, 34, 56, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      0 -6px 20px rgba(18, 34, 56, 0.08);
+  }
+
+  html.bright .bottom-nav .bn-item.active,
+  html.bright .bottom-nav .bottom-item.active {
+    color: var(--brass, var(--accent-2, #6e4814));
+    background: #ffffff;
+    border-radius: 12px 12px 0 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 -5px 16px rgba(18, 34, 56, 0.16);
+    transform: translateY(-3px);
+    z-index: 2;
+  }
+
+  html.bright .bottom-nav .bn-item.active::before,
+  html.bright .bottom-nav .bn-item.active::after,
+  html.bright .bottom-nav .bottom-item.active::before,
+  html.bright .bottom-nav .bottom-item.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+  }
+
+  html.bright .bottom-nav .bn-item.active::before,
+  html.bright .bottom-nav .bottom-item.active::before {
+    left: -14px;
+    background: radial-gradient(circle at 0 0, transparent 13px, #ffffff 14px);
+  }
+
+  html.bright .bottom-nav .bn-item.active::after,
+  html.bright .bottom-nav .bottom-item.active::after {
+    right: -14px;
+    background: radial-gradient(circle at 100% 0, transparent 13px, #ffffff 14px);
+  }
+
+  html.bright .bottom-nav .bn-item.active:active,
+  html.bright .bottom-nav .bottom-item.active:active {
+    transform: translateY(-3px) scale(0.96);
+  }
+
+  html:not(.bright) .bottom-nav {
+    background: rgba(10, 20, 32, 0.98);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  html:not(.bright) .bottom-nav .bn-item.active,
+  html:not(.bright) .bottom-nav .bottom-item.active {
+    color: var(--brass, var(--accent-2, #c99a53));
+    background: var(--nav-active-bg, rgba(201, 154, 83, 0.14));
+    border-radius: 10px 10px 0 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 -4px 14px rgba(0, 0, 0, 0.35);
+    transform: translateY(-2px);
+    z-index: 2;
+  }
+
+  html:not(.bright) .bottom-nav .bn-item.active:active,
+  html:not(.bright) .bottom-nav .bottom-item.active:active {
+    transform: translateY(-2px) scale(0.96);
+  }
+}
+
+.bottom-nav .bn-more-item {
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.bottom-nav .bn-more-item:active,
+.bn-more-grid .bn-more-item:active {
+  transform: scale(0.97);
 }

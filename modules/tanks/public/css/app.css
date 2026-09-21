@@ -27,6 +27,8 @@
   --brass: #c99a53;
   --nav-item-bg: rgba(22, 40, 63, 0.9);
   --nav-active-bg: rgba(201, 154, 83, 0.12);
+  --nav-bg: rgba(10, 20, 32, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
   font-size: 15px;
   color-scheme: dark;
 }
@@ -56,6 +58,8 @@ html.bright {
   --shadow: 0 2px 10px rgba(18,34,56,0.12);
   --nav-item-bg: rgba(255,255,255,0.92);
   --nav-active-bg: rgba(138,90,26,0.12);
+  --nav-bg: rgba(255, 255, 255, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(18, 34, 56, 0.14);
   color-scheme: light;
 }
 
@@ -241,13 +245,13 @@ body.nav-open .menu-toggle { opacity: 0; pointer-events: none; }
   align-items: stretch; justify-content: space-around;
   gap: 1px;
   padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + env(safe-area-inset-bottom, 0px));
-  background: rgba(10, 20, 32, 0.97);
+  background: var(--nav-bg, rgba(10, 20, 32, 0.97));
   border-top: 1px solid var(--border);
-  box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+  box-shadow: var(--nav-shadow, 0 -8px 24px rgba(0,0,0,.35));
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-html.bright .bottom-nav { background: rgba(255,255,255,0.97); }
+html.bright .bottom-nav { background: var(--nav-bg, rgba(255,255,255,0.97)); }
 .bn-item {
   flex: 1 1 0; min-width: 0; max-width: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
