@@ -464,44 +464,60 @@ html.bright .toast {
 
 /* Tablet + phone (portrait and landscape): 6 programs + More, same as Voyage/Tank. */
 html.use-bottom-nav {
-  --bottom-h: 56px;
+  /* What the page has to keep clear: the items, the bar's own padding, and
+     a little air. Derived so the tablet's taller bar does not sit over the
+     last row of the page. */
+  --bottom-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 4px);
 }
 html.use-bottom-nav .body { grid-template-columns: 1fr; }
 html.use-bottom-nav .sidebar,
 html.use-bottom-nav .sidebar-backdrop { display: none !important; }
 html.use-bottom-nav .bottom-nav {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  /* Flex, as Voyage Chief's bar is: the items share the width evenly without
+     the count being written into the CSS, so adding or dropping a module does
+     not leave an empty slot behind. */
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
   gap: 1px;
   position: fixed;
   left: 0; right: 0; bottom: 0;
   z-index: 40;
   height: auto;
-  min-height: calc(56px + var(--safe-bottom));
-  padding: 3px 2px calc(3px + var(--safe-bottom));
+  min-height: calc(var(--bottom-h) + var(--safe-bottom));
+  padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + var(--safe-bottom));
   background: rgba(10,20,32,0.97);
   border-top: 1px solid var(--line);
   box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 html.bright.use-bottom-nav .bottom-nav { background: rgba(255,255,255,0.97); }
 html.use-bottom-nav .bottom-item {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-height: 46px;
+  min-height: var(--nav-item-h);
   padding: 4px 1px 3px;
   border-radius: 6px;
   color: var(--muted);
   font-family: var(--display);
-  font-size: 8px;
+  font-size: var(--nav-label);
   letter-spacing: 0.04em;
   font-weight: 600;
   text-transform: uppercase;
   -webkit-tap-highlight-color: transparent;
 }
-html.use-bottom-nav .bottom-item .bn-ic { font-size: 18px; line-height: 1; }
+html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height: 1; }
+/* Same press feedback as Voyage Chief's bar: colour eases in, the item dips
+   under the finger. */
+html.use-bottom-nav .bottom-item { transition: color .15s ease, background .15s ease; }
+html.use-bottom-nav .bottom-item:active { transform: scale(0.96); }
+html.use-bottom-nav .bottom-item:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 html.use-bottom-nav .main {
   padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
 }
@@ -1562,11 +1578,32 @@ html.bright code { color: var(--accent-2); }
   --ctl-r-sm: 8px;
   --cell-pad-y: 6px;
   --cell-pad-x: 10px;
+
+  /* The bottom bar is a control too, and the one a chief hits most often.
+     46px is a phone's bar: it has to leave room for the page. */
+  --nav-item-h: 46px;
+  --nav-ic: 18px;
+  --nav-label: 8px;
+  --nav-pad-y: 3px;
 }
 @media (pointer: coarse) {
   :root {
     --ctl-h: 44px;
     --ctl-h-sm: 38px;
+  }
+}
+
+/* A tablet, told from a phone by having room on both sides: a phone in
+   landscape is wide but short, and is still a phone. On the tablet the bar
+   is the program's main control, used standing up with the screen at arm's
+   length, so it gets a target that does not have to be aimed at — and the
+   label under the icon becomes readable rather than merely present. */
+@media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+  :root {
+    --nav-item-h: 72px;
+    --nav-ic: 26px;
+    --nav-label: 11px;
+    --nav-pad-y: 7px;
   }
 }
 
