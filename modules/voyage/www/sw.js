@@ -31,6 +31,8 @@ const PRECACHE = [
   './save-file.js',
   './camera-capture.js',
   './clock-picker.js',
+  './loading-splash.css',
+  './loading-splash.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',
