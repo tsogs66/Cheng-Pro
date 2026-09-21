@@ -20407,6 +20407,19 @@ function setElVal(id, val){
   if (!el) return;
   el.value = (val == null || val === undefined || Number.isNaN(val)) ? '' : val;
 }
+/** Do not rewrite the field the engineer is typing in (toFixed mid-keystroke jumps the caret). */
+function setFmqUnlessFocused(id, val){
+  const el = document.getElementById(id);
+  if (!el || document.activeElement === el) return;
+  setElVal(id, val);
+}
+function finalizeFmqDecimalField(el){
+  if (!el || el.tagName !== 'INPUT') return;
+  const raw = String(el.value ?? '').trim();
+  if (raw === '' || raw === '-') { el.value = ''; return; }
+  const v = parseFloat(raw);
+  if (!isNaN(v)) el.value = Number(v).toFixed(2);
+}
 function getElVal(id){
   const el = document.getElementById(id);
   return el ? el.value : '';
@@ -20443,20 +20456,17 @@ function syncFmqRpmRev(sourceId){
     const rpm = parseFloat(getElVal('fmq_rpm'));
     if (!isNaN(rpm)){
       const revCounter = prevRef.revCounter + rpm * runHours * 60;
-      setElVal('fmq_rpm', Number(rpm).toFixed(2));
-      setElVal('fmq_revCounter', Number(revCounter).toFixed(2));
+      setFmqUnlessFocused('fmq_revCounter', Number(revCounter).toFixed(2));
     }
   } else {
     const rc = parseFloat(getElVal('fmq_revCounter'));
     if (!isNaN(rc)){
       if (!operationNeedsMeData(op)){
-        setElVal('fmq_revCounter', Number(rc).toFixed(2));
-        setElVal('fmq_rpm', '');
+        setFmqUnlessFocused('fmq_rpm', '');
       } else {
         const dRevs = meterDelta(rc, prevRef.revCounter, rolls.rc);
         const rpm = (dRevs != null) ? dRevs / (runHours * 60) : null;
-        setElVal('fmq_revCounter', Number(rc).toFixed(2));
-        setElVal('fmq_rpm', rpm == null || isNaN(rpm) ? '' : Number(rpm).toFixed(2));
+        setFmqUnlessFocused('fmq_rpm', rpm == null || isNaN(rpm) ? '' : Number(rpm).toFixed(2));
       }
     }
   }
@@ -20551,6 +20561,14 @@ document.getElementById('fmQuickOverlay')?.addEventListener('input', (e) => {
   const id = e.target && e.target.id;
   if (id === 'fmq_rpm' || id === 'fmq_revCounter') syncFmqRpmRev(id);
 });
+document.getElementById('fmQuickOverlay')?.addEventListener('focusout', (e) => {
+  const id = e.target && e.target.id;
+  if (id !== 'fmq_rpm' && id !== 'fmq_revCounter') return;
+  finalizeFmqDecimalField(e.target);
+  syncFmqRpmRev(id);
+  finalizeFmqDecimalField(document.getElementById('fmq_rpm'));
+  finalizeFmqDecimalField(document.getElementById('fmq_revCounter'));
+}, true);
 document.getElementById('in_datetime')?.addEventListener('change', refreshFmEntryButtonVisibility);
 document.getElementById('in_datetime')?.addEventListener('input', refreshFmEntryButtonVisibility);
 document.getElementById('in_operation')?.addEventListener('change', refreshFmEntryButtonVisibility);
