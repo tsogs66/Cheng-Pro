@@ -558,7 +558,10 @@
 
   function isDistillateFuel(tank) {
     const g = String((tank && tank.fuelGrade) || '').toLowerCase();
-    return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
+    if (g === 'mdo' || g === 'mgo' || g === 'lsmgo') return true;
+    const u = String((tank && tank.name) || '').toUpperCase().replace(/\./g, '');
+    if (/\bHFO\b|VLSFO|LSFO/.test(u) && !/\bMGO\b|\bMDO\b|\bLSMGO\b/.test(u)) return false;
+    return /\bLSMGO\b|\bMGO\b|\bMDO\b|GAS OIL/.test(u);
   }
 
   /** Pull observed volume / air weight from a tank sounding when Monitoring left the cell blank. */
@@ -725,7 +728,223 @@
     return numbered.concat(service, other);
   }
 
-  function renderHomeTankCard(tank, reading, reportMeta) {
+  const FUEL_GRID_LAYOUT_PREFIX = 'chengpro.homeFuelGrid.';
+  const FUEL_GRID_COLS = ['hfo-port', 'hfo-stbd', 'dist-port', 'dist-stbd'];
+
+  function fuelGridLayoutKey(vesselId) {
+    const id = String(vesselId || '').trim();
+    return id ? FUEL_GRID_LAYOUT_PREFIX + id : '';
+  }
+
+  function loadFuelGridLayout(vesselId) {
+    const key = fuelGridLayoutKey(vesselId);
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveFuelGridLayout(vesselId, layout) {
+    const key = fuelGridLayoutKey(vesselId);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, JSON.stringify(layout));
+    } catch { /* private mode */ }
+  }
+
+  function clearFuelGridLayout(vesselId) {
+    const key = fuelGridLayoutKey(vesselId);
+    if (!key) return;
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  }
+
+  function hasFuelGridLayout(vesselId) {
+    return !!loadFuelGridLayout(vesselId);
+  }
+
+  function collectFuelGridLayout(gridEl) {
+    const layout = {};
+    FUEL_GRID_COLS.forEach((key) => { layout[key] = []; });
+    if (!gridEl) return layout;
+    gridEl.querySelectorAll('.tg-schematic-col').forEach((col) => {
+      const key = col.getAttribute('data-col');
+      if (!layout[key]) layout[key] = [];
+      layout[key] = [...col.querySelectorAll('.tg-card')]
+        .map((el) => el.getAttribute('data-tank-id'))
+        .filter(Boolean);
+    });
+    return layout;
+  }
+
+  /** How many neighbours the pointer has passed — insert index among them. */
+  function dropIndex(midpoints, pointerY) {
+    let at = 0;
+    for (const middle of (midpoints || [])) {
+      if (pointerY > middle) at += 1;
+      else break;
+    }
+    return at;
+  }
+
+  function applySavedFuelGridLayout(cols, saved, tankById) {
+    if (!saved) return cols;
+    const used = new Set();
+    const next = cols.map((col) => {
+      const ids = Array.isArray(saved[col.key]) ? saved[col.key] : [];
+      const tanks = [];
+      ids.forEach((id) => {
+        const tank = tankById[id];
+        if (tank && !used.has(tank.id)) {
+          tanks.push(tank);
+          used.add(tank.id);
+        }
+      });
+      return { key: col.key, title: col.title, tanks };
+    });
+    cols.forEach((col, i) => {
+      col.tanks.forEach((tank) => {
+        if (!used.has(tank.id)) next[i].tanks.push(tank);
+      });
+    });
+    return next;
+  }
+
+  function markEmptyFuelColumns(gridEl) {
+    if (!gridEl) return;
+    gridEl.querySelectorAll('.tg-schematic-col-tanks').forEach((stack) => {
+      const hasCard = !!stack.querySelector('.tg-card');
+      const empty = stack.querySelector('.tg-schematic-empty');
+      if (hasCard) {
+        if (empty) empty.remove();
+        return;
+      }
+      if (!empty) stack.innerHTML = '<div class="tg-schematic-empty">—</div>';
+    });
+  }
+
+  /**
+   * Viewing-only: drag cards around the four overview columns.
+   * Does not write Tank Chief sounding / Monitoring order.
+   */
+  function attachFuelGridRearrange(gridEl, vesselId) {
+    if (!gridEl || gridEl.dataset.rearrangeBound === '1') return;
+    gridEl.dataset.rearrangeBound = '1';
+
+    let card = null;
+    let pointerId = null;
+    let lastX = 0;
+    let lastY = 0;
+    let scrolling = null;
+
+    const EDGE = 72;
+    const SPEED = 14;
+
+    const columnAt = (x, y) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit && hit.closest ? hit.closest('.tg-schematic-col') : null;
+    };
+
+    const placeAt = (x, y) => {
+      if (!card) return;
+      card.style.pointerEvents = 'none';
+      const col = columnAt(x, y);
+      card.style.pointerEvents = '';
+      if (!col || !gridEl.contains(col)) return;
+      const stack = col.querySelector('.tg-schematic-col-tanks');
+      if (!stack) return;
+      const others = [...stack.querySelectorAll('.tg-card')].filter((el) => el !== card);
+      const middles = others.map((el) => {
+        const box = el.getBoundingClientRect();
+        return box.top + box.height / 2;
+      });
+      const at = dropIndex(middles, y);
+      const before = others[at] || null;
+      stack.querySelectorAll('.tg-schematic-empty').forEach((el) => el.remove());
+      if (before) stack.insertBefore(card, before);
+      else stack.appendChild(card);
+      markEmptyFuelColumns(gridEl);
+      gridEl.querySelectorAll('.tg-schematic-col').forEach((el) => {
+        el.classList.toggle('drop-target', el === col);
+      });
+    };
+
+    const follow = () => {
+      if (!card) { scrolling = null; return; }
+      const top = lastY - EDGE;
+      const bottom = lastY - (window.innerHeight - EDGE);
+      let by = 0;
+      if (top < 0) by = Math.max(-SPEED, (top / EDGE) * SPEED);
+      else if (bottom > 0) by = Math.min(SPEED, (bottom / EDGE) * SPEED);
+      if (by) {
+        window.scrollBy(0, by);
+        placeAt(lastX, lastY);
+      }
+      scrolling = requestAnimationFrame(follow);
+    };
+
+    const stop = (ev) => {
+      if (!card) return;
+      const moved = card;
+      try {
+        if (pointerId != null && moved.hasPointerCapture && moved.hasPointerCapture(pointerId)) {
+          moved.releasePointerCapture(pointerId);
+        }
+      } catch { /* already gone */ }
+      moved.classList.remove('dragging');
+      document.body.classList.remove('home-grid-dragging');
+      gridEl.querySelectorAll('.tg-schematic-col').forEach((el) => el.classList.remove('drop-target'));
+      if (scrolling) cancelAnimationFrame(scrolling);
+      scrolling = null;
+      card = null;
+      pointerId = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onStop);
+      window.removeEventListener('pointercancel', onStop);
+      if (ev) ev.preventDefault();
+      saveFuelGridLayout(vesselId, collectFuelGridLayout(gridEl));
+      gridEl.dispatchEvent(new CustomEvent('chengpro:fuel-grid-layout', { bubbles: true }));
+    };
+
+    const onMove = (ev) => {
+      if (!card || ev.pointerId !== pointerId) return;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      placeAt(lastX, lastY);
+      ev.preventDefault();
+    };
+
+    const onStop = (ev) => {
+      if (!card || (ev && ev.pointerId !== pointerId)) return;
+      stop(ev);
+    };
+
+    gridEl.addEventListener('pointerdown', (ev) => {
+      if (!ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+      const grip = ev.target.closest('.tg-card-grip');
+      if (!grip || !gridEl.contains(grip)) return;
+      card = grip.closest('.tg-card');
+      if (!card) return;
+      pointerId = ev.pointerId;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      try { card.setPointerCapture(pointerId); } catch { /* keep dragging */ }
+      card.classList.add('dragging');
+      document.body.classList.add('home-grid-dragging');
+      window.addEventListener('pointermove', onMove, { passive: false });
+      window.addEventListener('pointerup', onStop);
+      window.addEventListener('pointercancel', onStop);
+      scrolling = requestAnimationFrame(follow);
+      ev.preventDefault();
+    });
+  }
+
+  function renderHomeTankCard(tank, reading, reportMeta, rearrange) {
     const r = reading || {};
     const res = r.result || {};
     let fill = res.fillPercent;
@@ -755,7 +974,11 @@
       ? TankGraphics.contentLabel(tank)
       : (reportMeta && reportMeta.distillate ? 'MGO' : 'HFO');
     const temp = r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + ' °C' : '– °C';
-    return `<div class="tg-card" title="${esc(tank.name || tank.id)} — ${esc(meaning)}${moved ? ' · counted under distillate this voyage' : ''}">
+    const grip = rearrange
+      ? '<span class="tg-card-grip" title="Drag to move" aria-hidden="true">⋮⋮</span>'
+      : '';
+    return `<div class="tg-card" data-tank-id="${esc(tank.id)}" title="${esc(tank.name || tank.id)} — ${esc(meaning)}${moved ? ' · counted under distillate this voyage' : ''}">
+      ${grip}
       <div class="tg-name">${esc(tank.name || tank.id)}${moved ? '<span class="hint"> · moved</span>' : ''}</div>
       <div class="tg-art">${svg}<div class="tg-pct">${pct != null ? Math.round(pct) + '%' : '—'}</div></div>
       <div class="tg-stats">
@@ -767,7 +990,13 @@
     </div>`;
   }
 
-  function renderFuelTankOverview(summaryEl, gridEl, bundle, fuelReport) {
+  function renderFuelTankOverview(summaryEl, gridEl, bundle, fuelReport, options) {
+    const opts = options || {};
+    const rearrange = !!opts.rearrange;
+    const vesselId = opts.vesselId
+      || (bundle && bundle.vessel && bundle.vessel.id)
+      || (bundle && bundle.id)
+      || '';
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
     const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport, readings, tanks) : null;
@@ -819,23 +1048,29 @@
       (isDist ? distillate : heavy).push(tank);
     });
 
-    const cols = [
+    const tankById = Object.create(null);
+    tanks.forEach((tank) => { if (tank && tank.id) tankById[tank.id] = tank; });
+
+    let cols = [
       { key: 'hfo-port', title: 'HFO / VLSFO — Port', tanks: arrangeFuelSideRow(heavy, 'port') },
       { key: 'hfo-stbd', title: 'HFO / VLSFO — Starboard', tanks: arrangeFuelSideRow(heavy, 'starboard') },
       { key: 'dist-port', title: 'MDO / MGO / LSMGO — Port', tanks: arrangeFuelSideRow(distillate, 'port') },
       { key: 'dist-stbd', title: 'MDO / MGO / LSMGO — Starboard', tanks: arrangeFuelSideRow(distillate, 'starboard') },
     ];
+    cols = applySavedFuelGridLayout(cols, loadFuelGridLayout(vesselId), tankById);
 
-    gridEl.className = 'tg-schematic';
+    gridEl.className = 'tg-schematic' + (rearrange ? ' tg-schematic-rearrange' : '');
+    delete gridEl.dataset.rearrangeBound;
     gridEl.innerHTML = cols.map((col) => {
       const cards = col.tanks.length
-        ? col.tanks.map((tank) => renderHomeTankCard(tank, readings[tank.id], reportById[tank.id] || null)).join('')
+        ? col.tanks.map((tank) => renderHomeTankCard(tank, readings[tank.id], reportById[tank.id] || null, rearrange)).join('')
         : '<div class="tg-schematic-empty">—</div>';
       return `<div class="tg-schematic-col" data-col="${esc(col.key)}">
         <div class="tg-schematic-head">${esc(col.title)}</div>
         <div class="tg-schematic-col-tanks">${cards}</div>
       </div>`;
     }).join('');
+    if (rearrange) attachFuelGridRearrange(gridEl, vesselId);
   }
 
   root.ChengProHomeDashboard = {
@@ -843,6 +1078,8 @@
     renderVoyageProgressStrip,
     renderFuelGauges,
     renderFuelTankOverview,
+    hasFuelGridLayout,
+    clearFuelGridLayout,
     windAngleDeg,
     bfLabel,
     seaLabel,

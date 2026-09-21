@@ -48,7 +48,7 @@ const REPORT_TYPES = [
 const FUEL_TYPES = [
   { id: 'hfo', label: 'HFO', section: 'fuel', group: 'residual' },
   { id: 'lsfo', label: 'VLSFO', section: 'fuel', group: 'residual' },
-  { id: 'mdo', label: 'MO/MGO', section: 'do', group: 'distillate' },
+  { id: 'mdo', label: 'MDO/MGO', section: 'do', group: 'distillate' },
   { id: 'lsmgo', label: 'LSMGO', section: 'do', group: 'distillate' },
 ];
 
@@ -149,9 +149,46 @@ function soundingPipeHeight(tank) {
   return max;
 }
 
+/**
+ * Read MGO / MDO / LSMGO / HFO off the tank title.
+ *
+ * FLAG EVI and older imports often store fuelGrade as hfo (the form default)
+ * even when the plate says M.G.O. or LSMGO. Dots and spaces are stripped so
+ * "M.G.O. STORAGE TK" and "L.S.M.G.O." match the same as "MGO" / "LSMGO".
+ */
+function fuelGradeFromName(name) {
+  const u = String(name || '').toUpperCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  if (!u) return null;
+  if (/\bLSMGO\b|LS\s*MGO/.test(u)) return 'lsmgo';
+  if (/\bMGO\b|GAS OIL/.test(u)) return 'mgo';
+  if (/\bMDO\b|\bDIESEL\b/.test(u)) return 'mdo';
+  if (/VLSFO|ULSFO|\bLSFO\b|LS HFO|LS FO/.test(u)) return 'lsfo';
+  if (/\bHFO\b/.test(u)) return 'hfo';
+  return null;
+}
+
+function isDistillateGrade(grade) {
+  const g = String(grade || '').toLowerCase();
+  return g === 'mdo' || g === 'mgo' || g === 'lsmgo';
+}
+
+/**
+ * Grade used for home-section and default fuel type.
+ * A stored distillate grade wins. A name that is clearly MGO/MDO/LSMGO wins
+ * over a leftover residual default, because those oils are not HFO/VLSFO.
+ */
+function resolvedFuelGrade(tank) {
+  const stored = String((tank && tank.fuelGrade) || '').toLowerCase().trim();
+  const inferred = fuelGradeFromName(tank && tank.name);
+  if (isDistillateGrade(stored)) return stored;
+  if (isDistillateGrade(inferred)) return inferred;
+  if (stored && stored !== 'other') return stored;
+  return inferred || 'hfo';
+}
+
 /** Default grade bucket for a tank, from its calibration-DB fuel grade. */
 function defaultFuelType(tank) {
-  const grade = String((tank && tank.fuelGrade) || '').toLowerCase();
+  const grade = resolvedFuelGrade(tank);
   if (grade === 'lsfo') return 'lsfo';
   if (grade === 'mgo' || grade === 'mdo' || grade === 'lsmgo') return grade === 'lsmgo' ? 'lsmgo' : 'mdo';
   return 'hfo';
@@ -159,8 +196,7 @@ function defaultFuelType(tank) {
 
 /** Which printed block a tank belongs to by its calibration-DB grade. */
 function sectionForTank(tank) {
-  const grade = String((tank && tank.fuelGrade) || '').toLowerCase();
-  return grade === 'mdo' || grade === 'mgo' || grade === 'lsmgo' ? 'do' : 'fuel';
+  return isDistillateGrade(resolvedFuelGrade(tank)) ? 'do' : 'fuel';
 }
 
 /** The block a fuel type belongs in — MDO/MGO and LSMGO are diesel/gas oil. */
@@ -623,12 +659,13 @@ function readingsFromReport(bundle, computed) {
     for (const row of section.rows) {
       if (row.measuredM3 == null) continue;
       readings[row.tankId] = {
-        reading: num(row.trace.nativeReading),
+        reading: num(row.reading),
         trim: computed.header.trim,
         list: computed.header.heel,
         tempC: num(row.tempC, 15),
         density15: row.density15,
         gaugeType: 'meter',
+        entryMethod: row.method,
         source: 'fuel-report',
         result: {
           soundingIncrement: row.trace.soundingIncrement,
@@ -691,6 +728,9 @@ return {
   trimLabel,
   soundingPipeHeight,
   soundingPair,
+  fuelGradeFromName,
+  resolvedFuelGrade,
+  isDistillateGrade,
   defaultFuelType,
   sectionForTank,
   sectionForFuelType,

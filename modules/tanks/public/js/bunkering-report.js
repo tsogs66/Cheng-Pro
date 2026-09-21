@@ -436,10 +436,31 @@ const BunkerReports = (() => {
 
   function planSequencePanel(c) {
     const tanks = (bundle().tanks.fuel || []);
+
+    /* Heavy fuel and distillate are bunkered as separate operations, so the
+       picker offers them as separate groups rather than one list of
+       eighteen. Within a group the tanks are in the chief's order, because
+       that is the order the sequence is planned in. */
+    const isDo = (t) => {
+      if (typeof FuelReportCore !== 'undefined' && typeof FuelReportCore.sectionForTank === 'function') {
+        return FuelReportCore.sectionForTank(t) === 'do';
+      }
+      const grade = String((t && t.fuelGrade) || '').toLowerCase();
+      return grade === 'mdo' || grade === 'mgo' || grade === 'lsmgo';
+    };
+    const heavy = tanks.filter((t) => !isDo(t));
+    const distillate = tanks.filter(isDo);
+
     const rows = c.rows.map((row, i) => {
       const f = view.plan.sequence[i] || {};
-      const opts = ['<option value="">— select tank —</option>'].concat(tanks.map((t) =>
-        `<option value="${esc(t.id)}" ${row.tankId === t.id ? 'selected' : ''}>${esc(t.name)}</option>`)).join('');
+      const optionFor = (t) =>
+        `<option value="${esc(t.id)}" ${row.tankId === t.id ? 'selected' : ''}>${esc(t.name)}</option>`;
+      const group = (label, list) => (list.length
+        ? `<optgroup label="${esc(label)}">${list.map(optionFor).join('')}</optgroup>`
+        : '');
+      const opts = '<option value="">— select tank —</option>'
+        + group('HFO / VLSFO', heavy)
+        + group('MDO / MGO / LSMGO', distillate);
       const cell = (field) => `<td class="fr-calc" data-bp-cell="${i}.${field}"></td>`;
       return `<tr data-slot="${i}">
         <th class="fr-tank-name">${i + 1}. <select data-slot="${i}" data-field="tankId">${opts}</select></th>
@@ -1817,10 +1838,14 @@ const BunkerReports = (() => {
           <output class="fr-out" data-ba-head="meanDraft"></output></label>
         <label class="fr-field"><span>TRIM</span>
           <output class="fr-out" data-ba-head="trim"></output></label>
-        <label class="fr-field"><span>HEEL</span>
-          <select data-head="heel">${heels}</select></label>
-        <label class="fr-field"><span>ER TEMP.</span>
-          <input type="number" step="any" data-head="engineRoomTemp" value="${esc(h.engineRoomTemp)}"></label>
+        <div class="fr-field-triple">
+          <label class="fr-field"><span>HEEL</span>
+            <select data-head="heel">${heels}</select></label>
+          <label class="fr-field"><span>SW TEMP.</span>
+            <input type="number" step="any" data-head="seaTemp" value="${esc(h.seaTemp)}"></label>
+          <label class="fr-field"><span>ER TEMP.</span>
+            <input type="number" step="any" data-head="engineRoomTemp" value="${esc(h.engineRoomTemp)}"></label>
+        </div>
 
         <label class="fr-field"><span>DATE</span>
           <input type="date" data-head="date" value="${esc(h.date)}"></label>
@@ -1828,8 +1853,6 @@ const BunkerReports = (() => {
           <input type="time" data-head="time" value="${esc(h.time)}"></label>
         <label class="fr-field fr-field-wide"><span>PORT</span>
           <input data-head="port" value="${esc(h.port)}"></label>
-        <label class="fr-field"><span>SW TEMP.</span>
-          <input type="number" step="any" data-head="seaTemp" value="${esc(h.seaTemp)}"></label>
       </div>
       <div class="hint" data-ba-head="attitude"></div>
     </div>`;

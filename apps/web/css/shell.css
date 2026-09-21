@@ -28,6 +28,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --topbar-h: 72px;
   --bottom-h: 0px;
+  /* Bottom navigation — keep in step with Voyage Chief / Tank Chief. */
+  --nav-bg: rgba(10, 20, 32, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+  --nav-item-bg: rgba(0, 0, 0, 0.18);
+  --nav-active-bg: rgba(201, 154, 83, 0.12);
   color-scheme: dark;
 }
 html.bright {
@@ -51,6 +56,10 @@ html.bright {
   --danger: #b33a22;
   --ok: #2f7a45;
   --shadow: 0 12px 36px rgba(18, 34, 56, 0.12);
+  --nav-bg: rgba(255, 255, 255, 0.98);
+  --nav-shadow: 0 -8px 24px rgba(18, 34, 56, 0.14);
+  --nav-item-bg: rgba(18, 34, 56, 0.04);
+  --nav-active-bg: rgba(138, 90, 26, 0.14);
   color-scheme: light;
 }
 
@@ -145,7 +154,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: grid; grid-template-columns: auto minmax(0,1fr) auto;
-  gap: 12px; align-items: center;
+  gap: 12px; align-items: start;
   min-height: calc(var(--topbar-h) + var(--safe-top));
   padding: calc(10px + var(--safe-top)) 16px 10px;
   background: rgba(10, 20, 32, 0.88);
@@ -185,7 +194,45 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
   border-color: var(--brass); box-shadow: 0 0 0 3px rgba(201,154,83,0.18);
 }
 ::placeholder { color: var(--muted); opacity: 0.85; }
-.topbar-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
+  justify-self: end;
+}
+.topbar-id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
+}
+.topbar-meta .registered {
+  min-width: 0;
+  max-width: 28vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.topbar-meta .ver {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.topbar-meta .registered:empty,
+.topbar-meta .ver:empty { display: none; }
+.topbar-id:not(:has(:not(:empty))) { display: none; }
+.topbar-meta .theme-topbar { flex: 0 0 auto; }
 .app-version { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .theme-toggle, .btn.theme-toggle {
   border: 1px solid var(--line-strong); background: rgba(0,0,0,0.18); color: var(--brass);
@@ -212,23 +259,23 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
    Only the main pane scrolls — the sidebar must never scroll away or grow a
    scrollbar of its own. */
 @media (min-width: 901px) {
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed),
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) body {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed),
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) body {
     height: 100%;
     max-height: 100dvh;
     overflow: hidden;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .app {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .app {
     height: 100dvh;
     max-height: 100dvh;
     overflow: hidden;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .body {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .body {
     min-height: 0;
     overflow: hidden;
     align-items: stretch;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar {
     position: sticky;
     top: 0;
     align-self: stretch;
@@ -237,15 +284,15 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
     min-height: 0;
     overflow: hidden;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar .nav {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar .nav {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .sidebar-meta {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar-meta {
     flex-shrink: 0;
   }
-  html:not(.aio-android-nav):not(.aio-fullscreen-embed) .main {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .main {
     min-height: 0;
     height: 100%;
     overflow-x: hidden;
@@ -258,10 +305,10 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
 .nav-item { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
 .nav-item:hover, .bottom-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 html.bright .nav-item:hover, html.bright .bottom-item:hover { background: rgba(18,34,56,0.06); }
-.nav-item.active, .bottom-item.active {
+.nav-item.active {
   color: var(--brass); background: rgba(201,154,83,0.12); border-color: rgba(201,154,83,0.28);
 }
-html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba(138,90,26,0.12); }
+html.bright .nav-item.active { background: rgba(138,90,26,0.12); }
 .sidebar-note { margin-top: auto; font-size: 0.72rem; color: var(--muted); line-height: 1.45; padding: 0 8px; }
 .sidebar-meta {
   margin-top: auto;
@@ -278,20 +325,11 @@ html.bright .nav-item.active, html.bright .bottom-item.active { background: rgba
 }
 .sidebar-meta .author:empty, .sidebar-meta .ver:empty, .sidebar-meta .registered:empty { display: none; }
 
-/* Day/night lives at the foot of the menu, with the version and the licensed
-   email. On a desktop the sidebar is always there, so the top bar's copy is a
-   duplicate and goes; below 900px the sidebar is a drawer you have to open, so
-   the top bar keeps its own. */
-.sidebar-meta .theme-sidebar {
-  display: block;
-  width: 100%;
-  margin: 0 0 8px;
-  text-align: center;
-}
-@media (max-width: 900px) {
-  /* Two toggles on one screen would both say "Bright" and both work; the
-     drawer's copy is the redundant one while the top bar's is in reach. */
-  .sidebar-meta .theme-sidebar { display: none; }
+/* Theme, registered email, and version live in the top bar now. */
+.sidebar-meta .theme-sidebar,
+.sidebar-meta .ver,
+.sidebar-meta .registered {
+  display: none;
 }
 .main { padding: 20px 18px 32px; min-width: 0; }
 .panel {
@@ -334,23 +372,15 @@ html.bright .btn.primary:hover {
 .btn.danger { border-color: rgba(224,106,76,0.5); color: var(--danger); }
 
 /*
- * Theme: home only, in topbar-meta left of the health dot (then menu).
- * When Dashboard FAB shows (fullscreen embeds), theme sits beside it.
+ * Theme sits at the top-right of the title header. Sidebar / phone-home
+ * copies would duplicate it, so they stay off while the header is visible.
  */
 .theme-topbar {
-  display: none;
+  display: inline-flex;
   flex-shrink: 0;
 }
-html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
-  display: inline-flex;
-}
-/* Above 900px the sidebar is always on screen, so the foot of the menu holds
-   the toggle and the top bar's copy is a duplicate. It has to match the rule
-   above selector for selector — a plainer one loses to it and both were
-   showing. */
-@media (min-width: 901px) {
-  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar { display: none; }
-}
+html.aio-fullscreen-embed .theme-topbar { display: none !important; }
+.sidebar-meta .theme-sidebar { display: none; }
 .nav-fab {
   display: none;
   width: 40px;
@@ -370,13 +400,15 @@ html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
 html.bright .nav-fab { background: rgba(18,34,56,0.06); color: #8a5a1a; }
 .nav-fab:hover { border-color: var(--brass); color: var(--text); }
 
-html.aio-android-nav .nav-fab:not([hidden]) { display: inline-flex; }
+html.aio-android-nav:not(.use-bottom-nav) .nav-fab:not([hidden]) { display: inline-flex; }
 html.aio-android-nav .nav-fab.is-drawer-open,
-html.aio-nav-open .nav-fab { display: none !important; }
-html.aio-android-nav .menu-btn { display: none !important; }
+html.aio-nav-open .nav-fab,
+html.use-bottom-nav .nav-fab { display: none !important; }
+html.aio-android-nav .menu-btn,
+html.use-bottom-nav .menu-btn { display: none !important; }
 html.aio-android-nav .theme-fab { display: none !important; }
-html.aio-android-nav .bottom-nav { display: none !important; }
-html.aio-android-nav {
+html.aio-android-nav:not(.use-bottom-nav) .bottom-nav { display: none !important; }
+html.aio-android-nav:not(.use-bottom-nav) {
   --bottom-h: 0px;
 }
 html.aio-android-nav .body {
@@ -436,11 +468,147 @@ html.bright .toast {
   border-color: rgba(138, 90, 26, 0.45);
   box-shadow: 0 14px 36px rgba(18, 34, 56, 0.22);
 }
-.bottom-nav { display: none; }
+.bottom-nav, .bn-more-sheet { display: none; }
 .sidebar-backdrop { display: none; }
+
+/* Tablet + phone (portrait and landscape): 6 programs + More, same as Voyage/Tank. */
+html.use-bottom-nav {
+  /* What the page has to keep clear: the items, the bar's own padding, and
+     a little air. Derived so the tablet's taller bar does not sit over the
+     last row of the page. */
+  --bottom-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 4px);
+}
+html.use-bottom-nav .body { grid-template-columns: 1fr; }
+html.use-bottom-nav .sidebar,
+html.use-bottom-nav .sidebar-backdrop { display: none !important; }
+html.use-bottom-nav .bottom-nav {
+  /* Flex, as Voyage Chief's bar is: the items share the width evenly without
+     the count being written into the CSS, so adding or dropping a module does
+     not leave an empty slot behind. */
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 1px;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 40;
+  height: auto;
+  min-height: calc(var(--bottom-h) + var(--safe-bottom));
+  padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + var(--safe-bottom));
+  background: var(--nav-bg, rgba(10,20,32,0.97));
+  border-top: 1px solid var(--line);
+  box-shadow: var(--nav-shadow, 0 -8px 24px rgba(0,0,0,0.35));
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+html.bright.use-bottom-nav .bottom-nav { background: var(--nav-bg, rgba(255,255,255,0.97)); }
+html.use-bottom-nav .bottom-item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--nav-item-h);
+  padding: 4px 1px 3px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: var(--nav-label);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+}
+html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height: 1; }
+/* Same press feedback as Voyage Chief's bar: colour eases in, the item dips
+   under the finger. */
+html.use-bottom-nav .bottom-item:hover { color: var(--text); background: transparent; }
+html.use-bottom-nav .bottom-item.active {
+  color: var(--brass);
+  background: var(--nav-active-bg, rgba(201,154,83,0.12));
+}
+html.use-bottom-nav .bottom-item.active:hover { color: var(--brass); }
+html.use-bottom-nav .bottom-item:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+html.use-bottom-nav .main {
+  padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
+}
+html.use-bottom-nav .bn-more-sheet {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(4,10,18,0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+html.use-bottom-nav .bn-more-sheet.open { display: block; }
+html.use-bottom-nav .bn-more-panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 12px 10px calc(70px + var(--safe-bottom));
+  background: rgba(8,18,30,0.98);
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 28px rgba(0,0,0,.35);
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+html.bright.use-bottom-nav .bn-more-panel { background: rgba(255,255,255,0.98); }
+html.use-bottom-nav .bn-more-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--line); margin: 0 auto 12px;
+}
+html.use-bottom-nav .bn-more-title {
+  font-family: var(--display);
+  font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--brass); margin: 0 0 10px; text-align: center;
+}
+html.use-bottom-nav .bn-more-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+html.use-bottom-nav .bn-more-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px;
+  min-height: 72px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(22, 40, 63, 0.9);
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+html.bright.use-bottom-nav .bn-more-item { background: rgba(18,34,56,0.06); }
+html.use-bottom-nav .bn-more-item .bn-ic { font-size: 24px; line-height: 1; }
+html.use-bottom-nav .bn-more-item.active {
+  color: var(--brass);
+  border-color: var(--brass);
+  background: var(--nav-active-bg, rgba(201,154,83,0.14));
+}
+html.use-bottom-nav .bn-more-item:hover { color: var(--text); }
+html.use-bottom-nav .bn-more-item.active:hover { color: var(--brass); }
+@media (max-width: 420px) {
+  html.use-bottom-nav .bn-more-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
-  .topbar { grid-template-columns: auto 1fr auto; }
-  .vessel-switcher { grid-column: 1 / -1; }
+  .topbar { grid-template-columns: auto minmax(0,1fr) auto; }
+  .brand { grid-column: 2; grid-row: 1; min-width: 0; }
+  .topbar-meta { grid-column: 3; grid-row: 1; justify-self: end; }
+  .vessel-switcher { grid-column: 1 / -1; grid-row: 2; }
   .vessel-switcher select { max-width: none; }
   .body { grid-template-columns: 1fr; }
   .sidebar {
@@ -453,30 +621,7 @@ html.bright .toast {
   .sidebar-backdrop:not([hidden]) {
     display: block; position: fixed; inset: 0; background: rgba(4,10,18,0.55); z-index: 45;
   }
-  .menu-btn { display: inline-flex; }
-  /* Single-row primary nav — Vessel / License / About stay in the ☰ sidebar */
-  .bottom-nav {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 2px;
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 40;
-    height: auto;
-    min-height: calc(56px + var(--safe-bottom));
-    padding: 6px 6px calc(6px + var(--safe-bottom));
-    background: rgba(10,20,32,0.97);
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
-  }
-  html.bright .bottom-nav { background: rgba(255,255,255,0.97); }
-  .bottom-item {
-    display: flex; align-items: center; justify-content: center;
-    min-height: 44px; padding: 8px 2px;
-    border-radius: 10px; color: var(--muted);
-    font-size: 0.72rem; letter-spacing: 0.02em; font-weight: 600;
-    -webkit-tap-highlight-color: transparent;
-  }
+  html:not(.use-bottom-nav) .menu-btn { display: inline-flex; }
   .main {
     padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
   }
@@ -484,14 +629,13 @@ html.bright .toast {
   .brand-text strong { font-size: 1rem; }
   .brand-text > span { display: none; } /* save topbar height on phone */
   .app-version { display: none; }
-  /* Bright on home only — left of health dot / menu on the right */
-  html.aio-on-home:not(.aio-fullscreen-embed) .theme-topbar {
+  .theme-topbar {
     display: inline-flex;
     padding: 6px 10px;
     font-size: 11px;
   }
   .theme-fab { display: none !important; }
-  :root { --bottom-h: 56px; }
+  html:not(.use-bottom-nav) { --bottom-h: 56px; }
   .home-hero h1 { font-size: 1.55rem; }
   .home-lead { font-size: 0.95rem; }
   .panel { padding: 14px; }
@@ -505,15 +649,11 @@ html.bright .toast {
   .panel { padding: 14px; }
 }
 
-/* Phone landscape — compact chrome, still one-row bottom nav */
+/* Phone landscape — compact chrome, still one-row 6+More bottom nav */
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
   .topbar { padding-top: 6px; padding-bottom: 6px; }
-  .bottom-nav {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .bottom-item { min-height: 40px; font-size: 0.68rem; }
-  :root { --bottom-h: 48px; }
+  html.use-bottom-nav .bottom-item { min-height: 40px; font-size: 7px; }
+  html.use-bottom-nav { --bottom-h: 48px; }
 }
 
 /* Nav warning when program not on AIO key */
@@ -727,6 +867,42 @@ html:not(.bright) .tg-schematic-col { background: rgba(255, 255, 255, 0.03); }
   padding: 12px 8px; text-align: center;
   border: 1px dashed var(--line); border-radius: 8px;
 }
+.tg-schematic-rearrange .tg-schematic-col-tanks {
+  min-height: 72px;
+}
+.tg-schematic-rearrange .tg-schematic-col.drop-target {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 2px rgba(201, 154, 83, 0.22);
+}
+.tg-schematic-rearrange .tg-card {
+  position: relative;
+  padding-left: 28px;
+}
+.tg-card-grip {
+  position: absolute;
+  left: 2px;
+  top: 4px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  padding: 8px 6px;
+  font-size: 16px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tg-card.dragging {
+  cursor: grabbing;
+  border-color: var(--brass);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  transform: scale(1.02);
+  z-index: 2;
+}
+.tg-card.dragging .tg-card-grip { cursor: grabbing; }
+body.home-grid-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
 /* Android / narrow phones: two columns. Tablets stay at four. */
 @media (max-width: 600px) {
   .tg-schematic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -856,7 +1032,8 @@ html.bright .tg-schematic-empty {
    The AIO used to leave two buttons floating over the module's own header row;
    inside Tank Chief they landed on top of its toolbar. This is a strip instead:
    it takes its own 44px, overlaps nothing, and carries the one thing a module
-   cannot tell you — which vessel the suite has active. */
+   cannot tell you — which vessel the suite has active. Module + vessel stay
+   left/center; theme then Dashboard sit together on the right. */
 :root { --embed-bar-h: 44px; }
 
 .aio-return-fabs {
@@ -934,6 +1111,7 @@ html.bright .aio-return-fabs .aio-theme-fab {
 html.aio-fullscreen-embed .topbar,
 html.aio-fullscreen-embed .sidebar,
 html.aio-fullscreen-embed .bottom-nav,
+html.aio-fullscreen-embed .bn-more-sheet,
 html.aio-fullscreen-embed .theme-fab,
 html.aio-fullscreen-embed .sidebar-backdrop,
 html.aio-fullscreen-embed .menu-btn {
@@ -1416,11 +1594,32 @@ html.bright code { color: var(--accent-2); }
   --ctl-r-sm: 8px;
   --cell-pad-y: 6px;
   --cell-pad-x: 10px;
+
+  /* The bottom bar is a control too, and the one a chief hits most often.
+     46px is a phone's bar: it has to leave room for the page. */
+  --nav-item-h: 46px;
+  --nav-ic: 18px;
+  --nav-label: 8px;
+  --nav-pad-y: 3px;
 }
 @media (pointer: coarse) {
   :root {
     --ctl-h: 44px;
     --ctl-h-sm: 38px;
+  }
+}
+
+/* A tablet, told from a phone by having room on both sides: a phone in
+   landscape is wide but short, and is still a phone. On the tablet the bar
+   is the program's main control, used standing up with the screen at arm's
+   length, so it gets a target that does not have to be aimed at — and the
+   label under the icon becomes readable rather than merely present. */
+@media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+  :root {
+    --nav-item-h: 72px;
+    --nav-ic: 26px;
+    --nav-label: 11px;
+    --nav-pad-y: 7px;
   }
 }
 

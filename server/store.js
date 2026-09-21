@@ -578,6 +578,51 @@ function updateCalibration(vesselId, tankId, calibration) {
   return tank;
 }
 
+function reorderTanks(vesselId, category, ids) {
+  ensureTankPlane(vesselId);
+  const tanks = readJson(tanksPath(vesselId, 'tanks.json'), emptyTanks());
+  if (!Object.prototype.hasOwnProperty.call(tanks, category)) {
+    throw new Error('Unknown tank category: ' + category);
+  }
+
+  const current = tanks[category] || [];
+  const byId = new Map(current.map((t) => [t.id, t]));
+  const ordered = [];
+  const seen = new Set();
+
+  for (const id of (Array.isArray(ids) ? ids : [])) {
+    const tank = byId.get(id);
+    if (!tank || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(tank);
+  }
+  for (const tank of current) {
+    if (!seen.has(tank.id)) ordered.push(tank);
+  }
+
+  const stamped = ordered.map((tank, at) => ({ ...tank, sortIndex: at }));
+  tanks[category] = stamped;
+  writeJson(tanksPath(vesselId, 'tanks.json'), tanks);
+  touchVessel(vesselId);
+  return { ok: true, category, order: stamped.map((t) => t.id) };
+}
+
+function clearTankOrder(vesselId, category) {
+  ensureTankPlane(vesselId);
+  const tanks = readJson(tanksPath(vesselId, 'tanks.json'), emptyTanks());
+  if (!Object.prototype.hasOwnProperty.call(tanks, category)) {
+    throw new Error('Unknown tank category: ' + category);
+  }
+  tanks[category] = (tanks[category] || []).map((tank) => {
+    const out = { ...tank };
+    delete out.sortIndex;
+    return out;
+  });
+  writeJson(tanksPath(vesselId, 'tanks.json'), tanks);
+  touchVessel(vesselId);
+  return { ok: true, category };
+}
+
 /* ---------- Voyage plane ---------- */
 
 function getVoyageBundle(id) {
@@ -782,6 +827,8 @@ module.exports = {
   upsertTank,
   deleteTank,
   updateCalibration,
+  reorderTanks,
+  clearTankOrder,
   findTankInBundle,
   getVoyageBundle,
   saveVoyagePart,

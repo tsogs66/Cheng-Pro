@@ -32,13 +32,32 @@
       if (mode === 'astrolabe') document.documentElement.classList.add('astrolabe');
       document.documentElement.setAttribute('data-theme', mode);
     } catch (_e) {}
-    /* Android shell: full-width home + floating nav (set early when possible). */
+    /* Android / tablet: bottom nav like Voyage Chief and Tank Chief.
+       Wide Windows desktop keeps the sidebar. */
     try {
       var ua = navigator.userAgent || '';
       var cap = window.Capacitor;
       var plat = (cap && cap.getPlatform) ? String(cap.getPlatform()) : '';
-      if (/Android/i.test(ua) || plat === 'android') {
+      var native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (plat && plat !== 'web')));
+      var mobileOs = /Android|iPhone|iPad|iPod/i.test(ua) || plat === 'android' || plat === 'ios';
+      if (mobileOs || plat === 'android') {
         document.documentElement.classList.add('aio-android-nav');
+      }
+      var touch = false;
+      try {
+        touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+          || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
+      } catch (_eT) {}
+      var vw = window.innerWidth || 0;
+      var vh = window.innerHeight || 0;
+      var tabletOrPhone = mobileOs || native || touch
+        || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900)
+        || (vw > 0 && vw <= 1180);
+      if (tabletOrPhone) {
+        document.documentElement.classList.add('use-bottom-nav');
+      }
+      if (!mobileOs && !native && vw >= 1181 && Math.min(vw, vh) > 900) {
+        document.documentElement.classList.remove('use-bottom-nav');
       }
     } catch (_e) {}
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
@@ -94,9 +113,13 @@
         <select id="activeVessel" aria-label="Active vessel"></select>
       </div>
       <div class="topbar-meta" id="topbarMeta">
-        <button type="button" class="theme-toggle theme-topbar" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
         <span id="healthDot" class="health-dot" title="Server"></span>
         <button type="button" class="icon-btn nav-fab" id="navFab" aria-label="Open menu" aria-expanded="false" title="Menu" hidden>☰</button>
+        <div class="topbar-id">
+          <span class="registered" id="headerRegistered"></span>
+          <span class="ver" id="headerVersion"></span>
+        </div>
+        <button type="button" class="theme-toggle theme-topbar" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
       </div>
     </header>
     <div class="body">
@@ -129,21 +152,60 @@
     </div>
 
     <nav class="bottom-nav" id="bottomNav" aria-label="Primary modules">
-      <button type="button" class="bottom-item active" data-module="home">Home</button>
-      <button type="button" class="bottom-item" data-module="voyage">Voyage</button>
-      <button type="button" class="bottom-item" data-module="tanks">Tanks</button>
-      <button type="button" class="bottom-item" data-module="eorb">e-ORB</button>
-      <button type="button" class="bottom-item" data-module="performance">Perf</button>
+      <button type="button" class="bottom-item" data-module="voyage" aria-label="Voyage">
+        <span class="bn-ic" aria-hidden="true">🧭</span><span>Voyage</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="tanks" aria-label="Tanks">
+        <span class="bn-ic" aria-hidden="true">⛽</span><span>Tanks</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="bunkerplan" aria-label="Consumption Plan">
+        <span class="bn-ic" aria-hidden="true">📈</span><span>Cons Plan</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="bunkeringplan" aria-label="Bunkering Plan">
+        <span class="bn-ic" aria-hidden="true">📥</span><span>Bnk Plan</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="eorb" aria-label="e-ORB">
+        <span class="bn-ic" aria-hidden="true">📕</span><span>e-ORB</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="performance" aria-label="Performance">
+        <span class="bn-ic" aria-hidden="true">📊</span><span>Perf</span>
+      </button>
+      <button type="button" class="bottom-item" data-module="more" aria-label="More">
+        <span class="bn-ic" aria-hidden="true">⋯</span><span>More</span>
+      </button>
     </nav>
+    <div class="bn-more-sheet" id="bnMoreSheet" aria-hidden="true">
+      <div class="bn-more-panel" role="dialog" aria-label="More modules">
+        <div class="bn-more-handle" aria-hidden="true"></div>
+        <div class="bn-more-title">More</div>
+        <div class="bn-more-grid">
+          <button type="button" class="bn-more-item active" data-module="home">
+            <span class="bn-ic" aria-hidden="true">🏠</span><span>Home</span>
+          </button>
+          <button type="button" class="bn-more-item" data-module="vessel">
+            <span class="bn-ic" aria-hidden="true">🚢</span><span>Setup</span>
+          </button>
+          <button type="button" class="bn-more-item" data-module="backup">
+            <span class="bn-ic" aria-hidden="true">⇅</span><span>Backup</span>
+          </button>
+          <button type="button" class="bn-more-item" data-module="license">
+            <span class="bn-ic" aria-hidden="true">🔑</span><span>License</span>
+          </button>
+          <button type="button" class="bn-more-item" data-module="about">
+            <span class="bn-ic" aria-hidden="true">ℹ</span><span>About</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- The AIO's one piece of chrome inside a module. It replaces two floating
          buttons that sat on top of Voyage Chief's and Tank Chief's own header
          rows, and it carries the thing a module cannot tell you: which vessel
          the suite currently has active. -->
     <div class="aio-return-fabs" id="aioReturnFabs" hidden>
-      <button type="button" class="aio-home-fab" id="aioHomeFab" title="Back to Dashboard" aria-label="Back to Dashboard">‹ Dashboard</button>
       <span class="aio-embed-module" id="aioEmbedModule"></span>
       <span class="aio-embed-vessel" id="aioEmbedVessel" title="Active vessel"></span>
       <button type="button" class="theme-toggle aio-theme-fab" data-theme-toggle aria-pressed="false" title="Day / bright mode for sunlight">Bright</button>
+      <button type="button" class="aio-home-fab" id="aioHomeFab" title="Back to Dashboard" aria-label="Back to Dashboard">‹ Dashboard</button>
     </div>
   </div>
 

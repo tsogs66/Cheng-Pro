@@ -10,11 +10,36 @@
   let current = 'home';
   let toastTimer = null;
   let booted = false;
+  const BOTTOM_PRIMARY = new Set(['voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb', 'performance']);
+  const moreSheet = document.getElementById('bnMoreSheet');
 
   function setNavActive(module) {
+    const inMore = !BOTTOM_PRIMARY.has(module);
     document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => {
+      const key = el.dataset.module;
+      el.classList.toggle('active', key === 'more' ? inMore : key === module);
+    });
+    document.querySelectorAll('#bnMoreSheet .bn-more-item').forEach((el) => {
       el.classList.toggle('active', el.dataset.module === module);
     });
+  }
+
+  function closeMoreSheet() {
+    if (!moreSheet) return;
+    moreSheet.classList.remove('open');
+    moreSheet.setAttribute('aria-hidden', 'true');
+  }
+
+  function openMoreSheet() {
+    if (!moreSheet) return;
+    moreSheet.classList.add('open');
+    moreSheet.setAttribute('aria-hidden', 'false');
+    setNavActive(current);
+  }
+
+  function toggleMoreSheet() {
+    if (moreSheet && moreSheet.classList.contains('open')) closeMoreSheet();
+    else openMoreSheet();
   }
 
   function closeSidebar() {
@@ -22,7 +47,7 @@
     document.documentElement.classList.remove('aio-nav-open');
     backdrop.hidden = true;
     if (navFab) {
-      navFab.hidden = !isAndroidNav();
+      navFab.hidden = !isAndroidNav() || wantsBottomNav();
       navFab.classList.remove('is-drawer-open');
       navFab.setAttribute('aria-expanded', 'false');
       navFab.setAttribute('aria-label', 'Open menu');
@@ -103,6 +128,7 @@
     current = next;
     setNavActive(current);
     closeSidebar();
+    closeMoreSheet();
     syncThemeChrome();
     const mod = window.ChengProModules[current];
     if (!mod) {
@@ -153,15 +179,39 @@
     return /Android/i.test(ua);
   }
 
+  /** Phone / tablet chrome — bottom bar in both orientations, like Voyage/Tank. */
+  function wantsBottomNav() {
+    try {
+      const cap = window.Capacitor;
+      const plat = cap && cap.getPlatform ? String(cap.getPlatform()) : '';
+      const native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (plat && plat !== 'web')));
+      const ua = navigator.userAgent || '';
+      const mobileOs = /Android|iPhone|iPad|iPod/i.test(ua) || plat === 'android' || plat === 'ios';
+      if (native || mobileOs) return true;
+      const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+        || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
+      const vw = window.innerWidth || 0;
+      const vh = window.innerHeight || 0;
+      const screenMin = Math.min(screen.width || 0, screen.height || 0);
+      if (touch || screenMin <= 900 || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)) {
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  }
+
   function applyAndroidNavShell() {
     const on = isAndroidNav();
+    const bottom = wantsBottomNav();
     document.documentElement.classList.toggle('aio-android-nav', on);
     document.body.classList.toggle('aio-android-nav', on);
-    if (navFab) navFab.hidden = !on;
+    document.documentElement.classList.toggle('use-bottom-nav', bottom);
+    if (navFab) navFab.hidden = !on || bottom;
     if (!on) {
       document.documentElement.classList.remove('sidebar-collapsed');
       closeSidebar();
     }
+    if (bottom) closeSidebar();
   }
 
   /** Full webapp embeds on Android and Windows/Electron — hide AIO chrome around Voyage/Tank. */
@@ -226,7 +276,10 @@
     const active = !!on && wantsFullscreenEmbed();
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
-    if (active) closeSidebar();
+    if (active) {
+      closeSidebar();
+      closeMoreSheet();
+    }
     const cluster = document.getElementById('aioReturnFabs');
     if (cluster) cluster.hidden = !active;
     const fab = document.getElementById('aioHomeFab');
@@ -238,8 +291,9 @@
   function applyLicenseNav() {
     if (!window.ChengLicense) return;
     const ent = ChengLicense.loadEntitlement();
-    document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => {
+    document.querySelectorAll('.nav-item, .bottom-item, .bn-more-item').forEach((el) => {
       const mod = el.dataset.module;
+      if (mod === 'more') return;
       if (!ChengLicense.isValid(ent)) {
         el.hidden = false;
         el.classList.remove('nav-warn');
@@ -275,20 +329,26 @@
   }
 
   function updateSidebarMeta() {
-    const verEl = document.getElementById('sidebarVersion');
-    const regEl = document.getElementById('sidebarRegistered');
+    const verEls = [
+      document.getElementById('headerVersion'),
+      document.getElementById('sidebarVersion'),
+    ];
+    const regEls = [
+      document.getElementById('headerRegistered'),
+      document.getElementById('sidebarRegistered'),
+    ];
     const authorEl = document.getElementById('sidebarAuthor');
     const ver = resolveAppVersion();
-    if (verEl) verEl.textContent = ver ? ('v' + ver) : '';
-    if (regEl) {
-      let email = '';
-      try {
-        if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
-          email = String(ChengLicense.licenseEmail() || '').trim();
-        }
-      } catch (_e) { /* ignore */ }
-      regEl.textContent = email ? ('registered: ' + email) : '';
-    }
+    const verText = ver ? ('v' + ver) : '';
+    verEls.forEach((el) => { if (el) el.textContent = verText; });
+    let email = '';
+    try {
+      if (window.ChengLicense && typeof ChengLicense.licenseEmail === 'function') {
+        email = String(ChengLicense.licenseEmail() || '').trim();
+      }
+    } catch (_e) { /* ignore */ }
+    const regText = email ? ('registered: ' + email) : '';
+    regEls.forEach((el) => { if (el) el.textContent = regText; });
     if (authorEl) {
       authorEl.textContent = window.CHENG_PRO_AUTHOR || 'ts0gs · Marvin C. Endozo';
     }
@@ -320,10 +380,24 @@
   }
 
   document.querySelectorAll('.nav-item, .bottom-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      if (el.dataset.module === 'more') {
+        toggleMoreSheet();
+        return;
+      }
+      navigate(el.dataset.module);
+    });
+  });
+  document.querySelectorAll('#bnMoreSheet .bn-more-item').forEach((el) => {
     el.addEventListener('click', () => navigate(el.dataset.module));
+  });
+  moreSheet?.addEventListener('click', (e) => {
+    if (e.target === moreSheet) closeMoreSheet();
   });
 
   function toggleNavMenu() {
+    /* Bottom-nav tablets have More instead of a hamburger. */
+    if (wantsBottomNav()) return;
     /* Windows / desktop: left sidebar is always visible — no toggle. */
     if (!isAndroidNav() && window.matchMedia('(min-width: 901px)').matches) return;
     if (sidebar.classList.contains('open')) closeSidebar();
@@ -331,6 +405,11 @@
   }
 
   applyAndroidNavShell();
+  window.addEventListener('resize', () => {
+    clearTimeout(window.__aioNavResizeTimer);
+    window.__aioNavResizeTimer = setTimeout(applyAndroidNavShell, 140);
+  });
+  window.addEventListener('orientationchange', () => setTimeout(applyAndroidNavShell, 120));
   menuBtn?.addEventListener('click', toggleNavMenu);
   navFab?.addEventListener('click', toggleNavMenu);
   backdrop.addEventListener('click', closeSidebar);

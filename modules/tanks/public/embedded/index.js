@@ -687,6 +687,31 @@ app.post('/api/vessels/:id/tanks', (req, res) => {
   }
 });
 
+/* ---------- The order tanks are listed in ----------
+ * One order per category, kept as the order of the stored array, because
+ * that is what every page already reads.
+ *
+ * Registered above /tanks/:tankId on purpose: Express matches in the order
+ * routes are declared, and "order" would otherwise be read as a tank id. */
+app.put('/api/vessels/:id/tanks/order', (req, res) => {
+  try {
+    const category = String(req.body?.category || '');
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : null;
+    if (!ids) return res.status(400).json({ error: 'ids must be an array of tank ids' });
+    res.json(store.reorderTanks(req.params.id, category, ids));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/vessels/:id/tanks/order/:category', (req, res) => {
+  try {
+    res.json(store.clearTankOrder(req.params.id, req.params.category));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.put('/api/vessels/:id/tanks/:tankId', (req, res) => {
   try {
     res.json(store.upsertTank(req.params.id, { ...req.body, id: req.params.tankId }));
@@ -935,13 +960,15 @@ app.post('/api/vessels/:id/bunker-distribute', (req, res) => {
         const newVol = Math.min((tank.capacity || Infinity) * 1.02, prevVol + addObs);
         const inputs = {
           reading: newVol,
+          // The printed, bow-positive trim (fwd - aft) — computeTank flips it
+          // to the tank's own column sense itself.
           trim: (() => {
-        const v = bundle.voyage || {};
-        const fwd = Number(v.draftFwd);
-        const aft = Number(v.draftAft);
-        if (Number.isFinite(fwd) && Number.isFinite(aft)) return aft - fwd;
-        return Number(v.trim) || 0;
-      })(),
+            const v = bundle.voyage || {};
+            const fwd = Number(v.draftFwd);
+            const aft = Number(v.draftAft);
+            if (Number.isFinite(fwd) && Number.isFinite(aft)) return fwd - aft;
+            return Number(v.trim) || 0;
+          })(),
           list: bundle.voyage?.heel || 0,
           tempC: tempC ?? 15,
           density15: dens,

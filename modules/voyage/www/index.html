@@ -45,14 +45,16 @@
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
     var mobileLocked = native || mobileOs;
-    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var vw = window.innerWidth || 0;
+    var vh = window.innerHeight || 0;
+    if (mobileLocked || touch || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)){
       document.documentElement.classList.add('use-bottom-nav');
     }
     if (mobileLocked) {
       document.documentElement.classList.add('is-mobile-chrome');
       document.documentElement.classList.remove('use-top-tabs');
-    } else if ((window.innerWidth || 0) >= 1101) {
-      /* Windows desktop (incl. wide touch laptops): keep top tabs */
+    } else if (vw >= 1181 && Math.min(vw, vh) > 900) {
+      /* Wide Windows desktop: keep top tabs. Tablet landscape (≤1180) stays on the bar. */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -490,6 +492,13 @@
     min-height:52px; font-size:17px; padding:14px 16px;
   }
   .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .nv-leg-actions.unsaved-leg-actions{justify-content:stretch;}
+  .nv-leg-actions.unsaved-leg-actions button{min-height:44px; flex:1 1 auto;}
+  #unsavedLegMessage{white-space:pre-wrap; margin:0 0 14px;}
+  @media (max-width:720px){
+    .nv-leg-actions.unsaved-leg-actions{flex-direction:column-reverse;}
+    .nv-leg-actions.unsaved-leg-actions button{width:100%; flex:1 1 100%;}
+  }
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
@@ -507,74 +516,100 @@
     overflow:auto; -webkit-overflow-scrolling:touch;
   }
   .fm-quick-overlay.open{display:flex;}
-  /* Numpad / IME: pin the overlay to the visual viewport so the dialog sits
-     above the keys instead of 88vh of the layout viewport (which runs under
-     the pad on tablet portrait and landscape). */
+  /* Numpad / IME: keep a full-screen dimmer. Pinning the overlay box to
+     visualViewport (top/left/width/height) double-offsets on Android WebView
+     — position:fixed is already visual-viewport-relative — and leaves a dark
+     slab beside the 760px card on landscape tablets. Size the dialog to the
+     remaining visual viewport instead. */
   html.keyboard-open .fm-quick-overlay{
-    align-items:flex-start; justify-content:flex-start;
-    top: var(--vv-top, 0px); left: var(--vv-left, 0px);
-    right: auto; bottom: auto;
-    width: var(--vv-width, 100%); height: var(--vv-height, 100%);
+    align-items:flex-start; justify-content:center;
+    inset:0; top:0; left:0; right:0; bottom:0;
+    width:auto; height:auto;
     padding: 8px;
     overflow: auto; -webkit-overflow-scrolling: touch;
   }
+  html.bright .fm-quick-overlay{background:rgba(18,34,56,.32);}
   .fm-quick-dialog{
-    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box;
-    max-height:min(92vh, 92dvh, 900px);
-    overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
-    border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
+    width:min(1100px, calc(100% - 4px)); max-width:100%; box-sizing:border-box;
+    max-height:min(96dvh, calc(100% - 8px));
+    display:flex; flex-direction:column;
+    overflow:hidden; background:var(--panel, #152033); color:var(--text, #e8eef8);
+    border:1px solid var(--line, #2a3550); border-radius:12px; padding:12px 14px 10px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
     overscroll-behavior: contain;
   }
   html.keyboard-open .fm-quick-dialog{
     max-height: calc(var(--vv-height, 100dvh) - 16px);
-    width: min(760px, calc(var(--vv-width, 100vw) - 16px));
+    width: min(1100px, calc(100% - 4px));
     margin: 0 auto;
+  }
+  html.landscape-view .fm-quick-dialog,
+  html.vm-land-rows .fm-quick-dialog{
+    width: min(1180px, calc(100% - 8px));
+    max-height: min(96dvh, calc(100% - 8px));
+    padding: 10px 12px 8px;
   }
   html.keyboard-open .fm-quick-dialog .hint{display:none;}
   html.keyboard-open .fm-quick-dialog .field input,
   html.keyboard-open .fm-quick-dialog .field select{scroll-margin: 16px;}
-  html.keyboard-open.landscape-view .fm-quick-dialog{
-    padding: 8px 10px;
+  html.keyboard-open.landscape-view .fm-quick-dialog,
+  html.keyboard-open.vm-land-rows .fm-quick-dialog{
+    padding: 6px 8px;
     max-height: calc(var(--vv-height, 100dvh) - 12px);
+    width: min(1180px, calc(100% - 8px));
   }
   html.keyboard-open.landscape-view .fm-quick-dialog h3{margin:0 0 4px; font-size:14px;}
-  html.keyboard-open.landscape-view .fm-quick-dialog h4{margin:0 0 4px;}
-  html.keyboard-open.landscape-view .fm-quick-rows{gap:6px; margin-bottom:8px;}
-  html.keyboard-open.landscape-view .fm-quick-block{padding:6px 8px;}
-  html.keyboard-open.landscape-view .fm-quick-dialog .field{margin-bottom:4px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog h4{margin:0 0 2px; font-size:11px;}
+  html.keyboard-open.landscape-view .fm-quick-rows{gap:6px; margin-bottom:6px;}
+  html.keyboard-open.landscape-view .fm-quick-block{padding:5px 7px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog .field{margin-bottom:3px;}
   html.keyboard-open.landscape-view .fm-quick-dialog .field input,
   html.keyboard-open.landscape-view .fm-quick-dialog .field select{
-    min-height:34px; font-size:14px; padding:5px 8px;
+    min-height:32px; font-size:14px; padding:4px 8px;
   }
-  @media (orientation: landscape){
-    .fm-quick-dialog{padding:12px 14px 10px; max-height:min(88vh, 88dvh, 900px);}
-    .fm-quick-rows{gap:8px; margin-bottom:10px;}
-    .fm-quick-block{padding:8px 10px;}
-    .fm-quick-dialog .field{margin-bottom:6px;}
-    .fm-quick-dialog .field input, .fm-quick-dialog .field select{min-height:36px; font-size:14px; padding:6px 8px;}
+  @media (orientation: landscape), (min-width: 901px){
+    .fm-quick-dialog{width:min(1180px, calc(100% - 8px)); padding:10px 12px 8px; max-height:min(96dvh, calc(100% - 8px));}
+    .fm-quick-dialog .hint{display:none;}
+    .fm-quick-rows{
+      display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; overflow:visible;
+    }
+    .fm-quick-block{padding:7px 9px;}
+    .fm-quick-dialog .field{margin-bottom:5px;}
+    .fm-quick-dialog .field input, .fm-quick-dialog .field select{min-height:34px; font-size:14px; padding:5px 8px;}
   }
   html.bright .fm-quick-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
-  .fm-quick-dialog h3{margin:0 0 6px; font-size:16px;}
-  .fm-quick-dialog h4{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
-  .fm-quick-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
-  .fm-quick-rows{display:flex; flex-direction:column; gap:10px; margin-bottom:14px;}
+  .fm-quick-dialog h3{margin:0 0 6px; font-size:16px; flex:0 0 auto;}
+  .fm-quick-dialog h4{margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .hint{margin:0 0 10px; font-size:12px; color:var(--muted, #9fb0c8); flex:0 0 auto;}
+  .fm-quick-rows{display:flex; flex-direction:column; gap:10px; margin-bottom:8px; flex:1 1 auto; min-height:0; overflow:auto;}
   .fm-quick-row{
-    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(160px,0.85fr); gap:10px; align-items:stretch;
+    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(140px,0.85fr); gap:8px; align-items:stretch;
   }
   .fm-quick-row.fm-quick-row-single{grid-template-columns:1fr;}
   .fm-quick-block{
-    border:1px solid var(--line,#2a3550); border-radius:8px; padding:10px 12px; min-width:0;
+    border:1px solid var(--line,#2a3550); border-radius:8px; padding:8px 10px; min-width:0;
   }
-  .fm-quick-dialog .field{margin-bottom:8px;}
+  .fm-quick-dialog .field{margin-bottom:6px;}
   .fm-quick-dialog .field:last-child{margin-bottom:0;}
-  .fm-quick-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; color:var(--muted,#9fb0c8);}
   .fm-quick-dialog .field input, .fm-quick-dialog .field select{
     display:block; width:100%; max-width:100%; box-sizing:border-box;
-    min-height:40px; font-size:15px; padding:8px 10px; border-radius:8px;
+    min-height:36px; font-size:15px; padding:6px 10px; border-radius:8px;
     border:1px solid var(--line,#2a3550); background:transparent; color:inherit;
   }
-  .fm-quick-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .fm-quick-actions{
+    display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;
+    flex:0 0 auto; position:sticky; bottom:0; z-index:2;
+    margin-top:auto; padding-top:8px;
+    background:inherit;
+  }
+  /* Android tablet landscape: two columns of rows so Accept stays on-screen. */
+  html.landscape-view .fm-quick-dialog .hint,
+  html.vm-land-rows .fm-quick-dialog .hint{display:none;}
+  html.landscape-view .fm-quick-rows,
+  html.vm-land-rows .fm-quick-rows{
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; overflow:visible;
+  }
   .sg-from-density[hidden]{display:none !important;}
   #logEntryPreviewBlock[hidden],
   #logMetersDeferred[hidden],
@@ -783,7 +818,49 @@
     --ctl-r: 3px;
     --cell-pad-y: 6px;
     --cell-pad-x: 10px;
+
+    /* The bottom bar is a control too, and the one a chief hits most often.
+       46px is a phone's bar: it has to leave room for the page. */
+    --nav-item-h: 46px;
+    --nav-ic: 18px;
+    --nav-label: 8px;
+    --nav-pad-y: 3px;
+    /* What the page keeps clear below itself: the items, the bar's padding and
+       a little air. Derived, so a taller bar never sits over the last row. */
+    --nav-bar-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 12px);
   }
+
+  /* A tablet, told from a phone by having room on both sides: a phone in
+     landscape is wide but short, and is still a phone. On the tablet the bar
+     is the program's main control, used standing up with the screen at arm's
+     length, so it gets a target that does not have to be aimed at — and the
+     label under the icon becomes readable rather than merely present. */
+  @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+    :root {
+      --nav-item-h: 72px;
+      --nav-ic: 26px;
+      --nav-label: 11px;
+      --nav-pad-y: 7px;
+    }
+    /* A tablet is not a compact phone, however short its screen reports
+       itself. The compact classes are set from screen size in script and
+       catch a ten-inch tablet, whose short side is under 900; they carry
+       their own bar heights, which would otherwise win here on specificity
+       alone and hold the bar at a phone's 42px. */
+    html.compact-phone .bn-item,
+    html.short-viewport .bn-item,
+    html.short-viewport.landscape-view .bn-item {
+      min-height: var(--nav-item-h);
+      font-size: var(--nav-label);
+    }
+    html.compact-phone .bn-item svg,
+    html.short-viewport .bn-item svg,
+    html.short-viewport.landscape-view .bn-item svg {
+      width: var(--nav-ic);
+      height: var(--nav-ic);
+    }
+  }
+
   @media (pointer: coarse) {
     :root { --ctl-h: 44px; --ctl-h-sm: 38px; }
   }
@@ -1949,7 +2026,7 @@
     position:fixed; left:0; right:0; bottom:0; z-index:1200;
     align-items:stretch; justify-content:space-around;
     gap:1px;
-    padding:3px 2px calc(3px + env(safe-area-inset-bottom, 0px));
+    padding:var(--nav-pad-y) 2px calc(var(--nav-pad-y) + env(safe-area-inset-bottom, 0px));
     background:var(--nav-bg);
     border-top:1px solid var(--line-strong);
     backdrop-filter:blur(12px);
@@ -1960,7 +2037,7 @@
   html.use-bottom-nav .tabs{display:none !important;}
   html.use-bottom-nav .bottom-nav{display:flex !important;}
   html.use-bottom-nav body{
-    padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px)) !important;
   }
   html.use-bottom-nav .footer-note{margin-bottom:8px;}
   /* ChEng AIO → e-ORB / Consumption Plan: iframe shows only that page — no Voyage nav chrome.
@@ -1993,21 +2070,21 @@
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
     html:not(.use-top-tabs) body{
-      padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px));
     }
   }
   .bn-item{
-    flex:1 1 0; min-width:0; max-width:80px;
+    flex:1 1 0; min-width:0; max-width:none;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:2px; padding:4px 2px 3px;
     border:0 !important; background:transparent; color:var(--paper-dim);
-    font-family:'Oswald',sans-serif; font-size:8px; letter-spacing:0.05em;
+    font-family:'Oswald',sans-serif; font-size:var(--nav-label); letter-spacing:0.05em;
     text-transform:uppercase; cursor:pointer; border-radius:6px;
-    min-height:46px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    min-height:var(--nav-item-h); touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     transition:color .15s ease, background .15s ease;
   }
-  .bn-item svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
-  .bn-item .bn-ic{font-size:18px; line-height:1; flex-shrink:0;}
+  .bn-item svg{width:var(--nav-ic); height:var(--nav-ic); stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
+  .bn-item .bn-ic{font-size:var(--nav-ic); line-height:1; flex-shrink:0;}
   .bn-item.active{color:var(--brass); background:var(--nav-active-bg);}
   .bn-item:hover{color:var(--paper); border-color:transparent;}
   .bn-item.active:hover{color:var(--brass);}
@@ -2789,7 +2866,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <tbody id="voyageLibraryBody"><tr class="empty-row"><td colspan="4">No archived voyage legs yet.</td></tr></tbody>
         </table>
       </div>
-      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Switch legs here without mixing ballast and laden into one long list.</div>
+      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Loading another leg warns if the current one is not yet in this library, with an option to save first.</div>
     </div>
 
     <div class="panel">
@@ -2983,6 +3060,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
     </div>
+    <div id="unsavedLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="unsavedLegTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="unsavedLegTitle">Unsaved voyage leg</h3>
+        <p class="hint" id="unsavedLegMessage">The current voyage leg is not saved in the voyage library.</p>
+        <div class="nv-leg-actions unsaved-leg-actions">
+          <button type="button" class="ghost small" id="unsavedLegCancel">Cancel</button>
+          <button type="button" class="ghost small" id="unsavedLegDiscard">Load without saving</button>
+          <button type="button" class="primary small" id="unsavedLegSave">Save, then load</button>
+        </div>
+      </div>
+    </div>
     <details class="panel vs-fold" id="lastEntryPanel">
       <summary>
         <span id="lastEntryPanelTitle">Last Saved Entry — Reference</span>
@@ -3117,7 +3205,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Boiler</h4>
-              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
+              <div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_blr_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>Fuel in Use</h4>
@@ -3127,7 +3215,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Cylinder Oil</h4>
-              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
+              <div class="field"><label>Cylinder Oil Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_cyl_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>TBN in Use</h4>
@@ -3137,17 +3225,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Revolution Counter</h4>
-              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
+              <div class="field"><label>Rev. Counter (cumulative)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_revCounter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>M/E Avg RPM</h4>
-              <div class="field"><label>RPM</label><input type="number" step="0.1" id="fmq_rpm"></div>
+              <div class="field"><label>RPM</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_rpm"></div>
             </div>
           </div>
           <div class="fm-quick-row fm-quick-row-single">
             <div class="fm-quick-block">
               <h4>FWG Flowmeter</h4>
-              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="fmq_fwProd"></div>
+              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_fwProd"></div>
             </div>
           </div>
         </div>
@@ -4791,13 +4879,21 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <span class="bn-ic" aria-hidden="true">📝</span>
     <span>Log</span>
   </button>
+  <button type="button" class="bn-item" data-page="reports" aria-label="Reports">
+    <span class="bn-ic" aria-hidden="true">📄</span>
+    <span>Reports</span>
+  </button>
   <button type="button" class="bn-item" data-page="rob" aria-label="ROB">
     <span class="bn-ic" aria-hidden="true">⛽</span>
     <span>ROB</span>
   </button>
-  <button type="button" class="bn-item" data-page="bunkerplan" aria-label="Consumption Plan">
-    <span class="bn-ic" aria-hidden="true">📈</span>
-    <span>Cons.</span>
+  <button type="button" class="bn-item" data-page="rangetotals" aria-label="Range Totals">
+    <span class="bn-ic" aria-hidden="true">📐</span>
+    <span>Totals</span>
+  </button>
+  <button type="button" class="bn-item" data-page="voyageabstract" aria-label="Voyage Abstract">
+    <span class="bn-ic" aria-hidden="true">📋</span>
+    <span>Voyage</span>
   </button>
   <button type="button" class="bn-item" data-page="more" aria-label="More">
     <span class="bn-ic" aria-hidden="true">⋯</span>
@@ -4810,25 +4906,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="bn-more-handle" aria-hidden="true"></div>
     <div class="bn-more-title">More</div>
     <div class="bn-more-grid">
+      <button type="button" class="bn-more-item" data-page="bunkerplan">
+        <span class="bn-ic" aria-hidden="true">📈</span>
+        <span>Cons Plan</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="consumption">
         <span class="bn-ic" aria-hidden="true">⏱️</span>
         <span>Cons</span>
       </button>
-      <button type="button" class="bn-more-item" data-page="voyageabstract">
-        <span class="bn-ic" aria-hidden="true">📋</span>
-        <span>Abstract</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="rangetotals">
-        <span class="bn-ic" aria-hidden="true">📐</span>
-        <span>Totals</span>
-      </button>
       <button type="button" class="bn-more-item" data-page="receipts">
         <span class="bn-ic" aria-hidden="true">🧾</span>
         <span>Receipts</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="reports">
-        <span class="bn-ic" aria-hidden="true">📄</span>
-        <span>Reports</span>
       </button>
       <button type="button" class="bn-more-item" data-page="reference">
         <span class="bn-ic" aria-hidden="true">📖</span>
@@ -4844,7 +4932,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </button>
       <button type="button" class="bn-more-item" data-page="voyagesetup">
         <span class="bn-ic" aria-hidden="true">🚢</span>
-        <span>Voyage</span>
+        <span>Voy Setup</span>
       </button>
       <button type="button" class="bn-more-item" data-page="setup">
         <span class="bn-ic" aria-hidden="true">🗄️</span>
@@ -7198,6 +7286,147 @@ async function archiveActiveVoyageLeg(){
   );
 }
 
+function activeVoyageIdentity(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  const vn = formVn || (state.setup.voyageNumber || '').trim();
+  const formCondEl = document.getElementById('s_shipCondition');
+  const formCond = formCondEl && formCondEl.value !== '' ? formCondEl.value : null;
+  const cond = normalizeCondition(formCond != null ? formCond : state.setup.shipCondition);
+  return { vn, cond };
+}
+
+function currentLegHasWork(){
+  const { vn } = activeVoyageIdentity();
+  return !!(vn
+    || (state.entries && state.entries.length)
+    || (state.receipts && state.receipts.length)
+    || (state.documents && state.documents.length)
+    || (state.abstracts && state.abstracts.length));
+}
+
+async function currentVoyageLegIsInLibrary(){
+  const { vn, cond } = activeVoyageIdentity();
+  if (!vn || !state.activeVesselId) return false;
+  const id = voyageLegId(state.activeVesselId, vn, cond);
+  const all = await listVoyageLegsForVessel(state.activeVesselId);
+  return all.some(l => l.id === id
+    || ((l.voyageNumber || '').trim() === vn && normalizeCondition(l.condition) === cond));
+}
+
+function confirmUnsavedLegChoice(message){
+  return new Promise(resolve => {
+    const overlay = document.getElementById('unsavedLegOverlay');
+    const msg = document.getElementById('unsavedLegMessage');
+    const btnSave = document.getElementById('unsavedLegSave');
+    const btnDiscard = document.getElementById('unsavedLegDiscard');
+    const btnCancel = document.getElementById('unsavedLegCancel');
+    if (!overlay || !btnSave || !btnDiscard || !btnCancel){
+      const ok = confirm(message + '\n\nOK = save then load. Cancel = stay on this leg.');
+      resolve(ok ? 'save' : 'cancel');
+      return;
+    }
+    if (msg) msg.textContent = message;
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    let done = false;
+    const finish = (choice) => {
+      if (done) return;
+      done = true;
+      overlay.classList.remove('open');
+      overlay.hidden = true;
+      overlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKey);
+      resolve(choice);
+    };
+    const onOverlayClick = (ev) => {
+      if (ev.target === overlay) finish('cancel');
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape'){
+        ev.preventDefault();
+        finish('cancel');
+      }
+    };
+    btnSave.onclick = () => finish('save');
+    btnDiscard.onclick = () => finish('discard');
+    btnCancel.onclick = () => finish('cancel');
+    overlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKey);
+    overlay.hidden = false;
+    overlay.classList.add('open');
+    try { btnSave.focus(); } catch (_){}
+  });
+}
+
+async function confirmUnsavedVoyageLegBeforeLoad(targetVn, targetCond){
+  if (!currentLegHasWork()) return 'ok';
+  const { vn, cond } = activeVoyageIdentity();
+  const wantVn = (targetVn || '').trim();
+  const wantCond = normalizeCondition(targetCond);
+  if (vn && vn === wantVn && cond === wantCond && await currentVoyageLegIsInLibrary()){
+    return 'ok';
+  }
+  if (vn && await currentVoyageLegIsInLibrary()) return 'ok';
+  const count = (state.entries || []).length;
+  const currentLabel = vn ? `${vn} / ${cond}` : '(no voyage number)';
+  const entryBit = count
+    ? ` It currently has ${count} log ${count === 1 ? 'entry' : 'entries'}.`
+    : '';
+  const message = `The current voyage leg ${currentLabel} is not saved in the voyage library.${entryBit}\n\nLoading ${wantVn} / ${wantCond} will replace the working set. Save this leg first, load without saving, or cancel.`;
+  return confirmUnsavedLegChoice(message);
+}
+
+async function saveActiveVoyageLegFromLoadWarning(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  if (formVn) state.setup.voyageNumber = formVn;
+  const formCond = document.getElementById('s_shipCondition')?.value;
+  if (formCond) state.setup.shipCondition = normalizeCondition(formCond);
+  const leg = await archiveActiveVoyageLeg();
+  if (!leg){
+    alert('Set a Voyage No. on Voyage Setup before saving this leg.');
+    return false;
+  }
+  await saveSetup();
+  return true;
+}
+
+async function loadSelectedVoyageLeg(vn, cond, opts){
+  vn = (vn || '').trim();
+  cond = normalizeCondition(cond);
+  if (!vn){
+    alert('Select a voyage number from the library list.');
+    return false;
+  }
+  const fromVid = state.activeVesselId;
+  const choice = await confirmUnsavedVoyageLegBeforeLoad(vn, cond);
+  if (choice === 'cancel') return false;
+  if (choice === 'save'){
+    const saved = await saveActiveVoyageLegFromLoadWarning();
+    if (!saved) return false;
+  }
+  const persistSource = choice !== 'discard';
+  try {
+    const scopeVid = libraryScopeVesselId();
+    if (scopeVid && scopeVid !== state.activeVesselId){
+      await switchVessel(scopeVid, { persistCurrent: persistSource });
+    }
+    const persistTarget = (state.activeVesselId !== fromVid) || persistSource;
+    await activateVoyageLeg(state.activeVesselId, vn, cond, { persistCurrent: persistTarget });
+    render();
+    applyEntryDefaults();
+    prefillFromLastEntry();
+    renderSyncUi();
+    await renderVoyageLibrary();
+    if (opts && opts.goSummary) switchTab('summary');
+    if (opts && opts.successAlert){
+      alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
+    }
+    return true;
+  } catch (e){
+    alert('Load failed: ' + e.message);
+    return false;
+  }
+}
+
 async function listVoyageLegsForVessel(vesselId){
   const vid = vesselRegistryId(vesselId || state.activeVesselId || LEGACY_VESSEL_ID);
   const all = await dbGetAll('voyageLegs');
@@ -7243,7 +7472,7 @@ async function clearActiveVesselWorkingData(vesselId){
   }
 }
 
-async function activateVoyageLeg(vesselId, voyageNumber, condition){
+async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
   const vid = vesselId || state.activeVesselId;
   const vn = (voyageNumber || '').trim();
   const cond = normalizeCondition(condition);
@@ -7252,8 +7481,10 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition){
   if (own) beginActivity('load-leg', `Loading voyage ${vn} ${cond} on this device…`, { source: 'program' });
   try {
 
-  /* Persist whatever is on screen first so switching never loses work. */
-  if (state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
+  /* Persist whatever is on screen first so switching never loses work —
+     unless the library-load warning already asked and the user chose not to. */
+  const persistCurrent = !opts || opts.persistCurrent !== false;
+  if (persistCurrent && state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
     await archiveActiveVoyageLeg();
     await saveSetup();
   }
@@ -7552,13 +7783,15 @@ async function saveCurrentVesselState(){
   }
 }
 
-async function switchVessel(vesselId){
+async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
   if (!target) return;
   return withActivity('switch-vessel', `Switching to ${target.name}…`, async ({ update })=>{
-    update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
-    await saveCurrentVesselState();
+    if (!opts || opts.persistCurrent !== false){
+      update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
+      await saveCurrentVesselState();
+    }
     update({ label: `Loading ${target.name}…` });
     await loadVesselFromDb(vesselId);
     await dbPut('meta', { key:'activeVesselId', value: vesselId });
@@ -12111,7 +12344,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['consumption', 'voyageabstract', 'rangetotals', 'receipts', 'reports', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_MAX_LEGS = 30;
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
@@ -12889,7 +13122,8 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
       if (mobileLocked) {
         document.documentElement.classList.remove('use-top-tabs');
-      } else if ((window.innerWidth || 0) >= 1101) {
+      } else if ((window.innerWidth || 0) >= 1181
+        && Math.min(window.innerWidth || 0, window.innerHeight || 0) > 900) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {
@@ -20398,9 +20632,9 @@ function flowArrIsGeDual(){
 function paintFmQuickMeterBox(box, dual, prefix){
   if (!box) return;
   box.innerHTML = dual
-    ? `<div class="field"><label>Inlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_in"></div>
-       <div class="field"><label>Outlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_out"></div>`
-    : `<div class="field"><label>Fuel Meter</label><input type="number" id="fmq_${prefix}_meter"></div>`;
+    ? `<div class="field"><label>Inlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_in"></div>
+       <div class="field"><label>Outlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_out"></div>`
+    : `<div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter"></div>`;
 }
 function setElVal(id, val){
   const el = document.getElementById(id);
@@ -20503,10 +20737,14 @@ function openFmQuickDialog(){
   setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
   setElVal('fmq_tbn', getElVal('in_tbn') || 'HIGH');
 
+  if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
   overlay.hidden = false;
   overlay.classList.add('open');
-  const first = overlay.querySelector('input, select');
-  if (first) setTimeout(() => first.focus(), 30);
+  const first = overlay.querySelector('input:not([type="hidden"]), select');
+  if (first) setTimeout(() => {
+    first.focus();
+    if (first.tagName === 'INPUT') selectAllEditableField(first);
+  }, 30);
 }
 function acceptFmQuickDialog(){
   if (typeof renderFuelMeterFields === 'function') renderFuelMeterFields();
@@ -22681,22 +22919,7 @@ document.getElementById('btnPullVoyageLeg')?.addEventListener('click', async ()=
 document.getElementById('btnLoadVoyageLeg')?.addEventListener('click', async ()=>{
   const vn = (document.getElementById('s_voyageSelect')?.value || '').trim();
   const cond = normalizeCondition(document.getElementById('s_legCondition')?.value);
-  if (!vn){ alert('Select a voyage number from the library list.'); return; }
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { successAlert: true });
 });
 
 document.getElementById('btnSaveVoyageLeg')?.addEventListener('click', async ()=>{
@@ -22721,21 +22944,7 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
   const vn = (btn.dataset.voyage || '').trim();
   const cond = normalizeCondition(btn.dataset.cond);
   if (!vn) return;
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    switchTab('summary');
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { goSummary: true });
 });
 
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
@@ -22819,7 +23028,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v286';
+let androidInstallCacheName = 'noon-report-v289';
 
 /*
  * What the program is called.
@@ -26228,10 +26437,39 @@ function isLogEntryNumericInput(el){
   if (el.dataset.vmNumeric === '1' || t === 'number') return true;
   if (el.getAttribute('inputmode') === 'decimal' || el.getAttribute('inputmode') === 'numeric') return true;
   /* Text-like number fields on the log entry form (calc outputs stay readonly). */
-  if (t === 'text' && el.id && /^vs_|^rep_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
+  if (t === 'text' && el.id && /^vs_|^rep_|^fmq_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
     return true;
   }
   return false;
+}
+/** Highlight the current value so the next keystroke replaces it (tablet + mouse). */
+function selectAllEditableField(el){
+  if (!el || el.readOnly || el.disabled) return;
+  if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+  const t = String(el.type || 'text').toLowerCase();
+  if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'submit' || t === 'file' || t === 'hidden') return;
+  if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week' || t === 'color' || t === 'range') return;
+  const run = ()=>{
+    try { el.select(); } catch(_e){}
+    try {
+      const len = String(el.value ?? '').length;
+      if (typeof el.setSelectionRange === 'function') el.setSelectionRange(0, len);
+    } catch(_e){}
+  };
+  run();
+  /* Some tablet browsers drop the selection again as the soft keyboard opens,
+     so the select is tried once more on the next tick. It must not fire when
+     the engineer has meanwhile put a caret in the value or dragged a stylus
+     over part of it — yanking the whole value back into selection is what made
+     these fields impossible to correct. */
+  setTimeout(()=>{
+    if (document.activeElement !== el) return;
+    try {
+      if (el.selectionStart !== el.selectionEnd) return;
+      if (el.selectionStart !== 0) return;
+    } catch(_e){ /* number inputs expose no selection — retry is harmless */ }
+    run();
+  }, 0);
 }
 /** Live typing: any non-digit (except leading minus) becomes a single decimal point. */
 function coerceLogEntryDecimalInput(el){
@@ -26247,7 +26485,10 @@ function coerceLogEntryDecimalInput(el){
     else if (!seenDot){ out += '.'; seenDot = true; }
   }
   if (out !== raw){
-    const start = el.selectionStart;
+    /* type="number" throws on selectionStart, and the throw used to abort this
+       handler before the value was ever written back. */
+    let start = null;
+    try { start = el.selectionStart; } catch(_e){}
     el.value = out;
     try{
       const pos = Math.min(out.length, start != null ? start : out.length);
@@ -26270,11 +26511,46 @@ document.addEventListener('focusin', (e)=>{
     if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week') return;
   }
   /* Select all so the next keystroke replaces the previous value (touch + mouse). */
-  setTimeout(()=>{ try{ el.select(); }catch(_e){} }, 0);
+  selectAllEditableField(el);
 }, true);
 document.addEventListener('input', (e)=>{
   if (e.target && isLogEntryNumericInput(e.target)) coerceLogEntryDecimalInput(e.target);
 }, true);
+(function bindFmQuickSelectAll(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.dataset.fmqSelectAll === '1') return;
+  overlay.dataset.fmqSelectAll = '1';
+  /* The tap that opens a field highlights its old value, so the first figure
+     typed replaces the reading rather than being appended to it. A tap on the
+     field already being edited is something else entirely: the engineer placing
+     a caret, or a stylus dragging across a digit. Re-selecting there — and
+     cancelling the tap with preventDefault, as this once did — left the value
+     permanently highlighted, so the popup could not be typed into or corrected
+     at all. So: remember whether the field was already focused when the pointer
+     went down, and only select when it was not. */
+  let wasFocused = false;
+  overlay.addEventListener('pointerdown', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
+  overlay.addEventListener('touchstart', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
+  const keep = (e)=>{
+    const el = e.target;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+    if (wasFocused) return;
+    if (document.activeElement === el) selectAllEditableField(el);
+  };
+  overlay.addEventListener('mouseup', keep);
+  overlay.addEventListener('pointerup', keep);
+  overlay.addEventListener('touchend', ()=>{
+    if (wasFocused) return;
+    const el = document.activeElement;
+    if (el && overlay.contains(el)) selectAllEditableField(el);
+  });
+})();
 
 
 
