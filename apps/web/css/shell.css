@@ -473,8 +473,12 @@ html.use-bottom-nav .body { grid-template-columns: 1fr; }
 html.use-bottom-nav .sidebar,
 html.use-bottom-nav .sidebar-backdrop { display: none !important; }
 html.use-bottom-nav .bottom-nav {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  /* Flex, as Voyage Chief's bar is: the items share the width evenly without
+     the count being written into the CSS, so adding or dropping a module does
+     not leave an empty slot behind. */
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
   gap: 1px;
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -485,9 +489,13 @@ html.use-bottom-nav .bottom-nav {
   background: rgba(10,20,32,0.97);
   border-top: 1px solid var(--line);
   box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 html.bright.use-bottom-nav .bottom-nav { background: rgba(255,255,255,0.97); }
 html.use-bottom-nav .bottom-item {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -505,6 +513,11 @@ html.use-bottom-nav .bottom-item {
   -webkit-tap-highlight-color: transparent;
 }
 html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height: 1; }
+/* Same press feedback as Voyage Chief's bar: colour eases in, the item dips
+   under the finger. */
+html.use-bottom-nav .bottom-item { transition: color .15s ease, background .15s ease; }
+html.use-bottom-nav .bottom-item:active { transform: scale(0.96); }
+html.use-bottom-nav .bottom-item:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 html.use-bottom-nav .main {
   padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
 }
@@ -1587,10 +1600,10 @@ html.bright code { color: var(--accent-2); }
    label under the icon becomes readable rather than merely present. */
 @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
   :root {
-    --nav-item-h: 64px;
-    --nav-ic: 24px;
-    --nav-label: 10px;
-    --nav-pad-y: 6px;
+    --nav-item-h: 72px;
+    --nav-ic: 26px;
+    --nav-label: 11px;
+    --nav-pad-y: 7px;
   }
 }
 
