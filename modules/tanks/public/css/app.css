@@ -2737,10 +2737,12 @@ html:not(.tc-top-nav) .nav-group-label::after { display: none; }
  * eleven input heights, seven border radii. Each program had a scale; they
  * disagreed, so a button beside a field was never quite the same height.
  *
- * These values are duplicated in apps/web/css/shell.css,
- * modules/tanks/public/css/app.css and the <style> block in
- * modules/voyage/www/voyage_manager.html — three documents that cannot share
- * a file. Change one, change all three.
+ * These values are duplicated in four documents that cannot share a file:
+ * apps/web/css/shell.css, modules/tanks/public/css/app.css and the <style>
+ * block in modules/voyage/www/voyage_manager.html inside the AIO, and the
+ * standalone Tank Chief's own public/css/app.css. Change one, change all
+ * four. scripts/test-suite-scale.js holds the AIO's three to each other;
+ * nothing reaches across the two repositories, so the fourth is kept by hand.
  *
  * The coarse-pointer step is not cosmetic: the same pages run on an engine
  * room tablet, where a 32px control is a missed tap.

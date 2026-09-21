@@ -2712,9 +2712,31 @@ function renderCalibrationList(main) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      Progress.start(e.target.closest('.form-panel') || null, `Reading ${file.name}…`);
+      const native = !!(window.Capacitor && (window.Capacitor.isNativePlatform
+        ? window.Capacitor.isNativePlatform()
+        : (window.Capacitor.getPlatform && window.Capacitor.getPlatform() !== 'web')));
+      if ((native || /\.xlsx$/i.test(file.name)) && window.FlagEviXlsxBrowser && window.XLSX) {
+        try {
+          const parsed = await FlagEviXlsxBrowser.parseFlagEviFile(file);
+          if (parsed?.format === 'flag-evi-xlsx' && (parsed.tanks || []).length) {
+            const res = await applyParsedWorkbookTanks(parsed.tanks, { replaceExisting: true });
+            Progress.done('Imported');
+            await reloadBundle();
+            showToast(`Imported ${(res.created || 0) + (res.replaced || 0)} tank tables from FLAG EVI workbook`);
+            navigate('calibration');
+            return;
+          }
+        } catch (browserErr) {
+          if (native || FlagEviXlsxBrowser.looksLikeFlagEviName(file.name)) {
+            Progress.done();
+            showToast(browserErr.message || 'Workbook import failed');
+            return;
+          }
+        }
+      }
       const fd = new FormData();
       fd.append('file', file);
-      Progress.start(e.target.closest('.form-panel') || null, `Uploading ${file.name}…`);
       const res = await Api.upload(`/api/vessels/${STATE.activeVesselId}/import-excel`, fd,
         (pct, phase) => Progress.set(pct, phase === 'uploading'
           ? `Uploading… ${pct == null ? '' : pct + '%'}`

@@ -961,12 +961,12 @@ app.post('/api/vessels/:id/bunker-distribute', (req, res) => {
         const inputs = {
           reading: newVol,
           trim: (() => {
-        const v = bundle.voyage || {};
-        const fwd = Number(v.draftFwd);
-        const aft = Number(v.draftAft);
-        if (Number.isFinite(fwd) && Number.isFinite(aft)) return aft - fwd;
-        return Number(v.trim) || 0;
-      })(),
+            const v = bundle.voyage || {};
+            const fwd = Number(v.draftFwd);
+            const aft = Number(v.draftAft);
+            if (Number.isFinite(fwd) && Number.isFinite(aft)) return aft - fwd;
+            return Number(v.trim) || 0;
+          })(),
           list: bundle.voyage?.heel || 0,
           tempC: tempC ?? 15,
           density15: dens,
