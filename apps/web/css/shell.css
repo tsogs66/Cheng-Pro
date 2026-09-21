@@ -464,7 +464,10 @@ html.bright .toast {
 
 /* Tablet + phone (portrait and landscape): 6 programs + More, same as Voyage/Tank. */
 html.use-bottom-nav {
-  --bottom-h: 56px;
+  /* What the page has to keep clear: the items, the bar's own padding, and
+     a little air. Derived so the tablet's taller bar does not sit over the
+     last row of the page. */
+  --bottom-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 4px);
 }
 html.use-bottom-nav .body { grid-template-columns: 1fr; }
 html.use-bottom-nav .sidebar,
@@ -477,8 +480,8 @@ html.use-bottom-nav .bottom-nav {
   left: 0; right: 0; bottom: 0;
   z-index: 40;
   height: auto;
-  min-height: calc(56px + var(--safe-bottom));
-  padding: 3px 2px calc(3px + var(--safe-bottom));
+  min-height: calc(var(--bottom-h) + var(--safe-bottom));
+  padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + var(--safe-bottom));
   background: rgba(10,20,32,0.97);
   border-top: 1px solid var(--line);
   box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
@@ -490,18 +493,18 @@ html.use-bottom-nav .bottom-item {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-height: 46px;
+  min-height: var(--nav-item-h);
   padding: 4px 1px 3px;
   border-radius: 6px;
   color: var(--muted);
   font-family: var(--display);
-  font-size: 8px;
+  font-size: var(--nav-label);
   letter-spacing: 0.04em;
   font-weight: 600;
   text-transform: uppercase;
   -webkit-tap-highlight-color: transparent;
 }
-html.use-bottom-nav .bottom-item .bn-ic { font-size: 18px; line-height: 1; }
+html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height: 1; }
 html.use-bottom-nav .main {
   padding: 16px 14px calc(24px + var(--bottom-h) + var(--safe-bottom));
 }
@@ -1562,11 +1565,32 @@ html.bright code { color: var(--accent-2); }
   --ctl-r-sm: 8px;
   --cell-pad-y: 6px;
   --cell-pad-x: 10px;
+
+  /* The bottom bar is a control too, and the one a chief hits most often.
+     46px is a phone's bar: it has to leave room for the page. */
+  --nav-item-h: 46px;
+  --nav-ic: 18px;
+  --nav-label: 8px;
+  --nav-pad-y: 3px;
 }
 @media (pointer: coarse) {
   :root {
     --ctl-h: 44px;
     --ctl-h-sm: 38px;
+  }
+}
+
+/* A tablet, told from a phone by having room on both sides: a phone in
+   landscape is wide but short, and is still a phone. On the tablet the bar
+   is the program's main control, used standing up with the screen at arm's
+   length, so it gets a target that does not have to be aimed at — and the
+   label under the icon becomes readable rather than merely present. */
+@media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+  :root {
+    --nav-item-h: 64px;
+    --nav-ic: 24px;
+    --nav-label: 10px;
+    --nav-pad-y: 6px;
   }
 }
 
