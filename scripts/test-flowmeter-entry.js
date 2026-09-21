@@ -43,6 +43,10 @@ for (const rel of FILES) {
     /setTimeout\(\(\)=>\{[\s\S]{0,420}el\.selectionStart !== el\.selectionEnd\) return;[\s\S]{0,120}el\.selectionStart !== 0\) return;/.test(html));
   check(`${name}: selectionStart on a number input cannot abort the coercion`,
     /let start = null;\s*try \{ start = el\.selectionStart; \} catch\(_e\)\{\}\s*el\.value = out;/.test(html));
+  check(`${name}: RPM/rev sync must not toFixed the field being typed`,
+    /function setFmqUnlessFocused/.test(html)
+    && /setFmqUnlessFocused\('fmq_revCounter'/.test(html)
+    && /finalizeFmqDecimalField/.test(html));
 }
 
 if (failures) {
