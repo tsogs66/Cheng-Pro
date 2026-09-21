@@ -811,7 +811,49 @@
     --ctl-r: 3px;
     --cell-pad-y: 6px;
     --cell-pad-x: 10px;
+
+    /* The bottom bar is a control too, and the one a chief hits most often.
+       46px is a phone's bar: it has to leave room for the page. */
+    --nav-item-h: 46px;
+    --nav-ic: 18px;
+    --nav-label: 8px;
+    --nav-pad-y: 3px;
+    /* What the page keeps clear below itself: the items, the bar's padding and
+       a little air. Derived, so a taller bar never sits over the last row. */
+    --nav-bar-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 12px);
   }
+
+  /* A tablet, told from a phone by having room on both sides: a phone in
+     landscape is wide but short, and is still a phone. On the tablet the bar
+     is the program's main control, used standing up with the screen at arm's
+     length, so it gets a target that does not have to be aimed at — and the
+     label under the icon becomes readable rather than merely present. */
+  @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+    :root {
+      --nav-item-h: 64px;
+      --nav-ic: 24px;
+      --nav-label: 10px;
+      --nav-pad-y: 6px;
+    }
+    /* A tablet is not a compact phone, however short its screen reports
+       itself. The compact classes are set from screen size in script and
+       catch a ten-inch tablet, whose short side is under 900; they carry
+       their own bar heights, which would otherwise win here on specificity
+       alone and hold the bar at a phone's 42px. */
+    html.compact-phone .bn-item,
+    html.short-viewport .bn-item,
+    html.short-viewport.landscape-view .bn-item {
+      min-height: var(--nav-item-h);
+      font-size: var(--nav-label);
+    }
+    html.compact-phone .bn-item svg,
+    html.short-viewport .bn-item svg,
+    html.short-viewport.landscape-view .bn-item svg {
+      width: var(--nav-ic);
+      height: var(--nav-ic);
+    }
+  }
+
   @media (pointer: coarse) {
     :root { --ctl-h: 44px; --ctl-h-sm: 38px; }
   }
@@ -1977,7 +2019,7 @@
     position:fixed; left:0; right:0; bottom:0; z-index:1200;
     align-items:stretch; justify-content:space-around;
     gap:1px;
-    padding:3px 2px calc(3px + env(safe-area-inset-bottom, 0px));
+    padding:var(--nav-pad-y) 2px calc(var(--nav-pad-y) + env(safe-area-inset-bottom, 0px));
     background:var(--nav-bg);
     border-top:1px solid var(--line-strong);
     backdrop-filter:blur(12px);
@@ -1988,7 +2030,7 @@
   html.use-bottom-nav .tabs{display:none !important;}
   html.use-bottom-nav .bottom-nav{display:flex !important;}
   html.use-bottom-nav body{
-    padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px)) !important;
   }
   html.use-bottom-nav .footer-note{margin-bottom:8px;}
   /* ChEng AIO → e-ORB / Consumption Plan: iframe shows only that page — no Voyage nav chrome.
@@ -2021,7 +2063,7 @@
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
     html:not(.use-top-tabs) body{
-      padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px));
     }
   }
   .bn-item{
@@ -2029,13 +2071,13 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:2px; padding:4px 2px 3px;
     border:0 !important; background:transparent; color:var(--paper-dim);
-    font-family:'Oswald',sans-serif; font-size:8px; letter-spacing:0.05em;
+    font-family:'Oswald',sans-serif; font-size:var(--nav-label); letter-spacing:0.05em;
     text-transform:uppercase; cursor:pointer; border-radius:6px;
-    min-height:46px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    min-height:var(--nav-item-h); touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     transition:color .15s ease, background .15s ease;
   }
-  .bn-item svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
-  .bn-item .bn-ic{font-size:18px; line-height:1; flex-shrink:0;}
+  .bn-item svg{width:var(--nav-ic); height:var(--nav-ic); stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
+  .bn-item .bn-ic{font-size:var(--nav-ic); line-height:1; flex-shrink:0;}
   .bn-item.active{color:var(--brass); background:var(--nav-active-bg);}
   .bn-item:hover{color:var(--paper); border-color:transparent;}
   .bn-item.active:hover{color:var(--brass);}
