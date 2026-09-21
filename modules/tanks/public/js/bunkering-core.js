@@ -600,7 +600,7 @@ function computeBunkerPlan(bundle, form, conversion) {
        * roughly symmetric tank always yields a low one, so "the other sense
        * looks plausible" flags every genuine overfill too — a real 90% fill
        * would be accused of being a typo. What does mark it is the reading
-       * running the tank up to the very top of its calibration table and
+       * running the tank to the very top of its calibration table and
        * staying there: a controlled transfer stops well short of that, and a
        * reading that saturates is far more often the wrong sense than a tank
        * genuinely brimmed. Anything short of that is left to the 85% warning

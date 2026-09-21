@@ -659,12 +659,13 @@ function readingsFromReport(bundle, computed) {
     for (const row of section.rows) {
       if (row.measuredM3 == null) continue;
       readings[row.tankId] = {
-        reading: num(row.trace.nativeReading),
+        reading: num(row.reading),
         trim: computed.header.trim,
         list: computed.header.heel,
         tempC: num(row.tempC, 15),
         density15: row.density15,
         gaugeType: 'meter',
+        entryMethod: row.method,
         source: 'fuel-report',
         result: {
           soundingIncrement: row.trace.soundingIncrement,
