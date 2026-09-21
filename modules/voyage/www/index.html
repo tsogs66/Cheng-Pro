@@ -26305,7 +26305,19 @@ function selectAllEditableField(el){
     } catch(_e){}
   };
   run();
-  setTimeout(run, 0);
+  /* Some tablet browsers drop the selection again as the soft keyboard opens,
+     so the select is tried once more on the next tick. It must not fire when
+     the engineer has meanwhile put a caret in the value or dragged a stylus
+     over part of it — yanking the whole value back into selection is what made
+     these fields impossible to correct. */
+  setTimeout(()=>{
+    if (document.activeElement !== el) return;
+    try {
+      if (el.selectionStart !== el.selectionEnd) return;
+      if (el.selectionStart !== 0) return;
+    } catch(_e){ /* number inputs expose no selection — retry is harmless */ }
+    run();
+  }, 0);
 }
 /** Live typing: any non-digit (except leading minus) becomes a single decimal point. */
 function coerceLogEntryDecimalInput(el){
@@ -26321,7 +26333,10 @@ function coerceLogEntryDecimalInput(el){
     else if (!seenDot){ out += '.'; seenDot = true; }
   }
   if (out !== raw){
-    const start = el.selectionStart;
+    /* type="number" throws on selectionStart, and the throw used to abort this
+       handler before the value was ever written back. */
+    let start = null;
+    try { start = el.selectionStart; } catch(_e){}
     el.value = out;
     try{
       const pos = Math.min(out.length, start != null ? start : out.length);
@@ -26353,17 +26368,33 @@ document.addEventListener('input', (e)=>{
   const overlay = document.getElementById('fmQuickOverlay');
   if (!overlay || overlay.dataset.fmqSelectAll === '1') return;
   overlay.dataset.fmqSelectAll = '1';
+  /* The tap that opens a field highlights its old value, so the first figure
+     typed replaces the reading rather than being appended to it. A tap on the
+     field already being edited is something else entirely: the engineer placing
+     a caret, or a stylus dragging across a digit. Re-selecting there — and
+     cancelling the tap with preventDefault, as this once did — left the value
+     permanently highlighted, so the popup could not be typed into or corrected
+     at all. So: remember whether the field was already focused when the pointer
+     went down, and only select when it was not. */
+  let wasFocused = false;
+  overlay.addEventListener('pointerdown', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
+  overlay.addEventListener('touchstart', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
   const keep = (e)=>{
     const el = e.target;
     if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
-    if (document.activeElement === el){
-      if (e.cancelable && e.type !== 'touchend') e.preventDefault();
-      selectAllEditableField(el);
-    }
+    if (wasFocused) return;
+    if (document.activeElement === el) selectAllEditableField(el);
   };
   overlay.addEventListener('mouseup', keep);
   overlay.addEventListener('pointerup', keep);
   overlay.addEventListener('touchend', ()=>{
+    if (wasFocused) return;
     const el = document.activeElement;
     if (el && overlay.contains(el)) selectAllEditableField(el);
   });
