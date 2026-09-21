@@ -487,12 +487,16 @@
     if (booted) return;
     booted = true;
 
-    /* First paint — do not leave #main empty while LocalApi starts. */
-    main.innerHTML = '<section class="panel"><p class="empty">Starting on this device…</p></section>';
+    /* First paint — splash covers the shell while LocalApi starts. */
+    main.innerHTML = '';
     updateSidebarMeta();
+    if (window.LoadingSplash) {
+      LoadingSplash.update(LoadingSplash.BOOT_ID, 'Starting on this device…');
+    }
 
     try {
       if (typeof LocalApi !== 'undefined' && LocalApi.start) {
+        if (window.LoadingSplash) LoadingSplash.update(LoadingSplash.BOOT_ID, 'Opening the on-device database…');
         await withTimeout(LocalApi.start(), 20000, 'On-device database');
       }
     } catch (e) {
@@ -510,6 +514,7 @@
     }
 
     try {
+      if (window.LoadingSplash) LoadingSplash.update(LoadingSplash.BOOT_ID, 'Loading vessels…');
       await withTimeout(ChengPro.vessel.refresh(), 10000, 'Vessel load');
     } catch (e) {
       showToast(e.message || 'Could not load vessels yet — you can still create one offline');
@@ -554,6 +559,7 @@
     const firstRun = !vessels.length;
     const ent = window.ChengLicense && ChengLicense.loadEntitlement();
     const canVessel = !window.ChengLicense || !ChengLicense.isValid(ent) || ChengLicense.moduleAllowed('vessel', ent);
+    if (window.LoadingSplash) LoadingSplash.endBoot();
     if (firstRun && canVessel) {
       showToast('Offline ready — create your vessel to begin');
       await navigate('vessel');
@@ -564,6 +570,7 @@
 
   boot().catch((e) => {
     console.error(e);
+    if (window.LoadingSplash) LoadingSplash.endBoot();
     main.innerHTML = `<section class="panel hero">
       <h1>ChEng AIO</h1>
       <p>Could not finish startup: ${escapeHtml(e.message || 'unknown error')}.</p>

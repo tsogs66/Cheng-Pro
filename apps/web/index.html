@@ -15,6 +15,9 @@
   <!-- No Google Fonts — offline first launch must not block on network CSS. -->
   <link rel="stylesheet" href="/css/shell.css">
   <link rel="stylesheet" href="/css/hud-effects.css">
+  <link rel="stylesheet" href="/css/loading-splash.css">
+  <script>window.LOADING_SPLASH_BOOT_LABEL = 'Starting ChEng AIO…';</script>
+  <script src="/js/loading-splash.js"></script>
   <script defer src="/js/num-align.js"></script>
   <script defer src="/js/count-up.js"></script>
   <link rel="manifest" href="/manifest.webmanifest">
@@ -85,16 +88,6 @@
     html.bright, html.bright body { background: #efebe3; color: #122238; }
     html.prism, html.prism body { background: #041618; color: #e6fff8; }
     html.astrolabe, html.astrolabe body { background: #0a0c16; color: #f4efe4; }
-    #main:empty::before {
-      content: "Starting ChEng AIO…";
-      display: block;
-      padding: 2rem 1.25rem;
-      color: var(--muted, #a9a292);
-      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-    }
-    html.bright #main:empty::before { color: #4a5568; }
-    html.prism #main:empty::before { color: #7eb8ae; }
-    html.astrolabe #main:empty::before { color: #a89a82; }
   </style>
 </head>
 <body>
