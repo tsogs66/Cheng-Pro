@@ -8715,6 +8715,13 @@ function geLoadBandMax(loadPct){
 }
 
 function fmtFuel(n){ return fmt(n, FUEL_DECIMALS); }
+/** Fuel mass (MT) at display precision — ROB and cumFuel must deduct what flowmeters show (3 dp), not float noise from litres×SG. */
+function roundFuelMt(n){
+  if (n==null || n==='') return null;
+  const x = Number(n);
+  if (!isFinite(x)) return null;
+  return Number(x.toFixed(FUEL_DECIMALS));
+}
 /* Append measurement unit immediately after a formatted result (not table cells). */
 function unitSpan(u){
   return u ? ` <span class="unit">${escHtml(String(u))}</span>` : '';
@@ -9307,13 +9314,13 @@ function computeDerived(opts){
 
       const {meRaw, geRaw} = meGeRawLitres(e, prev, rolls);
       const blrD = meterDelta(e.blr.meter, prev.blr.meter, rolls.boiler);
-      meCons = meRaw!==null ? (meRaw*e.me.sg)/1000 : null;
-      geCons = geRaw!==null ? (geRaw*e.ge.sg)/1000 : null;
-      blrCons = blrD!==null ? (blrD*e.blr.sg)/1000 : null;
+      meCons = meRaw!==null ? roundFuelMt((meRaw*e.me.sg)/1000) : null;
+      geCons = geRaw!==null ? roundFuelMt((geRaw*e.ge.sg)/1000) : null;
+      blrCons = blrD!==null ? roundFuelMt((blrD*e.blr.sg)/1000) : null;
       const unitOv = e.unitOverride || {};
-      if (unitOv.ME!=null) meCons = unitOv.ME;
-      if (unitOv.GE!=null) geCons = unitOv.GE;
-      if (unitOv.BLR!=null) blrCons = unitOv.BLR;
+      if (unitOv.ME!=null) meCons = roundFuelMt(unitOv.ME);
+      if (unitOv.GE!=null) geCons = roundFuelMt(unitOv.GE);
+      if (unitOv.BLR!=null) blrCons = roundFuelMt(unitOv.BLR);
       /* Engine stopped: blank a nil M/E burn. A non-zero figure is kept and still
          shown, because it is real fuel that the ROB chain has to account for. */
       if (meStopped && !(meCons > 0)) meCons = null;
@@ -9334,8 +9341,10 @@ function computeDerived(opts){
       rawFuel['LSMGO'] += miscLsmgo;
       EXTRA_DO_GRADES.forEach(t => { rawFuel[t] += blrExtra[t] + incExtra[t]; });
       FUEL_TYPES.forEach(t=>{
-        consByType[t] = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
-        consByFuel[t] += consByType[t];
+        let v = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
+        if (v != null) v = roundFuelMt(v);
+        consByType[t] = v;
+        if (v != null) consByFuel[t] = roundFuelMt(consByFuel[t] + v);
       });
 
       const cylD = meterDelta(e.cylMeter, prev.cylMeter, rolls.cyl);
@@ -19769,9 +19778,9 @@ function updateLivePreview(){
     if (hrs>0){
       const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
       const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-      meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+      meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
       const unitMe = document.getElementById('vs_unit_me');
       const unitGe = document.getElementById('vs_unit_ge');
       const unitBlr = document.getElementById('vs_unit_blr');
@@ -19830,9 +19839,9 @@ function updateLivePreview(){
 function computeRawUnitCons(curEntry, prevRef, rolls){
   const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
   const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
   return {meCons, geCons, blrCons};
 }
 
