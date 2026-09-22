@@ -109,12 +109,39 @@ const tanks = [
     blrExtraCons: {},
     incExtraCons: {},
   }];
-  const receipts = [{ category: 'fuel', tankId: 't1', qty: 100, source: 'hand' }];
+  const receipts = [{ date: '2026-09-05', category: 'fuel', tankId: 't1', qty: 100, source: 'hand' }];
   const calc = Bridge.buildHomeCalculatedRob(setup, entries, receipts);
   assert(Math.abs(calc.robCurrent.t1 - (200 - (200 / 300) * 50)) < 1e-6,
     `TK1 present after stock-weighted 50 MT burn (got ${calc.robCurrent.t1})`);
   assert(Math.abs(calc.robCurrent.t2 - (100 - (100 / 300) * 50)) < 1e-6,
     `TK2 present after stock-weighted 50 MT burn (got ${calc.robCurrent.t2})`);
+}
+
+/* Used = Opening + voyage Received − Present (Dep/Arr Consumed), prefer-once bunkers. */
+{
+  const setup = {
+    fuelTanks: [{ id: 'lsfo1', name: 'LSFO TK', grade: 'LSFO' }],
+    rob: { lsfo1: 500 },
+    carryover: null,
+  };
+  const entries = [{
+    id: 'e1',
+    datetime: '2026-09-01T12:00',
+    me: { type: 'LSFO', meter: 1000, sg: 0.95 },
+    ge: { type: 'LSFO', meter: 100, sg: 0.95 },
+    blr: { type: 'LSFO', meter: 10, sg: 0.95 },
+    unitOverride: { ME: 30, GE: 0, BLR: 0 },
+    robReceived: { lsfo1: 50 },
+  }];
+  const receipts = [
+    { id: 'hand', date: '2026-09-01', category: 'fuel', tankId: 'lsfo1', qty: 50 },
+    { id: 'mir', date: '2026-09-01', category: 'fuel', tankId: 'lsfo1', qty: 50, source: 'rob-survey', surveyEntryId: 'e1' },
+  ];
+  const calc = Bridge.buildHomeCalculatedRob(setup, entries, receipts);
+  assert(Math.abs(calc.robUsed.lsfo1 - 30) < 1e-9,
+    `Used matches burn when hand+stamp not doubled (got ${calc.robUsed.lsfo1})`);
+  assert(Math.abs(calc.robCurrent.lsfo1 - 520) < 1e-9,
+    `Present 500+50−30 (got ${calc.robCurrent.lsfo1})`);
 }
 
 /* Present book: Opening + Received − Consumed for LSMGO. */
@@ -134,7 +161,7 @@ const tanks = [
     blrExtraCons: { LSMGO: 0.3 },
     incExtraCons: { LSMGO: 0.2 },
   }];
-  const receipts = [{ category: 'fuel', tankId: 'lsmgo', qty: 10, source: 'hand' }];
+  const receipts = [{ date: '2026-09-04', category: 'fuel', tankId: 'lsmgo', qty: 10, source: 'hand' }];
   const calc = Bridge.buildHomeCalculatedRob(setup, entries, receipts);
   const lsmgoUsed = 2 + 1 + 0.5 + 0.3 + 0.2;
   assert(Math.abs(calc.robUsed.lsmgo - lsmgoUsed) < 1e-9, `LSMGO used ${lsmgoUsed} (got ${calc.robUsed.lsmgo})`);
