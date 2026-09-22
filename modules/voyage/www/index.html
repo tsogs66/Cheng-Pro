@@ -18074,18 +18074,18 @@ function openVoyageSummary(entryId){
   renderVsPerfTable(entryId);
 
   const unitOv = entry.unitOverride || {};
-  /* Empty unit boxes mean "use the flowmeter" — pre-filling computed MT made Save
-     treat the rounded display as a manual override when it differed from meterDerived. */
-  const meConsVal = unitOv.ME!=null ? unitOv.ME : null;
-  const geConsVal = unitOv.GE!=null ? unitOv.GE : null;
-  const blrConsVal = unitOv.BLR!=null ? unitOv.BLR : null;
-  const unitVal = v => (v==null || v==='' || isNaN(v)) ? '' : Number(v).toFixed(3);
   /* What the flowmeters actually measured for this period, before any override.
      Shown beside each typed box so the engineer overriding a figure can see the
      basis being departed from — previously the metered figure was only reachable
      by pressing a button that discarded the override to reveal it. */
   const metered = meterDerivedUnitCons(entry);
-  const basis = v => (v==null || isNaN(v)) ? '—' : Number(v).toFixed(3);
+  /* Prefill with flowmeter MT at 3 dp (same as live preview / ROB). Save compares
+     display strings to meterDerived so a prefilled 0.303 is not stored as override. */
+  const meConsVal = unitOv.ME!=null ? roundFuelMt(unitOv.ME) : (metered.meCons ?? row.meCons);
+  const geConsVal = unitOv.GE!=null ? roundFuelMt(unitOv.GE) : (metered.geCons ?? row.geCons);
+  const blrConsVal = unitOv.BLR!=null ? roundFuelMt(unitOv.BLR) : (metered.blrCons ?? row.blrCons);
+  const unitVal = v => (v==null || v==='' || isNaN(v)) ? '' : fmtFuel(Number(v));
+  const basis = v => (v==null || isNaN(v)) ? '—' : fmtFuel(Number(v));
   const consRow = (label, id, val, meterVal, editable) => `
     <div class="cons-row">
       <div class="field${editable ? '' : ' calc'}"><label>${label}</label>
@@ -18099,7 +18099,7 @@ function openVoyageSummary(entryId){
     consRow('D/G (MT)',    'vs_unit_ge',  geConsVal,  metered.geCons,  true) +
     consRow('Boiler (MT)', 'vs_unit_blr', blrConsVal, metered.blrCons, true) +
     `<div class="cons-row">
-      <div class="field"><label>TOTAL (MT)</label><input type="text" id="vs_unit_total" value="${fmtFuel((meConsVal ?? metered.meCons ?? 0)+(geConsVal ?? metered.geCons ?? 0)+(blrConsVal ?? metered.blrCons ?? 0))}" readonly></div>
+      <div class="field"><label>TOTAL (MT)</label><input type="text" id="vs_unit_total" value="${fmtFuel((meConsVal||0)+(geConsVal||0)+(blrConsVal||0))}" readonly></div>
       <div class="cons-basis"><span class="cb-lbl">flowmeter</span><span class="cb-val" id="vs_unit_total_meter">${
         basis([metered.meCons, metered.geCons, metered.blrCons].every(v=>v==null) ? null
           : (metered.meCons||0)+(metered.geCons||0)+(metered.blrCons||0))}</span></div>
@@ -18236,9 +18236,12 @@ function computeVsLiveConsByType(entry){
   };
   const row = getComputedRow(entry.id);
   const meterUnits = meterDerivedUnitCons(entry);
-  const meCons = num('vs_unit_me') ?? meterUnits.meCons ?? row?.meCons;
-  const geCons = num('vs_unit_ge') ?? meterUnits.geCons ?? row?.geCons;
-  const blrCons = num('vs_unit_blr') ?? meterUnits.blrCons ?? row?.blrCons;
+  const meConsRaw = num('vs_unit_me') ?? meterUnits.meCons ?? row?.meCons;
+  const geConsRaw = num('vs_unit_ge') ?? meterUnits.geCons ?? row?.geCons;
+  const blrConsRaw = num('vs_unit_blr') ?? meterUnits.blrCons ?? row?.blrCons;
+  const meCons = meConsRaw==null ? null : roundFuelMt(meConsRaw);
+  const geCons = geConsRaw==null ? null : roundFuelMt(geConsRaw);
+  const blrCons = blrConsRaw==null ? null : roundFuelMt(blrConsRaw);
   const meType = document.getElementById('me_type')?.value || entry.me?.type;
   const geType = document.getElementById('ge_type')?.value || entry.ge?.type;
   const blrType = document.getElementById('blr_type')?.value || entry.blr?.type;
@@ -19799,9 +19802,9 @@ function updateLivePreview(){
       const unitMe = document.getElementById('vs_unit_me');
       const unitGe = document.getElementById('vs_unit_ge');
       const unitBlr = document.getElementById('vs_unit_blr');
-      if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-      if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-      if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+      if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+      if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+      if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
       if (meStopped){
         if (!(meCons > 0)) meCons = null;
       } else if (rpmEff != null){
@@ -19890,7 +19893,7 @@ function renderEntryUnitFields(){
   const set = (id, val, keep) => {
     if (keep) return;
     const el = document.getElementById(id);
-    if (el && document.activeElement!==el) el.value = (val===null||val===undefined) ? '' : val;
+    if (el && document.activeElement!==el) el.value = (val===null||val===undefined||val==='') ? '' : fmtFuel(val);
   };
   set('vs_unit_me', meCons, unitOv.ME!=null);
   set('vs_unit_ge', geCons, unitOv.GE!=null);
@@ -20511,9 +20514,9 @@ function computeLiveConsByType(){
   const unitMe = document.getElementById('vs_unit_me');
   const unitGe = document.getElementById('vs_unit_ge');
   const unitBlr = document.getElementById('vs_unit_blr');
-  if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-  if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-  if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+  if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+  if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+  if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
   const rawFuel = {"HFO":0,"LSFO":0,"MDO/MGO":0,"LSMGO":0};
   if (meCons && curEntry.me.type) rawFuel[curEntry.me.type] += meCons;
   if (geCons && curEntry.ge.type) rawFuel[curEntry.ge.type] += geCons;
