@@ -5165,9 +5165,9 @@ function totalLubeRob(robLube){
 function totalFwRob(robLube){
   return fwTankList().reduce((s,t)=> s + (robLube?.[t.id] ?? robLube?.[t.name] ?? 0), 0);
 }
-function sumRobCons(row, cat){
-  const vals = getRobRows().filter(r=>r.cat===cat).map(r=>robRowCons(row, r)).filter(v=>v!=null && !isNaN(v));
-  return vals.length ? vals.reduce((a,b)=>a+b, 0) : null;
+function sumRobCons(row, cat, prevRobData){
+  const vals = getRobRows().filter(r=>r.cat===cat).map(r=>robRowCons(row, r, prevRobData)).filter(v=>v!=null && !isNaN(v));
+  return vals.length ? roundFuelMt(vals.reduce((a,b)=>a+b, 0)) : null;
 }
 function robBalanceRows(row, prevRobData, asOf, entryHint){
   const entry = entryHint || (typeof currentVsEntryId !== 'undefined' && currentVsEntryId
@@ -5177,7 +5177,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
   const addTank = (r) => {
     const prevVal = r.cat==='fuel' ? prevRobData.rob?.[r.key] : prevRobData.robLube?.[r.key];
     const nowVal = r.cat==='fuel' ? asOf.rob?.[r.key] : asOf.robLube?.[r.key];
-    const consVal = robRowCons(row, r);
+    const consVal = robRowCons(row, r, prevRobData);
     /* Received is user/stamped input only. Never back-solve from
        now − previous + cons: grade-level cons on multi-tank grades (and FW
        live fills) invented phantom bunkers that were then stamped on save and
@@ -5198,7 +5198,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
       key: 'totallubes', label: 'TOTAL LUBES', cat: 'lube', total: true, strong: true,
       prevVal: totalLubeRob(prevRobData.robLube || {}),
       recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
-      consVal: sumRobCons(row, 'lube'),
+      consVal: sumRobCons(row, 'lube', prevRobData),
       nowVal: totalLubeRob(asOf.robLube || {}),
       dec: robDec('lube'), consDec: robDec('lube')
     });
@@ -5211,7 +5211,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
       key: 'totalwater', label: 'TOTAL WATER', cat: 'fw', total: true, strong: true,
       prevVal: totalFwRob(prevRobData.robLube || {}),
       recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
-      consVal: sumRobCons(row, 'fw'),
+      consVal: sumRobCons(row, 'fw', prevRobData),
       nowVal: totalFwRob(asOf.robLube || {}),
       dec: robDec('fw'), consDec: robDec('fw')
     });
@@ -8715,6 +8715,13 @@ function geLoadBandMax(loadPct){
 }
 
 function fmtFuel(n){ return fmt(n, FUEL_DECIMALS); }
+/** Fuel mass (MT) at display precision — ROB and cumFuel must deduct what flowmeters show (3 dp), not float noise from litres×SG. */
+function roundFuelMt(n){
+  if (n==null || n==='') return null;
+  const x = Number(n);
+  if (!isFinite(x)) return null;
+  return Number(x.toFixed(FUEL_DECIMALS));
+}
 /* Append measurement unit immediately after a formatted result (not table cells). */
 function unitSpan(u){
   return u ? ` <span class="unit">${escHtml(String(u))}</span>` : '';
@@ -9307,13 +9314,13 @@ function computeDerived(opts){
 
       const {meRaw, geRaw} = meGeRawLitres(e, prev, rolls);
       const blrD = meterDelta(e.blr.meter, prev.blr.meter, rolls.boiler);
-      meCons = meRaw!==null ? (meRaw*e.me.sg)/1000 : null;
-      geCons = geRaw!==null ? (geRaw*e.ge.sg)/1000 : null;
-      blrCons = blrD!==null ? (blrD*e.blr.sg)/1000 : null;
+      meCons = meRaw!==null ? roundFuelMt((meRaw*e.me.sg)/1000) : null;
+      geCons = geRaw!==null ? roundFuelMt((geRaw*e.ge.sg)/1000) : null;
+      blrCons = blrD!==null ? roundFuelMt((blrD*e.blr.sg)/1000) : null;
       const unitOv = e.unitOverride || {};
-      if (unitOv.ME!=null) meCons = unitOv.ME;
-      if (unitOv.GE!=null) geCons = unitOv.GE;
-      if (unitOv.BLR!=null) blrCons = unitOv.BLR;
+      if (unitOv.ME!=null) meCons = roundFuelMt(unitOv.ME);
+      if (unitOv.GE!=null) geCons = roundFuelMt(unitOv.GE);
+      if (unitOv.BLR!=null) blrCons = roundFuelMt(unitOv.BLR);
       /* Engine stopped: blank a nil M/E burn. A non-zero figure is kept and still
          shown, because it is real fuel that the ROB chain has to account for. */
       if (meStopped && !(meCons > 0)) meCons = null;
@@ -9334,8 +9341,10 @@ function computeDerived(opts){
       rawFuel['LSMGO'] += miscLsmgo;
       EXTRA_DO_GRADES.forEach(t => { rawFuel[t] += blrExtra[t] + incExtra[t]; });
       FUEL_TYPES.forEach(t=>{
-        consByType[t] = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
-        consByFuel[t] += consByType[t];
+        let v = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
+        if (v != null) v = roundFuelMt(v);
+        consByType[t] = v;
+        if (v != null) consByFuel[t] = roundFuelMt(consByFuel[t] + v);
       });
 
       const cylD = meterDelta(e.cylMeter, prev.cylMeter, rolls.cyl);
@@ -17082,8 +17091,18 @@ function getRobRows(){
     ...fwTankList().map(t=>({key:t.id, label:t.name, cat:'fw'}))
   ];
 }
-function robRowCons(row, r){
-  if (r.cat==='fuel') return row.consByType?.[r.grade] ?? row.consByType?.[r.key];
+function robRowCons(row, r, prevRobData){
+  if (r.cat==='fuel'){
+    const gradeCons = row.consByType?.[r.grade];
+    if (gradeCons == null) return row.consByType?.[r.key];
+    const peers = fuelTankList().filter(t => t.grade === r.grade);
+    if (peers.length <= 1) return roundFuelMt(gradeCons);
+    const prevVal = Number(prevRobData?.rob?.[r.key]) || 0;
+    let stock = 0;
+    peers.forEach(t => { stock += Number(prevRobData?.rob?.[t.id]) || 0; });
+    const share = stock > 0 ? (prevVal / stock) : (1 / peers.length);
+    return roundFuelMt(gradeCons * share);
+  }
   if (r.cat==='fw'){
     if (row.fwConsByTank && row.fwConsByTank[r.key]!=null) return row.fwConsByTank[r.key];
     const first = fwTankList()[0];
@@ -18055,16 +18074,18 @@ function openVoyageSummary(entryId){
   renderVsPerfTable(entryId);
 
   const unitOv = entry.unitOverride || {};
-  const meConsVal = unitOv.ME!=null ? unitOv.ME : row.meCons;
-  const geConsVal = unitOv.GE!=null ? unitOv.GE : row.geCons;
-  const blrConsVal = unitOv.BLR!=null ? unitOv.BLR : row.blrCons;
-  const unitVal = v => (v==null || isNaN(v)) ? '' : Number(v).toFixed(3);
   /* What the flowmeters actually measured for this period, before any override.
      Shown beside each typed box so the engineer overriding a figure can see the
      basis being departed from — previously the metered figure was only reachable
      by pressing a button that discarded the override to reveal it. */
   const metered = meterDerivedUnitCons(entry);
-  const basis = v => (v==null || isNaN(v)) ? '—' : Number(v).toFixed(3);
+  /* Prefill with flowmeter MT at 3 dp (same as live preview / ROB). Save compares
+     display strings to meterDerived so a prefilled 0.303 is not stored as override. */
+  const meConsVal = unitOv.ME!=null ? roundFuelMt(unitOv.ME) : (metered.meCons ?? row.meCons);
+  const geConsVal = unitOv.GE!=null ? roundFuelMt(unitOv.GE) : (metered.geCons ?? row.geCons);
+  const blrConsVal = unitOv.BLR!=null ? roundFuelMt(unitOv.BLR) : (metered.blrCons ?? row.blrCons);
+  const unitVal = v => (v==null || v==='' || isNaN(v)) ? '' : fmtFuel(Number(v));
+  const basis = v => (v==null || isNaN(v)) ? '—' : fmtFuel(Number(v));
   const consRow = (label, id, val, meterVal, editable) => `
     <div class="cons-row">
       <div class="field${editable ? '' : ' calc'}"><label>${label}</label>
@@ -18214,23 +18235,27 @@ function computeVsLiveConsByType(entry){
     return isNaN(v) ? null : v;
   };
   const row = getComputedRow(entry.id);
-  const meCons = num('vs_unit_me') ?? row?.meCons;
-  const geCons = num('vs_unit_ge') ?? row?.geCons;
-  const blrCons = num('vs_unit_blr') ?? row?.blrCons;
+  const meterUnits = meterDerivedUnitCons(entry);
+  const meConsRaw = num('vs_unit_me') ?? meterUnits.meCons ?? row?.meCons;
+  const geConsRaw = num('vs_unit_ge') ?? meterUnits.geCons ?? row?.geCons;
+  const blrConsRaw = num('vs_unit_blr') ?? meterUnits.blrCons ?? row?.blrCons;
+  const meCons = meConsRaw==null ? null : roundFuelMt(meConsRaw);
+  const geCons = geConsRaw==null ? null : roundFuelMt(geConsRaw);
+  const blrCons = blrConsRaw==null ? null : roundFuelMt(blrConsRaw);
   const meType = document.getElementById('me_type')?.value || entry.me?.type;
   const geType = document.getElementById('ge_type')?.value || entry.ge?.type;
   const blrType = document.getElementById('blr_type')?.value || entry.blr?.type;
-  if (meCons!=null && meType) consByType[meType] = (consByType[meType]||0) + meCons;
-  if (geCons!=null && geType) consByType[geType] = (consByType[geType]||0) + geCons;
-  if (blrCons!=null && blrType) consByType[blrType] = (consByType[blrType]||0) + blrCons;
-  consByType['MDO/MGO'] = (consByType['MDO/MGO']||0) + (num('vs_misc_mdomgo')||0);
-  consByType['LSMGO'] = (consByType['LSMGO']||0) + (num('vs_misc_lsmgo')||0);
+  if (meCons!=null && meType) consByType[meType] = roundFuelMt((consByType[meType]||0) + meCons);
+  if (geCons!=null && geType) consByType[geType] = roundFuelMt((consByType[geType]||0) + geCons);
+  if (blrCons!=null && blrType) consByType[blrType] = roundFuelMt((consByType[blrType]||0) + blrCons);
+  consByType['MDO/MGO'] = roundFuelMt((consByType['MDO/MGO']||0) + (num('vs_misc_mdomgo')||0));
+  consByType['LSMGO'] = roundFuelMt((consByType['LSMGO']||0) + (num('vs_misc_lsmgo')||0));
   /* Boiler pilot / incinerator D.O. is hand-booked the same way as misc — include
      it in the live R.O.B. table as soon as it is typed, not only after Save. */
   EXTRA_DO_GRADES.forEach(t=>{
     const blr = num(t === 'MDO/MGO' ? 'vs_blrExtra_mdomgo' : 'vs_blrExtra_lsmgo') || 0;
     const inc = num(t === 'MDO/MGO' ? 'vs_incExtra_mdomgo' : 'vs_incExtra_lsmgo') || 0;
-    consByType[t] = (consByType[t]||0) + blr + inc;
+    consByType[t] = roundFuelMt((consByType[t]||0) + blr + inc);
   });
 
   const prev = previousEntryFor(entry.id) || effectiveCarryover();
@@ -18280,11 +18305,13 @@ function updateVsRobLiveFromCons(){
     if (!consEl) return;
     // Fuel grades + FW are calculated (not editable); leave lube oil cons as the user set it.
     if (r.cat!=='lube'){
+      const priorEntry = previousEntryFor(entry.id);
+      const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
       const liveCons = robRowCons({
         consByType: live.consByType,
         lubeByType: live.lubeByType,
         fwConsByTank: live.fwConsByTank
-      }, r);
+      }, r, prevRobData);
       consEl.value = fmtRobInput(liveCons, r.cat);
     }
     const prevVal = parseFloat(consEl.dataset.prev)||0;
@@ -19769,15 +19796,15 @@ function updateLivePreview(){
     if (hrs>0){
       const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
       const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-      meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+      meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
       const unitMe = document.getElementById('vs_unit_me');
       const unitGe = document.getElementById('vs_unit_ge');
       const unitBlr = document.getElementById('vs_unit_blr');
-      if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-      if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-      if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+      if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+      if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+      if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
       if (meStopped){
         if (!(meCons > 0)) meCons = null;
       } else if (rpmEff != null){
@@ -19830,9 +19857,9 @@ function updateLivePreview(){
 function computeRawUnitCons(curEntry, prevRef, rolls){
   const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
   const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
   return {meCons, geCons, blrCons};
 }
 
@@ -19866,7 +19893,7 @@ function renderEntryUnitFields(){
   const set = (id, val, keep) => {
     if (keep) return;
     const el = document.getElementById(id);
-    if (el && document.activeElement!==el) el.value = (val===null||val===undefined) ? '' : val;
+    if (el && document.activeElement!==el) el.value = (val===null||val===undefined||val==='') ? '' : fmtFuel(val);
   };
   set('vs_unit_me', meCons, unitOv.ME!=null);
   set('vs_unit_ge', geCons, unitOv.GE!=null);
@@ -20487,9 +20514,9 @@ function computeLiveConsByType(){
   const unitMe = document.getElementById('vs_unit_me');
   const unitGe = document.getElementById('vs_unit_ge');
   const unitBlr = document.getElementById('vs_unit_blr');
-  if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-  if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-  if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+  if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+  if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+  if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
   const rawFuel = {"HFO":0,"LSFO":0,"MDO/MGO":0,"LSMGO":0};
   if (meCons && curEntry.me.type) rawFuel[curEntry.me.type] += meCons;
   if (geCons && curEntry.ge.type) rawFuel[curEntry.ge.type] += geCons;
