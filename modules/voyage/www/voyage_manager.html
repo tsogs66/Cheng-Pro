@@ -12157,9 +12157,7 @@ function render(){
     <div class="stat"><div class="num">${etaStr}</div><div class="lbl">ETA</div></div>
   `;
 
-  // Calculated ROB gauges: Opening vs Present/Consumed from Dep/Arr book
-  // (saved log ROB + log consumption). Do not use currentROB() — that rebuilds
-  // from flowmeters and can re-add stamped Received on top of receipts.
+  // Calculated ROB gauges: voyage opening vs Present from the log chain (robAsOf).
   const calcRows = depArrRobRows(consByFuel, consByLube);
   const calcById = Object.fromEntries(calcRows.map(r => [r.id, r]));
   const calcRobLube = {};
@@ -13832,35 +13830,63 @@ function depArrPresentRob(tank, cat, open, received, consumed, lastEntry){
 }
 
 function depArrRobRows(consByFuel, consByLube){
-  /* Opening / Received / Consumed from vessel opening + receipts + log overrides;
-     Present prefers saved log ROB, else book identity. Do not use currentROB()
-     (flowmeter book rebuild) — that re-added stamped Received on top of receipts. */
+  /* Opening / Received / Consumed for Dep/Arr + Home gauges. Present must match the
+     voyage log chain (robAsOf on the last entry) — same as Voyage Summary Present
+     R.O.B. The old open+received−consumed split used a static grade share and
+     drifted after surveys, receipt cutoffs, and multi-grade burns. */
   void consByFuel; void consByLube;
   const { rows: derivedRows } = computeDerived();
   const lastRow = derivedRows.length ? derivedRows[derivedRows.length - 1] : null;
   const lastEntry = lastRow
     ? (state.entries || []).find(e => e.id === lastRow.id)
     : null;
+  const asOfLast = lastRow ? robAsOfComputedRow(lastRow, derivedRows) : null;
+  const presentFromChain = (t, cat) => {
+    if (lastEntry && lastEntry.robSurvey){
+      const p = depArrPresentRob(t, cat, 0, 0, 0, lastEntry);
+      if (cat === 'fuel' && lastEntry.robSurvey.measured?.[t.id] != null) return p;
+      if (cat !== 'fuel' && lastEntry.robSurvey.measuredLube?.[t.id] != null) return p;
+    }
+    if (cat === 'fw') return depArrPresentRob(t, cat, 0, 0, 0, lastEntry);
+    const store = cat === 'fuel' ? asOfLast?.rob : asOfLast?.robLube;
+    if (store && store[t.id] != null && !isNaN(Number(store[t.id]))) return Number(store[t.id]);
+    return null;
+  };
   const rows = [];
   fuelTankList().forEach(t=>{
     const open = tankRobValue(state.setup.rob, t) || 0;
     const received = voyageReceivedQty(t, 'fuel');
-    const consumed = voyageConsumedFromLog(t, 'fuel', derivedRows);
-    const present = depArrPresentRob(t, 'fuel', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'fuel');
+    let consumed = voyageConsumedFromLog(t, 'fuel', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'fuel', open, received, consumed, lastEntry);
+    } else {
+      consumed = roundFuelMt(Math.max(0, open + received - present));
+    }
     rows.push({ id:t.id, label:t.name, unit:'MT', open, received, consumed, present, cat:'fuel' });
   });
   lubeTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
     const received = voyageReceivedQty(t, 'lube');
-    const consumed = voyageConsumedFromLog(t, 'lube', derivedRows);
-    const present = depArrPresentRob(t, 'lube', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'lube');
+    let consumed = voyageConsumedFromLog(t, 'lube', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'lube', open, received, consumed, lastEntry);
+    } else {
+      consumed = Math.max(0, open + received - present);
+    }
     rows.push({ id:t.id, label:t.name, unit:'L', open, received, consumed, present, cat:'lube' });
   });
   fwTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
     const received = voyageReceivedQty(t, 'fw');
-    const consumed = voyageConsumedFromLog(t, 'fw', derivedRows);
-    const present = depArrPresentRob(t, 'fw', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'fw');
+    let consumed = voyageConsumedFromLog(t, 'fw', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'fw', open, received, consumed, lastEntry);
+    } else {
+      consumed = Math.max(0, open + received - present);
+    }
     rows.push({ id:t.id, label:t.name, unit:'m³', open, received, consumed, present, cat:'fw' });
   });
   /* Insert totals after each group: lube total after the last lube, water after the last fw. */
