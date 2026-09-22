@@ -89,6 +89,34 @@ const tanks = [
   assert(Math.abs(g.LSFO - 1) < 1e-9, `LSFO still from ME when LSMGO overridden (got ${g.LSFO})`);
 }
 
+/* Multi-tank same grade: deduct by live stock (matches Voyage robAsOf), not fixed share. */
+{
+  const setup = {
+    fuelTanks: [
+      { id: 't1', name: 'LSFO TK1', grade: 'LSFO' },
+      { id: 't2', name: 'LSFO TK2', grade: 'LSFO' },
+    ],
+    rob: { t1: 100, t2: 100 },
+    carryover: null,
+  };
+  const entries = [{
+    datetime: '2026-09-05T12:00',
+    me: { type: 'LSFO' },
+    ge: { type: 'LSFO' },
+    blr: { type: 'LSFO' },
+    unitOverride: { ME: 50, GE: 0, BLR: 0 },
+    miscCons: {},
+    blrExtraCons: {},
+    incExtraCons: {},
+  }];
+  const receipts = [{ category: 'fuel', tankId: 't1', qty: 100, source: 'hand' }];
+  const calc = Bridge.buildHomeCalculatedRob(setup, entries, receipts);
+  assert(Math.abs(calc.robCurrent.t1 - (200 - (200 / 300) * 50)) < 1e-6,
+    `TK1 present after stock-weighted 50 MT burn (got ${calc.robCurrent.t1})`);
+  assert(Math.abs(calc.robCurrent.t2 - (100 - (100 / 300) * 50)) < 1e-6,
+    `TK2 present after stock-weighted 50 MT burn (got ${calc.robCurrent.t2})`);
+}
+
 /* Present book: Opening + Received − Consumed for LSMGO. */
 {
   const setup = {

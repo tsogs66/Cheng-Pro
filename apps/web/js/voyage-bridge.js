@@ -747,6 +747,22 @@
     return grades;
   }
 
+  function homeDeductGradeConsumption(robMap, fuelTanks, grade, consumed) {
+    const c = Number(consumed) || 0;
+    if (!(c > 0)) return;
+    const group = fuelTanks.filter((p) => (p.grade || p.name) === grade);
+    if (!group.length) return;
+    const total = group.reduce((s, p) => s + (Number(robMap[p.id]) || 0), 0);
+    if (total <= 0) {
+      robMap[group[0].id] = (Number(robMap[group[0].id]) || 0) - c;
+      return;
+    }
+    group.forEach((p) => {
+      const share = (Number(robMap[p.id]) || 0) / total;
+      robMap[p.id] = (Number(robMap[p.id]) || 0) - c * share;
+    });
+  }
+
   function buildHomeCalculatedRob(setup, entries, receipts) {
     const fuelTanks = Array.isArray(setup && setup.fuelTanks) ? setup.fuelTanks : [];
     const robStart = { ...((setup && setup.rob) || {}) };
@@ -755,12 +771,18 @@
     const list = Array.isArray(entries) ? entries : [];
     const consByGrade = homeSavedFuelConsByGrade(list, fuelTanks, setup && setup.carryover);
 
+    const robBook = {};
+    for (const t of fuelTanks) {
+      const open = Number(robStart[t.id]) || 0;
+      robBook[t.id] = open + homeFuelReceiptQty(receipts, t);
+    }
+    HOME_FUEL_GRADES.forEach((g) => {
+      homeDeductGradeConsumption(robBook, fuelTanks, g, consByGrade[g] || 0);
+    });
+
     for (const t of fuelTanks) {
       const open = Number(robStart[t.id]) || 0;
       const received = homeFuelReceiptQty(receipts, t);
-      const grade = t.grade || t.name;
-      const peers = fuelTanks.filter((p) => (p.grade || p.name) === grade);
-      const consumed = (Number(consByGrade[grade]) || 0) * homeStockShare(peers, t, robStart, receipts);
       let measured = null;
       for (let i = list.length - 1; i >= 0; i--) {
         const m = list[i] && list[i].robSurvey && list[i].robSurvey.measured
@@ -771,12 +793,12 @@
           break;
         }
       }
-      robUsed[t.id] = Math.max(0, consumed);
       if (measured != null) {
         robCurrent[t.id] = measured;
-        if (!(consumed > 0)) robUsed[t.id] = Math.max(0, open + received - measured);
+        robUsed[t.id] = Math.max(0, open + received - measured);
       } else {
-        robCurrent[t.id] = open + received - robUsed[t.id];
+        robCurrent[t.id] = robBook[t.id] != null ? robBook[t.id] : open + received;
+        robUsed[t.id] = Math.max(0, open + received - robCurrent[t.id]);
       }
     }
     return { robStart, robCurrent, robUsed };
