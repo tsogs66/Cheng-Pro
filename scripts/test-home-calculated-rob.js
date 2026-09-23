@@ -269,4 +269,51 @@ const tanks = [
   assert(Math.abs(g.LSFO - geOnly) < 1e-6, `stopped ME, nil M/E Δ: only GE burn (got ${g.LSFO})`);
 }
 
+/* Bunker survey +/− correction must drive Home present (not uncorrected chain). */
+{
+  const setup = {
+    fuelTanks: [{ id: 'lsfo', name: 'LSFO', grade: 'LSFO' }],
+    rob: { lsfo: 1407.292 },
+    carryover: null,
+  };
+  const entries = [{
+    id: 'e-last',
+    datetime: '2026-09-10T12:00',
+    me: { type: 'LSFO' },
+    ge: { type: 'LSFO' },
+    blr: { type: 'LSFO' },
+    unitOverride: { ME: 75.35, GE: 0, BLR: 0 },
+    robSurvey: {
+      measured: { lsfo: 1331.942 },
+      calculated: { lsfo: 1335.954 },
+      difference: { lsfo: -4.012 },
+    },
+  }];
+  const calc = Bridge.buildHomeCalculatedRob(setup, entries, []);
+  assert(Math.abs(calc.robCurrent.lsfo - 1331.942) < 1e-6,
+    `Present uses survey measured (got ${calc.robCurrent.lsfo})`);
+  assert(Math.abs(calc.robUsed.lsfo - 75.35) < 1e-3,
+    `Used = open − corrected present (got ${calc.robUsed.lsfo})`);
+}
+
+{
+  const setup = {
+    fuelTanks: [{ id: 'lsfo', name: 'LSFO', grade: 'LSFO' }],
+    rob: { lsfo: 500 },
+    carryover: null,
+  };
+  const entries = [{
+    datetime: '2026-09-02T12:00',
+    me: { type: 'LSFO' },
+    unitOverride: { ME: 10, GE: 0, BLR: 0 },
+    robSurvey: {
+      calculated: { lsfo: 490 },
+      difference: { lsfo: -5 },
+    },
+  }];
+  const calc = Bridge.buildHomeCalculatedRob(setup, entries, []);
+  assert(Math.abs(calc.robCurrent.lsfo - 485) < 1e-6,
+    `Present = calculated + correction when measured omitted (got ${calc.robCurrent.lsfo})`);
+}
+
 console.log('All Home Calculated ROB grade-book checks passed.');

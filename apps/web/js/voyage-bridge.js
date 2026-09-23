@@ -952,6 +952,40 @@
     return rob;
   }
 
+  /**
+   * Present fuel ROB for Home / Dep/Arr parity — survey sounding correction included.
+   * Last-entry survey: measured, else calculated + difference (+/− correction), else log chain.
+   */
+  function homeFuelPresentForTank(t, setup, entries, receipts, lastEntry, robChain) {
+    const sv = lastEntry && lastEntry.robSurvey;
+    if (sv) {
+      const rawM = sv.measured && sv.measured[t.id];
+      if (rawM != null && rawM !== '' && Number.isFinite(Number(rawM))) {
+        return Number(rawM);
+      }
+      const calc = sv.calculated && sv.calculated[t.id] != null ? Number(sv.calculated[t.id]) : null;
+      const diff = sv.difference && sv.difference[t.id] != null ? Number(sv.difference[t.id]) : null;
+      if (calc != null && diff != null && Number.isFinite(calc) && Number.isFinite(diff)) {
+        const corrected = homeRoundFuelMt(calc + diff);
+        return corrected != null ? corrected : calc + diff;
+      }
+      if (diff != null && Number.isFinite(diff) && robChain && robChain[t.id] != null) {
+        const chain = Number(robChain[t.id]);
+        if (calc != null && Number.isFinite(calc) && Math.abs(chain - calc) < 0.05) {
+          const corrected = homeRoundFuelMt(calc + diff);
+          return corrected != null ? corrected : calc + diff;
+        }
+        const corrected = homeRoundFuelMt(chain + diff);
+        return corrected != null ? corrected : chain + diff;
+      }
+    }
+    if (robChain && robChain[t.id] != null && !isNaN(Number(robChain[t.id]))) {
+      return Number(robChain[t.id]);
+    }
+    const open = Number((setup && setup.rob && setup.rob[t.id]) || 0);
+    return open + homeVoyageReceivedQty(receipts, entries, t, 'fuel');
+  }
+
   function buildHomeCalculatedRob(setup, entries, receipts) {
     const fuelTanks = Array.isArray(setup && setup.fuelTanks) ? setup.fuelTanks : [];
     const robStart = { ...((setup && setup.rob) || {}) };
@@ -966,14 +1000,7 @@
       const open = Number(robStart[t.id]) || 0;
       /* Dep/Arr Consumed = Opening + voyage Received − Present (same Received column). */
       const received = homeVoyageReceivedQty(receipts, list, t, 'fuel');
-      let present = null;
-      if (lastEntry && lastEntry.robSurvey && lastEntry.robSurvey.measured
-          && lastEntry.robSurvey.measured[t.id] != null) {
-        present = Number(lastEntry.robSurvey.measured[t.id]);
-      } else if (robChain[t.id] != null && !isNaN(Number(robChain[t.id]))) {
-        present = Number(robChain[t.id]);
-      }
-      if (present == null) present = open + received;
+      const present = homeFuelPresentForTank(t, setup, list, receipts, lastEntry, robChain);
       robCurrent[t.id] = present;
       robUsed[t.id] = homeRoundFuelMt(Math.max(0, open + received - present)) ?? 0;
     }
@@ -1379,6 +1406,7 @@
     normalizeImo,
     normalizeVesselName,
     buildHomeCalculatedRob,
+    homeFuelPresentForTank,
     buildHomeCalculatedLubeRob,
     homeSavedFuelConsByGrade,
     homeSavedLubeConsByKind,
