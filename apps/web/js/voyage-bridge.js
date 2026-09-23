@@ -1306,6 +1306,15 @@
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
+      const lastEntry = entries.length ? entries[entries.length - 1] : null;
+      const robSurveyCorr = {};
+      if (lastEntry && lastEntry.robSurvey && lastEntry.robSurvey.difference) {
+        fuelTanks.forEach((t) => {
+          const d = lastEntry.robSurvey.difference[t.id];
+          if (d != null && Number.isFinite(Number(d))) robSurveyCorr[t.id] = Number(d);
+        });
+      }
+
       const perf = deriveLastEntryPerf(setup, entries);
       const lastRpm = perf.lastRpm;
       const lastSlip = perf.lastSlip;
@@ -1335,6 +1344,7 @@
         robStart,
         robCurrent,
         robUsed,
+        robSurveyCorr,
         robLubeStart,
         robLubeCurrent,
         lastSpeed: progress.lastSpeed,

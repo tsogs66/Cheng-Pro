@@ -539,9 +539,13 @@
       const used = (snap.robUsed && snap.robUsed[t.id] != null)
         ? Math.max(0, Number(snap.robUsed[t.id]) || 0)
         : Math.max(0, startVal - curVal);
+      const corr = snap.robSurveyCorr && snap.robSurveyCorr[t.id];
+      const corrBit = (corr != null && Math.abs(Number(corr)) >= 1e-9)
+        ? ` · corr ${Number(corr) > 0 ? '+' : '−'}${fmtFuel(Math.abs(Number(corr)))}`
+        : '';
       return `<div class="gauge-box">${dualGaugeSVG(startVal / cap, curVal / cap, gaugeColor(t))}
         <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
-        <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(used), 'MT')}</div>
+        <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(used), 'MT')}${corrBit}</div>
         <div class="gauge-label">${esc(t.name || t.id)}</div></div>`;
     }).join('');
   }
