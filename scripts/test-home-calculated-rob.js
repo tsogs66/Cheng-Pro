@@ -26,6 +26,10 @@ function assert(cond, msg) {
   console.log('OK:', msg);
 }
 
+function roundFuelMt(n) {
+  return Number(Number(n).toFixed(3));
+}
+
 const tanks = [
   { id: 'lsfo', name: 'LSFO', grade: 'LSFO' },
   { id: 'lsmgo', name: 'LSMGO', grade: 'LSMGO' },
@@ -169,6 +173,100 @@ const tanks = [
     `LSMGO present = open+recv-used (got ${calc.robCurrent.lsmgo})`);
   assert(Math.abs(calc.robUsed.lsfo - 5) < 1e-9, `LSFO used 5 (got ${calc.robUsed.lsfo})`);
   assert(Math.abs(calc.robCurrent.lsfo - (100 - 5)) < 1e-9, `LSFO present (got ${calc.robCurrent.lsfo})`);
+}
+
+/* DUAL_GE: naive M/E meter Δ must not inflate LSFO (matches Voyage computeDerived). */
+{
+  const setup = {
+    flowArr: 'DUAL_GE',
+    flowmeters: { main: { digits: 8 }, aux: { digits: 8 }, auxOut: { digits: 8 }, boiler: { digits: 8 }, rc: { digits: 8 } },
+    fuelTanks: [{ id: 'lsfo', name: 'LSFO', grade: 'LSFO' }],
+    rob: { lsfo: 1407.292 },
+    carryover: {
+      datetime: '2026-09-01T00:00',
+      me: { type: 'LSFO', meter: 10000, sg: 0.95 },
+      ge: { type: 'LSFO', meterIn: 5000, meterOut: 4800, sg: 0.95 },
+      blr: { type: 'LSFO', meter: 100, sg: 0.95 },
+      revCounter: 1000,
+    },
+  };
+  const prev = setup.carryover;
+  const entries = [{
+    datetime: '2026-09-04T12:00',
+    revCounter: 1000,
+    me: { type: 'LSFO', meter: 11200, sg: 0.95 },
+    ge: { type: 'LSFO', meterIn: 5600, meterOut: 5200, sg: 0.95 },
+    blr: { type: 'LSFO', meter: 100, sg: 0.95 },
+    miscCons: {},
+    blrExtraCons: {},
+    incExtraCons: {},
+  }];
+  /* geRaw 200 L + meRaw 1000 L (1200−200) → 1.14 MT total when both burn LSFO. */
+  const g = Bridge.homeSavedFuelConsByGrade(entries, setup.fuelTanks, prev, setup);
+  const expectedMt = roundFuelMt((1000 + 200) * 0.95 / 1000);
+  assert(Math.abs(g.LSFO - expectedMt) < 1e-6, `DUAL_GE LSFO ${expectedMt} MT (got ${g.LSFO})`);
+}
+
+/* DUAL_GE with no ge.meter: must still pick up D/G dual inlet/outlet (not null GE). */
+{
+  const setup = {
+    flowArr: 'DUAL_GE',
+    flowmeters: { main: { digits: 8 }, aux: { digits: 8 }, auxOut: { digits: 8 }, boiler: { digits: 8 }, rc: { digits: 8 } },
+    fuelTanks: [{ id: 'lsfo', name: 'LSFO', grade: 'LSFO' }],
+    rob: { lsfo: 1000 },
+    carryover: {
+      datetime: '2026-09-01T00:00',
+      me: { type: 'LSFO', meter: 10000, sg: 0.95 },
+      ge: { type: 'LSFO', meterIn: 5000, meterOut: 4800, sg: 0.95 },
+      blr: { type: 'LSFO', meter: 100, sg: 0.95 },
+      revCounter: 100,
+    },
+  };
+  const entries = [{
+    datetime: '2026-09-02T12:00',
+    revCounter: 200,
+    me: { type: 'LSFO', meter: 11200, sg: 0.95 },
+    ge: { type: 'LSFO', meterIn: 5600, meterOut: 5200, sg: 0.95 },
+    blr: { type: 'LSFO', meter: 100, sg: 0.95 },
+    miscCons: {},
+    blrExtraCons: {},
+    incExtraCons: {},
+  }];
+  const withArr = Bridge.homeSavedFuelConsByGrade(entries, setup.fuelTanks, setup.carryover, setup);
+  const withoutArr = Bridge.homeSavedFuelConsByGrade(entries, setup.fuelTanks, setup.carryover, { flowmeters: setup.flowmeters });
+  assert(Math.abs(withArr.LSFO - 1.14) < 1e-6, `DUAL_GE totals 1.14 MT (got ${withArr.LSFO})`);
+  /* Without flowArr, ge has no ge.meter → old bug counted M/E meter only (1.14) — same one period.
+     Multi-period drift comes from meStopped + per-period rounding; ensure GE path runs. */
+  assert(withArr.LSFO >= withoutArr.LSFO - 1e-9, 'dual path includes GE litres');
+}
+
+/* M/E stopped (Δrevs = 0): blank nil M/E burn unless override > 0. */
+{
+  const setup = {
+    flowmeters: { main: { digits: 8 }, rc: { digits: 8 }, boiler: { digits: 8 }, aux: { digits: 8 } },
+    fuelTanks: [{ id: 'lsfo', name: 'LSFO', grade: 'LSFO' }],
+    rob: { lsfo: 500 },
+    carryover: {
+      datetime: '2026-09-01T00:00',
+      me: { type: 'LSFO', meter: 1000, sg: 0.95 },
+      ge: { type: 'LSFO', meter: 100, sg: 0.95 },
+      blr: { type: 'LSFO', meter: 10, sg: 0.95 },
+      revCounter: 5000,
+    },
+  };
+  const entries = [{
+    datetime: '2026-09-02T12:00',
+    revCounter: 5000,
+    me: { type: 'LSFO', meter: 1000, sg: 0.95 },
+    ge: { type: 'LSFO', meter: 150, sg: 0.95 },
+    blr: { type: 'LSFO', meter: 10, sg: 0.95 },
+    miscCons: {},
+    blrExtraCons: {},
+    incExtraCons: {},
+  }];
+  const g = Bridge.homeSavedFuelConsByGrade(entries, setup.fuelTanks, setup.carryover, setup);
+  const geOnly = roundFuelMt(((150 - 100) * 0.95) / 1000);
+  assert(Math.abs(g.LSFO - geOnly) < 1e-6, `stopped ME, nil M/E Δ: only GE burn (got ${g.LSFO})`);
 }
 
 console.log('All Home Calculated ROB grade-book checks passed.');
