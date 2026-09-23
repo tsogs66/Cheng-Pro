@@ -760,8 +760,71 @@
   function homeMeterDelta(curr, prev, roll) {
     if (curr == null || prev == null || isNaN(Number(curr)) || isNaN(Number(prev))) return null;
     let d = Number(curr) - Number(prev);
-    if (d < 0) d += (Number(roll) || 1e8);
+    if (d < 0) d = (Number(curr) + (Number(roll) || 1e8)) - Number(prev);
     return d;
+  }
+
+  function homeDualDelta(currIn, prevIn, currOut, prevOut, rollIn, rollOut) {
+    const inD = homeMeterDelta(currIn, prevIn, rollIn);
+    const outD = homeMeterDelta(currOut, prevOut, rollOut != null ? rollOut : rollIn);
+    if (inD == null || outD == null) return null;
+    return inD - outD;
+  }
+
+  function homeMeterRollovers(setup) {
+    const fm = (setup && setup.flowmeters) || {};
+    const dig = (m, d) => Math.pow(10, (fm[m] && fm[m].digits) || d || 8);
+    return {
+      main: dig('main'),
+      mainOut: dig('mainOut'),
+      aux: dig('aux'),
+      auxOut: dig('auxOut'),
+      boiler: dig('boiler'),
+      cyl: dig('cyl'),
+      rc: dig('rc'),
+      fw: dig('fw'),
+      generic: 100000000,
+    };
+  }
+
+  /** Same formulas as Voyage meGeRawLitres (SINGLE / DUAL_GE / DUAL_ME / DUAL_BOTH). */
+  function homeMeGeRawLitres(e, prev, rolls, flowArr) {
+    const arr = flowArr || 'SINGLE';
+    let meRaw = null;
+    let geRaw = null;
+    if (!e || !prev) return { meRaw, geRaw };
+    if (arr === 'SINGLE') {
+      meRaw = homeMeterDelta(e.me && e.me.meter, prev.me && prev.me.meter, rolls.main);
+      geRaw = homeMeterDelta(e.ge && e.ge.meter, prev.ge && prev.ge.meter, rolls.aux);
+    } else if (arr === 'DUAL_ME') {
+      meRaw = homeDualDelta(
+        e.me && e.me.meterIn, prev.me && prev.me.meterIn,
+        e.me && e.me.meterOut, prev.me && prev.me.meterOut,
+        rolls.main, rolls.mainOut,
+      );
+      const geMeterD = homeMeterDelta(e.ge && e.ge.meter, prev.ge && prev.ge.meter, rolls.aux);
+      geRaw = (geMeterD != null && meRaw != null) ? (geMeterD - meRaw) : null;
+    } else if (arr === 'DUAL_GE') {
+      geRaw = homeDualDelta(
+        e.ge && e.ge.meterIn, prev.ge && prev.ge.meterIn,
+        e.ge && e.ge.meterOut, prev.ge && prev.ge.meterOut,
+        rolls.aux, rolls.auxOut,
+      );
+      const meMeterD = homeMeterDelta(e.me && e.me.meter, prev.me && prev.me.meter, rolls.main);
+      meRaw = (meMeterD != null && geRaw != null) ? (meMeterD - geRaw) : null;
+    } else if (arr === 'DUAL_BOTH') {
+      meRaw = homeDualDelta(
+        e.me && e.me.meterIn, prev.me && prev.me.meterIn,
+        e.me && e.me.meterOut, prev.me && prev.me.meterOut,
+        rolls.main, rolls.mainOut,
+      );
+      geRaw = homeDualDelta(
+        e.ge && e.ge.meterIn, prev.ge && prev.ge.meterIn,
+        e.ge && e.ge.meterOut, prev.ge && prev.ge.meterOut,
+        rolls.aux, rolls.auxOut,
+      );
+    }
+    return { meRaw, geRaw };
   }
 
   function homeLitresToMt(litres, sg) {
@@ -769,21 +832,35 @@
     return (Number(litres) * Number(sg)) / 1000;
   }
 
-  /** ME / GE / BLR MT for one period: typed unitOverride, else single-meter Δ. */
-  function homeUnitMt(entry, prev, key) {
-    const unit = entry && entry[key];
-    if (!unit) return null;
-    const ovKey = key === 'me' ? 'ME' : key === 'ge' ? 'GE' : 'BLR';
-    const u = entry.unitOverride || {};
-    if (u[ovKey] != null && u[ovKey] !== '' && !isNaN(Number(u[ovKey]))) {
-      return homeRoundFuelMt(Number(u[ovKey]));
+  /** ME / GE / BLR MT for one period — mirrors computeDerived fuel path. */
+  function homePeriodFuelMt(e, prev, setup) {
+    const rolls = homeMeterRollovers(setup);
+    const flowArr = (setup && setup.flowArr) || 'SINGLE';
+    const u = (e && e.unitOverride) || {};
+    let meCons = null;
+    let geCons = null;
+    let blrCons = null;
+    if (prev) {
+      const dailyRevs = homeMeterDelta(e.revCounter, prev.revCounter, rolls.rc);
+      const meStopped = (dailyRevs === 0);
+      const { meRaw, geRaw } = homeMeGeRawLitres(e, prev, rolls, flowArr);
+      const blrD = homeMeterDelta(e.blr && e.blr.meter, prev.blr && prev.blr.meter, rolls.boiler);
+      meCons = meRaw != null && e.me ? homeRoundFuelMt(homeLitresToMt(meRaw, e.me.sg)) : null;
+      geCons = geRaw != null && e.ge ? homeRoundFuelMt(homeLitresToMt(geRaw, e.ge.sg)) : null;
+      blrCons = blrD != null && e.blr ? homeRoundFuelMt(homeLitresToMt(blrD, e.blr.sg)) : null;
+      if (u.ME != null && u.ME !== '' && !isNaN(Number(u.ME))) meCons = homeRoundFuelMt(Number(u.ME));
+      if (u.GE != null && u.GE !== '' && !isNaN(Number(u.GE))) geCons = homeRoundFuelMt(Number(u.GE));
+      if (u.BLR != null && u.BLR !== '' && !isNaN(Number(u.BLR))) blrCons = homeRoundFuelMt(Number(u.BLR));
+      if (meStopped && !(meCons > 0)) meCons = null;
+    } else {
+      if (u.ME != null && u.ME !== '' && !isNaN(Number(u.ME))) meCons = homeRoundFuelMt(Number(u.ME));
+      if (u.GE != null && u.GE !== '' && !isNaN(Number(u.GE))) geCons = homeRoundFuelMt(Number(u.GE));
+      if (u.BLR != null && u.BLR !== '' && !isNaN(Number(u.BLR))) blrCons = homeRoundFuelMt(Number(u.BLR));
     }
-    if (!prev || !prev[key]) return null;
-    const d = homeMeterDelta(unit.meter, prev[key].meter);
-    return homeRoundFuelMt(homeLitresToMt(d, unit.sg));
+    return { meCons, geCons, blrCons };
   }
 
-  function homeSavedFuelConsByGrade(entries, fuelTanks, carryover) {
+  function homeSavedFuelConsByGrade(entries, fuelTanks, carryover, setup) {
     const grades = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
     const list = (entries || []).slice()
       .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
@@ -794,17 +871,10 @@
         if (mt == null || isNaN(Number(mt)) || !type || raw[type] == null) return;
         raw[type] += Number(mt) || 0;
       };
-      if (prev) {
-        add(e.me && e.me.type, homeUnitMt(e, prev, 'me'));
-        add(e.ge && e.ge.type, homeUnitMt(e, prev, 'ge'));
-        add(e.blr && e.blr.type, homeUnitMt(e, prev, 'blr'));
-      } else {
-        /* No prior reading — still honor typed unit overrides alone. */
-        const u = e.unitOverride || {};
-        add(e.me && e.me.type, u.ME);
-        add(e.ge && e.ge.type, u.GE);
-        add(e.blr && e.blr.type, u.BLR);
-      }
+      const { meCons, geCons, blrCons } = homePeriodFuelMt(e, prev, setup);
+      add(e.me && e.me.type, meCons);
+      add(e.ge && e.ge.type, geCons);
+      add(e.blr && e.blr.type, blrCons);
       const misc = e.miscCons || {};
       raw['MDO/MGO'] += Number(misc['MDO/MGO']) || 0;
       raw['LSMGO'] += Number(misc['LSMGO']) || 0;
@@ -840,13 +910,13 @@
     });
   }
 
-  function homeFuelConsUpToTime(entries, fuelTanks, carryover, limitMs) {
+  function homeFuelConsUpToTime(entries, fuelTanks, carryover, limitMs, setup) {
     const filtered = (entries || []).filter((e) => {
       if (limitMs == null) return true;
       const t = new Date(e.datetime).getTime();
       return Number.isFinite(t) && t <= limitMs;
     });
-    return homeSavedFuelConsByGrade(filtered, fuelTanks, carryover);
+    return homeSavedFuelConsByGrade(filtered, fuelTanks, carryover, setup);
   }
 
   /** Fuel present per tank — mirrors Voyage robAsOfComputedRow on the last entry. */
@@ -856,11 +926,11 @@
     const cutoffDay = String(lastEntry.datetime).slice(0, 10);
     const survey = homeLatestRobSurveyAtOrBefore(entries, cutoff);
     const carryover = setup && setup.carryover;
-    const cumAll = homeSavedFuelConsByGrade(entries, fuelTanks, carryover);
+    const cumAll = homeSavedFuelConsByGrade(entries, fuelTanks, carryover, setup);
     let cumSurvey = null;
     if (survey) {
       const st = new Date(survey.date).getTime();
-      cumSurvey = homeFuelConsUpToTime(entries, fuelTanks, carryover, st);
+      cumSurvey = homeFuelConsUpToTime(entries, fuelTanks, carryover, st, setup);
     }
     const receivedOpts = { cutoff, cutoffDay, survey };
     const openStore = (setup && setup.rob) || {};
