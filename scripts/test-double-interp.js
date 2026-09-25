@@ -24,8 +24,8 @@
  */
 'use strict';
 const assert = require('assert');
-const calc = require('../modules/tanks/server/calc.js');
-const FRCore = require('../modules/tanks/public/js/fuel-report-core.js');
+const calc = require('../server/calc.js');
+const FRCore = require('../public/js/fuel-report-core.js');
 
 const ULLAGE = [950, 1000, 1050, 1100, 1150, 1200];
 const STEM_VALS = [1, 0, -0.5, -1, -1.5, -2, -3, -4];          // as the sheet prints it
@@ -96,6 +96,11 @@ const heeled = read('correction', 1, 'stem');
 near(heeled.listCorrection, -55.2636, 0.0005, 'heel correction at 1 deg to starboard');
 near(heeled.correctedReading, 1024.7364, 0.0005, 'ullage after the heel correction');
 near(heeled.volumeObserved, 384.1973, 0.0005, 'volume at 1 deg to starboard');
+
+/* Direct volume path must add the signed heel table value, not subtract it. */
+const directHeeled = read('direct', 1, 'stem');
+near(directHeeled.volumeObserved, directHeeled.trimVolume + directHeeled.heelVolume,
+  1e-6, 'direct: observed = trim volume + signed heel correction');
 
 /* Half a degree now interpolates 0 -> 1 deg, not -1 -> +1 deg. */
 near(read('correction', 0.5, 'stem').listCorrection, -27.6318, 0.0005, 'heel correction at half a degree');
