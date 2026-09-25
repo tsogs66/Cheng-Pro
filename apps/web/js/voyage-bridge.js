@@ -301,10 +301,13 @@
   }
 
   function folderIdKey(id) {
-    return String(id || '')
-      .toLowerCase()
-      .replace(/^m-?v-/, '')
-      .replace(/^-+/, '');
+    let s = String(id || '').toLowerCase();
+    let prev = '';
+    while (s !== prev) {
+      prev = s;
+      s = s.replace(/^m[._-]?v[._-]+/, '').replace(/^[-._]+/, '');
+    }
+    return s;
   }
 
   function findMatch(list, patch) {
@@ -611,20 +614,97 @@
    * meter Δ, misc + boiler/incinerator distillate extras, per-grade consOverride.
    * Present prefers survey measured ROB when saved.
    */
-  /** Credit bunker/lube/FW receipts to one tank — tankId preferred; name only if tankId missing (never grade). */
-  function homeFuelReceiptQty(receipts, tank) {
-    let hand = 0;
-    let survey = 0;
-    for (const r of receipts || []) {
-      if (!r || r.category !== 'fuel') continue;
-      const match = (r.tankId && r.tankId === tank.id)
-        || (!r.tankId && r.type && tank.name && String(r.type) === String(tank.name));
-      if (!match) continue;
-      const qty = Number(r.qty) || 0;
-      if (r.source === 'rob-survey') survey += qty;
-      else hand += qty;
+  function homeRoundFuelMt(n) {
+    if (n == null || n === '' || !isFinite(Number(n))) return null;
+    return Number(Number(n).toFixed(3));
+  }
+
+  function homeReceiptDayAfter(receiptDate, surveyDatetime) {
+    const d = String(receiptDate || '').slice(0, 10);
+    const s = String(surveyDatetime || '').slice(0, 10);
+    return d > s;
+  }
+
+  /** Dep/Arr match: tankId only; else exact tank name — never grade alone. */
+  function homeReceiptMatchesTankStrict(r, tank, cat) {
+    if (!r || !tank || r.category !== cat) return false;
+    if (r.tankId) return r.tankId === tank.id;
+    return r.type === tank.name;
+  }
+
+  function homeEntryHasStampedReceived(entries, entryId, tankId, cat) {
+    const e = (entries || []).find((x) => x.id === entryId);
+    if (!e) return false;
+    const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
+    return !!(map && map[tankId] != null);
+  }
+
+  function homeStampedReceivedAsOf(entries, tankId, cat, cutoff, survey) {
+    let sum = 0;
+    const limit = cutoff && cutoff.getTime ? cutoff.getTime() : Infinity;
+    for (const e of entries || []) {
+      if (!e) continue;
+      if (e.datetime) {
+        const t = new Date(e.datetime).getTime();
+        if (Number.isFinite(t) && t > limit) continue;
+        if (survey && !homeReceiptDayAfter(e.datetime, survey.date)) continue;
+      } else if (survey) continue;
+      const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
+      if (map && map[tankId] != null) sum += Number(map[tankId]) || 0;
     }
-    return hand > 0 ? hand : survey;
+    return sum;
+  }
+
+  /** Same as Voyage bookReceivedPreferOnce / voyageReceivedQty (Dep/Arr Received column). */
+  function homeBookReceivedPreferOnce(receipts, entries, tank, cat, opts) {
+    const o = opts || {};
+    const survey = o.survey || null;
+    const cutoff = o.cutoff || null;
+    const cutoffDay = o.cutoffDay
+      || (cutoff ? String(cutoff instanceof Date ? cutoff.toISOString() : cutoff).slice(0, 10) : null);
+    const allowReceipt = (r) => {
+      if (!homeReceiptMatchesTankStrict(r, tank, cat)) return false;
+      if (!cutoffDay) return true;
+      const rDay = String(r.date || '').slice(0, 10);
+      if (!rDay || rDay > cutoffDay) return false;
+      return !survey || homeReceiptDayAfter(r.date, survey.date);
+    };
+    let hand = 0;
+    let surveyFallback = 0;
+    for (const r of receipts || []) {
+      if (!allowReceipt(r)) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.source === 'rob-survey') {
+        if (!homeEntryHasStampedReceived(entries, r.surveyEntryId, tank.id, cat)) surveyFallback += qty;
+      } else hand += qty;
+    }
+    if (hand > 0) return hand;
+    if (surveyFallback > 0) return surveyFallback;
+    const stampCutoff = cutoff || new Date('2999-12-31T23:59:59Z');
+    return homeStampedReceivedAsOf(entries, tank.id, cat, stampCutoff, survey);
+  }
+
+  function homeVoyageReceivedQty(receipts, entries, tank, cat) {
+    return homeBookReceivedPreferOnce(receipts, entries, tank, cat || 'fuel', {});
+  }
+
+  /** Credit bunker/lube/FW receipts to one tank — legacy simple sum (tests / lube). */
+  function homeFuelReceiptQty(receipts, tank) {
+    return homeVoyageReceivedQty(receipts, [], tank, 'fuel');
+  }
+
+  function homeLatestRobSurveyAtOrBefore(entries, cutoff) {
+    const limit = cutoff instanceof Date ? cutoff.getTime() : new Date(cutoff).getTime();
+    let best = null;
+    let bestTime = -Infinity;
+    for (const e of entries || []) {
+      if (!e || !e.robSurvey) continue;
+      const t = new Date(e.datetime).getTime();
+      if (!isFinite(t) || t > limit || t <= bestTime) continue;
+      bestTime = t;
+      best = Object.assign({ entryId: e.id, date: e.datetime }, e.robSurvey);
+    }
+    return best;
   }
 
   function homeOpenShare(peers, tank, openStore) {
@@ -680,8 +760,71 @@
   function homeMeterDelta(curr, prev, roll) {
     if (curr == null || prev == null || isNaN(Number(curr)) || isNaN(Number(prev))) return null;
     let d = Number(curr) - Number(prev);
-    if (d < 0) d += (Number(roll) || 1e8);
+    if (d < 0) d = (Number(curr) + (Number(roll) || 1e8)) - Number(prev);
     return d;
+  }
+
+  function homeDualDelta(currIn, prevIn, currOut, prevOut, rollIn, rollOut) {
+    const inD = homeMeterDelta(currIn, prevIn, rollIn);
+    const outD = homeMeterDelta(currOut, prevOut, rollOut != null ? rollOut : rollIn);
+    if (inD == null || outD == null) return null;
+    return inD - outD;
+  }
+
+  function homeMeterRollovers(setup) {
+    const fm = (setup && setup.flowmeters) || {};
+    const dig = (m, d) => Math.pow(10, (fm[m] && fm[m].digits) || d || 8);
+    return {
+      main: dig('main'),
+      mainOut: dig('mainOut'),
+      aux: dig('aux'),
+      auxOut: dig('auxOut'),
+      boiler: dig('boiler'),
+      cyl: dig('cyl'),
+      rc: dig('rc'),
+      fw: dig('fw'),
+      generic: 100000000,
+    };
+  }
+
+  /** Same formulas as Voyage meGeRawLitres (SINGLE / DUAL_GE / DUAL_ME / DUAL_BOTH). */
+  function homeMeGeRawLitres(e, prev, rolls, flowArr) {
+    const arr = flowArr || 'SINGLE';
+    let meRaw = null;
+    let geRaw = null;
+    if (!e || !prev) return { meRaw, geRaw };
+    if (arr === 'SINGLE') {
+      meRaw = homeMeterDelta(e.me && e.me.meter, prev.me && prev.me.meter, rolls.main);
+      geRaw = homeMeterDelta(e.ge && e.ge.meter, prev.ge && prev.ge.meter, rolls.aux);
+    } else if (arr === 'DUAL_ME') {
+      meRaw = homeDualDelta(
+        e.me && e.me.meterIn, prev.me && prev.me.meterIn,
+        e.me && e.me.meterOut, prev.me && prev.me.meterOut,
+        rolls.main, rolls.mainOut,
+      );
+      const geMeterD = homeMeterDelta(e.ge && e.ge.meter, prev.ge && prev.ge.meter, rolls.aux);
+      geRaw = (geMeterD != null && meRaw != null) ? (geMeterD - meRaw) : null;
+    } else if (arr === 'DUAL_GE') {
+      geRaw = homeDualDelta(
+        e.ge && e.ge.meterIn, prev.ge && prev.ge.meterIn,
+        e.ge && e.ge.meterOut, prev.ge && prev.ge.meterOut,
+        rolls.aux, rolls.auxOut,
+      );
+      const meMeterD = homeMeterDelta(e.me && e.me.meter, prev.me && prev.me.meter, rolls.main);
+      meRaw = (meMeterD != null && geRaw != null) ? (meMeterD - geRaw) : null;
+    } else if (arr === 'DUAL_BOTH') {
+      meRaw = homeDualDelta(
+        e.me && e.me.meterIn, prev.me && prev.me.meterIn,
+        e.me && e.me.meterOut, prev.me && prev.me.meterOut,
+        rolls.main, rolls.mainOut,
+      );
+      geRaw = homeDualDelta(
+        e.ge && e.ge.meterIn, prev.ge && prev.ge.meterIn,
+        e.ge && e.ge.meterOut, prev.ge && prev.ge.meterOut,
+        rolls.aux, rolls.auxOut,
+      );
+    }
+    return { meRaw, geRaw };
   }
 
   function homeLitresToMt(litres, sg) {
@@ -689,21 +832,35 @@
     return (Number(litres) * Number(sg)) / 1000;
   }
 
-  /** ME / GE / BLR MT for one period: typed unitOverride, else single-meter Δ. */
-  function homeUnitMt(entry, prev, key) {
-    const unit = entry && entry[key];
-    if (!unit) return null;
-    const ovKey = key === 'me' ? 'ME' : key === 'ge' ? 'GE' : 'BLR';
-    const u = entry.unitOverride || {};
-    if (u[ovKey] != null && u[ovKey] !== '' && !isNaN(Number(u[ovKey]))) {
-      return Number(u[ovKey]);
+  /** ME / GE / BLR MT for one period — mirrors computeDerived fuel path. */
+  function homePeriodFuelMt(e, prev, setup) {
+    const rolls = homeMeterRollovers(setup);
+    const flowArr = (setup && setup.flowArr) || 'SINGLE';
+    const u = (e && e.unitOverride) || {};
+    let meCons = null;
+    let geCons = null;
+    let blrCons = null;
+    if (prev) {
+      const dailyRevs = homeMeterDelta(e.revCounter, prev.revCounter, rolls.rc);
+      const meStopped = (dailyRevs === 0);
+      const { meRaw, geRaw } = homeMeGeRawLitres(e, prev, rolls, flowArr);
+      const blrD = homeMeterDelta(e.blr && e.blr.meter, prev.blr && prev.blr.meter, rolls.boiler);
+      meCons = meRaw != null && e.me ? homeRoundFuelMt(homeLitresToMt(meRaw, e.me.sg)) : null;
+      geCons = geRaw != null && e.ge ? homeRoundFuelMt(homeLitresToMt(geRaw, e.ge.sg)) : null;
+      blrCons = blrD != null && e.blr ? homeRoundFuelMt(homeLitresToMt(blrD, e.blr.sg)) : null;
+      if (u.ME != null && u.ME !== '' && !isNaN(Number(u.ME))) meCons = homeRoundFuelMt(Number(u.ME));
+      if (u.GE != null && u.GE !== '' && !isNaN(Number(u.GE))) geCons = homeRoundFuelMt(Number(u.GE));
+      if (u.BLR != null && u.BLR !== '' && !isNaN(Number(u.BLR))) blrCons = homeRoundFuelMt(Number(u.BLR));
+      if (meStopped && !(meCons > 0)) meCons = null;
+    } else {
+      if (u.ME != null && u.ME !== '' && !isNaN(Number(u.ME))) meCons = homeRoundFuelMt(Number(u.ME));
+      if (u.GE != null && u.GE !== '' && !isNaN(Number(u.GE))) geCons = homeRoundFuelMt(Number(u.GE));
+      if (u.BLR != null && u.BLR !== '' && !isNaN(Number(u.BLR))) blrCons = homeRoundFuelMt(Number(u.BLR));
     }
-    if (!prev || !prev[key]) return null;
-    const d = homeMeterDelta(unit.meter, prev[key].meter);
-    return homeLitresToMt(d, unit.sg);
+    return { meCons, geCons, blrCons };
   }
 
-  function homeSavedFuelConsByGrade(entries, fuelTanks, carryover) {
+  function homeSavedFuelConsByGrade(entries, fuelTanks, carryover, setup) {
     const grades = { HFO: 0, LSFO: 0, 'MDO/MGO': 0, LSMGO: 0 };
     const list = (entries || []).slice()
       .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
@@ -714,17 +871,10 @@
         if (mt == null || isNaN(Number(mt)) || !type || raw[type] == null) return;
         raw[type] += Number(mt) || 0;
       };
-      if (prev) {
-        add(e.me && e.me.type, homeUnitMt(e, prev, 'me'));
-        add(e.ge && e.ge.type, homeUnitMt(e, prev, 'ge'));
-        add(e.blr && e.blr.type, homeUnitMt(e, prev, 'blr'));
-      } else {
-        /* No prior reading — still honor typed unit overrides alone. */
-        const u = e.unitOverride || {};
-        add(e.me && e.me.type, u.ME);
-        add(e.ge && e.ge.type, u.GE);
-        add(e.blr && e.blr.type, u.BLR);
-      }
+      const { meCons, geCons, blrCons } = homePeriodFuelMt(e, prev, setup);
+      add(e.me && e.me.type, meCons);
+      add(e.ge && e.ge.type, geCons);
+      add(e.blr && e.blr.type, blrCons);
       const misc = e.miscCons || {};
       raw['MDO/MGO'] += Number(misc['MDO/MGO']) || 0;
       raw['LSMGO'] += Number(misc['LSMGO']) || 0;
@@ -744,37 +894,115 @@
     return grades;
   }
 
+  function homeDeductGradeConsumption(robMap, fuelTanks, grade, consumed) {
+    const c = Number(consumed) || 0;
+    if (!(c > 0)) return;
+    const group = fuelTanks.filter((p) => (p.grade || p.name) === grade);
+    if (!group.length) return;
+    const total = group.reduce((s, p) => s + (Number(robMap[p.id]) || 0), 0);
+    if (total <= 0) {
+      robMap[group[0].id] = (Number(robMap[group[0].id]) || 0) - c;
+      return;
+    }
+    group.forEach((p) => {
+      const share = (Number(robMap[p.id]) || 0) / total;
+      robMap[p.id] = (Number(robMap[p.id]) || 0) - c * share;
+    });
+  }
+
+  function homeFuelConsUpToTime(entries, fuelTanks, carryover, limitMs, setup) {
+    const filtered = (entries || []).filter((e) => {
+      if (limitMs == null) return true;
+      const t = new Date(e.datetime).getTime();
+      return Number.isFinite(t) && t <= limitMs;
+    });
+    return homeSavedFuelConsByGrade(filtered, fuelTanks, carryover, setup);
+  }
+
+  /** Fuel present per tank — mirrors Voyage robAsOfComputedRow on the last entry. */
+  function homeRobAsOfFuel(setup, entries, receipts, fuelTanks, lastEntry) {
+    if (!lastEntry || !lastEntry.datetime) return {};
+    const cutoff = new Date(lastEntry.datetime);
+    const cutoffDay = String(lastEntry.datetime).slice(0, 10);
+    const survey = homeLatestRobSurveyAtOrBefore(entries, cutoff);
+    const carryover = setup && setup.carryover;
+    const cumAll = homeSavedFuelConsByGrade(entries, fuelTanks, carryover, setup);
+    let cumSurvey = null;
+    if (survey) {
+      const st = new Date(survey.date).getTime();
+      cumSurvey = homeFuelConsUpToTime(entries, fuelTanks, carryover, st, setup);
+    }
+    const receivedOpts = { cutoff, cutoffDay, survey };
+    const openStore = (setup && setup.rob) || {};
+    const rob = {};
+    for (const t of fuelTanks) {
+      let base = Number(openStore[t.id]) || 0;
+      if (survey) {
+        if (survey.measured && survey.measured[t.id] != null) base = Number(survey.measured[t.id]);
+        else if (survey.calculated && survey.calculated[t.id] != null) base = Number(survey.calculated[t.id]);
+      }
+      const received = homeBookReceivedPreferOnce(receipts, entries, t, 'fuel', receivedOpts);
+      rob[t.id] = base + received;
+    }
+    HOME_FUEL_GRADES.forEach((g) => {
+      const total = Number(cumAll[g]) || 0;
+      const base = survey ? Number(cumSurvey[g]) || 0 : 0;
+      homeDeductGradeConsumption(rob, fuelTanks, g, Math.max(0, total - base));
+    });
+    return rob;
+  }
+
+  /**
+   * Present fuel ROB for Home / Dep/Arr parity — survey sounding correction included.
+   * Last-entry survey: measured, else calculated + difference (+/− correction), else log chain.
+   */
+  function homeFuelPresentForTank(t, setup, entries, receipts, lastEntry, robChain) {
+    const sv = lastEntry && lastEntry.robSurvey;
+    if (sv) {
+      const rawM = sv.measured && sv.measured[t.id];
+      if (rawM != null && rawM !== '' && Number.isFinite(Number(rawM))) {
+        return Number(rawM);
+      }
+      const calc = sv.calculated && sv.calculated[t.id] != null ? Number(sv.calculated[t.id]) : null;
+      const diff = sv.difference && sv.difference[t.id] != null ? Number(sv.difference[t.id]) : null;
+      if (calc != null && diff != null && Number.isFinite(calc) && Number.isFinite(diff)) {
+        const corrected = homeRoundFuelMt(calc + diff);
+        return corrected != null ? corrected : calc + diff;
+      }
+      if (diff != null && Number.isFinite(diff) && robChain && robChain[t.id] != null) {
+        const chain = Number(robChain[t.id]);
+        if (calc != null && Number.isFinite(calc) && Math.abs(chain - calc) < 0.05) {
+          const corrected = homeRoundFuelMt(calc + diff);
+          return corrected != null ? corrected : calc + diff;
+        }
+        const corrected = homeRoundFuelMt(chain + diff);
+        return corrected != null ? corrected : chain + diff;
+      }
+    }
+    if (robChain && robChain[t.id] != null && !isNaN(Number(robChain[t.id]))) {
+      return Number(robChain[t.id]);
+    }
+    const open = Number((setup && setup.rob && setup.rob[t.id]) || 0);
+    return open + homeVoyageReceivedQty(receipts, entries, t, 'fuel');
+  }
+
   function buildHomeCalculatedRob(setup, entries, receipts) {
     const fuelTanks = Array.isArray(setup && setup.fuelTanks) ? setup.fuelTanks : [];
     const robStart = { ...((setup && setup.rob) || {}) };
     const robCurrent = {};
     const robUsed = {};
-    const list = Array.isArray(entries) ? entries : [];
-    const consByGrade = homeSavedFuelConsByGrade(list, fuelTanks, setup && setup.carryover);
+    const list = (entries || []).slice()
+      .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+    const lastEntry = list.length ? list[list.length - 1] : null;
+    const robChain = homeRobAsOfFuel(setup, list, receipts, fuelTanks, lastEntry);
 
     for (const t of fuelTanks) {
       const open = Number(robStart[t.id]) || 0;
-      const received = homeFuelReceiptQty(receipts, t);
-      const grade = t.grade || t.name;
-      const peers = fuelTanks.filter((p) => (p.grade || p.name) === grade);
-      const consumed = (Number(consByGrade[grade]) || 0) * homeStockShare(peers, t, robStart, receipts);
-      let measured = null;
-      for (let i = list.length - 1; i >= 0; i--) {
-        const m = list[i] && list[i].robSurvey && list[i].robSurvey.measured
-          ? list[i].robSurvey.measured[t.id]
-          : null;
-        if (m != null && m !== '' && !isNaN(Number(m))) {
-          measured = Number(m);
-          break;
-        }
-      }
-      robUsed[t.id] = Math.max(0, consumed);
-      if (measured != null) {
-        robCurrent[t.id] = measured;
-        if (!(consumed > 0)) robUsed[t.id] = Math.max(0, open + received - measured);
-      } else {
-        robCurrent[t.id] = open + received - robUsed[t.id];
-      }
+      /* Dep/Arr Consumed = Opening + voyage Received − Present (same Received column). */
+      const received = homeVoyageReceivedQty(receipts, list, t, 'fuel');
+      const present = homeFuelPresentForTank(t, setup, list, receipts, lastEntry, robChain);
+      robCurrent[t.id] = present;
+      robUsed[t.id] = homeRoundFuelMt(Math.max(0, open + received - present)) ?? 0;
     }
     return { robStart, robCurrent, robUsed };
   }
@@ -1105,6 +1333,15 @@
 
       const progress = computeVoyageProgressMetrics(setup, entries);
 
+      const lastEntry = entries.length ? entries[entries.length - 1] : null;
+      const robSurveyCorr = {};
+      if (lastEntry && lastEntry.robSurvey && lastEntry.robSurvey.difference) {
+        fuelTanks.forEach((t) => {
+          const d = lastEntry.robSurvey.difference[t.id];
+          if (d != null && Number.isFinite(Number(d))) robSurveyCorr[t.id] = Number(d);
+        });
+      }
+
       const perf = deriveLastEntryPerf(setup, entries);
       const lastRpm = perf.lastRpm;
       const lastSlip = perf.lastSlip;
@@ -1134,6 +1371,7 @@
         robStart,
         robCurrent,
         robUsed,
+        robSurveyCorr,
         robLubeStart,
         robLubeCurrent,
         lastSpeed: progress.lastSpeed,
@@ -1168,6 +1406,7 @@
     normalizeImo,
     normalizeVesselName,
     buildHomeCalculatedRob,
+    homeFuelPresentForTank,
     buildHomeCalculatedLubeRob,
     homeSavedFuelConsByGrade,
     homeSavedLubeConsByKind,

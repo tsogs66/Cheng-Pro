@@ -35,6 +35,26 @@ router.post('/:vesselId/tanks', (req, res) => {
   }
 });
 
+/* Registered above /tanks/:tankId so Express does not treat "order" as an id. */
+router.put('/:vesselId/tanks/order', (req, res) => {
+  try {
+    const category = String(req.body?.category || '');
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : null;
+    if (!ids) return res.status(400).json({ error: 'ids must be an array of tank ids' });
+    res.json(store.reorderTanks(req.params.vesselId, category, ids));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.delete('/:vesselId/tanks/order/:category', (req, res) => {
+  try {
+    res.json(store.clearTankOrder(req.params.vesselId, req.params.category));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 router.put('/:vesselId/tanks/:tankId', (req, res) => {
   try {
     res.json(store.upsertTank(req.params.vesselId, { ...(req.body || {}), id: req.params.tankId }));

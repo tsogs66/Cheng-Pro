@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <title>Voyage Chief — Engine Log</title>
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
 <meta name="theme-color" content="#0a1420">
 <meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
@@ -28,6 +28,9 @@
 <script src="ship_time.js"></script>
 <script src="clock-picker.js"></script>
 <link rel="stylesheet" href="hud-effects.css">
+<link rel="stylesheet" href="loading-splash.css">
+<script>window.LOADING_SPLASH_BOOT_LABEL = 'Starting Voyage Chief…';</script>
+<script src="loading-splash.js"></script>
 <script defer src="num-align.js"></script>
 <script defer src="count-up.js"></script>
 <script>
@@ -45,14 +48,16 @@
         || (navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 1100);
     }catch(_e){}
     var mobileLocked = native || mobileOs;
-    if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+    var vw = window.innerWidth || 0;
+    var vh = window.innerHeight || 0;
+    if (mobileLocked || touch || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)){
       document.documentElement.classList.add('use-bottom-nav');
     }
     if (mobileLocked) {
       document.documentElement.classList.add('is-mobile-chrome');
       document.documentElement.classList.remove('use-top-tabs');
-    } else if ((window.innerWidth || 0) >= 1101) {
-      /* Windows desktop (incl. wide touch laptops): keep top tabs */
+    } else if (vw >= 1181 && Math.min(vw, vh) > 900) {
+      /* Wide Windows desktop: keep top tabs. Tablet landscape (≤1180) stays on the bar. */
       document.documentElement.classList.remove('use-bottom-nav');
       document.documentElement.classList.add('use-top-tabs');
     }
@@ -94,7 +99,7 @@
 
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
     (function lockMobileViewport() {
-      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual';
       function apply() {
         let meta = document.querySelector('meta[name="viewport"]');
         if (!meta) {
@@ -490,43 +495,124 @@
     min-height:52px; font-size:17px; padding:14px 16px;
   }
   .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .nv-leg-actions.unsaved-leg-actions{justify-content:stretch;}
+  .nv-leg-actions.unsaved-leg-actions button{min-height:44px; flex:1 1 auto;}
+  #unsavedLegMessage{white-space:pre-wrap; margin:0 0 14px;}
+  @media (max-width:720px){
+    .nv-leg-actions.unsaved-leg-actions{flex-direction:column-reverse;}
+    .nv-leg-actions.unsaved-leg-actions button{width:100%; flex:1 1 100%;}
+  }
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
   /* Log Entry → Enter Flowmeters popup */
+  :root{
+    --vv-top: 0px;
+    --vv-left: 0px;
+    --vv-height: 100dvh;
+    --vv-width: 100vw;
+  }
   .fm-quick-overlay{
     position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center;
     padding:max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px));
     background:rgba(8,14,24,.55); backdrop-filter:blur(2px);
+    overflow:auto; -webkit-overflow-scrolling:touch;
   }
   .fm-quick-overlay.open{display:flex;}
+  /* Numpad / IME: keep a full-screen dimmer. Pinning the overlay box to
+     visualViewport (top/left/width/height) double-offsets on Android WebView
+     — position:fixed is already visual-viewport-relative — and leaves a dark
+     slab beside the 760px card on landscape tablets. Size the dialog to the
+     remaining visual viewport instead. */
+  html.keyboard-open .fm-quick-overlay{
+    align-items:flex-start; justify-content:center;
+    inset:0; top:0; left:0; right:0; bottom:0;
+    width:auto; height:auto;
+    padding: 8px;
+    overflow: auto; -webkit-overflow-scrolling: touch;
+  }
+  html.bright .fm-quick-overlay{background:rgba(18,34,56,.32);}
   .fm-quick-dialog{
-    width:min(760px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; max-height:min(92vh, 900px);
-    overflow:auto; background:var(--panel, #152033); color:var(--text, #e8eef8);
-    border:1px solid var(--line, #2a3550); border-radius:12px; padding:16px 18px 14px;
+    width:min(1100px, calc(100% - 4px)); max-width:100%; box-sizing:border-box;
+    max-height:min(96dvh, calc(100% - 8px));
+    display:flex; flex-direction:column;
+    overflow:hidden; background:var(--panel, #152033); color:var(--text, #e8eef8);
+    border:1px solid var(--line, #2a3550); border-radius:12px; padding:12px 14px 10px;
     box-shadow:0 18px 40px rgba(0,0,0,.35);
+    overscroll-behavior: contain;
+  }
+  html.keyboard-open .fm-quick-dialog{
+    max-height: calc(var(--vv-height, 100dvh) - 16px);
+    width: min(1100px, calc(100% - 4px));
+    margin: 0 auto;
+  }
+  html.landscape-view .fm-quick-dialog,
+  html.vm-land-rows .fm-quick-dialog{
+    width: min(1180px, calc(100% - 8px));
+    max-height: min(96dvh, calc(100% - 8px));
+    padding: 10px 12px 8px;
+  }
+  html.keyboard-open .fm-quick-dialog .hint{display:none;}
+  html.keyboard-open .fm-quick-dialog .field input,
+  html.keyboard-open .fm-quick-dialog .field select{scroll-margin: 16px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog,
+  html.keyboard-open.vm-land-rows .fm-quick-dialog{
+    padding: 6px 8px;
+    max-height: calc(var(--vv-height, 100dvh) - 12px);
+    width: min(1180px, calc(100% - 8px));
+  }
+  html.keyboard-open.landscape-view .fm-quick-dialog h3{margin:0 0 4px; font-size:14px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog h4{margin:0 0 2px; font-size:11px;}
+  html.keyboard-open.landscape-view .fm-quick-rows{gap:6px; margin-bottom:6px;}
+  html.keyboard-open.landscape-view .fm-quick-block{padding:5px 7px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog .field{margin-bottom:3px;}
+  html.keyboard-open.landscape-view .fm-quick-dialog .field input,
+  html.keyboard-open.landscape-view .fm-quick-dialog .field select{
+    min-height:32px; font-size:14px; padding:4px 8px;
+  }
+  @media (orientation: landscape), (min-width: 901px){
+    .fm-quick-dialog{width:min(1180px, calc(100% - 8px)); padding:10px 12px 8px; max-height:min(96dvh, calc(100% - 8px));}
+    .fm-quick-dialog .hint{display:none;}
+    .fm-quick-rows{
+      display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; overflow:visible;
+    }
+    .fm-quick-block{padding:7px 9px;}
+    .fm-quick-dialog .field{margin-bottom:5px;}
+    .fm-quick-dialog .field input, .fm-quick-dialog .field select{min-height:34px; font-size:14px; padding:5px 8px;}
   }
   html.bright .fm-quick-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
-  .fm-quick-dialog h3{margin:0 0 6px; font-size:16px;}
-  .fm-quick-dialog h4{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
-  .fm-quick-dialog .hint{margin:0 0 12px; font-size:12px; color:var(--muted, #9fb0c8);}
-  .fm-quick-rows{display:flex; flex-direction:column; gap:10px; margin-bottom:14px;}
+  .fm-quick-dialog h3{margin:0 0 6px; font-size:16px; flex:0 0 auto;}
+  .fm-quick-dialog h4{margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .hint{margin:0 0 10px; font-size:12px; color:var(--muted, #9fb0c8); flex:0 0 auto;}
+  .fm-quick-rows{display:flex; flex-direction:column; gap:10px; margin-bottom:8px; flex:1 1 auto; min-height:0; overflow:auto;}
   .fm-quick-row{
-    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(160px,0.85fr); gap:10px; align-items:stretch;
+    display:grid; grid-template-columns:minmax(0,1.4fr) minmax(140px,0.85fr); gap:8px; align-items:stretch;
   }
   .fm-quick-row.fm-quick-row-single{grid-template-columns:1fr;}
   .fm-quick-block{
-    border:1px solid var(--line,#2a3550); border-radius:8px; padding:10px 12px; min-width:0;
+    border:1px solid var(--line,#2a3550); border-radius:8px; padding:8px 10px; min-width:0;
   }
-  .fm-quick-dialog .field{margin-bottom:8px;}
+  .fm-quick-dialog .field{margin-bottom:6px;}
   .fm-quick-dialog .field:last-child{margin-bottom:0;}
-  .fm-quick-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; color:var(--muted,#9fb0c8);}
+  .fm-quick-dialog .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; color:var(--muted,#9fb0c8);}
   .fm-quick-dialog .field input, .fm-quick-dialog .field select{
     display:block; width:100%; max-width:100%; box-sizing:border-box;
-    min-height:40px; font-size:15px; padding:8px 10px; border-radius:8px;
+    min-height:36px; font-size:15px; padding:6px 10px; border-radius:8px;
     border:1px solid var(--line,#2a3550); background:transparent; color:inherit;
   }
-  .fm-quick-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  .fm-quick-actions{
+    display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;
+    flex:0 0 auto; position:sticky; bottom:0; z-index:2;
+    margin-top:auto; padding-top:8px;
+    background:inherit;
+  }
+  /* Android tablet landscape: two columns of rows so Accept stays on-screen. */
+  html.landscape-view .fm-quick-dialog .hint,
+  html.vm-land-rows .fm-quick-dialog .hint{display:none;}
+  html.landscape-view .fm-quick-rows,
+  html.vm-land-rows .fm-quick-rows{
+    display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; overflow:visible;
+  }
   .sg-from-density[hidden]{display:none !important;}
   #logEntryPreviewBlock[hidden],
   #logMetersDeferred[hidden],
@@ -714,6 +800,9 @@
     #btnRecalcSummaryPage, #vsTopActions{display:inline-flex !important;}
     #summaryRecalcHint{display:none;}
   }
+  html.short-viewport.landscape-view #btnRecalcSummaryPage,
+  html.short-viewport.landscape-view #vsTopActions{display:inline-flex !important;}
+  html.short-viewport.landscape-view #summaryRecalcHint{display:none;}
 
   /* One control scale for the whole suite — see apps/web/css/shell.css and
      modules/tanks/public/css/app.css, which carry the same block. Three
@@ -732,7 +821,49 @@
     --ctl-r: 3px;
     --cell-pad-y: 6px;
     --cell-pad-x: 10px;
+
+    /* The bottom bar is a control too, and the one a chief hits most often.
+       46px is a phone's bar: it has to leave room for the page. */
+    --nav-item-h: 46px;
+    --nav-ic: 18px;
+    --nav-label: 8px;
+    --nav-pad-y: 3px;
+    /* What the page keeps clear below itself: the items, the bar's padding and
+       a little air. Derived, so a taller bar never sits over the last row. */
+    --nav-bar-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 12px);
   }
+
+  /* A tablet, told from a phone by having room on both sides: a phone in
+     landscape is wide but short, and is still a phone. On the tablet the bar
+     is the program's main control, used standing up with the screen at arm's
+     length, so it gets a target that does not have to be aimed at — and the
+     label under the icon becomes readable rather than merely present. */
+  @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+    :root {
+      --nav-item-h: 72px;
+      --nav-ic: 26px;
+      --nav-label: 11px;
+      --nav-pad-y: 7px;
+    }
+    /* A tablet is not a compact phone, however short its screen reports
+       itself. The compact classes are set from screen size in script and
+       catch a ten-inch tablet, whose short side is under 900; they carry
+       their own bar heights, which would otherwise win here on specificity
+       alone and hold the bar at a phone's 42px. */
+    html.compact-phone .bn-item,
+    html.short-viewport .bn-item,
+    html.short-viewport.landscape-view .bn-item {
+      min-height: var(--nav-item-h);
+      font-size: var(--nav-label);
+    }
+    html.compact-phone .bn-item svg,
+    html.short-viewport .bn-item svg,
+    html.short-viewport.landscape-view .bn-item svg {
+      width: var(--nav-ic);
+      height: var(--nav-ic);
+    }
+  }
+
   @media (pointer: coarse) {
     :root { --ctl-h: 44px; --ctl-h-sm: 38px; }
   }
@@ -1064,10 +1195,8 @@
   /* Keep install progress visible even when short landscape hides .hint */
   html.short-viewport #androidInstallProgressWrap{display:block !important;}
   html.short-viewport #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
-  @media (orientation: landscape) and (max-height:560px){
-    #androidInstallProgressWrap{display:block !important;}
-    #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
-  }
+  html.short-viewport.landscape-view #androidInstallProgressWrap{display:block !important;}
+  html.short-viewport.landscape-view #androidInstallProgressWrap .install-progress-meta{display:flex !important;}
   .rob-total td{border-top:1px solid var(--brass-dim); color:var(--brass);}
   .bunker-plan-head{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:end; margin-bottom:14px;}
   .bunker-plan-head .field{min-width:140px; flex:1 1 140px;}
@@ -1496,63 +1625,89 @@
   html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
   html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
-  /* ---- Landscape phone / short viewports: maximize vertical content ---- */
-  @media (orientation: landscape) and (max-height:560px){
-    body{
-      padding:8px 10px 64px !important;
-      padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
-      padding-left:calc(10px + env(safe-area-inset-left, 0px)) !important;
-      padding-right:calc(10px + env(safe-area-inset-right, 0px)) !important;
-      padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    html.use-bottom-nav body{
-      padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-    }
-    .masthead{padding-bottom:6px; margin-bottom:2px; gap:8px;}
-    .masthead-left{gap:8px;}
-    .app-logo{width:32px; height:32px;}
-    h1{font-size:15px;}
-    .subtitle{display:none;}
-    .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;}
-    #dbStatus,#syncStatus{font-size:9px;}
-    .panel{padding:10px 12px; margin-bottom:10px;}
-    .panel h2{font-size:12px; margin-bottom:8px;}
-    .panel h3.sub{margin:10px 0 6px;}
-    .hint{display:none;}
-    .form-grid,.form-grid.cols2,.form-grid.cols3,.form-grid.cols5,.form-grid.cols6{
-      grid-template-columns:repeat(3,1fr) !important; gap:8px;
-    }
-    .unit-group,.unit-group.cols2,.unit-group.cols3,
-    .unit-group.cols4,.unit-group.cols5,.unit-group.cols6{
-      grid-template-columns:repeat(2,1fr) !important; gap:8px;
-    }
-    #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)) !important;}
-    #vsOthersFields.form-grid.cols2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}
-    .vs-blr-inc-row{grid-template-columns:1fr 1fr !important;}
-    .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
-    .vs-ge-blr-inc-grid > .vs-blr-inc-row{display:grid;}
-    .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:grid; grid-template-columns:repeat(2,1fr) !important;}
-    .stat-strip,.stat-strip.cols5{grid-template-columns:repeat(3,1fr) !important; gap:8px;}
-    .gauge-grid,.gauge-grid.cols4,.gauge-grid.cols5{grid-template-columns:repeat(3,1fr) !important;}
-    .field label{font-size:9px;}
-    .field input,.field select,.field textarea,textarea{
-      font-size:14px !important; min-height:36px; padding:6px 8px;
-    }
-    .nv-leg-dialog .field input{
-      min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
-    }
-    .nv-leg-dialog .field-dest input{
-      min-height:56px !important; font-size:18px !important; padding:16px !important;
-    }
-    .table-scroll{max-height:min(42vh, 280px); -webkit-overflow-scrolling:touch;}
-    .bottom-nav{
-      padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
-    }
-    .bn-item{min-height:44px; padding:4px 2px 2px; font-size:8px; gap:1px;}
-    .bn-item svg{width:18px; height:18px;}
-    .bn-more-panel{padding:10px 12px calc(64px + env(safe-area-inset-bottom, 0px)); max-height:min(80vh, 360px);}
-    .btn-row > button{min-height:40px; padding:8px 12px;}
-    .footer-note{display:none;}
+  /* ---- Landscape phone / short viewports: maximize vertical content ----
+     Driven by html.short-viewport (screen-based in JS) — NOT raw max-height
+     media queries. Soft keyboards shrink innerHeight on older WebViews and
+     must not reflow tablet forms into the phone-compact grid. */
+  html.short-viewport.landscape-view body{
+    padding:8px 10px 64px !important;
+    padding-top:calc(6px + env(safe-area-inset-top, 0px)) !important;
+    padding-left:calc(10px + env(safe-area-inset-left, 0px)) !important;
+    padding-right:calc(10px + env(safe-area-inset-right, 0px)) !important;
+    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.short-viewport.landscape-view.use-bottom-nav body{
+    padding-bottom:calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.short-viewport.landscape-view .masthead{padding-bottom:6px; margin-bottom:2px; gap:8px;}
+  html.short-viewport.landscape-view .masthead-left{gap:8px;}
+  html.short-viewport.landscape-view .app-logo{width:32px; height:32px;}
+  html.short-viewport.landscape-view h1{font-size:15px;}
+  html.short-viewport.landscape-view .subtitle{display:none;}
+  html.short-viewport.landscape-view .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;}
+  html.short-viewport.landscape-view #dbStatus,
+  html.short-viewport.landscape-view #syncStatus{font-size:9px;}
+  html.short-viewport.landscape-view .panel{padding:10px 12px; margin-bottom:10px;}
+  html.short-viewport.landscape-view .panel h2{font-size:12px; margin-bottom:8px;}
+  html.short-viewport.landscape-view .panel h3.sub{margin:10px 0 6px;}
+  html.short-viewport.landscape-view .hint{display:none;}
+  html.short-viewport.landscape-view .form-grid,
+  html.short-viewport.landscape-view .form-grid.cols2,
+  html.short-viewport.landscape-view .form-grid.cols3,
+  html.short-viewport.landscape-view .form-grid.cols5,
+  html.short-viewport.landscape-view .form-grid.cols6{
+    grid-template-columns:repeat(3,1fr) !important; gap:8px;
+  }
+  html.short-viewport.landscape-view .unit-group,
+  html.short-viewport.landscape-view .unit-group.cols2,
+  html.short-viewport.landscape-view .unit-group.cols3,
+  html.short-viewport.landscape-view .unit-group.cols4,
+  html.short-viewport.landscape-view .unit-group.cols5,
+  html.short-viewport.landscape-view .unit-group.cols6{
+    grid-template-columns:repeat(2,1fr) !important; gap:8px;
+  }
+  html.short-viewport.landscape-view #vsCylFields.unit-group.cols6{grid-template-columns:repeat(3, minmax(0, 1fr)) !important;}
+  html.short-viewport.landscape-view #vsOthersFields.form-grid.cols2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}
+  html.short-viewport.landscape-view .vs-blr-inc-row{grid-template-columns:1fr 1fr !important;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid{display:flex; flex-direction:column; gap:8px;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid > .vs-blr-inc-row{display:grid;}
+  html.short-viewport.landscape-view .vs-ge-blr-inc-grid > #vsGeRuntimeFields{display:grid; grid-template-columns:repeat(2,1fr) !important;}
+  html.short-viewport.landscape-view .stat-strip,
+  html.short-viewport.landscape-view .stat-strip.cols5{grid-template-columns:repeat(3,1fr) !important; gap:8px;}
+  html.short-viewport.landscape-view .gauge-grid,
+  html.short-viewport.landscape-view .gauge-grid.cols4,
+  html.short-viewport.landscape-view .gauge-grid.cols5{grid-template-columns:repeat(3,1fr) !important;}
+  html.short-viewport.landscape-view .field label{font-size:9px;}
+  html.short-viewport.landscape-view .field input,
+  html.short-viewport.landscape-view .field select,
+  html.short-viewport.landscape-view .field textarea,
+  html.short-viewport.landscape-view textarea{
+    font-size:14px !important; min-height:36px; padding:6px 8px;
+  }
+  html.short-viewport.landscape-view .nv-leg-dialog .field input{
+    min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
+  }
+  html.short-viewport.landscape-view .nv-leg-dialog .field-dest input{
+    min-height:56px !important; font-size:18px !important; padding:16px !important;
+  }
+  html.short-viewport.landscape-view .table-scroll{max-height:min(42vh, 280px); -webkit-overflow-scrolling:touch;}
+  html.short-viewport.landscape-view .bottom-nav{
+    padding:2px 4px calc(2px + env(safe-area-inset-bottom, 0px));
+  }
+  html.short-viewport.landscape-view .bn-item{min-height:44px; padding:4px 2px 2px; font-size:8px; gap:1px;}
+  html.short-viewport.landscape-view .bn-item svg{width:18px; height:18px;}
+  html.short-viewport.landscape-view .bn-more-panel{padding:10px 12px calc(64px + env(safe-area-inset-bottom, 0px)); max-height:min(80vh, 360px);}
+  html.short-viewport.landscape-view .btn-row > button{min-height:40px; padding:8px 12px;}
+  html.short-viewport.landscape-view .footer-note{display:none;}
+
+  /* Soft keyboard open: keep chrome stable; do not push/resize form grids. */
+  html.keyboard-open .bottom-nav{transform:translateY(110%); pointer-events:none; opacity:0;}
+  html.keyboard-open.use-bottom-nav body{
+    padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.keyboard-open .ccp-overlay{
+    align-items:flex-start; padding-top:max(8px, env(safe-area-inset-top, 0px));
+    overflow:auto; -webkit-overflow-scrolling:touch;
   }
 
   /* ---- Tablet / large-phone landscape: single-row GE + Fuel Cons, wide Others ----
@@ -1874,7 +2029,7 @@
     position:fixed; left:0; right:0; bottom:0; z-index:1200;
     align-items:stretch; justify-content:space-around;
     gap:1px;
-    padding:3px 2px calc(3px + env(safe-area-inset-bottom, 0px));
+    padding:var(--nav-pad-y) 2px calc(var(--nav-pad-y) + env(safe-area-inset-bottom, 0px));
     background:var(--nav-bg);
     border-top:1px solid var(--line-strong);
     backdrop-filter:blur(12px);
@@ -1885,7 +2040,7 @@
   html.use-bottom-nav .tabs{display:none !important;}
   html.use-bottom-nav .bottom-nav{display:flex !important;}
   html.use-bottom-nav body{
-    padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px)) !important;
   }
   html.use-bottom-nav .footer-note{margin-bottom:8px;}
   /* ChEng AIO → e-ORB / Consumption Plan: iframe shows only that page — no Voyage nav chrome.
@@ -1918,21 +2073,21 @@
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
     html:not(.use-top-tabs) body{
-      padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px));
     }
   }
   .bn-item{
-    flex:1 1 0; min-width:0; max-width:80px;
+    flex:1 1 0; min-width:0; max-width:none;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:2px; padding:4px 2px 3px;
     border:0 !important; background:transparent; color:var(--paper-dim);
-    font-family:'Oswald',sans-serif; font-size:8px; letter-spacing:0.05em;
+    font-family:'Oswald',sans-serif; font-size:var(--nav-label); letter-spacing:0.05em;
     text-transform:uppercase; cursor:pointer; border-radius:6px;
-    min-height:46px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    min-height:var(--nav-item-h); touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     transition:color .15s ease, background .15s ease;
   }
-  .bn-item svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
-  .bn-item .bn-ic{font-size:18px; line-height:1; flex-shrink:0;}
+  .bn-item svg{width:var(--nav-ic); height:var(--nav-ic); stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
+  .bn-item .bn-ic{font-size:var(--nav-ic); line-height:1; flex-shrink:0;}
   .bn-item.active{color:var(--brass); background:var(--nav-active-bg);}
   .bn-item:hover{color:var(--paper); border-color:transparent;}
   .bn-item.active:hover{color:var(--brass);}
@@ -2714,7 +2869,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <tbody id="voyageLibraryBody"><tr class="empty-row"><td colspan="4">No archived voyage legs yet.</td></tr></tbody>
         </table>
       </div>
-      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Switch legs here without mixing ballast and laden into one long list.</div>
+      <div class="hint" id="voyageLibraryHint">Active leg entries are the only ones shown in Log / Abstract / Reports. Loading another leg warns if the current one is not yet in this library, with an option to save first.</div>
     </div>
 
     <div class="panel">
@@ -2908,6 +3063,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </div>
     </div>
+    <div id="unsavedLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="unsavedLegTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="unsavedLegTitle">Unsaved voyage leg</h3>
+        <p class="hint" id="unsavedLegMessage">The current voyage leg is not saved in the voyage library.</p>
+        <div class="nv-leg-actions unsaved-leg-actions">
+          <button type="button" class="ghost small" id="unsavedLegCancel">Cancel</button>
+          <button type="button" class="ghost small" id="unsavedLegDiscard">Load without saving</button>
+          <button type="button" class="primary small" id="unsavedLegSave">Save, then load</button>
+        </div>
+      </div>
+    </div>
     <details class="panel vs-fold" id="lastEntryPanel">
       <summary>
         <span id="lastEntryPanelTitle">Last Saved Entry — Reference</span>
@@ -3042,7 +3208,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Boiler</h4>
-              <div class="field"><label>Fuel Meter</label><input type="number" id="fmq_blr_meter"></div>
+              <div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_blr_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>Fuel in Use</h4>
@@ -3052,7 +3218,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Cylinder Oil</h4>
-              <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="fmq_cyl_meter"></div>
+              <div class="field"><label>Cylinder Oil Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_cyl_meter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>TBN in Use</h4>
@@ -3062,17 +3228,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="fm-quick-row">
             <div class="fm-quick-block">
               <h4>Revolution Counter</h4>
-              <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="fmq_revCounter"></div>
+              <div class="field"><label>Rev. Counter (cumulative)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_revCounter"></div>
             </div>
             <div class="fm-quick-block">
               <h4>M/E Avg RPM</h4>
-              <div class="field"><label>RPM</label><input type="number" step="0.1" id="fmq_rpm"></div>
+              <div class="field"><label>RPM</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_rpm"></div>
             </div>
           </div>
           <div class="fm-quick-row fm-quick-row-single">
             <div class="fm-quick-block">
               <h4>FWG Flowmeter</h4>
-              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="number" step="0.01" id="fmq_fwProd"></div>
+              <div class="field"><label>FWG Flowmeter (cumulative, m³)</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_fwProd"></div>
             </div>
           </div>
         </div>
@@ -3320,7 +3486,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="vs-fold-body">
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Tank</th><th>Calculated</th><th>Measured (survey)</th><th>Difference</th></tr></thead>
+                <thead><tr><th>Tank</th><th>Calculated</th><th>Correction (+/−)</th><th>Measured (survey)</th></tr></thead>
                 <tbody id="vsSurveyBody"></tbody>
               </table>
             </div>
@@ -3334,8 +3500,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
               <button class="ghost small" id="btnClearRobSurvey" type="button">Remove Survey</button>
             </div>
             <div class="hint" id="vsSurveyStatus"></div>
-            <div class="hint">Sounding correction only: enter the measured tank figure. Difference is Measured − Calculated. Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
-            <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. The calculated figure and the difference are kept with the report as the record of the sounding correction.</div>
+            <div class="hint">Sounding correction only: type the <strong>measured</strong> tank figure or enter a <strong>correction</strong> only (+/− vs Calculated). Calculated shows the book figure with the correction in parentheses, e.g. 1331.942 (−4.062). Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
+            <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. Negative corrections (short sounding vs book) are allowed.</div>
           </div>
         </details>
       </div>
@@ -4716,13 +4882,21 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <span class="bn-ic" aria-hidden="true">📝</span>
     <span>Log</span>
   </button>
+  <button type="button" class="bn-item" data-page="reports" aria-label="Reports">
+    <span class="bn-ic" aria-hidden="true">📄</span>
+    <span>Reports</span>
+  </button>
   <button type="button" class="bn-item" data-page="rob" aria-label="ROB">
     <span class="bn-ic" aria-hidden="true">⛽</span>
     <span>ROB</span>
   </button>
-  <button type="button" class="bn-item" data-page="bunkerplan" aria-label="Consumption Plan">
-    <span class="bn-ic" aria-hidden="true">📈</span>
-    <span>Cons.</span>
+  <button type="button" class="bn-item" data-page="rangetotals" aria-label="Range Totals">
+    <span class="bn-ic" aria-hidden="true">📐</span>
+    <span>Totals</span>
+  </button>
+  <button type="button" class="bn-item" data-page="voyageabstract" aria-label="Voyage Abstract">
+    <span class="bn-ic" aria-hidden="true">📋</span>
+    <span>Voyage</span>
   </button>
   <button type="button" class="bn-item" data-page="more" aria-label="More">
     <span class="bn-ic" aria-hidden="true">⋯</span>
@@ -4735,25 +4909,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="bn-more-handle" aria-hidden="true"></div>
     <div class="bn-more-title">More</div>
     <div class="bn-more-grid">
+      <button type="button" class="bn-more-item" data-page="bunkerplan">
+        <span class="bn-ic" aria-hidden="true">📈</span>
+        <span>Cons Plan</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="consumption">
         <span class="bn-ic" aria-hidden="true">⏱️</span>
         <span>Cons</span>
       </button>
-      <button type="button" class="bn-more-item" data-page="voyageabstract">
-        <span class="bn-ic" aria-hidden="true">📋</span>
-        <span>Abstract</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="rangetotals">
-        <span class="bn-ic" aria-hidden="true">📐</span>
-        <span>Totals</span>
-      </button>
       <button type="button" class="bn-more-item" data-page="receipts">
         <span class="bn-ic" aria-hidden="true">🧾</span>
         <span>Receipts</span>
-      </button>
-      <button type="button" class="bn-more-item" data-page="reports">
-        <span class="bn-ic" aria-hidden="true">📄</span>
-        <span>Reports</span>
       </button>
       <button type="button" class="bn-more-item" data-page="reference">
         <span class="bn-ic" aria-hidden="true">📖</span>
@@ -4769,7 +4935,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </button>
       <button type="button" class="bn-more-item" data-page="voyagesetup">
         <span class="bn-ic" aria-hidden="true">🚢</span>
-        <span>Voyage</span>
+        <span>Voy Setup</span>
       </button>
       <button type="button" class="bn-more-item" data-page="setup">
         <span class="bn-ic" aria-hidden="true">🗄️</span>
@@ -4999,9 +5165,9 @@ function totalLubeRob(robLube){
 function totalFwRob(robLube){
   return fwTankList().reduce((s,t)=> s + (robLube?.[t.id] ?? robLube?.[t.name] ?? 0), 0);
 }
-function sumRobCons(row, cat){
-  const vals = getRobRows().filter(r=>r.cat===cat).map(r=>robRowCons(row, r)).filter(v=>v!=null && !isNaN(v));
-  return vals.length ? vals.reduce((a,b)=>a+b, 0) : null;
+function sumRobCons(row, cat, prevRobData){
+  const vals = getRobRows().filter(r=>r.cat===cat).map(r=>robRowCons(row, r, prevRobData)).filter(v=>v!=null && !isNaN(v));
+  return vals.length ? roundFuelMt(vals.reduce((a,b)=>a+b, 0)) : null;
 }
 function robBalanceRows(row, prevRobData, asOf, entryHint){
   const entry = entryHint || (typeof currentVsEntryId !== 'undefined' && currentVsEntryId
@@ -5011,7 +5177,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
   const addTank = (r) => {
     const prevVal = r.cat==='fuel' ? prevRobData.rob?.[r.key] : prevRobData.robLube?.[r.key];
     const nowVal = r.cat==='fuel' ? asOf.rob?.[r.key] : asOf.robLube?.[r.key];
-    const consVal = robRowCons(row, r);
+    const consVal = robRowCons(row, r, prevRobData);
     /* Received is user/stamped input only. Never back-solve from
        now − previous + cons: grade-level cons on multi-tank grades (and FW
        live fills) invented phantom bunkers that were then stamped on save and
@@ -5032,7 +5198,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
       key: 'totallubes', label: 'TOTAL LUBES', cat: 'lube', total: true, strong: true,
       prevVal: totalLubeRob(prevRobData.robLube || {}),
       recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
-      consVal: sumRobCons(row, 'lube'),
+      consVal: sumRobCons(row, 'lube', prevRobData),
       nowVal: totalLubeRob(asOf.robLube || {}),
       dec: robDec('lube'), consDec: robDec('lube')
     });
@@ -5045,7 +5211,7 @@ function robBalanceRows(row, prevRobData, asOf, entryHint){
       key: 'totalwater', label: 'TOTAL WATER', cat: 'fw', total: true, strong: true,
       prevVal: totalFwRob(prevRobData.robLube || {}),
       recvVal: tanks.reduce((s,x)=>s + (Number(x.recvVal)||0), 0),
-      consVal: sumRobCons(row, 'fw'),
+      consVal: sumRobCons(row, 'fw', prevRobData),
       nowVal: totalFwRob(asOf.robLube || {}),
       dec: robDec('fw'), consDec: robDec('fw')
     });
@@ -5590,6 +5756,7 @@ function paintActivity(force){
   if (!top){
     const hide = ()=>{
       if (_activityStack.length) return;
+      if (typeof LoadingSplash !== 'undefined' && LoadingSplash) LoadingSplash.hide('activity');
       if (banner) banner.hidden = true;
       setActivityButtonsBusy(false);
       if (syncEl && typeof renderSyncUi === 'function'){
@@ -5632,6 +5799,13 @@ function paintActivity(force){
     track.setAttribute('aria-valuenow', String(pct == null ? 0 : pct));
   }
   if (bar) bar.style.width = pct == null ? '38%' : (pct + '%');
+
+  if (typeof LoadingSplash !== 'undefined' && LoadingSplash){
+    LoadingSplash.show('activity', label, {
+      kicker: kicker,
+      pct: pct,
+    });
+  }
 
   const serverItem = [..._activityStack].reverse().find(item => item.source === 'server');
   if (serverItem && syncEl){
@@ -5753,12 +5927,22 @@ const state = {
 const LEGACY_VESSEL_ID = 'v-fangcheng';
 
 function vesselSlugFromName(name){
-  /* Strip MV / M/V / M.V. so Voyage, Tank, and AIO land on the same core slug. */
+  /* Strip MV / M/V / M.V. (spaced or already-slugified m-v-/mv-) so Voyage,
+     Tank, and AIO land on the same core slug — e.g. m-v-flag-evi ≡ flag-evi. */
   let core = String(name || 'vessel').trim();
   let prev = '';
   while (core !== prev) {
     prev = core;
     core = core.replace(/^(m\s*[./]?\s*v\.?)\s+/i, '').trim();
+  }
+  if (!/\s/.test(core)) {
+    prev = '';
+    let slug = core.toLowerCase();
+    while (slug !== prev) {
+      prev = slug;
+      slug = slug.replace(/^m[._-]?v[._-]+/i, '').replace(/^[-._]+/, '');
+    }
+    core = slug || core;
   }
   return (core || 'vessel').replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase().slice(0, 48) || 'vessel';
 }
@@ -7113,6 +7297,147 @@ async function archiveActiveVoyageLeg(){
   );
 }
 
+function activeVoyageIdentity(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  const vn = formVn || (state.setup.voyageNumber || '').trim();
+  const formCondEl = document.getElementById('s_shipCondition');
+  const formCond = formCondEl && formCondEl.value !== '' ? formCondEl.value : null;
+  const cond = normalizeCondition(formCond != null ? formCond : state.setup.shipCondition);
+  return { vn, cond };
+}
+
+function currentLegHasWork(){
+  const { vn } = activeVoyageIdentity();
+  return !!(vn
+    || (state.entries && state.entries.length)
+    || (state.receipts && state.receipts.length)
+    || (state.documents && state.documents.length)
+    || (state.abstracts && state.abstracts.length));
+}
+
+async function currentVoyageLegIsInLibrary(){
+  const { vn, cond } = activeVoyageIdentity();
+  if (!vn || !state.activeVesselId) return false;
+  const id = voyageLegId(state.activeVesselId, vn, cond);
+  const all = await listVoyageLegsForVessel(state.activeVesselId);
+  return all.some(l => l.id === id
+    || ((l.voyageNumber || '').trim() === vn && normalizeCondition(l.condition) === cond));
+}
+
+function confirmUnsavedLegChoice(message){
+  return new Promise(resolve => {
+    const overlay = document.getElementById('unsavedLegOverlay');
+    const msg = document.getElementById('unsavedLegMessage');
+    const btnSave = document.getElementById('unsavedLegSave');
+    const btnDiscard = document.getElementById('unsavedLegDiscard');
+    const btnCancel = document.getElementById('unsavedLegCancel');
+    if (!overlay || !btnSave || !btnDiscard || !btnCancel){
+      const ok = confirm(message + '\n\nOK = save then load. Cancel = stay on this leg.');
+      resolve(ok ? 'save' : 'cancel');
+      return;
+    }
+    if (msg) msg.textContent = message;
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    let done = false;
+    const finish = (choice) => {
+      if (done) return;
+      done = true;
+      overlay.classList.remove('open');
+      overlay.hidden = true;
+      overlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKey);
+      resolve(choice);
+    };
+    const onOverlayClick = (ev) => {
+      if (ev.target === overlay) finish('cancel');
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape'){
+        ev.preventDefault();
+        finish('cancel');
+      }
+    };
+    btnSave.onclick = () => finish('save');
+    btnDiscard.onclick = () => finish('discard');
+    btnCancel.onclick = () => finish('cancel');
+    overlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKey);
+    overlay.hidden = false;
+    overlay.classList.add('open');
+    try { btnSave.focus(); } catch (_){}
+  });
+}
+
+async function confirmUnsavedVoyageLegBeforeLoad(targetVn, targetCond){
+  if (!currentLegHasWork()) return 'ok';
+  const { vn, cond } = activeVoyageIdentity();
+  const wantVn = (targetVn || '').trim();
+  const wantCond = normalizeCondition(targetCond);
+  if (vn && vn === wantVn && cond === wantCond && await currentVoyageLegIsInLibrary()){
+    return 'ok';
+  }
+  if (vn && await currentVoyageLegIsInLibrary()) return 'ok';
+  const count = (state.entries || []).length;
+  const currentLabel = vn ? `${vn} / ${cond}` : '(no voyage number)';
+  const entryBit = count
+    ? ` It currently has ${count} log ${count === 1 ? 'entry' : 'entries'}.`
+    : '';
+  const message = `The current voyage leg ${currentLabel} is not saved in the voyage library.${entryBit}\n\nLoading ${wantVn} / ${wantCond} will replace the working set. Save this leg first, load without saving, or cancel.`;
+  return confirmUnsavedLegChoice(message);
+}
+
+async function saveActiveVoyageLegFromLoadWarning(){
+  const formVn = (document.getElementById('s_voyageNumber')?.value || '').trim();
+  if (formVn) state.setup.voyageNumber = formVn;
+  const formCond = document.getElementById('s_shipCondition')?.value;
+  if (formCond) state.setup.shipCondition = normalizeCondition(formCond);
+  const leg = await archiveActiveVoyageLeg();
+  if (!leg){
+    alert('Set a Voyage No. on Voyage Setup before saving this leg.');
+    return false;
+  }
+  await saveSetup();
+  return true;
+}
+
+async function loadSelectedVoyageLeg(vn, cond, opts){
+  vn = (vn || '').trim();
+  cond = normalizeCondition(cond);
+  if (!vn){
+    alert('Select a voyage number from the library list.');
+    return false;
+  }
+  const fromVid = state.activeVesselId;
+  const choice = await confirmUnsavedVoyageLegBeforeLoad(vn, cond);
+  if (choice === 'cancel') return false;
+  if (choice === 'save'){
+    const saved = await saveActiveVoyageLegFromLoadWarning();
+    if (!saved) return false;
+  }
+  const persistSource = choice !== 'discard';
+  try {
+    const scopeVid = libraryScopeVesselId();
+    if (scopeVid && scopeVid !== state.activeVesselId){
+      await switchVessel(scopeVid, { persistCurrent: persistSource });
+    }
+    const persistTarget = (state.activeVesselId !== fromVid) || persistSource;
+    await activateVoyageLeg(state.activeVesselId, vn, cond, { persistCurrent: persistTarget });
+    render();
+    applyEntryDefaults();
+    prefillFromLastEntry();
+    renderSyncUi();
+    await renderVoyageLibrary();
+    if (opts && opts.goSummary) switchTab('summary');
+    if (opts && opts.successAlert){
+      alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
+    }
+    return true;
+  } catch (e){
+    alert('Load failed: ' + e.message);
+    return false;
+  }
+}
+
 async function listVoyageLegsForVessel(vesselId){
   const vid = vesselRegistryId(vesselId || state.activeVesselId || LEGACY_VESSEL_ID);
   const all = await dbGetAll('voyageLegs');
@@ -7158,7 +7483,7 @@ async function clearActiveVesselWorkingData(vesselId){
   }
 }
 
-async function activateVoyageLeg(vesselId, voyageNumber, condition){
+async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
   const vid = vesselId || state.activeVesselId;
   const vn = (voyageNumber || '').trim();
   const cond = normalizeCondition(condition);
@@ -7167,8 +7492,10 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition){
   if (own) beginActivity('load-leg', `Loading voyage ${vn} ${cond} on this device…`, { source: 'program' });
   try {
 
-  /* Persist whatever is on screen first so switching never loses work. */
-  if (state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
+  /* Persist whatever is on screen first so switching never loses work —
+     unless the library-load warning already asked and the user chose not to. */
+  const persistCurrent = !opts || opts.persistCurrent !== false;
+  if (persistCurrent && state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
     await archiveActiveVoyageLeg();
     await saveSetup();
   }
@@ -7467,13 +7794,15 @@ async function saveCurrentVesselState(){
   }
 }
 
-async function switchVessel(vesselId){
+async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
   if (!target) return;
   return withActivity('switch-vessel', `Switching to ${target.name}…`, async ({ update })=>{
-    update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
-    await saveCurrentVesselState();
+    if (!opts || opts.persistCurrent !== false){
+      update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
+      await saveCurrentVesselState();
+    }
     update({ label: `Loading ${target.name}…` });
     await loadVesselFromDb(vesselId);
     await dbPut('meta', { key:'activeVesselId', value: vesselId });
@@ -7604,6 +7933,71 @@ function vesselOwnSyncSlug(vesselId){
     if (own) return sanitizeSyncSlug(own);
   }
   return sanitizeSyncSlug(vessel.slug || vesselSlugFromName(vessel.name));
+}
+
+/**
+ * Registry-only slug for a ship — never the Setup form field.
+ * vesselOwnSyncSlug(active) returns Backup/Setup's typed vesselId, which would
+ * make every pull "match" whichever hull the hidden Voyage frame still has open.
+ */
+function vesselRegistrySyncSlug(vessel){
+  if (!vessel) return '';
+  return sanitizeSyncSlug(vessel.slug || vesselSlugFromName(vessel.name || '')) || '';
+}
+
+/** Name/slug cores may include a trailing IMO (flag-evi-9619799 ≡ flag-evi). */
+function syncSlugCoreWithoutImo(raw){
+  let s = syncSlugCore(raw).replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  const stripped = s.replace(/-\d{6,8}$/, '');
+  return stripped || s || syncSlugCore(raw);
+}
+
+/**
+ * Resolve a sync-server vessel folder (slug) to a local registry ship, creating
+ * one when missing. Pull-voyage-leg used to pin only the API path and then
+ * archive under whatever activeVesselId the hidden Backup frame happened to
+ * hold — so the fetch succeeded and the leg landed on the wrong ship (or
+ * nowhere). Mirror pullVesselFromServer: open the right local vessel first.
+ *
+ * Match by registry id / slug / name only. Do not consult vesselOwnSyncSlug —
+ * for the active ship that helper returns the Setup form slug (often the ship
+ * just typed in AIO Backup), so Harbour Key would "match" mv-flag-evi and
+ * receive Flag Evi's pulled leg.
+ */
+async function ensureLocalVesselForSyncSlug(asked){
+  const raw = String(asked || '').trim();
+  if (!raw) return null;
+  const slug = sanitizeSyncSlug(raw);
+  const core = syncSlugCore(raw);
+  const coreLoose = syncSlugCoreWithoutImo(raw);
+  let vessel = (state.vessels || []).find((v) => {
+    if (!v) return false;
+    if (v.id === raw || v.id === slug) return true;
+    const reg = vesselRegistrySyncSlug(v);
+    if (reg && (reg === slug || syncSlugsMatch(reg, raw))) return true;
+    if (syncSlugsMatch(v.slug, raw)) return true;
+    const nameCore = syncSlugCore(vesselSlugFromName(v.name || ''));
+    if (nameCore === core) return true;
+    if (syncSlugCoreWithoutImo(nameCore) === coreLoose) return true;
+    return false;
+  }) || null;
+  if (vessel) return vessel;
+  const pretty = syncSlugCoreWithoutImo(raw).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    || raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    || slug;
+  vessel = await createNewVessel(pretty);
+  if (!vessel) return null;
+  vessel.slug = slug;
+  await saveVesselRegistry();
+  try {
+    const metaAll = await dbGetAll('meta');
+    const setupRow = (metaAll || []).find((m) => m.key === `setup:${vessel.id}`);
+    const setup = migrateSetup(setupRow ? setupRow.value : defaultSetupTemplate({ vesselName: pretty }));
+    setup.sync = { ...(setup.sync || {}), vesselId: slug };
+    setup.vesselName = setup.vesselName || pretty;
+    await dbPut('meta', { key: `setup:${vessel.id}`, value: setup });
+  } catch (_) { /* registry row alone is enough for archive keys */ }
+  return vessel;
 }
 
 async function pullVesselFromServer(vesselId){
@@ -8321,6 +8715,13 @@ function geLoadBandMax(loadPct){
 }
 
 function fmtFuel(n){ return fmt(n, FUEL_DECIMALS); }
+/** Fuel mass (MT) at display precision — ROB and cumFuel must deduct what flowmeters show (3 dp), not float noise from litres×SG. */
+function roundFuelMt(n){
+  if (n==null || n==='') return null;
+  const x = Number(n);
+  if (!isFinite(x)) return null;
+  return Number(x.toFixed(FUEL_DECIMALS));
+}
 /* Append measurement unit immediately after a formatted result (not table cells). */
 function unitSpan(u){
   return u ? ` <span class="unit">${escHtml(String(u))}</span>` : '';
@@ -8913,13 +9314,13 @@ function computeDerived(opts){
 
       const {meRaw, geRaw} = meGeRawLitres(e, prev, rolls);
       const blrD = meterDelta(e.blr.meter, prev.blr.meter, rolls.boiler);
-      meCons = meRaw!==null ? (meRaw*e.me.sg)/1000 : null;
-      geCons = geRaw!==null ? (geRaw*e.ge.sg)/1000 : null;
-      blrCons = blrD!==null ? (blrD*e.blr.sg)/1000 : null;
+      meCons = meRaw!==null ? roundFuelMt((meRaw*e.me.sg)/1000) : null;
+      geCons = geRaw!==null ? roundFuelMt((geRaw*e.ge.sg)/1000) : null;
+      blrCons = blrD!==null ? roundFuelMt((blrD*e.blr.sg)/1000) : null;
       const unitOv = e.unitOverride || {};
-      if (unitOv.ME!=null) meCons = unitOv.ME;
-      if (unitOv.GE!=null) geCons = unitOv.GE;
-      if (unitOv.BLR!=null) blrCons = unitOv.BLR;
+      if (unitOv.ME!=null) meCons = roundFuelMt(unitOv.ME);
+      if (unitOv.GE!=null) geCons = roundFuelMt(unitOv.GE);
+      if (unitOv.BLR!=null) blrCons = roundFuelMt(unitOv.BLR);
       /* Engine stopped: blank a nil M/E burn. A non-zero figure is kept and still
          shown, because it is real fuel that the ROB chain has to account for. */
       if (meStopped && !(meCons > 0)) meCons = null;
@@ -8940,8 +9341,10 @@ function computeDerived(opts){
       rawFuel['LSMGO'] += miscLsmgo;
       EXTRA_DO_GRADES.forEach(t => { rawFuel[t] += blrExtra[t] + incExtra[t]; });
       FUEL_TYPES.forEach(t=>{
-        consByType[t] = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
-        consByFuel[t] += consByType[t];
+        let v = (overrideForGrade(override, t, fuelTankList())!=null) ? overrideForGrade(override, t, fuelTankList()) : rawFuel[t];
+        if (v != null) v = roundFuelMt(v);
+        consByType[t] = v;
+        if (v != null) consByFuel[t] = roundFuelMt(consByFuel[t] + v);
       });
 
       const cylD = meterDelta(e.cylMeter, prev.cylMeter, rolls.cyl);
@@ -9559,46 +9962,132 @@ function formatSurveyMeasuredInput(qty, cat){
   return String(rounded);
 }
 
-/** Live Difference while typing Measured — sounding correction only (Measured − book).
- *  Calculated already excludes this report's Received (see surveyCalculatedBook). */
-function refreshVsSurveyLiveDiffs(){
-  document.querySelectorAll('#vsSurveyBody tr').forEach(tr=>{
+/** Bunker Survey correction box — must accept typed/written + and − (not log-entry numeric coercion). */
+function isSurveyCorrectionInput(el){
+  return !!(el && el.dataset && el.dataset.surveyCorr != null);
+}
+
+/** Keep optional leading +/−, digits, and one decimal while typing (pen or keyboard). */
+function coerceSurveyCorrectionInput(el){
+  if (!el) return;
+  const raw = String(el.value ?? '');
+  let out = '';
+  let i = 0;
+  const first = raw.charAt(0);
+  if (first === '+' || first === '-') out = first, i = 1;
+  else if (first === '\u2212'){ out = '-'; i = 1; }
+  let seenDot = false;
+  for (; i < raw.length; i++){
+    const c = raw.charAt(i);
+    if (c >= '0' && c <= '9') out += c;
+    else if ((c === '.' || c === ',') && !seenDot){ out += '.'; seenDot = true; }
+  }
+  if (out === raw) return;
+  let start = null;
+  try { start = el.selectionStart; } catch(_e){}
+  el.value = out;
+  try {
+    const pos = Math.min(out.length, start != null ? start : out.length);
+    el.setSelectionRange(pos, pos);
+  } catch(_e){}
+}
+
+/** Parse correction input: optional leading +, negative allowed (−4, -4, +2.5). */
+function parseSurveySignedNumber(raw){
+  if (raw === '' || raw == null) return null;
+  const s = String(raw).trim().replace(/\u2212/g, '-');
+  if (s === '' || s === '+' || s === '-') return null;
+  const v = parseFloat(s.replace(/^\+/, ''));
+  return Number.isFinite(v) ? v : null;
+}
+
+/** Display correction beside Calculated, e.g. (−4.062) or (+2.000). */
+function formatSurveyCorrectionParen(diff, cat){
+  if (diff == null || !Number.isFinite(Number(diff))) return '';
+  const n = Number(diff);
+  if (Math.abs(n) < 1e-9) return ' (+0)';
+  const sign = n > 0 ? '+' : '−';
+  return ` (${sign}${fmtRob(Math.abs(n), cat)})`;
+}
+
+function formatSurveyCorrectionInput(diff){
+  if (diff == null || !Number.isFinite(Number(diff))) return '';
+  const n = Number(diff);
+  if (Math.abs(n) < 1e-9) return '0';
+  const rounded = Math.round(n * 1000) / 1000;
+  return (n > 0 ? '+' : '') + String(rounded);
+}
+
+function parseSurveyMeasuredField(el){
+  if (!el || el.value === '') return null;
+  const cat = el.dataset.surveyCat || 'fuel';
+  if (cat === 'fw'){
+    return typeof parseFwM3Field === 'function' ? parseFwM3Field(el.value) : parseFloat(el.value);
+  }
+  return parseFloat(el.value);
+}
+
+/** Measured and/or correction (+/−) for one survey row. */
+function readVsSurveyTankFigures(tr){
+  const measEl = tr.querySelector('[data-survey-tank]');
+  const corrEl = tr.querySelector('[data-survey-corr]');
+  const bookCell = tr.querySelector('[data-survey-book]');
+  const bookBase = bookCell ? parseFloat(bookCell.dataset.bookBase) : NaN;
+  const book = Number.isFinite(bookBase) ? bookBase : null;
+  const cat = measEl?.dataset.surveyCat || 'fuel';
+  let meas = measEl ? parseSurveyMeasuredField(measEl) : null;
+  if (measEl && measEl.value !== '' && (meas == null || isNaN(meas))) meas = null;
+  const corrTyped = corrEl ? parseSurveySignedNumber(corrEl.value) : null;
+  if (meas == null && corrTyped != null && book != null) meas = book + corrTyped;
+  const correction = (meas != null && book != null) ? meas - book : corrTyped;
+  return {
+    book, meas, correction, cat,
+    store: measEl?.dataset.surveyStore,
+    tankId: measEl?.dataset.surveyTank,
+  };
+}
+
+function entrySurveyCorrection(entry, tankId, store){
+  if (!entry?.robSurvey) return null;
+  const map = store === 'rob' ? entry.robSurvey.difference : entry.robSurvey.differenceLube;
+  if (map && map[tankId] != null && Number.isFinite(Number(map[tankId]))) return Number(map[tankId]);
+  return null;
+}
+
+/** Live sync: Correction ↔ Measured; Calculated shows book (+/− correction). */
+function refreshVsSurveyLiveFields(){
+  document.querySelectorAll('#vsSurveyBody tr[data-survey-row]').forEach(tr=>{
     const measEl = tr.querySelector('[data-survey-tank]');
+    const corrEl = tr.querySelector('[data-survey-corr]');
     const bookCell = tr.querySelector('[data-survey-book]');
-    const diffCell = tr.querySelector('[data-survey-diff]');
-    if (!bookCell || !diffCell || !measEl) return;
+    if (!bookCell || !measEl || !corrEl) return;
     const cat = measEl.dataset.surveyCat || 'fuel';
     const bookBase = parseFloat(bookCell.dataset.bookBase);
     const book = Number.isFinite(bookBase) ? bookBase : null;
-    if (book != null && (!document.activeElement || document.activeElement !== bookCell)){
-      bookCell.textContent = fmtRob(book, cat);
+    const baseText = book != null ? fmtRob(book, cat) : '—';
+    const active = document.activeElement;
+
+    if (active === corrEl){
+      const corr = parseSurveySignedNumber(corrEl.value);
+      if (corr != null && book != null) measEl.value = formatSurveyMeasuredInput(book + corr, cat);
+      else if (corrEl.value === '') measEl.value = '';
+    } else if (active === measEl){
+      const meas = parseSurveyMeasuredField(measEl);
+      if (meas != null && !isNaN(meas) && book != null){
+        corrEl.value = formatSurveyCorrectionInput(meas - book);
+      } else if (measEl.value === '') corrEl.value = '';
     }
-    if (measEl.value === ''){
-      diffCell.textContent = '—';
-      diffCell.removeAttribute('style');
-      return;
+
+    let liveCorr = parseSurveySignedNumber(corrEl.value);
+    if (liveCorr == null && measEl.value !== '' && book != null){
+      const meas = parseSurveyMeasuredField(measEl);
+      if (meas != null && !isNaN(meas)) liveCorr = meas - book;
     }
-    let meas;
-    if (cat === 'fw'){
-      meas = typeof parseFwM3Field === 'function' ? parseFwM3Field(measEl.value) : parseFloat(measEl.value);
-    } else {
-      meas = parseFloat(measEl.value);
-    }
-    if (meas == null || isNaN(meas) || book == null){
-      diffCell.textContent = '—';
-      diffCell.removeAttribute('style');
-      return;
-    }
-    const diff = meas - book;
-    diffCell.textContent = (diff > 0 ? '+' : '') + fmtRob(diff, cat);
-    if (Math.abs(diff) < 1e-9) diffCell.removeAttribute('style');
-    else diffCell.style.color = diff < 0 ? 'var(--danger,#c66)' : 'var(--teal)';
+    bookCell.textContent = baseText + (liveCorr != null ? formatSurveyCorrectionParen(liveCorr, cat) : '');
   });
 }
 
-
-/** Bunker survey panel: book figure beside the measured one, with the difference. */
-/** Bunker survey panel: sounding correction only (Calculated / Measured / Difference). */
+/** Bunker survey panel: Calculated / Correction / Measured (Bunker Surveyor workflow). */
 function renderVsSurvey(){
   const body = document.getElementById('vsSurveyBody');
   if (!body || !currentVsEntryId) return;
@@ -9622,23 +10111,26 @@ function renderVsSurvey(){
     const book = store==='rob' ? calc.rob?.[t.id] : calc.robLube?.[t.id];
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
     const bookNum = book == null ? null : Number(book);
-    const diff = (meas!=null && bookNum!=null) ? meas - bookNum : null;
-    const cls = diff==null ? '' : (Math.abs(diff) < 1e-9 ? '' : (diff < 0 ? ' style="color:var(--danger,#c66)"' : ' style="color:var(--teal)"'));
-    return `<tr><td class="row-lbl">${t.name}</td>`
-      + `<td data-survey-book data-book-base="${bookNum!=null?bookNum:''}">${fmtRob(book, cat)}</td>`
-      + `<td><input type="number" step="any" data-survey-tank="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${meas!=null?(cat==='fw'?fwInputValue(meas):meas):''}" placeholder="${book!=null?fmtRob(book,cat):''}"></td>`
-      + `<td data-survey-diff${cls}>${diff==null?'—':(diff>0?'+':'')+fmtRob(diff, cat)}</td></tr>`;
+    const storedDiff = sv ? (store==='rob' ? sv.difference?.[t.id] : sv.differenceLube?.[t.id]) : null;
+    const diff = storedDiff != null ? Number(storedDiff) : ((meas!=null && bookNum!=null) ? meas - bookNum : null);
+    const calcLabel = fmtRob(book, cat) + (diff != null ? formatSurveyCorrectionParen(diff, cat) : '');
+    const corrVal = diff != null ? formatSurveyCorrectionInput(diff) : '';
+    const measVal = meas != null ? (cat==='fw' ? fwInputValue(meas) : meas) : '';
+    return `<tr data-survey-row><td class="row-lbl">${t.name}</td>`
+      + `<td data-survey-book data-book-base="${bookNum!=null?bookNum:''}">${calcLabel}</td>`
+      + `<td><input class="pf-input" style="width:88px;" type="text" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false" data-survey-corr="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${corrVal}" placeholder="+/−"></td>`
+      + `<td><input class="pf-input" style="width:88px;" type="number" step="any" data-survey-tank="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${measVal}" placeholder="${book!=null?fmtRob(book,cat):''}"></td></tr>`;
   }).join('');
 
-  body.querySelectorAll('[data-survey-tank]').forEach(el=>{
-    el.addEventListener('input', refreshVsSurveyLiveDiffs);
+  body.querySelectorAll('[data-survey-corr], [data-survey-tank]').forEach(el=>{
+    el.addEventListener('input', refreshVsSurveyLiveFields);
   });
 
   const status = document.getElementById('vsSurveyStatus');
   if (status){
     status.textContent = sv
       ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : "No survey on this report. Calculated is the book before today's Received. Use Measured for a sounding correction only — bunkers received are on the ROB table above.";
+      : "No survey on this report. Calculated is the book before today's Received. Enter Measured or Correction (+/−) — bunkers received are on the ROB table above.";
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -9654,18 +10146,14 @@ function bindRobSurveyUi(){
   if (apply) apply.addEventListener('click', async ()=>{
     if (!currentVsEntryId){ alert('Open a log entry first.'); return; }
     const measured = {}, measuredLube = {};
-    document.querySelectorAll('[data-survey-tank]').forEach(el=>{
-      if (el.value === '') return;
-      let v = el.value;
-      if (el.dataset.surveyCat === 'fw'){
-        const litres = parseFwM3Field(v);
-        if (litres==null) return;
-        v = String(litres);
-      }
-      (el.dataset.surveyStore === 'rob' ? measured : measuredLube)[el.dataset.surveyTank] = v;
+    document.querySelectorAll('#vsSurveyBody tr[data-survey-row]').forEach(tr=>{
+      const fig = readVsSurveyTankFigures(tr);
+      if (fig.meas == null || isNaN(fig.meas) || !fig.tankId) return;
+      const v = fig.cat === 'fw' ? String(fig.meas) : String(fig.meas);
+      (fig.store === 'rob' ? measured : measuredLube)[fig.tankId] = v;
     });
     if (!Object.keys(measured).length && !Object.keys(measuredLube).length){
-      alert('Enter at least one measured figure.'); return;
+      alert('Enter at least one measured figure or a correction (+/−).'); return;
     }
     /* Stamp Received first so the burn-only book and receipt mirrors agree, then
        sync mirrors and lock the sounding survey against that book. */
@@ -11754,24 +12242,29 @@ function render(){
     <div class="stat"><div class="num">${etaStr}</div><div class="lbl">ETA</div></div>
   `;
 
-  // Calculated ROB gauges: Opening vs Present/Consumed from Dep/Arr book
-  // (saved log ROB + log consumption). Do not use currentROB() — that rebuilds
-  // from flowmeters and can re-add stamped Received on top of receipts.
+  // Calculated ROB gauges: voyage opening vs Present from the log chain (robAsOf).
   const calcRows = depArrRobRows(consByFuel, consByLube);
   const calcById = Object.fromEntries(calcRows.map(r => [r.id, r]));
   const calcRobLube = {};
   calcRows.filter(r => r.cat === 'lube' || r.cat === 'fw').forEach(r => {
     calcRobLube[r.id] = r.present;
   });
+  const lastLogEntry = rows.length
+    ? (state.entries || []).find(e => e.id === rows[rows.length - 1].id)
+    : null;
   document.getElementById('fuelDualGauges').innerHTML = fuelTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacity, t) || 1;
     const startVal = tankRobValue(state.setup.rob, t) || 0;
     const row = calcById[t.id];
     const curVal = row ? row.present : 0;
     const usedVal = row ? row.consumed : 0;
+    const corr = lastLogEntry ? entrySurveyCorrection(lastLogEntry, t.id, 'rob') : null;
+    const corrBit = (corr != null && Math.abs(corr) >= 1e-9)
+      ? ` · corr ${corr > 0 ? '+' : '−'}${fmtFuel(Math.abs(corr))}`
+      : '';
     return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
       <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
-      <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(usedVal), 'MT')}</div>
+      <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(usedVal), 'MT')}${corrBit}</div>
       <div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeDualGauges').innerHTML = lubeTankList().map(t=>{
@@ -11961,7 +12454,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['consumption', 'voyageabstract', 'rangetotals', 'receipts', 'reports', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_MAX_LEGS = 30;
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
@@ -12730,34 +13223,55 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
       const mobileLocked = native || mobileOs;
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
-      if (mobileLocked || touch || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
+      /* Prefer screen size for chrome decisions — soft keyboard shrinks innerHeight. */
+      const screenMin = Math.min(screen.width || 0, screen.height || 0);
+      if (mobileLocked || touch || screenMin <= 900 || Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900){
         document.documentElement.classList.add('use-bottom-nav');
       }
       document.documentElement.classList.toggle('is-mobile-chrome', mobileLocked);
       /* Wide Windows desktop: keep top tabs. Android never restores them in landscape. */
       if (mobileLocked) {
         document.documentElement.classList.remove('use-top-tabs');
-      } else if ((window.innerWidth || 0) >= 1101) {
+      } else if ((window.innerWidth || 0) >= 1181
+        && Math.min(window.innerWidth || 0, window.innerHeight || 0) > 900) {
         document.documentElement.classList.remove('use-bottom-nav');
         document.documentElement.classList.add('use-top-tabs');
       } else {
         document.documentElement.classList.remove('use-top-tabs');
       }
-      const short = (window.innerHeight || 0) > 0 && (window.innerHeight || 0) <= 560;
-      const landscape = (window.innerWidth || 0) > (window.innerHeight || 0);
+      const vv = window.visualViewport;
+      const layoutH = window.innerHeight || 0;
+      const visH = (vv && vv.height) ? vv.height : layoutH;
+      const root = document.documentElement;
+      root.style.setProperty('--vv-top', ((vv && vv.offsetTop) ? Math.max(0, vv.offsetTop) : 0) + 'px');
+      root.style.setProperty('--vv-left', ((vv && vv.offsetLeft) ? Math.max(0, vv.offsetLeft) : 0) + 'px');
+      root.style.setProperty('--vv-height', ((visH > 0 ? visH : layoutH) || 0) + 'px');
+      root.style.setProperty('--vv-width', ((vv && vv.width) ? vv.width : (window.innerWidth || 0)) + 'px');
+      /* Keyboard: visual viewport shorter than layout, or layout shorter than screen. */
+      const keyboardOpen = (vv && layoutH > 0 && (layoutH - visH) > 100)
+        || (screenMin > 560 && layoutH > 0 && layoutH <= 560);
+      /* True short device (phone landscape) — never treat keyboard-shrunk tablet as short. */
+      const short = screenMin > 0 && screenMin <= 560
+        && layoutH > 0 && layoutH <= 560
+        && !keyboardOpen;
+      /* Prefer orientation media — screen dims are stable across soft keyboard. */
+      const land = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches)
+        || ((screen.width || 0) > (screen.height || 0));
       const narrow = Math.min(window.innerWidth || 0, window.innerWidth || 0) <= 720
-        || Math.min(screen.width || 0, screen.height || 0) <= 720;
+        || screenMin <= 720;
       const compact = narrow || (document.documentElement.classList.contains('use-bottom-nav')
-        && Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 900);
+        && screenMin > 0 && screenMin <= 900);
+      document.documentElement.classList.toggle('keyboard-open', !!keyboardOpen);
       document.documentElement.classList.toggle('short-viewport', short);
-      document.documentElement.classList.toggle('landscape-view', landscape);
-      document.documentElement.classList.toggle('compact-phone', compact && !landscape);
+      document.documentElement.classList.toggle('landscape-view', land);
+      document.documentElement.classList.toggle('compact-phone', compact && !land);
       /* Tablet / phone landscape with bottom nav: force GE + Fuel Cons single rows.
          Many Android tablets report CSS width >1400 (or skip orientation media), so
          media-query-only rules never fire and the desktop stack remains. */
-      const landRows = landscape && !short && (window.innerWidth || 0) >= 800
+      const landRows = land && !short && (window.innerWidth || 0) >= 800
         && (mobileLocked || touch || document.documentElement.classList.contains('use-bottom-nav'));
       document.documentElement.classList.toggle('vm-land-rows', !!landRows);
+      keepFmQuickFieldVisible(document.activeElement);
     }catch(_){}
     syncBottomNav(_activeTab);
   }
@@ -12766,10 +13280,15 @@ document.getElementById('tabs').addEventListener('click', (e)=>{
   window.addEventListener('capacitorReady', refreshBottomNavMode, { once:true });
   window.addEventListener('orientationchange', ()=> setTimeout(refreshBottomNavMode, 120));
   let _vpResizeTimer = null;
-  window.addEventListener('resize', ()=>{
+  function _scheduleVpRefresh(){
     clearTimeout(_vpResizeTimer);
     _vpResizeTimer = setTimeout(refreshBottomNavMode, 140);
-  });
+  }
+  window.addEventListener('resize', _scheduleVpRefresh);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', _scheduleVpRefresh);
+    window.visualViewport.addEventListener('scroll', _scheduleVpRefresh);
+  }
   setTimeout(refreshBottomNavMode, 0);
   setTimeout(refreshBottomNavMode, 300);
   nav.addEventListener('click', (e)=>{
@@ -13403,35 +13922,63 @@ function depArrPresentRob(tank, cat, open, received, consumed, lastEntry){
 }
 
 function depArrRobRows(consByFuel, consByLube){
-  /* Opening / Received / Consumed from vessel opening + receipts + log overrides;
-     Present prefers saved log ROB, else book identity. Do not use currentROB()
-     (flowmeter book rebuild) — that re-added stamped Received on top of receipts. */
+  /* Opening / Received / Consumed for Dep/Arr + Home gauges. Present must match the
+     voyage log chain (robAsOf on the last entry) — same as Voyage Summary Present
+     R.O.B. The old open+received−consumed split used a static grade share and
+     drifted after surveys, receipt cutoffs, and multi-grade burns. */
   void consByFuel; void consByLube;
   const { rows: derivedRows } = computeDerived();
   const lastRow = derivedRows.length ? derivedRows[derivedRows.length - 1] : null;
   const lastEntry = lastRow
     ? (state.entries || []).find(e => e.id === lastRow.id)
     : null;
+  const asOfLast = lastRow ? robAsOfComputedRow(lastRow, derivedRows) : null;
+  const presentFromChain = (t, cat) => {
+    if (lastEntry && lastEntry.robSurvey){
+      const p = depArrPresentRob(t, cat, 0, 0, 0, lastEntry);
+      if (cat === 'fuel' && lastEntry.robSurvey.measured?.[t.id] != null) return p;
+      if (cat !== 'fuel' && lastEntry.robSurvey.measuredLube?.[t.id] != null) return p;
+    }
+    if (cat === 'fw') return depArrPresentRob(t, cat, 0, 0, 0, lastEntry);
+    const store = cat === 'fuel' ? asOfLast?.rob : asOfLast?.robLube;
+    if (store && store[t.id] != null && !isNaN(Number(store[t.id]))) return Number(store[t.id]);
+    return null;
+  };
   const rows = [];
   fuelTankList().forEach(t=>{
     const open = tankRobValue(state.setup.rob, t) || 0;
     const received = voyageReceivedQty(t, 'fuel');
-    const consumed = voyageConsumedFromLog(t, 'fuel', derivedRows);
-    const present = depArrPresentRob(t, 'fuel', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'fuel');
+    let consumed = voyageConsumedFromLog(t, 'fuel', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'fuel', open, received, consumed, lastEntry);
+    } else {
+      consumed = roundFuelMt(Math.max(0, open + received - present));
+    }
     rows.push({ id:t.id, label:t.name, unit:'MT', open, received, consumed, present, cat:'fuel' });
   });
   lubeTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
     const received = voyageReceivedQty(t, 'lube');
-    const consumed = voyageConsumedFromLog(t, 'lube', derivedRows);
-    const present = depArrPresentRob(t, 'lube', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'lube');
+    let consumed = voyageConsumedFromLog(t, 'lube', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'lube', open, received, consumed, lastEntry);
+    } else {
+      consumed = Math.max(0, open + received - present);
+    }
     rows.push({ id:t.id, label:t.name, unit:'L', open, received, consumed, present, cat:'lube' });
   });
   fwTankList().forEach(t=>{
     const open = tankRobValue(state.setup.robLube, t) || 0;
     const received = voyageReceivedQty(t, 'fw');
-    const consumed = voyageConsumedFromLog(t, 'fw', derivedRows);
-    const present = depArrPresentRob(t, 'fw', open, received, consumed, lastEntry);
+    let present = presentFromChain(t, 'fw');
+    let consumed = voyageConsumedFromLog(t, 'fw', derivedRows);
+    if (present == null){
+      present = depArrPresentRob(t, 'fw', open, received, consumed, lastEntry);
+    } else {
+      consumed = Math.max(0, open + received - present);
+    }
     rows.push({ id:t.id, label:t.name, unit:'m³', open, received, consumed, present, cat:'fw' });
   });
   /* Insert totals after each group: lube total after the last lube, water after the last fw. */
@@ -16662,8 +17209,18 @@ function getRobRows(){
     ...fwTankList().map(t=>({key:t.id, label:t.name, cat:'fw'}))
   ];
 }
-function robRowCons(row, r){
-  if (r.cat==='fuel') return row.consByType?.[r.grade] ?? row.consByType?.[r.key];
+function robRowCons(row, r, prevRobData){
+  if (r.cat==='fuel'){
+    const gradeCons = row.consByType?.[r.grade];
+    if (gradeCons == null) return row.consByType?.[r.key];
+    const peers = fuelTankList().filter(t => t.grade === r.grade);
+    if (peers.length <= 1) return roundFuelMt(gradeCons);
+    const prevVal = Number(prevRobData?.rob?.[r.key]) || 0;
+    let stock = 0;
+    peers.forEach(t => { stock += Number(prevRobData?.rob?.[t.id]) || 0; });
+    const share = stock > 0 ? (prevVal / stock) : (1 / peers.length);
+    return roundFuelMt(gradeCons * share);
+  }
   if (r.cat==='fw'){
     if (row.fwConsByTank && row.fwConsByTank[r.key]!=null) return row.fwConsByTank[r.key];
     const first = fwTankList()[0];
@@ -17635,16 +18192,18 @@ function openVoyageSummary(entryId){
   renderVsPerfTable(entryId);
 
   const unitOv = entry.unitOverride || {};
-  const meConsVal = unitOv.ME!=null ? unitOv.ME : row.meCons;
-  const geConsVal = unitOv.GE!=null ? unitOv.GE : row.geCons;
-  const blrConsVal = unitOv.BLR!=null ? unitOv.BLR : row.blrCons;
-  const unitVal = v => (v==null || isNaN(v)) ? '' : Number(v).toFixed(3);
   /* What the flowmeters actually measured for this period, before any override.
      Shown beside each typed box so the engineer overriding a figure can see the
      basis being departed from — previously the metered figure was only reachable
      by pressing a button that discarded the override to reveal it. */
   const metered = meterDerivedUnitCons(entry);
-  const basis = v => (v==null || isNaN(v)) ? '—' : Number(v).toFixed(3);
+  /* Prefill with flowmeter MT at 3 dp (same as live preview / ROB). Save compares
+     display strings to meterDerived so a prefilled 0.303 is not stored as override. */
+  const meConsVal = unitOv.ME!=null ? roundFuelMt(unitOv.ME) : (metered.meCons ?? row.meCons);
+  const geConsVal = unitOv.GE!=null ? roundFuelMt(unitOv.GE) : (metered.geCons ?? row.geCons);
+  const blrConsVal = unitOv.BLR!=null ? roundFuelMt(unitOv.BLR) : (metered.blrCons ?? row.blrCons);
+  const unitVal = v => (v==null || v==='' || isNaN(v)) ? '' : fmtFuel(Number(v));
+  const basis = v => (v==null || isNaN(v)) ? '—' : fmtFuel(Number(v));
   const consRow = (label, id, val, meterVal, editable) => `
     <div class="cons-row">
       <div class="field${editable ? '' : ' calc'}"><label>${label}</label>
@@ -17794,23 +18353,27 @@ function computeVsLiveConsByType(entry){
     return isNaN(v) ? null : v;
   };
   const row = getComputedRow(entry.id);
-  const meCons = num('vs_unit_me') ?? row?.meCons;
-  const geCons = num('vs_unit_ge') ?? row?.geCons;
-  const blrCons = num('vs_unit_blr') ?? row?.blrCons;
+  const meterUnits = meterDerivedUnitCons(entry);
+  const meConsRaw = num('vs_unit_me') ?? meterUnits.meCons ?? row?.meCons;
+  const geConsRaw = num('vs_unit_ge') ?? meterUnits.geCons ?? row?.geCons;
+  const blrConsRaw = num('vs_unit_blr') ?? meterUnits.blrCons ?? row?.blrCons;
+  const meCons = meConsRaw==null ? null : roundFuelMt(meConsRaw);
+  const geCons = geConsRaw==null ? null : roundFuelMt(geConsRaw);
+  const blrCons = blrConsRaw==null ? null : roundFuelMt(blrConsRaw);
   const meType = document.getElementById('me_type')?.value || entry.me?.type;
   const geType = document.getElementById('ge_type')?.value || entry.ge?.type;
   const blrType = document.getElementById('blr_type')?.value || entry.blr?.type;
-  if (meCons!=null && meType) consByType[meType] = (consByType[meType]||0) + meCons;
-  if (geCons!=null && geType) consByType[geType] = (consByType[geType]||0) + geCons;
-  if (blrCons!=null && blrType) consByType[blrType] = (consByType[blrType]||0) + blrCons;
-  consByType['MDO/MGO'] = (consByType['MDO/MGO']||0) + (num('vs_misc_mdomgo')||0);
-  consByType['LSMGO'] = (consByType['LSMGO']||0) + (num('vs_misc_lsmgo')||0);
+  if (meCons!=null && meType) consByType[meType] = roundFuelMt((consByType[meType]||0) + meCons);
+  if (geCons!=null && geType) consByType[geType] = roundFuelMt((consByType[geType]||0) + geCons);
+  if (blrCons!=null && blrType) consByType[blrType] = roundFuelMt((consByType[blrType]||0) + blrCons);
+  consByType['MDO/MGO'] = roundFuelMt((consByType['MDO/MGO']||0) + (num('vs_misc_mdomgo')||0));
+  consByType['LSMGO'] = roundFuelMt((consByType['LSMGO']||0) + (num('vs_misc_lsmgo')||0));
   /* Boiler pilot / incinerator D.O. is hand-booked the same way as misc — include
      it in the live R.O.B. table as soon as it is typed, not only after Save. */
   EXTRA_DO_GRADES.forEach(t=>{
     const blr = num(t === 'MDO/MGO' ? 'vs_blrExtra_mdomgo' : 'vs_blrExtra_lsmgo') || 0;
     const inc = num(t === 'MDO/MGO' ? 'vs_incExtra_mdomgo' : 'vs_incExtra_lsmgo') || 0;
-    consByType[t] = (consByType[t]||0) + blr + inc;
+    consByType[t] = roundFuelMt((consByType[t]||0) + blr + inc);
   });
 
   const prev = previousEntryFor(entry.id) || effectiveCarryover();
@@ -17860,11 +18423,13 @@ function updateVsRobLiveFromCons(){
     if (!consEl) return;
     // Fuel grades + FW are calculated (not editable); leave lube oil cons as the user set it.
     if (r.cat!=='lube'){
+      const priorEntry = previousEntryFor(entry.id);
+      const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
       const liveCons = robRowCons({
         consByType: live.consByType,
         lubeByType: live.lubeByType,
         fwConsByTank: live.fwConsByTank
-      }, r);
+      }, r, prevRobData);
       consEl.value = fmtRobInput(liveCons, r.cat);
     }
     const prevVal = parseFloat(consEl.dataset.prev)||0;
@@ -19349,15 +19914,15 @@ function updateLivePreview(){
     if (hrs>0){
       const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
       const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-      meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+      meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+      geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+      blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
       const unitMe = document.getElementById('vs_unit_me');
       const unitGe = document.getElementById('vs_unit_ge');
       const unitBlr = document.getElementById('vs_unit_blr');
-      if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-      if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-      if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+      if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+      if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+      if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
       if (meStopped){
         if (!(meCons > 0)) meCons = null;
       } else if (rpmEff != null){
@@ -19410,9 +19975,9 @@ function updateLivePreview(){
 function computeRawUnitCons(curEntry, prevRef, rolls){
   const {meRaw, geRaw} = meGeRawLitres(curEntry, prevRef, rolls);
   const blrD = meterDelta(curEntry.blr.meter, prevRef.blr.meter, rolls.boiler);
-  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? (meRaw*curEntry.me.sg)/1000 : null;
-  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? (geRaw*curEntry.ge.sg)/1000 : null;
-  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? (blrD*curEntry.blr.sg)/1000 : null;
+  const meCons = (meRaw!=null && curEntry.me.sg!=null) ? roundFuelMt((meRaw*curEntry.me.sg)/1000) : null;
+  const geCons = (geRaw!=null && curEntry.ge.sg!=null) ? roundFuelMt((geRaw*curEntry.ge.sg)/1000) : null;
+  const blrCons = (blrD!=null && curEntry.blr.sg!=null) ? roundFuelMt((blrD*curEntry.blr.sg)/1000) : null;
   return {meCons, geCons, blrCons};
 }
 
@@ -19446,7 +20011,7 @@ function renderEntryUnitFields(){
   const set = (id, val, keep) => {
     if (keep) return;
     const el = document.getElementById(id);
-    if (el && document.activeElement!==el) el.value = (val===null||val===undefined) ? '' : val;
+    if (el && document.activeElement!==el) el.value = (val===null||val===undefined||val==='') ? '' : fmtFuel(val);
   };
   set('vs_unit_me', meCons, unitOv.ME!=null);
   set('vs_unit_ge', geCons, unitOv.GE!=null);
@@ -20067,9 +20632,9 @@ function computeLiveConsByType(){
   const unitMe = document.getElementById('vs_unit_me');
   const unitGe = document.getElementById('vs_unit_ge');
   const unitBlr = document.getElementById('vs_unit_blr');
-  if (unitMe && unitMe.value!=='') meCons = parseFloat(unitMe.value);
-  if (unitGe && unitGe.value!=='') geCons = parseFloat(unitGe.value);
-  if (unitBlr && unitBlr.value!=='') blrCons = parseFloat(unitBlr.value);
+  if (unitMe && unitMe.value!=='') meCons = roundFuelMt(parseFloat(unitMe.value));
+  if (unitGe && unitGe.value!=='') geCons = roundFuelMt(parseFloat(unitGe.value));
+  if (unitBlr && unitBlr.value!=='') blrCons = roundFuelMt(parseFloat(unitBlr.value));
   const rawFuel = {"HFO":0,"LSFO":0,"MDO/MGO":0,"LSMGO":0};
   if (meCons && curEntry.me.type) rawFuel[curEntry.me.type] += meCons;
   if (geCons && curEntry.ge.type) rawFuel[curEntry.ge.type] += geCons;
@@ -20223,14 +20788,27 @@ function flowArrIsGeDual(){
 function paintFmQuickMeterBox(box, dual, prefix){
   if (!box) return;
   box.innerHTML = dual
-    ? `<div class="field"><label>Inlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_in"></div>
-       <div class="field"><label>Outlet Flowmeter</label><input type="number" id="fmq_${prefix}_meter_out"></div>`
-    : `<div class="field"><label>Fuel Meter</label><input type="number" id="fmq_${prefix}_meter"></div>`;
+    ? `<div class="field"><label>Inlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_in"></div>
+       <div class="field"><label>Outlet Flowmeter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter_out"></div>`
+    : `<div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_${prefix}_meter"></div>`;
 }
 function setElVal(id, val){
   const el = document.getElementById(id);
   if (!el) return;
   el.value = (val == null || val === undefined || Number.isNaN(val)) ? '' : val;
+}
+/** Do not rewrite the field the engineer is typing in (toFixed mid-keystroke jumps the caret). */
+function setFmqUnlessFocused(id, val){
+  const el = document.getElementById(id);
+  if (!el || document.activeElement === el) return;
+  setElVal(id, val);
+}
+function finalizeFmqDecimalField(el){
+  if (!el || el.tagName !== 'INPUT') return;
+  const raw = String(el.value ?? '').trim();
+  if (raw === '' || raw === '-') { el.value = ''; return; }
+  const v = parseFloat(raw);
+  if (!isNaN(v)) el.value = Number(v).toFixed(2);
 }
 function getElVal(id){
   const el = document.getElementById(id);
@@ -20241,6 +20819,16 @@ function closeFmQuickDialog(){
   if (!overlay) return;
   overlay.classList.remove('open');
   overlay.hidden = true;
+}
+/** Keep the focused flowmeter field above the tablet numpad. */
+function keepFmQuickFieldVisible(el){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.hidden || !overlay.classList.contains('open')) return;
+  const target = (el && el.nodeType === 1) ? el : document.activeElement;
+  if (!target || !overlay.contains(target)) return;
+  try{
+    target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+  }catch(_e){}
 }
 function syncFmqRpmRev(sourceId){
   if (fmqRpmSyncGuard) return;
@@ -20258,20 +20846,17 @@ function syncFmqRpmRev(sourceId){
     const rpm = parseFloat(getElVal('fmq_rpm'));
     if (!isNaN(rpm)){
       const revCounter = prevRef.revCounter + rpm * runHours * 60;
-      setElVal('fmq_rpm', Number(rpm).toFixed(2));
-      setElVal('fmq_revCounter', Number(revCounter).toFixed(2));
+      setFmqUnlessFocused('fmq_revCounter', Number(revCounter).toFixed(2));
     }
   } else {
     const rc = parseFloat(getElVal('fmq_revCounter'));
     if (!isNaN(rc)){
       if (!operationNeedsMeData(op)){
-        setElVal('fmq_revCounter', Number(rc).toFixed(2));
-        setElVal('fmq_rpm', '');
+        setFmqUnlessFocused('fmq_rpm', '');
       } else {
         const dRevs = meterDelta(rc, prevRef.revCounter, rolls.rc);
         const rpm = (dRevs != null) ? dRevs / (runHours * 60) : null;
-        setElVal('fmq_revCounter', Number(rc).toFixed(2));
-        setElVal('fmq_rpm', rpm == null || isNaN(rpm) ? '' : Number(rpm).toFixed(2));
+        setFmqUnlessFocused('fmq_rpm', rpm == null || isNaN(rpm) ? '' : Number(rpm).toFixed(2));
       }
     }
   }
@@ -20308,10 +20893,14 @@ function openFmQuickDialog(){
   setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
   setElVal('fmq_tbn', getElVal('in_tbn') || 'HIGH');
 
+  if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
   overlay.hidden = false;
   overlay.classList.add('open');
-  const first = overlay.querySelector('input, select');
-  if (first) setTimeout(() => first.focus(), 30);
+  const first = overlay.querySelector('input:not([type="hidden"]), select');
+  if (first) setTimeout(() => {
+    first.focus();
+    if (first.tagName === 'INPUT') selectAllEditableField(first);
+  }, 30);
 }
 function acceptFmQuickDialog(){
   if (typeof renderFuelMeterFields === 'function') renderFuelMeterFields();
@@ -20366,6 +20955,14 @@ document.getElementById('fmQuickOverlay')?.addEventListener('input', (e) => {
   const id = e.target && e.target.id;
   if (id === 'fmq_rpm' || id === 'fmq_revCounter') syncFmqRpmRev(id);
 });
+document.getElementById('fmQuickOverlay')?.addEventListener('focusout', (e) => {
+  const id = e.target && e.target.id;
+  if (id !== 'fmq_rpm' && id !== 'fmq_revCounter') return;
+  finalizeFmqDecimalField(e.target);
+  syncFmqRpmRev(id);
+  finalizeFmqDecimalField(document.getElementById('fmq_rpm'));
+  finalizeFmqDecimalField(document.getElementById('fmq_revCounter'));
+}, true);
 document.getElementById('in_datetime')?.addEventListener('change', refreshFmEntryButtonVisibility);
 document.getElementById('in_datetime')?.addEventListener('input', refreshFmEntryButtonVisibility);
 document.getElementById('in_operation')?.addEventListener('change', refreshFmEntryButtonVisibility);
@@ -20934,6 +21531,26 @@ function sanitizeSyncSlug(raw){
   return String(raw || '').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 64);
 }
 
+/** Strip leading m-v- / mv- / m.v- so sync folder aliases match one ship. */
+function syncSlugCore(raw){
+  let s = sanitizeSyncSlug(raw).toLowerCase().replace(/^-+|-+$/g, '');
+  let prev = '';
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(/^m[._-]?v[._-]+/i, '').replace(/^[-._]+/, '');
+  }
+  return s || 'vessel';
+}
+
+function syncSlugsMatch(a, b){
+  if (!a || !b) return false;
+  const sa = sanitizeSyncSlug(a);
+  const sb = sanitizeSyncSlug(b);
+  if (sa.toLowerCase() === sb.toLowerCase()) return true;
+  if (syncSlugCore(sa) === syncSlugCore(sb)) return true;
+  return syncSlugCoreWithoutImo(sa) === syncSlugCoreWithoutImo(sb);
+}
+
 function vesselSyncSlug(){
   const sync = ensureSyncConfig();
   if (_syncSlugOverride) return sanitizeSyncSlug(_syncSlugOverride);
@@ -21264,6 +21881,44 @@ function syncCredentialsMirrorValue(sync){
   };
 }
 
+/** Electron/AIO loopback disk mirror — survives Chromium origin wipe when the HTTP port changes. */
+function localSyncCredsMirrorUrl(){
+  try{
+    if (typeof location === 'undefined') return '';
+    if (!/^https?:$/i.test(location.protocol || '')) return '';
+    const host = location.hostname || '';
+    if (host !== '127.0.0.1' && host !== 'localhost') return '';
+    return '/api/shell/local-sync-creds';
+  }catch(_){ return ''; }
+}
+
+function mirrorSyncCredentialsToDisk(creds){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return;
+  try{
+    const has = creds && (creds.serverUrl || creds.apiToken);
+    fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentials: has ? syncCredentialsMirrorValue(creds) : null }),
+      credentials: 'same-origin',
+      keepalive: true
+    }).catch(()=>{});
+  }catch(_){}
+}
+
+async function hydrateSyncCredentialsFromDisk(){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return null;
+  try{
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const creds = data && data.credentials;
+    return (creds && typeof creds === 'object') ? creds : null;
+  }catch(_){ return null; }
+}
+
 function readSyncCredentialsFromLocalStorage(){
   try{
     const raw = localStorage.getItem(SYNC_CREDS_LS_KEY);
@@ -21277,13 +21932,14 @@ function writeSyncCredentialsToLocalStorage(creds){
   const value = syncCredentialsMirrorValue(creds || {});
   localStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value));
   try{ sessionStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value)); }catch(_){}
+  mirrorSyncCredentialsToDisk(value);
   return value;
 }
 
 async function persistSyncCredentialsMirror(sync){
   /*
    * localStorage first — synchronous, works on fresh tablets even while IndexedDB
-   * is busy seeding the demo fleet. IndexedDB mirror is best-effort afterward.
+   * is busy seeding the demo fleet. IndexedDB + disk mirrors are best-effort afterward.
    */
   const value = writeSyncCredentialsToLocalStorage(sync);
   try{
@@ -21459,6 +22115,16 @@ async function applyMirroredSyncCredentials(){
         const row = await dbGet('meta', 'syncCredentials');
         creds = row && row.value;
         if (creds) writeSyncCredentialsToLocalStorage(creds);
+      }catch(_){}
+    }
+    /* Electron disk mirror — recovers Backup→Server Sync after a loopback port change. */
+    if (!creds || !(creds.apiToken || creds.serverUrl)){
+      try{
+        const fromDisk = await hydrateSyncCredentialsFromDisk();
+        if (fromDisk && (fromDisk.apiToken || fromDisk.serverUrl)){
+          creds = Object.assign({}, creds || {}, fromDisk);
+          writeSyncCredentialsToLocalStorage(creds);
+        }
       }catch(_){}
     }
     if (creds && typeof creds !== 'object') creds = null;
@@ -22409,22 +23075,7 @@ document.getElementById('btnPullVoyageLeg')?.addEventListener('click', async ()=
 document.getElementById('btnLoadVoyageLeg')?.addEventListener('click', async ()=>{
   const vn = (document.getElementById('s_voyageSelect')?.value || '').trim();
   const cond = normalizeCondition(document.getElementById('s_legCondition')?.value);
-  if (!vn){ alert('Select a voyage number from the library list.'); return; }
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { successAlert: true });
 });
 
 document.getElementById('btnSaveVoyageLeg')?.addEventListener('click', async ()=>{
@@ -22449,21 +23100,7 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
   const vn = (btn.dataset.voyage || '').trim();
   const cond = normalizeCondition(btn.dataset.cond);
   if (!vn) return;
-  try {
-    const scopeVid = libraryScopeVesselId();
-    if (scopeVid && scopeVid !== state.activeVesselId){
-      await switchVessel(scopeVid);
-    }
-    await activateVoyageLeg(state.activeVesselId, vn, cond);
-    render();
-    applyEntryDefaults();
-    prefillFromLastEntry();
-    renderSyncUi();
-    await renderVoyageLibrary();
-    switchTab('summary');
-  } catch (e){
-    alert('Load failed: ' + e.message);
-  }
+  await loadSelectedVoyageLeg(vn, cond, { goSummary: true });
 });
 
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
@@ -22547,7 +23184,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v273';
+let androidInstallCacheName = 'noon-report-v302';
 
 /*
  * What the program is called.
@@ -22841,6 +23478,7 @@ let androidInstallAssets = [
   './license.js',
   './save-file.js',
   './camera-capture.js',
+  './clock-picker.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',
@@ -23891,22 +24529,39 @@ window.addEventListener('message', async (ev)=>{
       const prevVn = state.setup.voyageNumber;
       const prevCond = state.setup.shipCondition;
       /* Same pinning as list-remote: the leg has to come from the ship that was
-         listed, not from the one this frame's Setup field names. */
+         listed, not from the one this frame's Setup field names. Then switch
+         the local registry to that ship so archiveActiveVoyageLeg writes under
+         the right voyageLegs key — API pin alone left legs on the wrong hull. */
       const prevPullOverride = _syncSlugOverride;
-      const askedVessel = String(msg.vessel || '').trim();
+      const askedVessel = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
       try {
-        if (askedVessel) _syncSlugOverride = askedVessel;
+        let localVessel = null;
+        if (askedVessel) {
+          localVessel = await ensureLocalVesselForSyncSlug(askedVessel);
+          if (!localVessel) {
+            throw new Error(`Could not open a local vessel for "${askedVessel}". Add it to your list, then pull again.`);
+          }
+          if (localVessel.id !== state.activeVesselId) await switchVessel(localVessel.id);
+          _syncSlugOverride = sanitizeSyncSlug(askedVessel) || vesselOwnSyncSlug(localVessel.id);
+        }
         await archiveActiveVoyageLeg();
         state.setup.voyageNumber = voyage;
         state.setup.shipCondition = condition;
         await syncNow({ pullOnly: true, policy: 'merge' });
         await archiveActiveVoyageLeg();
+        try { await persistAllToDb(); } catch (_) {}
         try { await renderVoyageLibrary(); } catch (_) {}
+        try { renderVesselSelector(); render(); } catch (_) {}
+        const shipLabel = (localVessel && localVessel.name)
+          || state.setup.vesselName
+          || askedVessel
+          || 'active vessel';
         reply({
-          message: `Merged voyage ${voyage} (${condition}) — ${state.entries.length} log entries on this device.`,
+          message: `Merged voyage ${voyage} (${condition}) into ${shipLabel} — ${state.entries.length} log entries on this device.`,
           voyage,
           condition,
           vessel: askedVessel || vesselSyncSlug(),
+          vesselId: state.activeVesselId,
           entryCount: state.entries.length,
         });
       } catch (e) {
@@ -25924,11 +26579,12 @@ function isLogEntryRemarksField(el){
 }
 function isLogEntryInput(el){
   if (!el || !el.closest) return false;
-  if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return false;
-  if (el.closest('#page-entry') || el.closest('#page-reports')) return true;
+  if (!(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return false;
+  if (el.closest('#page-entry') || el.closest('#page-reports') || el.closest('#fmQuickOverlay')) return true;
   return false;
 }
 function isLogEntryNumericInput(el){
+  if (isSurveyCorrectionInput(el)) return false;
   if (!isLogEntryInput(el) || isLogEntryRemarksField(el)) return false;
   if (el.readOnly || el.disabled) return false;
   if (el.tagName === 'TEXTAREA') return false;
@@ -25938,10 +26594,39 @@ function isLogEntryNumericInput(el){
   if (el.dataset.vmNumeric === '1' || t === 'number') return true;
   if (el.getAttribute('inputmode') === 'decimal' || el.getAttribute('inputmode') === 'numeric') return true;
   /* Text-like number fields on the log entry form (calc outputs stay readonly). */
-  if (t === 'text' && el.id && /^vs_|^rep_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
+  if (t === 'text' && el.id && /^vs_|^rep_|^fmq_/.test(el.id) && !/name|port|pos|remark|note|dir|bft|state|grade|type|unit|select/i.test(el.id)){
     return true;
   }
   return false;
+}
+/** Highlight the current value so the next keystroke replaces it (tablet + mouse). */
+function selectAllEditableField(el){
+  if (!el || el.readOnly || el.disabled) return;
+  if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+  const t = String(el.type || 'text').toLowerCase();
+  if (t === 'checkbox' || t === 'radio' || t === 'button' || t === 'submit' || t === 'file' || t === 'hidden') return;
+  if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week' || t === 'color' || t === 'range') return;
+  const run = ()=>{
+    try { el.select(); } catch(_e){}
+    try {
+      const len = String(el.value ?? '').length;
+      if (typeof el.setSelectionRange === 'function') el.setSelectionRange(0, len);
+    } catch(_e){}
+  };
+  run();
+  /* Some tablet browsers drop the selection again as the soft keyboard opens,
+     so the select is tried once more on the next tick. It must not fire when
+     the engineer has meanwhile put a caret in the value or dragged a stylus
+     over part of it — yanking the whole value back into selection is what made
+     these fields impossible to correct. */
+  setTimeout(()=>{
+    if (document.activeElement !== el) return;
+    try {
+      if (el.selectionStart !== el.selectionEnd) return;
+      if (el.selectionStart !== 0) return;
+    } catch(_e){ /* number inputs expose no selection — retry is harmless */ }
+    run();
+  }, 0);
 }
 /** Live typing: any non-digit (except leading minus) becomes a single decimal point. */
 function coerceLogEntryDecimalInput(el){
@@ -25957,7 +26642,10 @@ function coerceLogEntryDecimalInput(el){
     else if (!seenDot){ out += '.'; seenDot = true; }
   }
   if (out !== raw){
-    const start = el.selectionStart;
+    /* type="number" throws on selectionStart, and the throw used to abort this
+       handler before the value was ever written back. */
+    let start = null;
+    try { start = el.selectionStart; } catch(_e){}
     el.value = out;
     try{
       const pos = Math.min(out.length, start != null ? start : out.length);
@@ -25967,6 +26655,10 @@ function coerceLogEntryDecimalInput(el){
 }
 document.addEventListener('focusin', (e)=>{
   const el = e.target;
+  if (el && el.closest && el.closest('#fmQuickOverlay')){
+    setTimeout(()=> keepFmQuickFieldVisible(el), 80);
+    setTimeout(()=> keepFmQuickFieldVisible(el), 280);
+  }
   if (!isLogEntryInput(el)) return;
   if (el.tagName === 'INPUT'){
     const t = (el.type || '').toLowerCase();
@@ -25976,11 +26668,48 @@ document.addEventListener('focusin', (e)=>{
     if (t === 'date' || t === 'time' || t === 'datetime-local' || t === 'month' || t === 'week') return;
   }
   /* Select all so the next keystroke replaces the previous value (touch + mouse). */
-  setTimeout(()=>{ try{ el.select(); }catch(_e){} }, 0);
+  selectAllEditableField(el);
 }, true);
 document.addEventListener('input', (e)=>{
-  if (e.target && isLogEntryNumericInput(e.target)) coerceLogEntryDecimalInput(e.target);
+  const t = e.target;
+  if (t && isSurveyCorrectionInput(t)){ coerceSurveyCorrectionInput(t); return; }
+  if (t && isLogEntryNumericInput(t)) coerceLogEntryDecimalInput(t);
 }, true);
+(function bindFmQuickSelectAll(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.dataset.fmqSelectAll === '1') return;
+  overlay.dataset.fmqSelectAll = '1';
+  /* The tap that opens a field highlights its old value, so the first figure
+     typed replaces the reading rather than being appended to it. A tap on the
+     field already being edited is something else entirely: the engineer placing
+     a caret, or a stylus dragging across a digit. Re-selecting there — and
+     cancelling the tap with preventDefault, as this once did — left the value
+     permanently highlighted, so the popup could not be typed into or corrected
+     at all. So: remember whether the field was already focused when the pointer
+     went down, and only select when it was not. */
+  let wasFocused = false;
+  overlay.addEventListener('pointerdown', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
+  overlay.addEventListener('touchstart', (e)=>{
+    const el = e.target;
+    wasFocused = !!(el && document.activeElement === el);
+  }, true);
+  const keep = (e)=>{
+    const el = e.target;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+    if (wasFocused) return;
+    if (document.activeElement === el) selectAllEditableField(el);
+  };
+  overlay.addEventListener('mouseup', keep);
+  overlay.addEventListener('pointerup', keep);
+  overlay.addEventListener('touchend', ()=>{
+    if (wasFocused) return;
+    const el = document.activeElement;
+    if (el && overlay.contains(el)) selectAllEditableField(el);
+  });
+})();
 
 
 
@@ -27350,6 +28079,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     catch(gateErr){ console.error('Login gate failed to start', gateErr); showLoginGate(true); }
     _programReady = true;
     endActivity('boot');
+    if (typeof LoadingSplash !== 'undefined' && LoadingSplash) LoadingSplash.endBoot();
     document.getElementById('dbStatus').textContent = '● local database ready';
     try {
       applyEorbLicenseVisibility();
@@ -27401,6 +28131,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
   } catch(e){
     console.error('Startup error:', e);
     try{ endActivity('boot'); }catch(_){}
+    if (typeof LoadingSplash !== 'undefined' && LoadingSplash) LoadingSplash.endBoot();
     _programReady = true;
     try{
       ensureSyncConfig();

@@ -42,7 +42,7 @@ Admin login (Voyage / Fleet Office): username `admin`, password from `SYNC_ADMIN
 | Android APK | `npm run android:apk` (after Android SDK). Release APK is **signed for sideload** — enable “Install unknown apps” for your file manager. If install fails, use Chrome → `http://<server>:8080` → **Add to Home screen** (PWA). |
 | CI | `.github/workflows/release.yml` on `v*` tags |
 
-Electron loads the unified gateway locally; portable mode stores all databases beside the EXE under `ChEngAIO-data/` (server JSON + Electron profile / IndexedDB) so a USB stick is fully standalone.
+Electron loads the unified gateway locally on sticky loopback ports so license and Voyage IndexedDB survive relaunch; license entitlement and Voyage Backup→Server Sync credentials are also mirrored under the server data dir (`desktop-license.json`, `desktop-sync-creds.json`) as a fallback if the loopback port ever changes. Portable mode stores all databases beside the EXE under `ChEngAIO-data/` (server JSON + Electron profile / IndexedDB) so a USB stick is fully standalone.
 
 ## Proxmox / Debian LXC
 

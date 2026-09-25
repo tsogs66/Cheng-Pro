@@ -1068,6 +1068,21 @@
                 }
 
                 try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+                /* Prefer the shell vessel that matches the row we just pulled so
+                   opening Voyage Chief does not snap back to a different hull
+                   and hide the new leg. */
+                try {
+                  const list = await ChengPro.vessel.list();
+                  const want = String(vesselId || '').trim().toLowerCase();
+                  const fold = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                  const wantFold = fold(want);
+                  const match = (list || []).find((v) => {
+                    const keys = [v.id, v.slug, v.voyageSlug, v.name].map((x) => String(x || '').toLowerCase());
+                    if (keys.includes(want)) return true;
+                    return keys.map(fold).includes(wantFold);
+                  });
+                  if (match && match.id) await ChengPro.vessel.setActive(match.id);
+                } catch (_) { /* shell may have no matching tank/AIO vessel yet */ }
                 const last = wanted[wanted.length - 1];
                 const tail = done ? ` Voyage Chief is now on ${last.voyage} ${last.condition}.` : '';
                 const msg = failed.length
@@ -1671,8 +1686,13 @@
         if (!confirm(`Pull ${voyage} / ${condition} from the server and merge it as the active leg?\n\nNewer of local vs server kept for each record.`)) return;
         setVoySync(`Pulling ${voyage} / ${condition}…`);
         try {
-          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
-          const msg = await voyagePost('pull-voyage-leg', { voyage, condition }, root);
+          const settings = readVoyageSyncForm(root);
+          await voyagePost('save-sync-settings', { settings }, root);
+          const msg = await voyagePost('pull-voyage-leg', {
+            voyage,
+            condition,
+            vessel: settings.vesselId || undefined,
+          }, root);
           setVoySync(msg.message || 'Pull completed');
           toast(msg.message || 'Pull completed');
         } catch (e) {

@@ -1,14 +1,14 @@
 {
   "name": "cheng-pro",
-  "version": "0.3.205",
-  "description": "ChEng AIO \u2014 Marine Engineer Suite (Voyage Chief + Tank Chief)",
+  "version": "0.3.248",
+  "description": "ChEng AIO — Marine Engineer Suite (Voyage Chief + Tank Chief)",
   "author": "ts0gs (Marvin C. Endozo)",
   "main": "desktop/main.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "seed": "node scripts/seed-demo.js",
-    "test": "node scripts/smoke-test.js && node scripts/test-license.js && node scripts/vessel-key-test.js && node scripts/num-align-test.js && node scripts/count-up-test.js && node scripts/test-home-calculated-rob.js && node scripts/test-python-spawn.js && node scripts/test-electron-save.js",
+    "test": "node scripts/test-clock-picker-input.js && node scripts/test-suite-scale.js && node modules/voyage/tests/test_clock_picker.js && node scripts/test-flowmeter-entry.js && node scripts/test-loading-splash.js && node scripts/test-double-interp.js && node scripts/test-calc-type.js && node scripts/test-recheck-calc-type.js && node scripts/smoke-test.js && node scripts/test-license.js && node scripts/vessel-key-test.js && node scripts/num-align-test.js && node scripts/count-up-test.js && node scripts/test-home-calculated-rob.js && node scripts/test-python-spawn.js && node scripts/test-electron-save.js && node scripts/test-desktop-paths.js && node modules/voyage/tests/test_unsaved_leg_load.js && node modules/tanks/scripts/test-python-asar-path.js && node modules/tanks/scripts/test-clock-picker-input.js && node modules/tanks/scripts/test-tank-order.js && node modules/tanks/scripts/test-fuel-grade.js && node modules/tanks/scripts/test-sheet-popup.js",
     "license-host": "node server/license/host.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win --publish never",

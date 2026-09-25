@@ -60,7 +60,10 @@ window.ChengProModules.home = {
           <button type="button" class="home-action" id="goTanksFromHome" title="Open Tank Chief">Tank Chief</button>
           <button type="button" class="home-action" id="goMonitoringFromHome" title="Open Monitoring">Monitoring</button>
           ${hasBunkerPlan ? '<button type="button" class="home-action" id="goBunkerPlanFromHome" title="Open Bunkering Plan">Bunkering Plan</button>' : ''}
+          <button type="button" class="home-action" id="rearrangeHomeTanks" title="Drag tanks on this overview only">Rearrange</button>
+          <button type="button" class="home-action" id="resetHomeTankLayout" hidden title="Put the overview back to the default port / starboard layout">Reset layout</button>
         </div>
+        <p class="hint" id="homeTankRearrangeHint" hidden>Drag ⋮⋮ to place a tank on this overview. Monitoring and sounding lists stay as they are.</p>
         <div class="cards-row" id="homeFuelSummary"></div>
         <div class="tg-grid" id="homeFuelGrid"></div>` : `
         <p class="home-warn">Tank Chief is not on this license — ask the office to include it on your ChEng AIO key.</p>`}
@@ -125,13 +128,54 @@ window.ChengProModules.home = {
       try {
         const bundle = await loadTankBundleForActive(active);
         const fuelReport = bundle ? await loadFuelReportForBundle(bundle, active) : null;
-        if (Dash && bundle) {
+        const tankVesselId = (bundle && bundle.vessel && bundle.vessel.id)
+          || (bundle && bundle.id)
+          || '';
+        let rearranging = false;
+
+        function paintTankOverview() {
+          if (!Dash || !bundle) return;
           Dash.renderFuelTankOverview(
             root.querySelector('#homeFuelSummary'),
             root.querySelector('#homeFuelGrid'),
             bundle,
-            fuelReport
+            fuelReport,
+            { rearrange: rearranging, vesselId: tankVesselId }
           );
+          syncTankLayoutButtons();
+        }
+
+        function syncTankLayoutButtons() {
+          const toggle = root.querySelector('#rearrangeHomeTanks');
+          const reset = root.querySelector('#resetHomeTankLayout');
+          if (toggle) {
+            toggle.textContent = rearranging ? 'Done' : 'Rearrange';
+            toggle.classList.toggle('on', rearranging);
+            toggle.setAttribute('aria-pressed', rearranging ? 'true' : 'false');
+          }
+          if (reset) {
+            const custom = Dash && typeof Dash.hasFuelGridLayout === 'function'
+              && Dash.hasFuelGridLayout(tankVesselId);
+            reset.hidden = !custom;
+          }
+          const hint = root.querySelector('#homeTankRearrangeHint');
+          if (hint) hint.hidden = !rearranging;
+        }
+
+        root.querySelector('#rearrangeHomeTanks')?.addEventListener('click', () => {
+          rearranging = !rearranging;
+          paintTankOverview();
+        });
+        root.querySelector('#resetHomeTankLayout')?.addEventListener('click', () => {
+          if (Dash && typeof Dash.clearFuelGridLayout === 'function') {
+            Dash.clearFuelGridLayout(tankVesselId);
+          }
+          paintTankOverview();
+        });
+        root.querySelector('#homeFuelGrid')?.addEventListener('chengpro:fuel-grid-layout', syncTankLayoutButtons);
+
+        if (Dash && bundle) {
+          paintTankOverview();
         } else if (Dash) {
           const grid = root.querySelector('#homeFuelGrid');
           const summary = root.querySelector('#homeFuelSummary');
