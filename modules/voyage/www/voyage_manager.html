@@ -27,6 +27,7 @@
      ship_time / theme / license stay early (small; boot gate needs them). -->
 <script src="ship_time.js"></script>
 <script src="clock-picker.js"></script>
+<script src="signed-numeric-input.js"></script>
 <link rel="stylesheet" href="hud-effects.css">
 <link rel="stylesheet" href="loading-splash.css">
 <script>window.LOADING_SPLASH_BOOT_LABEL = 'Starting Voyage Chief…';</script>
@@ -10118,7 +10119,7 @@ function renderVsSurvey(){
     const measVal = meas != null ? (cat==='fw' ? fwInputValue(meas) : meas) : '';
     return `<tr data-survey-row><td class="row-lbl">${t.name}</td>`
       + `<td data-survey-book data-book-base="${bookNum!=null?bookNum:''}">${calcLabel}</td>`
-      + `<td><input class="pf-input" style="width:88px;" type="text" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false" data-survey-corr="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${corrVal}" placeholder="+/−"></td>`
+      + `<td><input class="pf-input" style="width:88px;" type="text" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false" data-signed="1" data-survey-corr="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${corrVal}" placeholder="+/−"></td>`
       + `<td><input class="pf-input" style="width:88px;" type="number" step="any" data-survey-tank="${t.id}" data-survey-store="${store}" data-survey-cat="${cat}" value="${measVal}" placeholder="${book!=null?fmtRob(book,cat):''}"></td></tr>`;
   }).join('');
 
@@ -23184,7 +23185,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v302';
+let androidInstallCacheName = 'noon-report-v303';
 
 /*
  * What the program is called.
@@ -23479,6 +23480,7 @@ let androidInstallAssets = [
   './save-file.js',
   './camera-capture.js',
   './clock-picker.js',
+  './signed-numeric-input.js',
   './sw.js',
   './manifest.webmanifest',
   './icons/logoBG.png',

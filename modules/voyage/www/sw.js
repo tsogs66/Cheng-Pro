@@ -7,7 +7,7 @@
  * - Install precaches a small critical shell first (waitUntil), then fills the
  *   rest of the asset list without blocking activation.
  */
-const CACHE = 'noon-report-v302';
+const CACHE = 'noon-report-v303';
 const CRITICAL = [
   './voyage_manager.html',
   './ship_time.js',
@@ -31,6 +31,7 @@ const PRECACHE = [
   './save-file.js',
   './camera-capture.js',
   './clock-picker.js',
+  './signed-numeric-input.js',
   './loading-splash.css',
   './loading-splash.js',
   './sw.js',
