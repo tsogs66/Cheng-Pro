@@ -24,8 +24,8 @@
  */
 'use strict';
 const assert = require('assert');
-const calc = require('../server/calc.js');
-const FRCore = require('../public/js/fuel-report-core.js');
+const calc = require('../modules/tanks/server/calc.js');
+const FRCore = require('../modules/tanks/public/js/fuel-report-core.js');
 
 const ULLAGE = [950, 1000, 1050, 1100, 1150, 1200];
 const STEM_VALS = [1, 0, -0.5, -1, -1.5, -2, -3, -4];          // as the sheet prints it
