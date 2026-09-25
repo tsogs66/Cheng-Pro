@@ -27,8 +27,6 @@
   --brass: #c99a53;
   --nav-item-bg: rgba(22, 40, 63, 0.9);
   --nav-active-bg: rgba(201, 154, 83, 0.12);
-  --nav-bg: rgba(10, 20, 32, 0.98);
-  --nav-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
   font-size: 15px;
   color-scheme: dark;
 }
@@ -58,8 +56,6 @@ html.bright {
   --shadow: 0 2px 10px rgba(18,34,56,0.12);
   --nav-item-bg: rgba(255,255,255,0.92);
   --nav-active-bg: rgba(138,90,26,0.12);
-  --nav-bg: rgba(255, 255, 255, 0.98);
-  --nav-shadow: 0 -8px 24px rgba(18, 34, 56, 0.14);
   color-scheme: light;
 }
 
@@ -245,13 +241,13 @@ body.nav-open .menu-toggle { opacity: 0; pointer-events: none; }
   align-items: stretch; justify-content: space-around;
   gap: 1px;
   padding: var(--nav-pad-y) 2px calc(var(--nav-pad-y) + env(safe-area-inset-bottom, 0px));
-  background: var(--nav-bg, rgba(10, 20, 32, 0.97));
+  background: rgba(10, 20, 32, 0.97);
   border-top: 1px solid var(--border);
-  box-shadow: var(--nav-shadow, 0 -8px 24px rgba(0,0,0,.35));
+  box-shadow: 0 -8px 24px rgba(0,0,0,.35);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-html.bright .bottom-nav { background: var(--nav-bg, rgba(255,255,255,0.97)); }
+html.bright .bottom-nav { background: rgba(255,255,255,0.97); }
 .bn-item {
   flex: 1 1 0; min-width: 0; max-width: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -2564,6 +2560,15 @@ html.bright .tsp-dialog { background: #fff; color: #122238; border-color: rgba(1
     caret-color: transparent;
   }
 }
+
+.fr-actual-cell { display: flex; flex-direction: column; gap: 4px; min-width: 7rem; }
+.fr-actual-cell .fr-di-btn { align-self: flex-start; font-size: 11px; padding: 2px 6px; }
+.dim-interp-dialog { width: min(720px, 100%); }
+.dim-grid { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 13px; }
+.dim-grid th, .dim-grid td { border: 1px solid var(--line, #2a3550); padding: 4px 6px; text-align: center; }
+.dim-grid input.dim-axis { font-size: 12px; padding: 4px; }
+.dim-result-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+.dim-targets { margin-bottom: 8px; }
 
 /* ---- Windows / desktop: fixed top menubar with click dropdowns ---- */
 html.tc-top-nav:not(.is-mobile-chrome) {
