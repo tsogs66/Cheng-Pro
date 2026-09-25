@@ -1121,8 +1121,7 @@ table.fr-sheet tfoot th { text-align: left; }
 }
 
 /* ---------- Bunkering plan / summary screens ---------- */
-/* Sequence then monitor (tablet portrait order) — also Windows + tablet landscape. */
-.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 10px; align-items: start; }
 table.bp-sheet thead th { min-width: 40px; }
 table.bp-sheet tbody th.fr-tank-name { min-width: 168px; }
 table.bp-sheet tbody th.fr-tank-name select { min-width: 130px; margin-left: 4px; }
@@ -1149,11 +1148,8 @@ td.bp-valve { min-width: 102px; text-align: center; padding: 3px 3px; }
 tr.bp-row-filling th.fr-tank-name { box-shadow: inset 3px 0 0 var(--good); }
 tr.bp-row-done td.fr-calc, tr.bp-row-done th.fr-tank-name { opacity: .72; }
 
-.bp-monitor { display: flex; flex-direction: column; gap: 10px; min-width: 0; align-items: stretch; }
-.bp-monitor-stats { display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px; }
-.bp-monitor-box { flex: 1 1 150px; }
-.bp-progress { flex: 1 1 100%; }
-.bp-clock { flex: 1 1 100%; width: 100%; max-width: none; }
+.bp-monitor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bp-monitor-stats { display: flex; flex-direction: column; gap: 10px; }
 .bp-monitor-progress-text { margin: 0; flex: 1 1 100%; }
 .bp-clock {
   border: 1px solid var(--border); border-radius: 8px; padding: 10px;
@@ -2527,6 +2523,15 @@ html.bright .tsp-dialog { background: #fff; color: #122238; border-color: rgba(1
   }
 }
 
+.fr-actual-cell { display: flex; flex-direction: column; gap: 4px; min-width: 7rem; }
+.fr-actual-cell .fr-di-btn { align-self: flex-start; font-size: 11px; padding: 2px 6px; }
+.dim-interp-dialog { width: min(720px, 100%); }
+.dim-grid { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 13px; }
+.dim-grid th, .dim-grid td { border: 1px solid var(--line, #2a3550); padding: 4px 6px; text-align: center; }
+.dim-grid input.dim-axis { font-size: 12px; padding: 4px; }
+.dim-result-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+.dim-targets { margin-bottom: 8px; }
+
 /* ---- Windows / desktop: fixed top menubar with click dropdowns ---- */
 html.tc-top-nav:not(.is-mobile-chrome) {
   --sidebar-w: 0px;
@@ -2562,13 +2567,13 @@ html.tc-top-nav:not(.is-mobile-chrome) .sidebar .nav-credit {
   display: none !important;
 }
 /* Day/night belongs on the top bar here, and used to be hidden with the rest
-   of the sidebar's column furniture.
+ * of the sidebar's column furniture.
  *
  * On this layout there is no bottom nav and no More sheet, which are the two
  * places the toggle lives on a phone — so hiding it here left Tank Chief with
  * no way at all to reach Bright mode on Windows or a landscape tablet.
- * Verified before and after: 1180x820 and 1920x1080 had no reachable toggle,
- * by any route, including opening the More sheet by hand.
+ * Measured: no reachable toggle at 1180x820 or 1920x1080 by any route,
+ * including opening the More sheet by hand.
  *
  * It has to be un-column-ised as well as unhidden: the base rule sizes it for
  * a vertical sidebar (full width, stacked margins), which in a horizontal bar
@@ -2682,102 +2687,3 @@ html:not(.tc-top-nav) .nav-group-label {
   pointer-events: none;
 }
 html:not(.tc-top-nav) .nav-group-label::after { display: none; }
-
-/* Screen only. The printed forms are laid out deliberately and a
-   column moving on a signed sheet is not a styling detail. */
-@media screen {
-  /* Numbers line up or they cannot be compared — see num-align.js, which decides
-     which columns these apply to by reading what is in them. */
-  td.num, th.num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  table td, table th { font-variant-numeric: tabular-nums; }
-}
-
-
-/* One control scale for the whole suite.
- *
- * Measured before this existed: thirteen distinct button heights across the
- * AIO and its two modules (27, 28, 29, 30, 34, 36, 37, 38, 39, 40, 44, 70),
- * eleven input heights, seven border radii. Each program had a scale; they
- * disagreed, so a button beside a field was never quite the same height.
- *
- * These values are duplicated in apps/web/css/shell.css,
- * modules/tanks/public/css/app.css and the <style> block in
- * modules/voyage/www/voyage_manager.html — three documents that cannot share
- * a file. Change one, change all three.
- *
- * The coarse-pointer step is not cosmetic: the same pages run on an engine
- * room tablet, where a 32px control is a missed tap.
- */
-:root {
-  --ctl-h: 38px;      /* buttons and fields, so they line up side by side */
-  --ctl-h-sm: 32px;   /* in-table actions, chips, toggles */
-  --ctl-r: 10px;
-  --ctl-r-sm: 8px;
-  --cell-pad-y: 6px;
-  --cell-pad-x: 10px;
-}
-@media (pointer: coarse) {
-  :root {
-    --ctl-h: 44px;
-    --ctl-h-sm: 38px;
-  }
-}
-
-/* The same control scale, applied to Tank Chief's own classes. */
-.btn {
-  min-height: var(--ctl-h);
-  border-radius: var(--ctl-r);
-}
-.btn.small {
-  min-height: var(--ctl-h-sm);
-  border-radius: var(--ctl-r-sm);
-}
-input, select, textarea {
-  min-height: var(--ctl-h);
-  border-radius: var(--ctl-r);
-}
-input[type="checkbox"], input[type="radio"] { min-height: 0; }
-table.data-table th, table.data-table td,
-table.tank-table th, table.tank-table td,
-table.leg-table th, table.leg-table td,
-table.calib-table th, table.calib-table td {
-  padding: var(--cell-pad-y) var(--cell-pad-x);
-}
-table .btn {
-  min-height: var(--ctl-h-sm);
-  /* The padding has to come down with it — a floor cannot shrink a
-     button that its own padding already makes taller. */
-  padding: 4px 10px;
-  border-radius: var(--ctl-r-sm);
-}
-/* A field inside a dense table row keeps the row's height, not the form's. */
-table.leg-table input, table.calib-table input { min-height: var(--ctl-h-sm); }
-
-/* Nothing in this suite is smaller than 12px — see apps/web/css/shell.css for
- * why, and for the measurement this list came from. !important for the same
- * reason it is used there. Screen only: the printed forms are typeset in
- * points and are not this rule's business.
- */
-@media screen {
-  .app-credit-name, .app-credit-authors, .app-credit-when,
-  .nav-group-label,
-  .tag, .pill,
-  .hint, p.hint, span.hint, i, b,
-  .label, .card .label, .card .sub, .card .unit,
-  table th, table td {
-    font-size: 12px !important;
-  }
-}
-
-
-/* Tank Chief was the one surface of the three with no reduced-motion block at
- * all — the AIO shell and Voyage Chief already had theirs. Its own animation
- * is the PDF progress bar; the shared ones live in hud-effects.css, which
- * carries its own block. */
-@media (prefers-reduced-motion: reduce) {
-  .pdf-progress, .pdf-progress::after { animation: none !important; }
-  * { scroll-behavior: auto !important; }
-}
