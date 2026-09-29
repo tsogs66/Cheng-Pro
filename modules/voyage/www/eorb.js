@@ -1829,6 +1829,37 @@
     return s ? s.toUpperCase() : '';
   }
 
+  /** Code column — Part II/III entries read like the reference beORB sheets (PART III C). */
+  function formatOrbBookCode(entry) {
+    const p = Number(entry && entry.part) || 1;
+    const c = String(entry && entry.code || '').trim();
+    if (p === 3) return 'PART III ' + c;
+    if (p === 2) return 'PART II ' + c;
+    return c;
+  }
+
+  /** Footer timestamp — beORB “Report Rendered: 29-Sep-2026 10:57:29”. */
+  function formatOrbRenderStamp(when) {
+    const d = when instanceof Date ? when : new Date(when || Date.now());
+    if (isNaN(d.getTime())) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return dd + '-' + months[d.getMonth()] + '-' + d.getFullYear() + ' ' +
+      hh + ':' + mm + ':' + ss;
+  }
+
+  function orbAppLabel() {
+    try {
+      if (global.location && /[?&]chengaio=1(?:&|$)/.test(String(global.location.search || ''))) {
+        return 'ChEng AIO';
+      }
+    } catch (_e) { /* non-browser */ }
+    return APP_NAME;
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1904,7 +1935,7 @@
       const lines = e.lines || [];
       const voided = !!e.voided;
       lines.forEach((ln, idx) => {
-        const text = escapeHtml(ln.text);
+        const text = escapeHtml(String(ln.text || '').toUpperCase());
         let itemNo = ln.itemNo == null ? '' : String(ln.itemNo);
         /* Older saves put "I"/"O" in Item No.; suppress so Code column alone carries the letter. */
         if ((e.code === 'I' && itemNo.toUpperCase() === 'I') ||
@@ -1918,9 +1949,9 @@
           : '';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
           '<td>' + (idx === 0 ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
-          '<td>' + (idx === 0 ? escapeHtml(e.code) : '') + '</td>' +
+          '<td class="orb-code">' + (idx === 0 ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
-          '<td>' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
+          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
       });
     });
     return body;
@@ -1947,31 +1978,41 @@
      and position explicitly, because on screen they land inside a dark-theme app whose
      page-wide table rules would otherwise paint this light page's own cells. */
   const BOOK_CSS = [
-    '.orb-book{background:#fdfbf4; color:#16202e; border:1px solid #cbbf9e; border-radius:3px;',
+    '.orb-book{background:#fff; color:#111; border:1px solid #c5c5c5; border-radius:3px;',
     '  padding:14px 16px; min-width:640px; font-family:Arial,Helvetica,sans-serif;}',
-    '.orb-book-head{border-bottom:2px solid #16202e; padding-bottom:8px; margin-bottom:10px;}',
-    '.orb-book-head h3{margin:0 0 2px; font-size:15px; text-transform:uppercase; letter-spacing:.05em; color:#16202e;}',
-    '.orb-book-head .sub{font-size:11px; color:#4a5568;}',
-    '.orb-book-meta{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:2px 14px; margin-top:6px; font-size:10.5px; color:#33415c;}',
-    '.orb-book table{width:100%; border-collapse:collapse; font-size:11px; color:#16202e;}',
-    '.orb-book thead th{background:#e9e2cd; color:#16202e; font-size:9.5px; position:static; font-family:inherit;',
-    '  text-transform:uppercase; letter-spacing:.04em; text-align:left;}',
-    '.orb-book th, .orb-book td{border:1px solid #b9ae8e; padding:4px 6px; vertical-align:top;',
-    '  color:#16202e; white-space:normal;}',
-    '.orb-book tbody td{color:#16202e; border-bottom:1px solid #b9ae8e;}',
-    '.orb-book tbody tr:hover{background:rgba(0,0,0,.03);}',
-    '.orb-book td:nth-child(1){width:96px; white-space:nowrap;}',
-    '.orb-book td:nth-child(2){width:52px; text-align:center; font-weight:700;}',
-    '.orb-book td:nth-child(3){width:64px; text-align:center;}',
+    '.orb-book-head-split{display:flex; justify-content:space-between; align-items:flex-start; gap:20px;',
+    '  border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:8px;}',
+    '.orb-book-ship{flex:1; min-width:0; font-size:11px; line-height:1.55;}',
+    '.orb-book-ship-row{display:flex; align-items:baseline; gap:6px; margin:2px 0;}',
+    '.orb-book-ship-row .lbl{white-space:nowrap; color:#222; font-weight:600;}',
+    '.orb-book-ship-row .val{flex:1; border-bottom:1px solid #333; min-height:14px; padding:0 2px 1px;}',
+    '.orb-book-brand{text-align:right; flex:0 0 auto;}',
+    '.orb-book-brand .suite{font-size:10px; color:#555; letter-spacing:.02em;}',
+    '.orb-book-brand .product{font-size:22px; font-weight:700; letter-spacing:.02em; color:#111; line-height:1.1;}',
+    '.orb-book-partline{font-size:10px; color:#444; margin:0 0 8px; text-transform:uppercase; letter-spacing:.04em;}',
+    '.orb-book-partline .range{color:#666; font-weight:400; text-transform:none; letter-spacing:0;}',
+    '.orb-book table{width:100%; border-collapse:collapse; font-size:10.5px; color:#111; table-layout:fixed;}',
+    '.orb-book thead th{background:#d9d9d9; color:#111; font-size:9px; position:static; font-family:inherit;',
+    '  font-weight:700; text-transform:none; letter-spacing:0; text-align:left; border:1px solid #999; padding:5px 6px;}',
+    '.orb-book th, .orb-book td{border:1px solid #999; padding:4px 6px; vertical-align:top;',
+    '  color:#111; white-space:normal;}',
+    '.orb-book tbody tr:nth-child(even){background:#ececec;}',
+    '.orb-book tbody tr:hover{background:rgba(0,0,0,.04);}',
+    '.orb-book td:nth-child(1){width:11%; white-space:nowrap;}',
+    '.orb-book td.orb-code{width:14%; text-align:center; font-weight:700; font-size:9.5px; line-height:1.25;}',
+    '.orb-book td:nth-child(3){width:9%; text-align:center;}',
     '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
-    '.orb-book tr.orb-voided td{color:#7a8496;}',
-    '.orb-book .orb-sign{margin-top:4px; font-size:9.5px; font-style:italic; color:#4a5568;}',
-    '.orb-book-empty{padding:22px; text-align:center; color:#6b7280; font-size:11px;}',
+    '.orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
+    '.orb-book tr.orb-voided td{color:#666;}',
+    '.orb-book .orb-sign{margin-top:6px; font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book-empty{padding:22px; text-align:center; color:#666; font-size:11px;}',
     '.orb-book-master{margin-top:16px; display:flex; justify-content:space-between; gap:24px;}',
-    '.orb-book-master > div{flex:1; border-top:1px solid #16202e; padding-top:4px; min-height:34px; font-size:10px; color:#33415c;}',
+    '.orb-book-master > div{flex:1; border-top:1px solid #333; padding-top:4px; min-height:34px; font-size:10px; color:#333;}',
     '.orb-book-master img{max-height:24mm; max-width:42mm; object-fit:contain; display:block; margin-top:2px;}',
-    '.orb-book-foot{margin-top:12px; padding-top:6px; border-top:1px solid #b9ae8e; font-size:9px; color:#6b7280; line-height:1.45;}' +
-    '.orb-book-byline{margin-top:5px; font-size:8px; color:#8b8578; letter-spacing:.04em;}'
+    '.orb-book-foot{margin-top:14px; padding-top:6px; border-top:1px solid #999; font-size:9px; color:#444; line-height:1.45;}',
+    '.orb-book-foot-bar{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;}',
+    '.orb-book-foot-legal{font-size:8px; color:#666; line-height:1.4;}',
+    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}'
   ].join('\n');
 
   /** The part this set of entries belongs to, named as the book names it. */
@@ -1996,7 +2037,9 @@
     const rows = sortEntriesForBook(entries);
     const t = bookPartTitles(rows);
     const body = bookRowsHtml(rows);
-    const sub = [t.subtitle, opts.rangeLabel].filter(Boolean).join(' · ');
+    const appLabel = orbAppLabel();
+    const renderStamp = formatOrbRenderStamp(opts.renderedAt || new Date());
+    const rangeBit = opts.rangeLabel ? (' <span class="range">· ' + escapeHtml(opts.rangeLabel) + '</span>') : '';
     const table = body
       ? '<table><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
         '<th>Record of operations / signature of officer in charge</th></tr></thead>' +
@@ -2006,27 +2049,36 @@
       ? '<div class="orb-book-master"><div>Master\'s signature / date</div><div>Ship\'s stamp' +
         (opts.stampDataUrl ? '<img src="' + opts.stampDataUrl + '" alt="">' : '') + '</div></div>'
       : '';
-    const foot = opts.foot != null ? opts.foot
-      : ('MARPOL Annex I Appendix III codes. Flag: ' + escapeHtml(flag.admin) +
+    const footLegal = opts.foot != null ? opts.foot
+      : ('MARPOL Annex I Appendix III. Flag: ' + escapeHtml(flag.admin) +
          '. Language: ' + escapeHtml(flag.language) + '. ' +
-         'This printout is generated by ' + escapeHtml(APP_NAME) + ' e-ORB. Official electronic ORB use as a hard-copy replacement ' +
+         'Generated by ' + escapeHtml(appLabel) + ' e-ORB. Official electronic ORB use as a hard-copy replacement ' +
          'requires flag-approved software under IMO MEPC.312(74) and a ship-specific Declaration. ' +
          escapeHtml(flag.erbNote));
+    const officialNo = setup.officialNumber || setup.callSign || '';
     return '<div class="orb-book">' +
-      '<div class="orb-book-head">' +
-        '<h3>' + escapeHtml(t.title) + '</h3>' +
-        '<div class="sub">' + escapeHtml(sub) + '</div>' +
-        '<div class="orb-book-meta">' +
-          '<div><strong>Name of ship:</strong> ' + escapeHtml(setup.shipName || '') + '</div>' +
-          '<div><strong>IMO No.:</strong> ' + escapeHtml(setup.imo || '') + '</div>' +
-          '<div><strong>Distinctive number or letters:</strong> ' + escapeHtml(setup.callSign || '') + '</div>' +
-          '<div><strong>Gross tonnage:</strong> ' + escapeHtml(fmtVal(setup.gt)) + '</div>' +
-          '<div><strong>Flag administration:</strong> ' + escapeHtml(flag.name) + '</div>' +
-          '<div><strong>Entries shown:</strong> ' + rows.length + '</div>' +
+      '<div class="orb-book-head-split">' +
+        '<div class="orb-book-ship">' +
+          '<div class="orb-book-ship-row"><span class="lbl">Name of Ship:</span><span class="val">' +
+            escapeHtml(setup.shipName || '') + '</span></div>' +
+          '<div class="orb-book-ship-row"><span class="lbl">Official Number:</span><span class="val">' +
+            escapeHtml(officialNo) + '</span></div>' +
+          '<div class="orb-book-ship-row"><span class="lbl">IMO Number:</span><span class="val">' +
+            escapeHtml(setup.imo || '') + '</span></div>' +
+        '</div>' +
+        '<div class="orb-book-brand">' +
+          '<div class="suite">' + escapeHtml(appLabel) + '</div>' +
+          '<div class="product">e-ORB</div>' +
         '</div>' +
       '</div>' +
+      '<p class="orb-book-partline">' + escapeHtml(t.title) + rangeBit + '</p>' +
       table + master +
-      '<div class="orb-book-foot">' + foot +
+      '<div class="orb-book-foot">' +
+        '<div class="orb-book-foot-bar">' +
+          '<span>e-ORB Report Rendered: ' + escapeHtml(renderStamp) + '</span>' +
+          '<span class="orb-book-page">Page <span class="orb-page-num"></span></span>' +
+        '</div>' +
+        '<div class="orb-book-foot-legal">' + footLegal + '</div>' +
         '<div class="orb-book-byline">' + escapeHtml(AUTHOR_LINE) + '</div></div>' +
     '</div>';
   }
@@ -2042,19 +2094,14 @@
     });
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Oil Record Book</title>' +
       '<style>' +
-      '@page{size:A4 portrait;margin:12mm}' +
+      '@page{size:A4 portrait;margin:14mm 12mm 16mm;}' +
       'body{margin:0; background:#fff; font-family:Arial,Helvetica,sans-serif;}' +
       BOOK_CSS +
-      /* After the shared sheet, not before it, or these lose on equal specificity.
-         The card border and rounded corner belong to the panel the book sits in on
-         screen; on paper the sheet is the page. print-color-adjust keeps the cream
-         page and the ruled header band, which browsers drop from printed output by
-         default — without it the sheet comes out plain white and stops matching
-         what the engineer checked on screen. */
       '.orb-book{border:0; border-radius:0; padding:0; min-width:0;' +
       '  -webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
-      '.orb-book thead th, .orb-book tbody tr{-webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
+      '.orb-book thead th, .orb-book tbody tr:nth-child(even){-webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
       '.orb-book tbody tr:hover{background:transparent;}' +
+      '.orb-page-num::after{content:counter(page) " of " counter(pages);}' +
       '</style></head><body>' + inner + '</body></html>';
   }
 
@@ -2097,6 +2144,8 @@
     validateEntry,
     formatOrbDate,
     formatOrbSignDate,
+    formatOrbBookCode,
+    formatOrbRenderStamp,
     formatOrbSignature,
     buildPrintHtml,
     selectedItemNos,
