@@ -3057,15 +3057,14 @@
   const BOOK_CSS = [
     '.orb-book{background:#fff; color:#111; border:1px solid #c5c5c5; border-radius:3px;',
     '  padding:14px 16px; min-width:640px; font-family:Arial,Helvetica,sans-serif;}',
-    '.orb-book-head-split{display:flex; justify-content:space-between; align-items:flex-start; gap:20px;',
-    '  border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:8px;}',
-    '.orb-book-ship{flex:1; min-width:0; font-size:11px; line-height:1.55;}',
-    '.orb-book-ship-row{display:flex; align-items:baseline; gap:6px; margin:2px 0;}',
-    '.orb-book-ship-row .lbl{white-space:nowrap; color:#222; font-weight:600;}',
-    '.orb-book-ship-row .val{flex:1; border-bottom:1px solid #333; min-height:14px; padding:0 2px 1px;}',
-    '.orb-book-brand{text-align:right; flex:0 0 auto;}',
-    '.orb-book-brand .suite{font-size:10px; color:#555; letter-spacing:.02em;}',
-    '.orb-book-brand .product{font-size:22px; font-weight:700; letter-spacing:.02em; color:#111; line-height:1.1;}',
+    '.orb-book-head-split{display:flex; justify-content:flex-start; align-items:flex-end; flex-wrap:nowrap; gap:8px 12px;',
+    '  border-bottom:1px solid #333; padding-bottom:8px; margin-bottom:8px;}',
+    '.orb-book-head-field{display:flex; align-items:baseline; gap:4px; flex:1 1 0; min-width:0; font-size:10px; line-height:1.35;}',
+    '.orb-book-head-field .lbl{white-space:nowrap; color:#222; font-weight:600;}',
+    '.orb-book-head-field .val{flex:1; border-bottom:1px solid #333; min-height:14px; padding:0 2px 1px; min-width:2.5em;}',
+    '.orb-book-brand{text-align:right; flex:0 0 auto; margin-left:auto; white-space:nowrap;}',
+    '.orb-book-brand .suite{font-size:9px; color:#555; letter-spacing:.02em;}',
+    '.orb-book-brand .product{font-size:17px; font-weight:700; letter-spacing:.02em; color:#111; line-height:1.05;}',
     '.orb-book-partline{font-size:10px; color:#444; margin:0 0 8px; text-transform:uppercase; letter-spacing:.04em;}',
     '.orb-book-partline .range{color:#666; font-weight:400; text-transform:none; letter-spacing:0;}',
     '.orb-book table{width:100%; border-collapse:collapse; font-size:10.5px; color:#111; table-layout:fixed;}',
@@ -3075,11 +3074,12 @@
     '  color:#111; white-space:normal;}',
     '.orb-book tbody tr:nth-child(even){background:#ececec;}',
     '.orb-book tbody tr:hover{background:rgba(0,0,0,.04);}',
-    '.orb-book td:nth-child(1){width:11%; white-space:nowrap;}',
-    '.orb-book td.orb-code{width:14%; text-align:center; font-weight:700; font-size:9.5px; line-height:1.25;}',
-    '.orb-book td:nth-child(3){width:9%; text-align:center;}',
-    '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
-    '.orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
+    '.orb-book th:nth-child(1), .orb-book td:nth-child(1){width:9%; white-space:nowrap; padding-left:4px; padding-right:4px;}',
+    '.orb-book th:nth-child(2), .orb-book td.orb-code{width:10%; text-align:center; padding-left:3px; padding-right:3px;}',
+    '.orb-book td.orb-code{font-weight:700; font-size:9.5px; line-height:1.25;}',
+    '.orb-book th:nth-child(3), .orb-book td:nth-child(3){width:8%; text-align:center; padding-left:3px; padding-right:3px;}',
+    '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.2; font-size:8px;}',
+    '.orb-book th:nth-child(4), .orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
     '.orb-book tr.orb-voided td{color:#666;}',
     '.orb-book .orb-sign{font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
     '.orb-book tr.orb-sign-row td{border-top:none;}',
@@ -3137,14 +3137,12 @@
     const officialNo = setup.officialNumber || setup.callSign || '';
     return '<div class="orb-book">' +
       '<div class="orb-book-head-split">' +
-        '<div class="orb-book-ship">' +
-          '<div class="orb-book-ship-row"><span class="lbl">Name of Ship:</span><span class="val">' +
-            escapeHtml(setup.shipName || '') + '</span></div>' +
-          '<div class="orb-book-ship-row"><span class="lbl">Official Number:</span><span class="val">' +
-            escapeHtml(officialNo) + '</span></div>' +
-          '<div class="orb-book-ship-row"><span class="lbl">IMO Number:</span><span class="val">' +
-            escapeHtml(setup.imo || '') + '</span></div>' +
-        '</div>' +
+        '<div class="orb-book-head-field"><span class="lbl">Name of Ship:</span><span class="val">' +
+          escapeHtml(setup.shipName || '') + '</span></div>' +
+        '<div class="orb-book-head-field"><span class="lbl">Official Number:</span><span class="val">' +
+          escapeHtml(officialNo) + '</span></div>' +
+        '<div class="orb-book-head-field"><span class="lbl">IMO Number:</span><span class="val">' +
+          escapeHtml(setup.imo || '') + '</span></div>' +
         '<div class="orb-book-brand">' +
           '<div class="suite">' + escapeHtml(appLabel) + '</div>' +
           '<div class="product">e-ORB</div>' +
