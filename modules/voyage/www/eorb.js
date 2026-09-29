@@ -26,10 +26,27 @@
      cannot see the app's APP_NAME. check_assets.js holds the two spellings together. */
   const APP_NAME = 'Voyage Chief';
 
+  /** How Part I signatories are validated for this flag (MARPOL baseline + admin guidance). */
+  const SIGNATORY_MODES = {
+    engineer_or_ce: 'engineer_or_ce',
+    chief_engineer_only: 'chief_engineer_only',
+    engineer_and_chief_engineer: 'engineer_and_chief_engineer'
+  };
+  const DEFAULT_SIGNATORY = {
+    mode: SIGNATORY_MODES.engineer_or_ce,
+    label: 'Officer in charge',
+    note: 'MARPOL Annex I Reg. 17: each completed operation is signed by the officer or officers in charge; the Master countersigns each completed page.'
+  };
+
   const FLAGS = [
     {
       code: 'LR', name: 'Liberia', admin: 'Liberia Maritime Authority (LISCR)',
       language: 'English',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Marine Notice 07 / POL guidance: officer or officers in charge sign each operation; Master countersigns each page. Any engine officer who conducted the work may sign.'
+      },
       erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry a Declaration of MARPOL Electronic Record Book (Marine Notice POL-012).',
       tips: [
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
@@ -41,6 +58,11 @@
     {
       code: 'MH', name: 'Marshall Islands', admin: 'Republic of the Marshall Islands Maritime Administrator',
       language: 'English (required)',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_and_chief_engineer,
+        label: 'Officer in charge + Chief Engineer',
+        note: 'Marine Guideline 2-13-3: the officer in charge signs the operation; entries are reviewed for completeness by the Chief Engineer (or other person named in the SMS). Print both signatures on the entry when they are different people.'
+      },
       erbNote: 'RMI publishes approved ERB vendors (Marine Notice 7-041-5). Ship must hold ERB Declaration(s) from the registry portal.',
       tips: [
         'ORB Part I entries for IOPP ships shall be in English.',
@@ -52,6 +74,11 @@
     {
       code: 'PA', name: 'Panama', admin: 'Panama Maritime Authority (AMP)',
       language: 'English / Spanish (IMO languages prevail as applicable)',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'AMP / MARPOL: each completed operation signed by the officer or officers in charge; Master countersigns each page.'
+      },
       erbNote: 'Panama authorizes electronic record books under Resolution schemes aligned with MEPC.312(74); use only AMP-authorized manufacturers and keep the vessel license/declaration.',
       tips: [
         'Record operations without delay; each completed operation signed by officer(s) in charge; pages by Master.',
@@ -62,6 +89,7 @@
     {
       code: 'BS', name: 'Bahamas', admin: 'Bahamas Maritime Authority',
       language: 'English',
+      signatory: DEFAULT_SIGNATORY,
       erbNote: 'Bahamas follows MARPOL Appendix III item list (see BMA Marine Notice on ORBs). ERB use requires Administration acceptance where applicable.',
       tips: [
         'Transfers TO IOPP 3.1 tanks FROM non-3.1 locations use C.11.4 (with 11.1–11.3).',
@@ -72,36 +100,50 @@
     {
       code: 'SG', name: 'Singapore', admin: 'Maritime and Port Authority of Singapore',
       language: 'English',
+      signatory: DEFAULT_SIGNATORY,
       erbNote: 'Singapore-flagged ships must meet MARPOL recording standards; electronic books require MPA acceptance where used as official records.',
       tips: ['Prefer clear Lat/Long or port name for ship position.', 'State quantities in m³ (sludge/bilge) or tonnes (bunkers) as required by the item.']
     },
     {
       code: 'CY', name: 'Cyprus', admin: 'Shipping Deputy Ministry — Cyprus',
       language: 'English',
+      signatory: {
+        mode: SIGNATORY_MODES.chief_engineer_only,
+        label: 'Chief Engineer',
+        note: 'Cyprus SMS / PSC practice for Part I machinery-space entries: signature by the Chief Engineer unless your company SMS names another signing officer — confirm with your DPA.'
+      },
       erbNote: 'Cyprus applies MARPOL Annex I ORB requirements; ERB subject to flag acceptance under IMO guidelines.',
       tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.']
     },
     {
       code: 'MT', name: 'Malta', admin: 'Transport Malta — Merchant Shipping Directorate',
       language: 'English',
+      signatory: {
+        mode: SIGNATORY_MODES.chief_engineer_only,
+        label: 'Chief Engineer',
+        note: 'Transport Malta Part I entries are normally signed by the Chief Engineer as officer in charge of machinery-space operations.'
+      },
       erbNote: 'Malta-flagged vessels must maintain ORB Part I (and Part II if tanker) per MARPOL; ERB requires Administration approval process.',
       tips: ['Ensure IOPP Supplement tank lists match the tanks selectable in this e-ORB setup.']
     },
     {
       code: 'HK', name: 'Hong Kong, China', admin: 'Hong Kong Marine Department',
       language: 'English / Chinese as applicable',
+      signatory: DEFAULT_SIGNATORY,
       erbNote: 'HK ships follow MARPOL ORB form; electronic alternatives need MD acceptance.',
       tips: ['Record accidental/exceptional discharges under G with circumstances and reasons.']
     },
     {
       code: 'GB', name: 'United Kingdom', admin: 'UK MCA / Red Ensign Group',
       language: 'English',
+      signatory: DEFAULT_SIGNATORY,
       erbNote: 'UK/REG ships use MARPOL Appendix III; ERB must meet MCA/flag policy and MEPC.312(74) when replacing hard copy.',
       tips: ['Cross-check OWS seal/status remarks under code I when relevant to an operation.']
     },
     {
       code: 'NO', name: 'Norway (NIS)', admin: 'Norwegian Maritime Authority',
       language: 'English / Norwegian as applicable',
+      signatory: DEFAULT_SIGNATORY,
       erbNote: 'NIS vessels follow MARPOL; electronic record books require NMA acceptance when used officially.',
       tips: ['Keep printed/export copies available for PSC if the ERB system is offline.']
     }
@@ -1037,7 +1079,72 @@
   }
 
   function getFlag(code) {
-    return FLAGS.find(f => f.code === code) || FLAGS[0];
+    const f = FLAGS.find(x => x.code === code) || FLAGS[0];
+    return Object.assign({}, f, {
+      signatory: Object.assign({}, DEFAULT_SIGNATORY, f.signatory || {})
+    });
+  }
+
+  function flagSignatoryPolicy(code) {
+    return getFlag(code).signatory;
+  }
+
+  function normalizeOrbRank(rank) {
+    return String(rank || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  }
+
+  function isChiefEngineerRank(rank) {
+    const r = normalizeOrbRank(rank);
+    if (!r) return false;
+    return r === 'C/E' || r === 'CE' || r === 'CHIEF ENGINEER' ||
+      r.indexOf('CHIEF ENGINEER') === 0;
+  }
+
+  function chiefEngRankFromSetup(setup) {
+    const ce = String(setup && setup.chiefEng || '').trim();
+    const officers = (setup && setup.officers) || [];
+    const match = officers.find(o => ce && String(o.name || '').trim().toUpperCase() === ce.toUpperCase());
+    if (match && match.rank) return match.rank;
+    return 'C/E';
+  }
+
+  /**
+   * Flag-specific signatory rules for a saved entry (Part I machinery operations).
+   * Returns human-readable errors; empty when valid.
+   */
+  function validateEntrySignatory(setup, entry) {
+    const errors = [];
+    const pol = flagSignatoryPolicy(setup && setup.flag);
+    const name = String(entry && entry.officerName || '').trim();
+    const rank = String(entry && entry.officerRank || '').trim();
+    if (!name) errors.push('Officer in charge name is required.');
+    if (pol.mode === SIGNATORY_MODES.chief_engineer_only && rank && !isChiefEngineerRank(rank)) {
+      errors.push(getFlag(setup.flag).name + ' requires the Chief Engineer (C/E) to sign Part I entries — rank must be C/E or Chief Engineer.');
+    }
+    if (pol.mode === SIGNATORY_MODES.engineer_and_chief_engineer) {
+      const ceName = String(entry.chiefEngName || (setup && setup.chiefEng) || '').trim();
+      if (!ceName) {
+        errors.push(getFlag(setup.flag).name + ' expects a Chief Engineer second signature — set Chief Engineer on ORB Vessel Setup.');
+      }
+    }
+    return errors;
+  }
+
+  /** Signature lines for print/preview (one row each in the book). */
+  function orbSignatoryLines(entry, setup) {
+    const lines = [];
+    const primary = formatOrbSignature(entry);
+    if (primary) lines.push(primary);
+    if (!setup) return lines;
+    const pol = flagSignatoryPolicy(setup.flag);
+    if (pol.mode !== SIGNATORY_MODES.engineer_and_chief_engineer) return lines;
+    const ceLine = formatOrbSignature({
+      officerName: entry.chiefEngName || setup.chiefEng,
+      officerRank: entry.chiefEngRank || chiefEngRankFromSetup(setup),
+      officerSignedAt: entry.chiefEngSignedAt || entry.officerSignedAt
+    });
+    if (ceLine && ceLine !== primary) lines.push(ceLine);
+    return lines;
   }
 
   function getPartOps(part) {
@@ -2336,22 +2443,28 @@
     return { html: table, extraHtml, seenFields: seen };
   }
 
+  function isLastEntryInBookSet(sorted, entryIdx) {
+    const e = sorted[entryIdx];
+    const next = sorted[entryIdx + 1];
+    if (e.entryGroupId) return !next || next.entryGroupId !== e.entryGroupId;
+    return true;
+  }
+
   /**
-   * The body of the record book: one <tr> per item line. Date and letter code print
-   * only at the start of each entry (multi-line legacy row) or once per code+item set
-   * (shards sharing entryGroupId from one save). Every line still carries its own
-   * signatory.
+   * The body of the record book: one <tr> per item line, then a signature row at the
+   * end of each code+item set (legacy multi-line row, or shards sharing entryGroupId).
    *
    * Layout matches company beORB / MARPOL Appendix III paper books:
    *   Date → 24-Aug-2026 (first line of the set only)
    *   Code (letter) → D / C / I (first line of the set only)
    *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
-   *   Signature → NAME - RANK, 24-AUG-2026 [SIGNATURE] (each line)
+   *   Signature → separate row: NAME - RANK, 24-AUG-2026 [SIGNATURE]
    */
-  function bookRowsHtml(entries) {
+  function bookRowsHtml(entries, setup) {
     let body = '';
     let lastHeaderKey = null;
-    sortEntriesForBook(entries).forEach(e => {
+    const sorted = sortEntriesForBook(entries);
+    sorted.forEach((e, entryIdx) => {
       const lines = e.lines || [];
       const voided = !!e.voided;
       const headerKey = e.entryGroupId || e.id;
@@ -2364,15 +2477,26 @@
           itemNo = '';
         }
         const showDateCode = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
-        const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
-        const signed = '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) + voidSuffix + '</div>';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
           '<td>' + (showDateCode ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
           '<td class="orb-code">' + (showDateCode ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
-          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
+          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + '</td></tr>';
       });
       lastHeaderKey = headerKey;
+      if (isLastEntryInBookSet(sorted, entryIdx)) {
+        const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
+        const sigLines = orbSignatoryLines(e, setup);
+        if (!sigLines.length && voidSuffix) sigLines.push('');
+        sigLines.forEach((sig, sigIdx) => {
+          if (!sig && !voidSuffix) return;
+          const suffix = sigIdx === sigLines.length - 1 ? voidSuffix : '';
+          body += '<tr class="orb-sign-row' + (voided ? ' orb-voided' : '') + '">' +
+            '<td></td><td></td><td></td>' +
+            '<td class="orb-record orb-sign-cell"><div class="orb-sign">' +
+            escapeHtml(sig) + suffix + '</div></td></tr>';
+        });
+      }
     });
     return body;
   }
@@ -2424,7 +2548,9 @@
     '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
     '.orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
     '.orb-book tr.orb-voided td{color:#666;}',
-    '.orb-book .orb-sign{margin-top:6px; font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book .orb-sign{font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book tr.orb-sign-row td{border-top:none;}',
+    '.orb-book tr.orb-sign-row + tr td{border-top:1px solid #999;}',
     '.orb-book-empty{padding:22px; text-align:center; color:#666; font-size:11px;}',
     '.orb-book-master{margin-top:16px; display:flex; justify-content:space-between; gap:24px;}',
     '.orb-book-master > div{flex:1; border-top:1px solid #333; padding-top:4px; min-height:34px; font-size:10px; color:#333;}',
@@ -2456,7 +2582,7 @@
     const flag = getFlag(setup.flag);
     const rows = sortEntriesForBook(entries);
     const t = bookPartTitles(rows);
-    const body = bookRowsHtml(rows);
+    const body = bookRowsHtml(rows, setup);
     const appLabel = orbAppLabel();
     const renderStamp = formatOrbRenderStamp(opts.renderedAt || new Date());
     const rangeBit = opts.rangeLabel ? (' <span class="range">· ' + escapeHtml(opts.rangeLabel) + '</span>') : '';
@@ -2538,6 +2664,13 @@
     getScenarioGroups,
     defaultOrbSetup,
     getFlag,
+    SIGNATORY_MODES,
+    DEFAULT_SIGNATORY,
+    flagSignatoryPolicy,
+    isChiefEngineerRank,
+    chiefEngRankFromSetup,
+    validateEntrySignatory,
+    orbSignatoryLines,
     getPartOps,
     getOperation,
     tanksForGroup,

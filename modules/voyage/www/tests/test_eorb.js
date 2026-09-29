@@ -180,7 +180,7 @@ const bookRows = EORB.bookRowsHtml([{
   lines: [{ itemNo: '13', text: '3 m³ bilge' }]
 }]);
 checkTrue('date and code appear on the entry head row', bookRows.indexOf('18-Aug-2026') !== -1 && bookRows.indexOf('orb-code">D<') !== -1);
-checkTrue('each row carries a signatory block', (bookRows.match(/orb-sign/g) || []).length === 1);
+checkTrue('one signatory row after the item line', (bookRows.match(/orb-sign-row/g) || []).length === 1);
 
 console.log('\nprint keeps voided lines struck through');
 const html = EORB.buildPrintHtml(setup, [
@@ -296,7 +296,7 @@ console.log('\nPart III — fuel changeover (Annex VI Reg. 14.6)');
   checkTrue('Part III code reads PART III C on the sheet', html3.indexOf('PART III C') !== -1);
 }
 
-console.log('\ndate and code once per entry set, signatory on every item line');
+console.log('\ndate and code once per entry set, signatory row after each set');
 {
   const s6 = EORB.defaultOrbSetup({});
   const entry = {
@@ -312,8 +312,8 @@ console.log('\ndate and code once per entry set, signatory on every item line');
   const codeCells = (body.match(/orb-code">C</g) || []).length;
   check('the date is printed once for the legacy multi-line entry', dateCells, 1);
   check('and so is the letter code', codeCells, 1);
-  check('each row has its own signatory', (body.match(/orb-sign/g) || []).length, 6);
-  checkTrue('while every item line is still there', (body.match(/<tr/g) || []).length === 6);
+  check('one signatory row for the whole multi-line entry', (body.match(/orb-sign-row/g) || []).length, 1);
+  checkTrue('item lines plus one signature row', (body.match(/<tr/g) || []).length === 7);
 
   const group = EORB.materializeOrbSaveRecords({
     id: 'orb_grp', part: 1, code: 'D', date: '2026-08-18', selectedItems: ['13', '14'],
@@ -322,7 +322,7 @@ console.log('\ndate and code once per entry set, signatory on every item line');
   }, s6);
   const groupHtml = EORB.bookRowsHtml(group);
   check('split save shows date once for the code+item set', (groupHtml.match(/18-Aug-2026/g) || []).length, 1);
-  check('but signs both item lines', (groupHtml.match(/orb-sign/g) || []).length, 2);
+  check('one signatory row after both item lines', (groupHtml.match(/orb-sign-row/g) || []).length, 1);
 }
 
 console.log('\ntank R.O.B. carries how full each tank is');
@@ -368,7 +368,7 @@ console.log('\nthe on-screen book and the printed sheet are one document');
     { date: '2026-08-16', code: 'C', part: 1, officerName: 'A. Ruiz', createdAt: '2026-08-16T00:00:00Z',
       lines: [{ itemNo: '11.1', text: 'Sludge Tk' }, { itemNo: '11.3', text: '16.10 m³' }] }
   ];
-  const rowsHtml = EORB.bookRowsHtml(entries);
+  const rowsHtml = EORB.bookRowsHtml(entries, st);
   /* The print sheet is built from the same helper, so what is on screen is what
      comes out of the printer — the pair that silently diverged once before. */
   const printed = EORB.buildPrintHtml(st, entries, 'test');
@@ -376,9 +376,9 @@ console.log('\nthe on-screen book and the printed sheet are one document');
 
   check('entries come out in book order, oldest first',
     rowsHtml.indexOf('SLUDGE TK') < rowsHtml.indexOf('3.500 M³ BILGE WATER'), true);
-  check('every item line is present', (rowsHtml.match(/<tr/g) || []).length, 4);
-  check('each printed row carries its own signatory',
-    (rowsHtml.match(/orb-sign/g) || []).length, 4);
+  check('item lines plus one signature row per entry set', (rowsHtml.match(/<tr/g) || []).length, 6);
+  check('one signatory row per saved entry set',
+    (rowsHtml.match(/orb-sign-row/g) || []).length, 2);
   checkTrue('signature follows beORB NAME - RANK, DD-MON-YYYY [SIGNATURE]',
     /A\. RUIZ - CHIEF ENGINEER, 18-AUG-2026 \[SIGNATURE\]/.test(rowsHtml) ||
     /A\. RUIZ - CHIEF ENGINEER/.test(rowsHtml));
@@ -439,6 +439,29 @@ console.log('\nbeORB-style date / code / item No. columns');
     sheet.indexOf('Official Number:') !== -1 && sheet.indexOf('IMO Number:') !== -1);
   checkTrue('rendered timestamp footer', sheet.indexOf('e-ORB Report Rendered:') !== -1);
   checkTrue('zebra and grey header styles', sheet.indexOf('nth-child(even)') !== -1);
+}
+
+console.log('\nflag state ORB signatory policy');
+{
+  check('Marshall Islands requires dual signatures', EORB.flagSignatoryPolicy('MH').mode,
+    EORB.SIGNATORY_MODES.engineer_and_chief_engineer);
+  check('Malta expects Chief Engineer only', EORB.flagSignatoryPolicy('MT').mode,
+    EORB.SIGNATORY_MODES.chief_engineer_only);
+  checkTrue('C/E rank is recognised', EORB.isChiefEngineerRank('C/E'));
+  checkTrue('4/E is not C/E', !EORB.isChiefEngineerRank('4/E'));
+  const mtSetup = EORB.defaultOrbSetup({ flag: 'MT', chiefEng: 'A. Ruiz' });
+  check('Malta rejects non-C/E rank on save',
+    EORB.validateEntrySignatory(mtSetup, { officerName: 'Jay', officerRank: '4/E' }).length, 1);
+  const mhSetup = EORB.defaultOrbSetup({ flag: 'MH', chiefEng: 'Marvin C. Endozo' });
+  const mhEntry = {
+    date: '2026-08-18', code: 'D', part: 1,
+    officerName: 'Jaycee S. Lugtu', officerRank: '4/E', officerSignedAt: '2026-08-18',
+    chiefEngName: 'Marvin C. Endozo', chiefEngRank: 'C/E', chiefEngSignedAt: '2026-08-18',
+    lines: [{ itemNo: '13', text: '3 m³' }]
+  };
+  check('dual policy prints two signature rows',
+    (EORB.bookRowsHtml([mhEntry], mhSetup).match(/orb-sign-row/g) || []).length, 2);
+  check('dual signatory lines differ', EORB.orbSignatoryLines(mhEntry, mhSetup).length, 2);
 }
 
 console.log();
