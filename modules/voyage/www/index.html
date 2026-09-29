@@ -25737,7 +25737,7 @@ function renderOrbPreview(){
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
   renderOrbCapacityWarnings(warnings);
   updateOrbFuelApiCalc();
-  const lines = EORB.buildItemLines(part, code, selected, values, setup);
+  const lines = EORB.buildItemLines(part, code, selected, values, setup, _orbWizard.scenarioId || '');
   const date = document.getElementById('orb_wizardEntryDate')?.value
     || document.getElementById('orb_entryDate')?.value || '';
   const prev = document.getElementById('orbPreview');
@@ -25753,8 +25753,21 @@ function renderOrbPreview(){
     officerName: officer, officerRank: rank, officerSignedAt: signDate
   }, setup, false);
   const signLines = EORB.orbSignatoryLines(draft, setup);
-  const itemRows = lines.map((l, i) =>
-    `${i === 0 ? EORB.formatOrbDate(date) : ''}\t${i === 0 ? code : ''}\t${l.itemNo}\t${l.text}`).join('\n');
+  const itemRows = lines.map((l, i) => {
+    let showDate = i === 0;
+    let showCode = showDate;
+    if (l.showDate === false) showDate = false;
+    if (l.recordPart != null || l.recordCode != null) {
+      if (l.showDate === false) showDate = false;
+      showCode = l.showCode === true || (l.showCode !== false && showDate);
+    }
+    const codeCol = showCode
+      ? (l.recordPart != null
+        ? EORB.formatOrbBookCode({ part: l.recordPart, code: l.recordCode || 'C' })
+        : code)
+      : '';
+    return `${showDate ? EORB.formatOrbDate(date) : ''}\t${codeCol}\t${l.itemNo}\t${l.text}`;
+  }).join('\n');
   prev.textContent = signLines.length
     ? (itemRows + signLines.map(s => '\n\t\t\t' + s).join(''))
     : itemRows;
@@ -26436,7 +26449,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
       if (!confirm(owsErr + '\n\nSave as overdue today?')) return;
     }
   }
-  const lines = EORB.buildItemLines(part, code, selected, values, setup);
+  const lines = EORB.buildItemLines(part, code, selected, values, setup, _orbWizard.scenarioId || '');
   const robNotes = EORB.applyOperationRob(setup, part, code, selected, values);
   state.setup.orb = setup;
 

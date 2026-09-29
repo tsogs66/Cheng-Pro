@@ -115,9 +115,36 @@ checkTrue('summary names grade, ISO and sulphur', bunkerText.indexOf('VLSFO') !=
   bunkerText.indexOf('8217:2010') !== -1 && bunkerText.indexOf('0.5% S') !== -1);
 checkTrue('per-tank added and ROB lines', bunkerLines.some(l =>
   /120 MT added to/i.test(l.text) && /now containing 220 MT/i.test(l.text)));
-checkTrue('BDN spec line includes API and density',
-  bunkerLines.some(l => l.text.indexOf('API 28.5') !== -1 && l.text.indexOf('991') !== -1));
+checkTrue('BDN spec on Part III C item 3 (not Part I continuation)',
+  bunkerLines.some(l => l.recordPart === 3 && l.recordCode === 'C' && l.itemNo === '3' &&
+    l.text.indexOf('API 28.5') !== -1 && l.text.indexOf('991') !== -1));
 check('two tank detail rows', bunkerLines.filter(l => /MT added to/i.test(l.text)).length, 2);
+
+console.log('\nPart III supplements — incinerator, OWS, de-bunkering');
+const incLines = EORB.buildItemLines(1, 'C', ['12.3'], {
+  qtyDisposed: 0.5, tankEmptied: 'sludge1', retained: 0.2, incinHours: 10
+}, EORB.defaultOrbSetup({ equipment: { incineratorM3PerH: 0.05 }, tanks: { sludge: [
+  { id: 'sludge1', name: 'Sludge Tank', capacityM3: 5, robM3: 1 }
+] } }));
+checkTrue('incinerator adds Part III supplement', incLines.some(l =>
+  l.recordPart === 3 && /incinerator/i.test(l.text) && l.itemNo === '3'));
+const owsLines = EORB.buildItemLines(1, 'I', ['I'], { remarks: 'Weekly test', testDurationMin: 15 },
+  EORB.defaultOrbSetup({}), 'ows-weekly-test');
+checkTrue('OWS weekly test adds Part III supplement', owsLines.some(l => l.recordPart === 3 && /OWS/i.test(l.text)));
+const debLines = EORB.buildItemLines(1, 'I', ['I'], {
+  remarks: 'Fuel oil de-bunkered', extraQtyT: 50, extraPlace: 'Singapore', extraFromTank: 'fo1'
+}, bunkerLayoutSetup, 'debunker-fuel');
+checkTrue('de-bunkering adds Part III supplement', debLines.some(l => l.recordPart === 3 && /de-bunkering/i.test(l.text)));
+const part3Book = EORB.bookRowsHtml([{
+  date: '2026-09-01', code: 'H', part: 1, officerName: 'Test', officerRank: '2/E',
+  officerSignedAt: '2026-09-01T12:00:00',
+  lines: [
+    { itemNo: '26.3', text: '200 MT bunkered' },
+    { itemNo: '3', recordPart: 3, recordCode: 'C', showDate: false, showCode: true,
+      text: 'At: Singapore received. API 28.5, sulphur as per BDN 0.5%' }
+  ]
+}]);
+checkTrue('book print shows PART III C column', part3Book.indexOf('PART III C') !== -1);
 
 console.log('\nAPI calculator (141.5/SG − 131.5)');
 check('API from SG 0.991', EORB.apiFromSpecificGravity(0.991), 11.285);
