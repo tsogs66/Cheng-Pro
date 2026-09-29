@@ -576,12 +576,13 @@
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
       presets: { remarks: 'Weekly operational test of 15 ppm bilge alarm / oily-water separator carried out. Equipment found in good working order.' } },
     { id: 'ows-ocm-test', group: 'Routine', part: 1, code: 'I',
-      title: 'OWS / OCM test (15 ppm alarm and oil content meter)',
-      blurb: 'Test of the oil content meter and 15 ppm alarm, including the duration the test ran. Recorded under Code I. Use Code F if the equipment failed.',
+      title: 'OWS / OCM test (recirculation line)',
+      blurb: 'Step 1 before any manual overboard discharge: test OWS through the recirculation line and confirm OCM / 15 ppm alarm with satisfactory results.',
       items: ['I'],
       requires: { ows: true },
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Operational test of oil content meter (OCM) and 15 ppm bilge alarm carried out. Alarm and automatic stopping device confirmed working.' } },
+      presets: { remarks: 'Test of OWS through recirculation line for satisfactory results and test of OCM with satisfactory results.', testDurationMin: 10 },
+      formNotes: ['Required before D.15.1 overboard discharge on the same date. Follow with Code I — breaking the overboard valve seal, then record the discharge.'] },
 
     /* ---- Fuel oil ---- */
     { id: 'bunker-fuel', group: 'Fuel oil', part: 1, code: 'H',
@@ -648,8 +649,14 @@
       fieldTankGroups: { fromTank: 'bilgeWells' } },
     { id: 'bilge-ows-sea', group: 'Bilge water', part: 1, code: 'D',
       title: 'Bilge water discharged overboard via 15 ppm equipment',
-      blurb: 'Discharge to sea through the oily water separator / 15 ppm equipment, started manually.',
-      items: ['13', '14', '15.1'], requires: { ows: true } },
+      blurb: 'Step 3 — discharge to sea through the OWS / 15 ppm equipment (manual start). Requires OCM test and overboard valve unsealing logged the same date first.',
+      items: ['13', '14', '15.1'], requires: { ows: true },
+      requiresOwsSequence: true,
+      formNotes: [
+        'Same-day sequence: (1) OWS / OCM test (Code I), (2) breaking overboard valve seal (Code I), (3) this discharge (D.15.1), (4) re-seal valve when finished.',
+        'Ensure the vessel is not in territorial waters, at anchor, or in port unless local rules allow.',
+        'Cross-check OWS memory / pump throughput if applicable (nominal capacity check).'
+      ] },
     { id: 'bilge-ows-auto-overboard', group: 'Bilge water', part: 1, code: 'E',
       title: 'Bilge system placed in automatic overboard mode (15 ppm)',
       blurb: 'Automatic-mode discharge overboard via 15 ppm equipment. Use Code D when started by hand, and Code E item 18 when returned to manual.',
@@ -757,10 +764,14 @@
       presets: { remarks: 'Seal fitted to MARPOL Annex I related valve and/or equipment.' } },
     { id: 'seal-broken', group: 'Code I operations', part: 1, code: 'I',
       title: 'Breaking a seal on a MARPOL Annex I valve or equipment',
-      blurb: 'A seal broken on an Annex I related valve or item of equipment — record the seal number and the reason.',
+      blurb: 'Step 2 before overboard discharge: record the overboard valve unsealed for OWS operation, including seal number.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
-      presets: { remarks: 'Seal broken on MARPOL Annex I related valve and/or equipment. Reason: ' } },
+      presets: {
+        extraEquipment: 'Overboard valve from 15 ppm bilge water separator unit',
+        remarks: 'Overboard valve unsealed for normal operation of 15 ppm unit.'
+      },
+      formNotes: ['Log this after the OWS / OCM test and before D.15.1 overboard discharge on the same date.'] },
     { id: 'missed-entry', group: 'Code I operations', part: 1, code: 'I',
       title: 'Entry for an earlier missed operation',
       blurb: 'Recording an operation that was carried out earlier but not entered at the time. The book keeps today\u2019s date; the date it actually happened goes in the wording.',
@@ -878,6 +889,57 @@
     if (!entry || entry.voided) return false;
     if (entry.scenarioId === 'ows-weekly-test' || entry.weeklyKind === 'ows-test') return true;
     return !!(entry.code === 'I' && entry.values && entry.values.weeklyOwsTest);
+  }
+
+  /** OCM / OWS test entries that satisfy the pre-discharge check (same date as D.15.1). */
+  function isOwsOcmTestEntry(entry) {
+    if (!entry || entry.voided) return false;
+    if (entry.scenarioId === 'ows-ocm-test' || entry.scenarioId === 'ows-weekly-test') return true;
+    return isWeeklyOwsTest(entry);
+  }
+
+  function isOverboardSealBreakEntry(entry) {
+    if (!entry || entry.voided) return false;
+    return entry.scenarioId === 'seal-broken';
+  }
+
+  /**
+   * Manual D.15.1 overboard discharge requires same-date OCM test then valve unseal (beORB sequence).
+   * @returns {string[]} blocking messages (empty when prerequisites are satisfied)
+   */
+  function owsDischargePrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (o.scenarioId !== 'bilge-ows-sea') return [];
+    const d = String(o.date || '').slice(0, 10);
+    if (!d) return ['Set the operation date before saving overboard discharge.'];
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d &&
+      (!o.excludeId || e.id !== o.excludeId));
+    const errs = [];
+    if (!day.some(isOwsOcmTestEntry)) {
+      errs.push('Log OWS / OCM test (Code I — OWS / OCM test or weekly 15 ppm test) for ' + formatOrbDate(d) + ' first.');
+    }
+    if (!day.some(isOverboardSealBreakEntry)) {
+      errs.push('Log breaking the overboard valve seal (Code I — seal broken) for ' + formatOrbDate(d) + ' before discharge.');
+    }
+    const sorted = day.slice().sort((a, b) =>
+      String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    const ocm = sorted.filter(isOwsOcmTestEntry).pop();
+    const unseal = sorted.filter(isOverboardSealBreakEntry).pop();
+    if (ocm && unseal && String(unseal.createdAt || '') < String(ocm.createdAt || '')) {
+      errs.push('The seal-breaking entry must be logged after the OCM test on the same date.');
+    }
+    return errs;
+  }
+
+  /** Plain-language checklist for the wizard notes box. */
+  function owsDischargePrereqChecklist(entries, date) {
+    const d = String(date || '').slice(0, 10);
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d);
+    return {
+      ocm: day.some(isOwsOcmTestEntry),
+      unseal: day.some(isOverboardSealBreakEntry),
+      date: d
+    };
   }
 
   function lastMatchingEntryDate(entries, pred) {
@@ -1741,8 +1803,13 @@
         if (resolve(item.fields[3]) !== '') bits.push(resolve(item.fields[3]) + ' m³ retained');
         text = bits.join(', ');
       }
-      if (code === 'D' && item.no === '14') text = 'start: ' + resolve(item.fields[0]) + ', stop: ' + resolve(item.fields[1]);
-      if (code === 'D' && item.no === '15.1') text = 'through 15 ppm equipment, start ' + resolve(item.fields[0]) + ', end ' + resolve(item.fields[1]);
+      if (code === 'D' && item.no === '14') {
+        text = 'start: ' + resolve(item.fields[0]) + ' UTC, stop: ' + resolve(item.fields[1]) + ' UTC';
+      }
+      if (code === 'D' && item.no === '15.1') {
+        text = 'through 15 ppm equipment overboard, position start ' + resolve(item.fields[0]) +
+          ', position stop ' + resolve(item.fields[1]);
+      }
       if (code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
       if (code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
       if (code === 'H' && item.no === '26.3') {
@@ -1761,7 +1828,15 @@
           (total !== '' ? (', total content ' + total + ' t') : '');
       }
       if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
-        text = [resolve(item.fields[0]), extraDetailText(val, setup)].filter(Boolean).join(' ');
+        const remark = resolve(item.fields[0]);
+        const dur = numOrNull(val.testDurationMin);
+        if (dur != null && remark && remark.toLowerCase().indexOf('recirculation') !== -1) {
+          text = 'Test of OWS through recirculation line for ' + fmtVal(dur) +
+            ' minutes and test of OCM with satisfactory results. ' +
+            [remark, extraDetailText(val, setup).replace(/duration of test[^.]+\.\s?/i, '')].filter(Boolean).join(' ');
+        } else {
+          text = [remark, extraDetailText(val, setup)].filter(Boolean).join(' ');
+        }
       }
       if (Number(part) === 3 && code === 'C') {
         const dir = item.no === '1' || item.no === '2' ? 'to low-sulphur fuel' : 'to residual fuel';
@@ -1915,6 +1990,120 @@
     return (entries || []).slice().sort((a, b) =>
       String(a.date).localeCompare(String(b.date)) ||
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  }
+
+  function wizardInputHtml(f, preset) {
+    const val = preset != null ? String(preset) : '';
+    if (f.type === 'select') {
+      return '<select class="orb-form-input" data-orb-field="' + escapeHtml(f.name) + '">' +
+        (f.options || []).map(o => '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>').join('') +
+        '</select>';
+    }
+    if (f.type === 'textarea') {
+      return '<textarea class="orb-form-input" rows="2" data-orb-field="' + escapeHtml(f.name) + '">' +
+        escapeHtml(val) + '</textarea>';
+    }
+    const t = f.type === 'number' ? 'number' : (f.type === 'time' ? 'time' : (f.type === 'date' ? 'date' : 'text'));
+    return '<input type="' + t + '" class="orb-form-input" step="any" data-orb-field="' + escapeHtml(f.name) + '" value="' +
+      escapeHtml(val) + '">';
+  }
+
+  function wizardTankSelectHtml(f, setup, opts) {
+    const group = (opts.fieldTankGroups && opts.fieldTankGroups[f.name]) || f.tankGroup || 'any';
+    const tanks = tanksForGroup(setup, group);
+    const empty = tanks.length ? '' : '<option value="" disabled>No tanks in Vessel Setup</option>';
+    const optsHtml = tanks.map(t =>
+      '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(tankLabel(setup, t.id)) + '</option>').join('');
+    return '<select class="orb-form-input" data-orb-field="' + escapeHtml(f.name) + '"><option value="">— tank —</option>' +
+      empty + optsHtml + '</select>';
+  }
+
+  /** Inline record-book row wording with embedded inputs (beORB-style form sheet). */
+  function wizardItemNarrativeHtml(part, code, item, setup, opts, presets) {
+    const p = presets || (opts && opts.presets) || {};
+    const fld = (name) => (item.fields || []).find(x => x.name === name);
+    const ctrl = (name) => {
+      const f = fld(name);
+      if (!f) return '';
+      if (f.type === 'tank' || f.type === 'tankMulti') return wizardTankSelectHtml(f, setup, opts);
+      return wizardInputHtml(f, p[f.name]);
+    };
+    if (code === 'D' && item.no === '13') {
+      return ctrl('qty') + ' m³ bilge water from ' + ctrl('fromTank') +
+        ' capacity ' + ctrl('fromCap') + ' m³, ' + ctrl('fromRetained') + ' m³ retained.';
+    }
+    if (code === 'D' && item.no === '14') {
+      return 'Start: ' + ctrl('timeStart') + ' UTC &nbsp; Stop: ' + ctrl('timeStop') + ' UTC';
+    }
+    if (code === 'D' && item.no === '15.1') {
+      return 'Through 15 ppm equipment overboard.<br>Position start: ' + ctrl('posStart') +
+        '<br>Position stop: ' + ctrl('posEnd');
+    }
+    if (code === 'C' && item.no === '11.1') return ctrl('tank') || ctrl((item.fields[0] || {}).name);
+    if (code === 'C' && item.no === '11.2') return ctrl((item.fields[0] || {}).name) + ' m³ capacity.';
+    if (code === 'C' && item.no === '11.3') return ctrl((item.fields[0] || {}).name) + ' m³ retained.';
+    if (code === 'C' && item.no === '11.4') {
+      return ctrl('manualCollected') + ' m³ collected by manual operation.';
+    }
+    if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
+      return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
+    }
+    return (item.fields || []).map(f => {
+      if (f.type === 'tank' || f.type === 'tankMulti') return f.label + ': ' + wizardTankSelectHtml(f, setup, opts);
+      return f.label + ': ' + wizardInputHtml(f, p[f.name]);
+    }).join('<br>');
+  }
+
+  /**
+   * Table form matching the printed ORB columns — date / code / item / inline record fields.
+   */
+  function buildWizardFormSheet(part, code, op, setup, opts, selectedItems) {
+    if (!op) return { html: '', extraHtml: '' };
+    opts = opts || {};
+    const sel = new Set(selectedItems || []);
+    const codeLabel = formatOrbBookCode({ part, code });
+    const presets = opts.presets || {};
+    const seen = new Set();
+    let body = '';
+    let first = true;
+    (op.items || []).forEach(it => {
+      if (sel.size && !sel.has(it.no)) return;
+      body += '<tr class="orb-form-row" data-orb-item="' + escapeHtml(it.no) + '">' +
+        '<td class="orb-form-date">' + (first ? '<output id="orbFormDateOut">—</output>' : '') + '</td>' +
+        '<td class="orb-form-code">' + (first ? escapeHtml(codeLabel) : '') + '</td>' +
+        '<td class="orb-form-item">' + escapeHtml(String(it.no)) + '</td>' +
+        '<td class="orb-form-record">' + wizardItemNarrativeHtml(part, code, it, setup, opts, presets) + '</td></tr>';
+      first = false;
+    });
+    let extraHtml = '';
+    if (opts.scenarioId === 'seal-broken') {
+      extraHtml = '<div class="orb-form-extra-row"><div class="orb-form-extra-body">' +
+        wizardInputHtml({ name: 'extraEquipment', type: 'text' }, presets.extraEquipment) +
+        ' unsealed for normal operation of 15 ppm unit.<br>Seal no.: ' +
+        wizardInputHtml({ name: 'extraSealNo', type: 'text' }, presets.extraSealNo) + '</div></div>';
+      seen.add('extraEquipment');
+      seen.add('extraSealNo');
+    }
+    (opts.extraFields || []).forEach(f => {
+      if (seen.has(f.name)) return;
+      seen.add(f.name);
+      let inner = '';
+      if (f.name === 'testDurationMin') {
+        inner = 'Test of OWS through recirculation line for ' + wizardInputHtml(f, presets.testDurationMin) +
+          ' minutes and test of OCM with satisfactory results.';
+      } else if (f.type === 'tank' || f.type === 'tankMulti') {
+        inner = escapeHtml(f.label) + ' ' + wizardTankSelectHtml(f, setup, opts);
+      } else {
+        inner = escapeHtml(f.label) + ' ' + wizardInputHtml(f, presets[f.name]);
+      }
+      extraHtml += '<div class="orb-form-extra-row"><label>' + escapeHtml(f.label) + '</label><div class="orb-form-extra-body">' +
+        inner + '</div></div>';
+    });
+    const table = '<table class="orb-form-sheet"><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
+      '<th>Record of operations / signature of officer in charge</th></tr></thead><tbody>' +
+      (body || '<tr><td colspan="4" class="hint">Tick item numbers above to show fields.</td></tr>') +
+      '</tbody></table>';
+    return { html: table, extraHtml, seenFields: seen };
   }
 
   /**
@@ -2154,6 +2343,11 @@
     daysBetweenIso,
     isWeeklySludgeInventory,
     isWeeklyOwsTest,
+    isOwsOcmTestEntry,
+    isOverboardSealBreakEntry,
+    owsDischargePrereqErrors,
+    owsDischargePrereqChecklist,
+    buildWizardFormSheet,
     lastMatchingEntryDate,
     weeklyDueStatus,
     weeklyInventoryDateError

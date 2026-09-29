@@ -340,6 +340,22 @@ console.log('\nthe on-screen book and the printed sheet are one document');
   check('an empty book builds nothing rather than throwing', EORB.bookRowsHtml([]), '');
 }
 
+console.log('\nOWS overboard discharge sequence (OCM test then valve unseal)');
+{
+  const book = [
+    { id: '1', date: '2026-09-29', scenarioId: 'ows-ocm-test', voided: false, createdAt: '2026-09-29T08:00:00Z' },
+    { id: '2', date: '2026-09-29', scenarioId: 'seal-broken', voided: false, createdAt: '2026-09-29T09:00:00Z' }
+  ];
+  check('blocks discharge without prerequisites', EORB.owsDischargePrereqErrors([], {
+    date: '2026-09-29', scenarioId: 'bilge-ows-sea'
+  }).length >= 2, true);
+  check('allows discharge when OCM and unseal logged same day',
+    EORB.owsDischargePrereqErrors(book, { date: '2026-09-29', scenarioId: 'bilge-ows-sea' }).length, 0);
+  checkTrue('form sheet builder includes table headers',
+    EORB.buildWizardFormSheet(1, 'D', EORB.getOperation(1, 'D'), EORB.defaultOrbSetup({}), { scenarioId: 'bilge-ows-sea' }, ['13']).html.indexOf('orb-form-sheet') !== -1);
+  pass += 1;
+}
+
 console.log('\nbeORB-style date / code / item No. columns');
 {
   check('Date column uses title-case month', EORB.formatOrbDate('2026-08-24'), '24-Aug-2026');
