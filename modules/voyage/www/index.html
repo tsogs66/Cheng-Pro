@@ -25718,7 +25718,6 @@ function orbMergeBunkerTankFields(values){
     values.fuelTank = filledIds.join('|');
     values.fuelSplit = addedParts.join(', ');
     values.fuelRobSplit = robParts.join(', ');
-    if (sumAdded > 0) values.fuelQty = String(Math.round(sumAdded * 1000) / 1000);
   } else {
     delete values.fuelSplit;
     delete values.fuelRobSplit;
@@ -26535,13 +26534,6 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
     }
   }
   orbMergeBunkerTankFields(values);
-  if (code === 'H' && selected.includes('26.3')) {
-    const tankRows = EORB.resolveFuelBunkerTankRows(setup, values);
-    if (!tankRows.length) {
-      alert('Enter MT added and ROB after (MT) for at least one receiving tank.\n\nBlank tanks are excluded from the ORB record.');
-      return;
-    }
-  }
   const lines = EORB.buildItemLines(part, code, selected, values, setup, _orbWizard.scenarioId || '');
   const robNotes = EORB.applyOperationRob(setup, part, code, selected, values);
   state.setup.orb = setup;

@@ -133,6 +133,19 @@ const pairedLines = EORB.buildItemLines(1, 'H', ['26.3'], {
 }, bunkerLayoutSetup);
 check('one per-tank print line when one tank filled', pairedLines.filter(l => /MT added to/i.test(l.text)).length, 1);
 
+console.log('\nbunkering — total quantity added must match per-tank MT added');
+const bunkerQtyErrs = EORB.validateEntry(1, 'H', ['26.3'], {
+  fuelType: 'VLSFO', fuelQty: 200, fuelTank: 'fo1', fuelSplit: 'fo1=120', fuelRobSplit: 'fo1=220'
+}, bunkerLayoutSetup);
+checkTrue('reject when total exceeds per-tank sum',
+  bunkerQtyErrs.some(e => /must equal the sum of per-tank MT added/i.test(e)));
+const bunkerQtyOk = EORB.validateEntry(1, 'H', ['26.3'], {
+  place: 'Singapore', timeStart: '08:00', fuelType: 'VLSFO', fuelQty: 120,
+  fuelTank: 'fo1', fuelSplit: 'fo1=120', fuelRobSplit: 'fo1=220'
+}, bunkerLayoutSetup);
+check('accept when total matches per-tank sum',
+  bunkerQtyOk.some(e => /must equal the sum of per-tank MT added/i.test(e)), false);
+
 console.log('\nbunkering fuel family — residual vs distillate tanks');
 checkTrue('residual ISO list includes RMG 380', EORB.BUNKER_FUEL_FAMILY.residual.iso.indexOf('RMG 380') !== -1);
 checkTrue('distillate types include MGO', EORB.BUNKER_FUEL_FAMILY.distillate.types.indexOf('MGO') !== -1);
@@ -199,7 +212,7 @@ const bunkerHints = EORB.operationFieldHelpers(bunkerSetup, 1, 'H', ['26.3'], {
   fuelQty: 200, fuelTank: ['fo1', 'fo2'], fuelSplit: 'fo1=120, fo2=80'
 });
 checkTrue('split helper confirms total matches quantity added',
-  bunkerHints.some(h => h.code === 'BUNKER_SPLIT' && h.message.indexOf('matches quantity added') !== -1));
+  bunkerHints.some(h => h.code === 'BUNKER_TOTAL' && h.message.indexOf('matches total quantity added') !== -1));
 
 console.log('\nsludge transfer ROB');
 const setup = EORB.defaultOrbSetup({
