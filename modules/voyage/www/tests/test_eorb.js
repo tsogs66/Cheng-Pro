@@ -445,6 +445,10 @@ console.log('\nflag state ORB signatory policy');
 {
   check('Marshall Islands requires dual signatures', EORB.flagSignatoryPolicy('MH').mode,
     EORB.SIGNATORY_MODES.engineer_and_chief_engineer);
+  check('Liberia requires dual signatures (beORB layout)', EORB.flagSignatoryPolicy('LR').mode,
+    EORB.SIGNATORY_MODES.engineer_and_chief_engineer);
+  checkTrue('requiresDualSignatory helper', EORB.requiresDualSignatory('LR') && EORB.requiresDualSignatory('MH'));
+  checkTrue('single-sign flags excluded', !EORB.requiresDualSignatory('PA') && !EORB.requiresDualSignatory('MT'));
   check('Malta expects Chief Engineer only', EORB.flagSignatoryPolicy('MT').mode,
     EORB.SIGNATORY_MODES.chief_engineer_only);
   checkTrue('C/E rank is recognised', EORB.isChiefEngineerRank('C/E'));

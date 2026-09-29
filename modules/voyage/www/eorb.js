@@ -38,15 +38,25 @@
     note: 'MARPOL Annex I Reg. 17: each completed operation is signed by the officer or officers in charge; the Master countersigns each completed page.'
   };
 
+  /** Flags that print officer in charge + Chief Engineer (second signature row). */
+  const DUAL_SIGNATORY_NOTE =
+    'Print the executing officer and the Chief Engineer on separate signature rows when they are different people (company beORB / PSC layout). Master still countersigns each completed page.';
+
+  function dualSignatoryPolicy(flagNote) {
+    return {
+      mode: SIGNATORY_MODES.engineer_and_chief_engineer,
+      label: 'Officer in charge + Chief Engineer',
+      note: flagNote + ' ' + DUAL_SIGNATORY_NOTE
+    };
+  }
+
   const FLAGS = [
     {
       code: 'LR', name: 'Liberia', admin: 'Liberia Maritime Authority (LISCR)',
       language: 'English',
-      signatory: {
-        mode: SIGNATORY_MODES.engineer_or_ce,
-        label: 'Officer in charge',
-        note: 'Marine Notice 07 / POL guidance: officer or officers in charge sign each operation; Master countersigns each page. Any engine officer who conducted the work may sign.'
-      },
+      signatory: dualSignatoryPolicy(
+        'Marine Notice 07 / POL-012: officer(s) in charge sign each operation; approved e-ORB printouts (e.g. beORB) commonly show the duty engineer and Chief Engineer.'
+      ),
       erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry a Declaration of MARPOL Electronic Record Book (Marine Notice POL-012).',
       tips: [
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
@@ -58,11 +68,9 @@
     {
       code: 'MH', name: 'Marshall Islands', admin: 'Republic of the Marshall Islands Maritime Administrator',
       language: 'English (required)',
-      signatory: {
-        mode: SIGNATORY_MODES.engineer_and_chief_engineer,
-        label: 'Officer in charge + Chief Engineer',
-        note: 'Marine Guideline 2-13-3: the officer in charge signs the operation; entries are reviewed for completeness by the Chief Engineer (or other person named in the SMS). Print both signatures on the entry when they are different people.'
-      },
+      signatory: dualSignatoryPolicy(
+        'Marine Guideline 2-13-3: the officer in charge signs the operation; the Chief Engineer (or SMS-named reviewer) checks completeness.'
+      ),
       erbNote: 'RMI publishes approved ERB vendors (Marine Notice 7-041-5). Ship must hold ERB Declaration(s) from the registry portal.',
       tips: [
         'ORB Part I entries for IOPP ships shall be in English.',
@@ -1089,6 +1097,10 @@
     return getFlag(code).signatory;
   }
 
+  function requiresDualSignatory(code) {
+    return flagSignatoryPolicy(code).mode === SIGNATORY_MODES.engineer_and_chief_engineer;
+  }
+
   function normalizeOrbRank(rank) {
     return String(rank || '').trim().toUpperCase().replace(/\s+/g, ' ');
   }
@@ -1138,8 +1150,10 @@
     if (!setup) return lines;
     const pol = flagSignatoryPolicy(setup.flag);
     if (pol.mode !== SIGNATORY_MODES.engineer_and_chief_engineer) return lines;
+    const ceName = String(entry.chiefEngName || setup.chiefEng || '').trim();
+    if (!ceName) return lines;
     const ceLine = formatOrbSignature({
-      officerName: entry.chiefEngName || setup.chiefEng,
+      officerName: ceName,
       officerRank: entry.chiefEngRank || chiefEngRankFromSetup(setup),
       officerSignedAt: entry.chiefEngSignedAt || entry.officerSignedAt
     });
@@ -2667,6 +2681,7 @@
     SIGNATORY_MODES,
     DEFAULT_SIGNATORY,
     flagSignatoryPolicy,
+    requiresDualSignatory,
     isChiefEngineerRank,
     chiefEngRankFromSetup,
     validateEntrySignatory,

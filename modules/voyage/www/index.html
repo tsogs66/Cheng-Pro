@@ -4188,6 +4188,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Rank</label><input id="orb_weeklyOfficerRank" placeholder="e.g. 2/E, 3/E, C/E"></div>
           <div class="field"><label>Signature date</label><input type="date" id="orb_weeklyOfficerSignDate"></div>
         </div>
+        <div class="orb-flag-box" id="orbWeeklySignatoryGuidance" hidden></div>
+        <div class="form-grid cols2" id="orbWeeklyDualChiefEngBlock" style="display:none;margin-top:10px;">
+          <div class="field"><label>Chief Engineer — name (second signature)</label><input id="orb_weeklyChiefEngSignName" placeholder="From vessel setup"></div>
+          <div class="field"><label>Chief Engineer — rank</label><input id="orb_weeklyChiefEngSignRank" placeholder="C/E" value="C/E"></div>
+        </div>
         <div class="field" style="margin-top:10px;"><label>Preview</label></div>
         <div class="orb-preview" id="orbWeeklyPreview"></div>
         <div class="btn-row">
@@ -4216,6 +4221,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Officer in charge — name</label><input id="orb_officerName"></div>
           <div class="field"><label>Rank</label><input id="orb_officerRank" placeholder="e.g. 2/E, 3/E, C/E"></div>
           <div class="field"><label>Signature date</label><input type="date" id="orb_officerSignDate"></div>
+        </div>
+        <div class="orb-flag-box" id="orbSignatoryGuidance" hidden></div>
+        <div class="form-grid cols2" id="orbDualChiefEngBlock" style="display:none;margin-top:10px;">
+          <div class="field"><label>Chief Engineer — name (second signature)</label><input id="orb_chiefEngSignName" placeholder="From vessel setup"></div>
+          <div class="field"><label>Chief Engineer — rank</label><input id="orb_chiefEngSignRank" placeholder="C/E" value="C/E"></div>
         </div>
         <div class="hint" id="orbAutoRobNotes" style="margin-top:10px;"></div>
         <div id="orbOperationHelpers" style="margin-top:8px;"></div>
@@ -23086,7 +23096,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v308';
+let androidInstallCacheName = 'noon-report-v309';
 
 /*
  * What the program is called.
@@ -25234,10 +25244,58 @@ function renderOrbFlagInfo(targetId, flagCode){
   const box = document.getElementById(targetId);
   if (!box) return;
   const flag = EORB.getFlag(flagCode || orbSetup().flag);
+  const sig = flag.signatory || EORB.DEFAULT_SIGNATORY;
   box.innerHTML = `<strong>${flag.name}</strong> — ${flag.admin}<br>
     Language: ${flag.language}<br>
+    <strong>ORB signatory:</strong> ${sig.label} — ${sig.note}<br>
     <em>${flag.erbNote}</em>
     <ul style="margin:8px 0 0 18px;padding:0;">${(flag.tips||[]).map(t=>`<li>${t}</li>`).join('')}</ul>`;
+}
+
+/** Show flag signatory rules and dual C/E fields when the administration requires them. */
+function renderOrbSignatoryGuidance(){
+  if (!window.EORB) return;
+  const setup = orbSetup();
+  const pol = EORB.flagSignatoryPolicy(setup.flag);
+  const html = `<strong>Signatory — ${pol.label}</strong><br>${pol.note}`;
+  ['orbSignatoryGuidance', 'orbWeeklySignatoryGuidance'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = html;
+    el.hidden = false;
+  });
+  const dual = pol.mode === EORB.SIGNATORY_MODES.engineer_and_chief_engineer;
+  const ceOnly = pol.mode === EORB.SIGNATORY_MODES.chief_engineer_only;
+  ['orbDualChiefEngBlock', 'orbWeeklyDualChiefEngBlock'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = dual ? '' : 'none';
+  });
+  const ce = setup.chiefEng || document.getElementById('orb_ce')?.value?.trim() || '';
+  if (dual) {
+    ['orb_chiefEngSignName', 'orb_weeklyChiefEngSignName'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.value && ce) el.value = ce;
+    });
+  }
+  const rankHint = ceOnly ? 'C/E' : 'e.g. 2/E, 3/E, C/E';
+  ['orb_officerRank', 'orb_weeklyOfficerRank'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.placeholder = rankHint;
+  });
+  fillOrbOfficerSelect('orb_officerSelect');
+  fillOrbOfficerSelect('orb_weeklyOfficerSelect');
+}
+
+function orbDraftSignatoryExtras(draftEntry, setup, weekly){
+  const pol = EORB.flagSignatoryPolicy(setup.flag);
+  if (pol.mode === EORB.SIGNATORY_MODES.engineer_and_chief_engineer) {
+    const nameEl = document.getElementById(weekly ? 'orb_weeklyChiefEngSignName' : 'orb_chiefEngSignName');
+    const rankEl = document.getElementById(weekly ? 'orb_weeklyChiefEngSignRank' : 'orb_chiefEngSignRank');
+    draftEntry.chiefEngName = nameEl?.value?.trim() || setup.chiefEng || '';
+    draftEntry.chiefEngRank = rankEl?.value?.trim() || EORB.chiefEngRankFromSetup(setup);
+    draftEntry.chiefEngSignedAt = draftEntry.officerSignedAt;
+  }
+  return draftEntry;
 }
 
 function renderOrbTankEditors(){
@@ -25299,7 +25357,11 @@ function fillOrbOfficerSelect(selectId){
   if (!sel) return;
   const setup = orbSetup();
   const prev = sel.value;
-  const list = setup.officers || [];
+  let list = setup.officers || [];
+  const pol = EORB.flagSignatoryPolicy(setup.flag);
+  if (pol.mode === EORB.SIGNATORY_MODES.chief_engineer_only) {
+    list = list.filter(o => EORB.isChiefEngineerRank(o.rank));
+  }
   sel.innerHTML = `<option value="">— type manually —</option>` +
     list.map(o=>`<option value="${escAttr(o.id)}">${escHtml(o.rank ? `${o.rank} — ${o.name}` : o.name)}</option>`).join('');
   if (prev && list.some(o=>o.id===prev)) sel.value = prev;
@@ -25397,6 +25459,7 @@ function fillOrbSetupForm(){
     else ack.checked = false;
   }
   renderOrbFlagInfo('orbFlagInfo', setup.flag);
+  renderOrbSignatoryGuidance();
   renderOrbTankEditors();
   renderOrbOfficerEditors();
 }
@@ -25485,6 +25548,14 @@ function renderWeeklyPreview(){
   if (includeBilge && !built.entries.some(e => e.code === 'I')){
     text += 'Note: tick tanks and enter retained m³ under oily bilge / bilge wells to add voluntary Code I lines.';
   }
+  const officer = document.getElementById('orb_weeklyOfficerName')?.value?.trim() || '';
+  const rank = document.getElementById('orb_weeklyOfficerRank')?.value?.trim() || '';
+  const signDate = document.getElementById('orb_weeklyOfficerSignDate')?.value || date;
+  const draft = orbDraftSignatoryExtras({
+    officerName: officer, officerRank: rank, officerSignedAt: signDate
+  }, setup, true);
+  const signLines = EORB.orbSignatoryLines(draft, setup);
+  if (signLines.length) text += '\n' + signLines.map(s => '\t\t\t' + s).join('\n');
   prev.textContent = text.trim();
 }
 
@@ -25542,6 +25613,7 @@ function openWeeklyInventoryWizard(){
   if (name && !name.value) name.value = setup.chiefEng || document.getElementById('orb_officerName')?.value || '';
   const rank = document.getElementById('orb_weeklyOfficerRank');
   if (rank && !rank.value) rank.value = document.getElementById('orb_officerRank')?.value || '';
+  renderOrbSignatoryGuidance();
   renderWeeklyPreview();
 }
 
@@ -25650,12 +25722,15 @@ function renderOrbPreview(){
   const officer = document.getElementById('orb_officerName')?.value?.trim() || '';
   const rank = document.getElementById('orb_officerRank')?.value?.trim() || '';
   const signDate = document.getElementById('orb_officerSignDate')?.value || date;
-  const signLine = EORB.formatOrbSignature({
+  const draft = orbDraftSignatoryExtras({
     officerName: officer, officerRank: rank, officerSignedAt: signDate
-  });
+  }, setup, false);
+  const signLines = EORB.orbSignatoryLines(draft, setup);
   const itemRows = lines.map((l, i) =>
     `${i === 0 ? EORB.formatOrbDate(date) : ''}\t${i === 0 ? code : ''}\t${l.itemNo}\t${l.text}`).join('\n');
-  prev.textContent = signLine ? (itemRows + '\n\t\t\t' + signLine) : itemRows;
+  prev.textContent = signLines.length
+    ? (itemRows + signLines.map(s => '\n\t\t\t' + s).join(''))
+    : itemRows;
 }
 
 function syncOrbFormDateOut(){
@@ -25757,7 +25832,15 @@ function openOrbWizard(code, opts){
   applyOrbDateBounds();
   if (!document.getElementById('orb_officerSignDate')?.value) document.getElementById('orb_officerSignDate').value = iso;
   fillOrbOfficerSelect('orb_officerSelect');
-  if (!document.getElementById('orb_officerName')?.value) document.getElementById('orb_officerName').value = setup.chiefEng || '';
+  renderOrbSignatoryGuidance();
+  const pol = EORB.flagSignatoryPolicy(setup.flag);
+  if (!document.getElementById('orb_officerName')?.value) {
+    document.getElementById('orb_officerName').value =
+      pol.mode === EORB.SIGNATORY_MODES.chief_engineer_only ? (setup.chiefEng || '') : (setup.chiefEng || '');
+  }
+  if (!document.getElementById('orb_officerRank')?.value && pol.mode === EORB.SIGNATORY_MODES.chief_engineer_only) {
+    document.getElementById('orb_officerRank').value = EORB.chiefEngRankFromSetup(setup);
+  }
   renderOrbPreview();
 }
 
@@ -25982,6 +26065,7 @@ document.getElementById('orbSubtabs')?.addEventListener('click', (e)=>{
 document.getElementById('orb_flag')?.addEventListener('change', ()=>{
   readOrbSetupFromForm();
   renderOrbFlagInfo('orbFlagInfo', document.getElementById('orb_flag').value);
+  renderOrbSignatoryGuidance();
   fillFlagRegistrySelect('s_flag', vesselFlagCode());
 });
 document.getElementById('s_flag')?.addEventListener('change', ()=>{
@@ -25990,6 +26074,7 @@ document.getElementById('s_flag')?.addEventListener('change', ()=>{
   const orbSel = document.getElementById('orb_flag');
   if (orbSel && state.setup.flag) orbSel.value = state.setup.flag;
   renderOrbFlagInfo('orbFlagInfo', state.setup.flag);
+  renderOrbSignatoryGuidance();
 });
 document.getElementById('btnOrbPrefillFromVessel')?.addEventListener('click', ()=>{
   const setup = orbSetup();
@@ -26164,6 +26249,13 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   if (!officerName){ alert('Officer in charge name is required.'); return; }
   const date = document.getElementById('orb_weeklyEntryDate')?.value
     || document.getElementById('orb_entryDate')?.value;
+  const weeklyDraftCheck = orbDraftSignatoryExtras({
+    officerName,
+    officerRank: document.getElementById('orb_weeklyOfficerRank')?.value?.trim() || '',
+    officerSignedAt: (document.getElementById('orb_weeklyOfficerSignDate')?.value || date) + 'T12:00:00'
+  }, setup, true);
+  const weeklySignErr = EORB.validateEntrySignatory(setup, weeklyDraftCheck);
+  if (weeklySignErr.length){ alert('Cannot save weekly inventory:\n\n• ' + weeklySignErr.join('\n• ')); return; }
   const dateErr = orbDateError(date);
   if (dateErr){ alert('Cannot save weekly inventory:\n\n' + dateErr); return; }
   const lastWeekly = orbLastWeeklyInventoryDate();
@@ -26190,7 +26282,7 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   let saved = 0;
   for (const draft of entriesToSave){
     const baseId = 'orb_' + uid() + '_' + Date.now().toString(36) + '_' + saved;
-    const draftEntry = {
+    let draftEntry = {
       id: baseId,
       vesselId: state.activeVesselId,
       part: draft.part,
@@ -26209,6 +26301,7 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
       weeklyInventory: true,
       scenarioId: 'weekly-sludge-bilge'
     };
+    draftEntry = orbDraftSignatoryExtras(draftEntry, setup, true);
     const records = EORB.materializeOrbSaveRecords(draftEntry, setup);
     for (const entry of records){
       state.orbEntries.push(entry);
@@ -26290,6 +26383,14 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   if (!officerName){ alert('Officer in charge name is required.'); return; }
   const date = document.getElementById('orb_wizardEntryDate')?.value
     || document.getElementById('orb_entryDate')?.value;
+  const signDatePreview = (document.getElementById('orb_officerSignDate')?.value || date) + 'T12:00:00';
+  const signCheck = orbDraftSignatoryExtras({
+    officerName,
+    officerRank: document.getElementById('orb_officerRank')?.value?.trim() || '',
+    officerSignedAt: signDatePreview
+  }, setup, false);
+  const signErrors = EORB.validateEntrySignatory(setup, signCheck);
+  if (signErrors.length){ alert('Cannot save entry:\n\n• ' + signErrors.join('\n• ')); return; }
   const dateErr = orbDateError(date);
   if (dateErr){ alert('Cannot save this ORB entry:\n\n' + dateErr); return; }
   const dischargePrereq = EORB.owsDischargePrereqErrors(state.orbEntries || [], {
@@ -26313,7 +26414,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   state.setup.orb = setup;
 
   const baseId = 'orb_' + uid() + '_' + Date.now().toString(36);
-  const draftEntry = {
+  let draftEntry = {
     id: baseId,
     vesselId: state.activeVesselId,
     part, code, date,
@@ -26331,6 +26432,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
     updatedAt: new Date().toISOString(),
     voided: false
   };
+  draftEntry = orbDraftSignatoryExtras(draftEntry, setup, false);
   const records = EORB.materializeOrbSaveRecords(draftEntry, setup);
   for (const entry of records){
     state.orbEntries.push(entry);
@@ -26346,7 +26448,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   fillOrbSetupForm();
   applyOrbDateBounds();
   alert('ORB saved: ' + EORB.formatOrbDate(date) + ' code ' + code + ' — ' + records.length +
-    ' signed item line(s) (one signatory per item).' +
+    ' item line(s) in the book (signature row after each code+item set).' +
     (robNotes.length ? ('\n\nTank ROB updated:\n• ' + robNotes.join('\n• ')) : ''));
 });
 document.getElementById('btnOrbFilter')?.addEventListener('click', ()=>{
