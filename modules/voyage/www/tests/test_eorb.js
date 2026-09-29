@@ -106,19 +106,31 @@ const bunkerLayoutSetup = { tanks: { fuel: [
   { id: 'fo2', name: 'No.2 H.F.O. TK.', frameNo: 'FR 41-71 (S)', capacityM3: 500, robM3: 200 }
 ] } };
 const bunkerLines = EORB.buildItemLines(1, 'H', ['26.3'], {
-  fuelType: 'VLSFO', fuelIsoSpec: '8217:2010', fuelSulphur: 0.5,
+  fuelType: 'VLSFO', fuelIsoSpec: 'RMG 380', fuelSulphur: 0.5,
   fuelQty: 200, fuelTank: 'fo1|fo2', fuelSplit: 'fo1=120, fo2=80',
   fuelRobSplit: 'fo1=220, fo2=280', fuelApi: 28.5, fuelDensity: 991
 }, bunkerLayoutSetup);
 const bunkerText = (bunkerLines.find(l => l.itemNo === '26.3') || {}).text || '';
 checkTrue('summary names grade, ISO and sulphur', bunkerText.indexOf('VLSFO') !== -1 &&
-  bunkerText.indexOf('8217:2010') !== -1 && bunkerText.indexOf('0.5% S') !== -1);
+  bunkerText.indexOf('RMG 380') !== -1 && bunkerText.indexOf('0.5% S') !== -1);
 checkTrue('per-tank added and ROB lines', bunkerLines.some(l =>
   /120 MT added to/i.test(l.text) && /now containing 220 MT/i.test(l.text)));
 checkTrue('BDN spec on Part III C item 3 (not Part I continuation)',
   bunkerLines.some(l => l.recordPart === 3 && l.recordCode === 'C' && l.itemNo === '3' &&
     l.text.indexOf('API 28.5') !== -1 && l.text.indexOf('991') !== -1));
 check('two tank detail rows', bunkerLines.filter(l => /MT added to/i.test(l.text)).length, 2);
+
+console.log('\nbunkering fuel family — residual vs distillate tanks');
+checkTrue('residual ISO list includes RMG 380', EORB.BUNKER_FUEL_FAMILY.residual.iso.indexOf('RMG 380') !== -1);
+checkTrue('distillate types include MGO', EORB.BUNKER_FUEL_FAMILY.distillate.types.indexOf('MGO') !== -1);
+const mixedTanks = { tanks: { fuel: [
+  { id: 'hfo1', name: 'No.1 HFO', fuelService: 'residual' },
+  { id: 'mgo1', name: 'MGO Service', fuelService: 'distillate' }
+] } };
+check('bunker-fuel scenario category', EORB.bunkerFuelCategoryForScenario('bunker-fuel'), 'residual');
+check('bunker-diesel scenario category', EORB.bunkerFuelCategoryForScenario('bunker-diesel'), 'distillate');
+check('residual bunkering lists only residual tanks', EORB.tanksForBunkerCategory(mixedTanks, 'residual').map(t => t.id), ['hfo1']);
+check('distillate bunkering lists only distillate tanks', EORB.tanksForBunkerCategory(mixedTanks, 'distillate').map(t => t.id), ['mgo1']);
 
 console.log('\nPart III supplements — incinerator, OWS, de-bunkering');
 const incLines = EORB.buildItemLines(1, 'C', ['12.3'], {

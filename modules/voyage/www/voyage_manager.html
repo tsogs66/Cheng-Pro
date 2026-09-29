@@ -1052,6 +1052,19 @@
     .orb-tank-row input{font-size:10.5px; padding:5px 3px;}
     .orb-tank-row .orb-tank-del{padding:5px 0;}
   }
+  .orb-tank-head-fuel, .orb-tank-row-fuel{
+    grid-template-columns:minmax(0,1fr) 120px 88px 88px 88px 34px;
+  }
+  @media (max-width:900px){
+    .orb-tank-head-fuel, .orb-tank-row-fuel{grid-template-columns:minmax(0,1fr) 96px 72px 72px 76px 30px;}
+  }
+  @media (max-width:640px){
+    .orb-tank-head-fuel, .orb-tank-row-fuel{grid-template-columns:minmax(0,1fr) 72px 58px 58px 68px 28px;}
+  }
+  .orb-tank-row-fuel select{
+    background:var(--ink); border:1px solid var(--line-strong); border-radius:3px;
+    color:var(--paper); font-size:12px; padding:7px 6px; width:100%; min-width:0;
+  }
 
   /* Plain-language scenario picker (maps to MARPOL code + item numbers) */
   .orb-scenario-group{margin-top:14px;}
@@ -1075,22 +1088,39 @@
   }
   .orb-scenario-card.routine{border-color:var(--brass) !important;}
   /* Entry wizard — beORB-style table form (matches printed ORB columns) */
-  .orb-form-sheet{width:100%; border-collapse:collapse; margin:10px 0 0; font-size:12px;}
-  .orb-form-sheet th,.orb-form-sheet td{border:1px solid var(--line); padding:6px 8px; vertical-align:top;}
+  #orbEntryWizard{max-width:100%; overflow-x:hidden;}
+  #orbFormSheetWrap,#orbFormExtraWrap{max-width:100%; overflow-x:hidden;}
+  .orb-form-sheet{width:100%; max-width:100%; table-layout:fixed; border-collapse:collapse; margin:10px 0 0; font-size:12px;}
+  .orb-form-sheet th,.orb-form-sheet td{border:1px solid var(--line); padding:6px 8px; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;}
   .orb-form-sheet thead th{background:rgba(201,154,83,0.18); font-size:10px; font-weight:700; text-align:left;}
-  .orb-form-sheet .orb-form-date{width:96px; white-space:nowrap;}
-  .orb-form-sheet .orb-form-code{width:72px; text-align:center; font-weight:700; font-size:11px;}
-  .orb-form-sheet .orb-form-item{width:56px; text-align:center;}
-  .orb-form-sheet .orb-form-record{line-height:1.45;}
+  .orb-form-sheet .orb-form-date{width:11%; max-width:96px; white-space:nowrap;}
+  .orb-form-sheet .orb-form-code{width:14%; max-width:88px; text-align:center; font-weight:700; font-size:10px; line-height:1.25;}
+  .orb-form-sheet .orb-form-item{width:9%; max-width:52px; text-align:center;}
+  .orb-form-sheet .orb-form-record{line-height:1.45; width:auto;}
+  .orb-bunker-line{display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center;}
+  .orb-bunker-line .orb-form-input{flex:1 1 4.5em; min-width:0; max-width:100%;}
+  .orb-bunker-line .orb-bunker-unit{flex:0 0 auto; font-size:11px; color:var(--paper-dim);}
+  .orb-bunker-tank-qty{display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center;}
+  .orb-bunker-tank-qty .orb-form-input{flex:1 1 4em; min-width:0; max-width:6.5em;}
+  .orb-bdn-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr)); gap:8px 10px; margin-top:6px;}
+  .orb-bdn-field{display:flex; flex-direction:column; gap:4px; font-size:11px; min-width:0;}
+  .orb-bdn-field > span{color:var(--paper-dim); font-size:10px; letter-spacing:0.04em; text-transform:uppercase;}
+  .orb-bdn-field .orb-form-input{width:100%; max-width:100%; box-sizing:border-box;}
   .orb-form-input{
     background:rgba(201,154,83,0.22); border:1px solid var(--brass-dim); border-radius:3px;
-    color:var(--paper); padding:4px 6px; font-size:12px; max-width:100%; min-width:4em;
+    color:var(--paper); padding:4px 6px; font-size:12px; max-width:100%; min-width:0; box-sizing:border-box;
   }
   .orb-form-input:focus{outline:none; border-color:var(--teal); box-shadow:0 0 0 2px rgba(87,179,171,0.25);}
-  .orb-form-input[type=number]{width:5em;}
-  .orb-form-input[type=time]{width:7em;}
-  select.orb-form-input{min-width:10em;}
+  .orb-form-input[type=number]{max-width:6.5em;}
+  .orb-form-input[type=time]{max-width:7.5em;}
+  select.orb-form-input{max-width:100%;}
+  .orb-form-input.orb-form-readonly{opacity:0.92; cursor:default;}
   textarea.orb-form-input{width:100%; min-height:2.4em; resize:vertical;}
+  @media (max-width:640px){
+    .orb-form-sheet{font-size:11px;}
+    .orb-form-sheet th,.orb-form-sheet td{padding:5px 4px;}
+    .orb-form-sheet .orb-form-code{font-size:9px;}
+  }
   .orb-form-extra-row{margin-top:8px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--nav-item-bg);}
   .orb-form-notes{
     margin:10px 0; padding:10px 12px; border-radius:6px; border:1px solid var(--brass-dim);
@@ -25306,7 +25336,7 @@ function renderOrbTankEditors(){
     ['sludge','Sludge / oil residue tanks (IOPP 3.1) — weekly C.11'],
     ['bilge','Oily bilge water holding tanks (IOPP 3.3) — voluntary weekly Code I'],
     ['bilgeWells','Bilge tanks / wells — voluntary weekly Code I'],
-    ['fuel','Fuel oil tanks'],
+    ['fuel','Fuel oil tanks — set Bunker service (Residual = HFO/LFO/VLSFO, Distillate = MDO/MGO/LSMGO)'],
     ['lube','Lubricating oil tanks'],
     ['cargo','Cargo tanks (tankers)'],
     ['slop','Slop tanks (tankers)'],
@@ -25319,18 +25349,29 @@ function renderOrbTankEditors(){
   host.innerHTML = groups.map(([key,label])=>{
     const list = setup.tanks[key] || [];
     if (!list.length) return `<h3 class="sub">${label}</h3><div class="hint">No ${label.toLowerCase()} yet.</div>`;
+    const fuelHead = key === 'fuel';
     const head = `
-      <div class="orb-tank-head">
-        <span>Tank name</span><span>Frame no. / position</span><span>Cap. (m³)</span><span>ROB (m³)</span><span></span>
+      <div class="orb-tank-head${fuelHead ? ' orb-tank-head-fuel' : ''}">
+        <span>Tank name</span><span>Frame no. / position</span><span>Cap. (m³)</span><span>ROB (m³)</span>${fuelHead ? '<span>Bunker service</span>' : ''}<span></span>
       </div>`;
-    const rows = list.map((t,i)=>`
-      <div class="orb-tank-row" data-orb-tank-row="${key}" data-idx="${i}">
+    const rows = list.map((t,i)=>{
+      const svc = (t.fuelService === 'distillate' || t.fuelService === 'residual')
+        ? t.fuelService
+        : (window.EORB ? EORB.inferTankFuelService(t) : 'residual');
+      const svcCell = fuelHead ? `<select data-orb-tank-field="fuelService" aria-label="Bunker service" title="Residual = HFO/LFO/VLSFO tanks; Distillate = MDO/MGO/LSMGO tanks">
+        <option value="residual"${svc === 'residual' ? ' selected' : ''}>Residual</option>
+        <option value="distillate"${svc === 'distillate' ? ' selected' : ''}>Distillate</option>
+      </select>` : '';
+      return `
+      <div class="orb-tank-row${fuelHead ? ' orb-tank-row-fuel' : ''}" data-orb-tank-row="${key}" data-idx="${i}">
         <input data-orb-tank-field="name" aria-label="Tank name" title="Tank name" value="${escAttr(t.name||'')}">
         <input data-orb-tank-field="frameNo" aria-label="Frame number or position" title="Frame no. / position" placeholder="Fr. 42–48 (P)" value="${escAttr(t.frameNo||'')}">
         <input type="number" step="0.01" data-orb-tank-field="capacityM3" aria-label="Capacity in cubic metres" title="Capacity (m³)" value="${t.capacityM3!=null?t.capacityM3:''}">
         <input type="number" step="0.01" data-orb-tank-field="robM3" aria-label="Remaining on board in cubic metres" title="ROB (m³)" value="${t.robM3!=null?t.robM3:''}">
+        ${svcCell}
         <button type="button" class="ghost small orb-tank-del" data-orb-tank-del="${key}" data-idx="${i}" aria-label="Remove tank" title="Remove tank">×</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     return `<h3 class="sub">${label}</h3>${head}${rows}`;
   }).join('');
 }
@@ -25405,14 +25446,19 @@ function readOrbSetupFromForm(){
     const frameNo = row.querySelector('[data-orb-tank-field="frameNo"]')?.value?.trim() || '';
     const capacityM3 = parseFloat(row.querySelector('[data-orb-tank-field="capacityM3"]')?.value);
     const robM3 = parseFloat(row.querySelector('[data-orb-tank-field="robM3"]')?.value);
+    const fuelService = row.querySelector('[data-orb-tank-field="fuelService"]')?.value?.trim() || '';
     const prev = (setup.tanks[key] || [])[Number(row.getAttribute('data-idx'))] || {};
-    tanks[key].push({
+    const rec = {
       id: prev.id || (key + '_' + uid()),
       name: name || (key + ' tank'),
       frameNo,
       capacityM3: isFinite(capacityM3) ? capacityM3 : null,
       robM3: isFinite(robM3) ? robM3 : 0
-    });
+    };
+    if (key === 'fuel' && (fuelService === 'distillate' || fuelService === 'residual')) {
+      rec.fuelService = fuelService;
+    }
+    tanks[key].push(rec);
   });
   setup.tanks = tanks;
   /* engine officer roster */
@@ -25687,26 +25733,19 @@ function renderOrbOperationHelpers(hints){
   }).join('');
 }
 
-function updateOrbFuelApiCalc(){
+/** Auto-fill API from BDN density (kg/m³) or SG — no separate “use for API” step. */
+function syncOrbFuelApiFromBdn(){
   if (!window.EORB) return;
-  const densEl = document.getElementById('orbFuelCalcDensity');
-  const sgEl = document.getElementById('orbFuelCalcSg');
-  const out = document.getElementById('orbFuelCalcApiOut');
-  if (!out) return;
-  const d = densEl && densEl.value !== '' ? Number(densEl.value) : null;
+  const densEl = document.querySelector('#orbEntryWizard [data-orb-field="fuelDensity"]');
+  const sgEl = document.querySelector('#orbEntryWizard [data-orb-field="fuelSg"]');
+  const apiEl = document.querySelector('#orbEntryWizard [data-orb-field="fuelApi"]');
+  if (!apiEl) return;
   const sg = sgEl && sgEl.value !== '' ? Number(sgEl.value) : null;
+  const d = densEl && densEl.value !== '' ? Number(densEl.value) : null;
   let api = null;
   if (sg != null && isFinite(sg) && sg > 0) api = EORB.apiFromSpecificGravity(sg);
   else if (d != null && isFinite(d) && d > 0) api = EORB.apiFromDensityKgM3(d);
-  out.textContent = api != null ? String(api) : '—';
-}
-
-function applyOrbFuelApiCalc(){
-  const out = document.getElementById('orbFuelCalcApiOut');
-  const target = document.querySelector('#orbEntryWizard [data-orb-field="fuelApi"]');
-  if (!out || !target || out.textContent === '—') return;
-  target.value = out.textContent;
-  renderOrbPreview();
+  apiEl.value = api != null ? String(api) : '';
 }
 
 function renderOrbPreview(){
@@ -25736,7 +25775,7 @@ function renderOrbPreview(){
   renderOrbOperationHelpers(helpers);
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
   renderOrbCapacityWarnings(warnings);
-  updateOrbFuelApiCalc();
+  syncOrbFuelApiFromBdn();
   const lines = EORB.buildItemLines(part, code, selected, values, setup, _orbWizard.scenarioId || '');
   const date = document.getElementById('orb_wizardEntryDate')?.value
     || document.getElementById('orb_entryDate')?.value || '';
@@ -25807,7 +25846,10 @@ function renderOrbWizardFormSheet(){
     presets: sc.presets || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.presets),
     fieldTankGroups: sc.fieldTankGroups || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.fieldTankGroups),
     extraFields: sc.extraFields || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.extraFields),
-    scenarioId: _orbWizard.scenarioId
+    scenarioId: _orbWizard.scenarioId,
+    bunkerFuelCategory: sc.bunkerFuelCategory ||
+      (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.bunkerFuelCategory) ||
+      (window.EORB ? EORB.bunkerFuelCategoryForScenario(_orbWizard.scenarioId) : 'residual')
   };
   const selected = orbSelectedItems();
   const built = EORB.buildWizardFormSheet(_orbWizard.part, _orbWizard.code, op, setup, opts, selected);
@@ -25823,6 +25865,7 @@ function renderOrbWizardFormSheet(){
   }
   syncOrbFormDateOut();
   renderOrbWizardPrereq();
+  syncOrbFuelApiFromBdn();
 }
 
 function openOrbWizard(code, opts){
@@ -26153,7 +26196,9 @@ document.querySelectorAll('[data-orb-tank-add]').forEach(btn=>{
     readOrbSetupFromForm();
     const setup = orbSetup();
     if (!setup.tanks[key]) setup.tanks[key] = [];
-    setup.tanks[key].push({ id: key + '_' + uid(), name: key.toUpperCase() + ' Tank', frameNo: '', capacityM3: null, robM3: 0 });
+    const rec = { id: key + '_' + uid(), name: key.toUpperCase() + ' Tank', frameNo: '', capacityM3: null, robM3: 0 };
+    if (key === 'fuel') rec.fuelService = 'residual';
+    setup.tanks[key].push(rec);
     state.setup.orb = setup;
     renderOrbTankEditors();
   });
@@ -26368,13 +26413,11 @@ document.getElementById('orbItemChips')?.addEventListener('change', ()=>{
 document.getElementById('orbFormSheetWrap')?.addEventListener('input', renderOrbPreview);
 document.getElementById('orbFormSheetWrap')?.addEventListener('change', renderOrbPreview);
 document.getElementById('orbFormExtraWrap')?.addEventListener('input', (e)=>{
-  if (e.target && (e.target.id === 'orbFuelCalcDensity' || e.target.id === 'orbFuelCalcSg')) updateOrbFuelApiCalc();
+  if (e.target && (e.target.getAttribute('data-orb-field') === 'fuelDensity' ||
+      e.target.getAttribute('data-orb-field') === 'fuelSg')) syncOrbFuelApiFromBdn();
   renderOrbPreview();
 });
 document.getElementById('orbFormExtraWrap')?.addEventListener('change', renderOrbPreview);
-document.getElementById('orbFormExtraWrap')?.addEventListener('click', (e)=>{
-  if (e.target && e.target.id === 'orbFuelCalcApply') applyOrbFuelApiCalc();
-});
 document.getElementById('orb_wizardEntryDate')?.addEventListener('change', ()=>{
   syncOrbFormDateOut();
   renderOrbWizardPrereq();
