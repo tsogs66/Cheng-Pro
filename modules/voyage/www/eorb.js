@@ -300,7 +300,8 @@
           field('fuelTank', 'Tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
           field('fuelSplit', 'Per-tank split (e.g. FO1=120, FO2=80)', 'text',
             { hint: 'Leave blank when bunkering into a single tank — the whole quantity goes there.' }),
-          field('fuelTotal', 'Total content of tank(s) (t)', 'number')
+          field('fuelTotal', 'Total content of tank(s) (t)', 'number'),
+          field('fuelApi', 'API gravity (@15°C)', 'number')
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
           field('lubeType', 'Lube type', 'text'),
@@ -576,12 +577,13 @@
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
       presets: { remarks: 'Weekly operational test of 15 ppm bilge alarm / oily-water separator carried out. Equipment found in good working order.' } },
     { id: 'ows-ocm-test', group: 'Routine', part: 1, code: 'I',
-      title: 'OWS / OCM test (15 ppm alarm and oil content meter)',
-      blurb: 'Test of the oil content meter and 15 ppm alarm, including the duration the test ran. Recorded under Code I. Use Code F if the equipment failed.',
+      title: 'OWS / OCM test (recirculation line)',
+      blurb: 'Step 1 before any manual overboard discharge: test OWS through the recirculation line and confirm OCM / 15 ppm alarm with satisfactory results.',
       items: ['I'],
       requires: { ows: true },
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Operational test of oil content meter (OCM) and 15 ppm bilge alarm carried out. Alarm and automatic stopping device confirmed working.' } },
+      presets: { remarks: 'Test of OWS through recirculation line for satisfactory results and test of OCM with satisfactory results.', testDurationMin: 10 },
+      formNotes: ['Required before D.15.1 overboard discharge on the same date. Follow with Code I — breaking the overboard valve seal, then record the discharge.'] },
 
     /* ---- Fuel oil ---- */
     { id: 'bunker-fuel', group: 'Fuel oil', part: 1, code: 'H',
@@ -648,8 +650,14 @@
       fieldTankGroups: { fromTank: 'bilgeWells' } },
     { id: 'bilge-ows-sea', group: 'Bilge water', part: 1, code: 'D',
       title: 'Bilge water discharged overboard via 15 ppm equipment',
-      blurb: 'Discharge to sea through the oily water separator / 15 ppm equipment, started manually.',
-      items: ['13', '14', '15.1'], requires: { ows: true } },
+      blurb: 'Step 3 — discharge to sea through the OWS / 15 ppm equipment (manual start). Requires OCM test and overboard valve unsealing logged the same date first.',
+      items: ['13', '14', '15.1'], requires: { ows: true },
+      requiresOwsSequence: true,
+      formNotes: [
+        'Same-day sequence: (1) OWS / OCM test (Code I), (2) breaking overboard valve seal (Code I), (3) this discharge (D.15.1), (4) re-seal valve when finished.',
+        'Ensure the vessel is not in territorial waters, at anchor, or in port unless local rules allow.',
+        'Cross-check OWS memory / pump throughput if applicable (nominal capacity check).'
+      ] },
     { id: 'bilge-ows-auto-overboard', group: 'Bilge water', part: 1, code: 'E',
       title: 'Bilge system placed in automatic overboard mode (15 ppm)',
       blurb: 'Automatic-mode discharge overboard via 15 ppm equipment. Use Code D when started by hand, and Code E item 18 when returned to manual.',
@@ -757,10 +765,14 @@
       presets: { remarks: 'Seal fitted to MARPOL Annex I related valve and/or equipment.' } },
     { id: 'seal-broken', group: 'Code I operations', part: 1, code: 'I',
       title: 'Breaking a seal on a MARPOL Annex I valve or equipment',
-      blurb: 'A seal broken on an Annex I related valve or item of equipment — record the seal number and the reason.',
+      blurb: 'Step 2 before overboard discharge: record the overboard valve unsealed for OWS operation, including seal number.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
-      presets: { remarks: 'Seal broken on MARPOL Annex I related valve and/or equipment. Reason: ' } },
+      presets: {
+        extraEquipment: 'Overboard valve from 15 ppm bilge water separator unit',
+        remarks: 'Overboard valve unsealed for normal operation of 15 ppm unit.'
+      },
+      formNotes: ['Log this after the OWS / OCM test and before D.15.1 overboard discharge on the same date.'] },
     { id: 'missed-entry', group: 'Code I operations', part: 1, code: 'I',
       title: 'Entry for an earlier missed operation',
       blurb: 'Recording an operation that was carried out earlier but not entered at the time. The book keeps today\u2019s date; the date it actually happened goes in the wording.',
@@ -878,6 +890,57 @@
     if (!entry || entry.voided) return false;
     if (entry.scenarioId === 'ows-weekly-test' || entry.weeklyKind === 'ows-test') return true;
     return !!(entry.code === 'I' && entry.values && entry.values.weeklyOwsTest);
+  }
+
+  /** OCM / OWS test entries that satisfy the pre-discharge check (same date as D.15.1). */
+  function isOwsOcmTestEntry(entry) {
+    if (!entry || entry.voided) return false;
+    if (entry.scenarioId === 'ows-ocm-test' || entry.scenarioId === 'ows-weekly-test') return true;
+    return isWeeklyOwsTest(entry);
+  }
+
+  function isOverboardSealBreakEntry(entry) {
+    if (!entry || entry.voided) return false;
+    return entry.scenarioId === 'seal-broken';
+  }
+
+  /**
+   * Manual D.15.1 overboard discharge requires same-date OCM test then valve unseal (beORB sequence).
+   * @returns {string[]} blocking messages (empty when prerequisites are satisfied)
+   */
+  function owsDischargePrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (o.scenarioId !== 'bilge-ows-sea') return [];
+    const d = String(o.date || '').slice(0, 10);
+    if (!d) return ['Set the operation date before saving overboard discharge.'];
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d &&
+      (!o.excludeId || e.id !== o.excludeId));
+    const errs = [];
+    if (!day.some(isOwsOcmTestEntry)) {
+      errs.push('Log OWS / OCM test (Code I — OWS / OCM test or weekly 15 ppm test) for ' + formatOrbDate(d) + ' first.');
+    }
+    if (!day.some(isOverboardSealBreakEntry)) {
+      errs.push('Log breaking the overboard valve seal (Code I — seal broken) for ' + formatOrbDate(d) + ' before discharge.');
+    }
+    const sorted = day.slice().sort((a, b) =>
+      String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    const ocm = sorted.filter(isOwsOcmTestEntry).pop();
+    const unseal = sorted.filter(isOverboardSealBreakEntry).pop();
+    if (ocm && unseal && String(unseal.createdAt || '') < String(ocm.createdAt || '')) {
+      errs.push('The seal-breaking entry must be logged after the OCM test on the same date.');
+    }
+    return errs;
+  }
+
+  /** Plain-language checklist for the wizard notes box. */
+  function owsDischargePrereqChecklist(entries, date) {
+    const d = String(date || '').slice(0, 10);
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d);
+    return {
+      ocm: day.some(isOwsOcmTestEntry),
+      unseal: day.some(isOverboardSealBreakEntry),
+      date: d
+    };
   }
 
   function lastMatchingEntryDate(entries, pred) {
@@ -1271,6 +1334,21 @@
           notes.push('Retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
         }
       }
+      if (want.has('12.3')) {
+        const eq = (setup && setup.equipment) || {};
+        const rate = numOrNull(eq.incineratorM3PerH);
+        const qty = numOrNull(v.qtyDisposed);
+        const hours = numOrNull(v.incinHours);
+        if (rate != null && rate > 0) {
+          if (qty != null && qty > 0 && (v.incinHours == null || v.incinHours === '')) {
+            v.incinHours = round3(qty / rate);
+            notes.push('Incinerator hours auto-calculated: ' + fmtVal(qty) + ' m³ ÷ ' + fmtVal(rate) + ' m³/h.');
+          } else if (hours != null && hours > 0 && (v.qtyDisposed == null || v.qtyDisposed === '')) {
+            v.qtyDisposed = round3(rate * hours);
+            notes.push('Incinerated quantity auto-calculated from rated capacity × hours.');
+          }
+        }
+      }
       if (want.has('12.2')) {
         const fromId = v.fromTank;
         const toId = v.toTank;
@@ -1486,6 +1564,120 @@
     if (code === 'H' && want.has('26.4')) bunkerWarnings('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil bunkering');
 
     return warnings;
+  }
+
+  /** API gravity from specific gravity at 15°C (141.5/SG − 131.5). */
+  function apiFromSpecificGravity(sg) {
+    const s = numOrNull(sg);
+    if (s == null || !(s > 0)) return null;
+    return round3(141.5 / s - 131.5);
+  }
+
+  /** API from density @15°C in kg/m³ (SG = ρ/1000). */
+  function apiFromDensityKgM3(density) {
+    const d = numOrNull(density);
+    if (d == null || !(d > 0)) return null;
+    return apiFromSpecificGravity(d / 1000);
+  }
+
+  /**
+   * Live alignment hints (rate × time vs quantity, bunkering split vs total received).
+   * Shown beside the form sheet; capacityWarnings still flags out-of-tolerance cases.
+   */
+  function operationFieldHelpers(setup, part, code, selectedItems, values) {
+    const hints = [];
+    if (Number(part) !== 1) return hints;
+    const v = values || {};
+    const want = new Set(selectedItemNos(selectedItems));
+    const eq = (setup && setup.equipment) || {};
+
+    function pushRateHint(label, qty, hours, rate, unit) {
+      if (qty == null || hours == null || !(hours > 0) || rate == null || !(rate > 0)) return;
+      const expected = rate * hours;
+      const aligned = Math.abs(qty - expected) / expected * 100 <= tolPct(setup);
+      hints.push({
+        level: aligned ? 'info' : 'warn',
+        code: 'RATE_ALIGN',
+        message: label + ': ' + fmtVal(qty) + ' ' + unit + ' recorded vs ' + fmtVal(rate) + ' ' + unit +
+          '/h × ' + fmtVal(hours) + ' h ≈ ' + fmtVal(round3(expected)) + ' ' + unit +
+          (aligned ? ' (within setup tolerance).' : ' — adjust quantity, duration, or rated capacity.')
+      });
+      if (!aligned && qty > 0 && rate > 0) {
+        hints.push({
+          level: 'info',
+          code: 'RATE_SUGGEST_H',
+          message: 'Implied duration at rated capacity: ' + fmtVal(round3(qty / rate)) + ' h.'
+        });
+      }
+      if (!aligned && hours > 0 && rate > 0) {
+        hints.push({
+          level: 'info',
+          code: 'RATE_SUGGEST_Q',
+          message: 'Implied quantity at rated capacity: ' + fmtVal(round3(rate * hours)) + ' ' + unit + '.'
+        });
+      }
+    }
+
+    if (code === 'C' && want.has('12.3')) {
+      const rate = numOrNull(eq.incineratorM3PerH);
+      if (eq.incineratorFitted !== false && rate != null && rate > 0) {
+        pushRateHint('Incinerator burn', numOrNull(v.qtyDisposed), numOrNull(v.incinHours), rate, 'm³');
+      } else if (eq.incineratorFitted !== false) {
+        hints.push({ level: 'warn', code: 'INCIN_RATE_MISSING',
+          message: 'Set incinerator sludge capacity (m³/h) in ORB Vessel Setup to align burn time with quantity.' });
+      }
+    }
+
+    if (code === 'C' && (want.has('12.1') || want.has('12.2'))) {
+      const rate = numOrNull(eq.sludgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
+      const hours = hoursBetween(v.timeStart, v.timeStop);
+      pushRateHint('Sludge / transfer pump', numOrNull(v.qtyDisposed), hours, rate, 'm³');
+    }
+
+    if (code === 'D') {
+      const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
+      const hours = hoursBetween(v.timeStart, v.timeStop);
+      pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³');
+    }
+
+    function bunkerReceiveHint(tankField, qtyField, splitField, label) {
+      const ids = tankIdList(v[tankField]);
+      const add = numOrNull(v[qtyField]);
+      if (!ids.length || add == null) return;
+      const shares = resolveTankShares(setup, ids, add, v[splitField]);
+      if (shares) {
+        const parts = [];
+        let sum = 0;
+        shares.forEach((q, id) => {
+          sum += q;
+          parts.push(tankLabel(setup, id) + ' +' + fmtVal(q) + ' t');
+        });
+        const aligned = Math.abs(sum - add) <= 0.001;
+        hints.push({
+          level: aligned ? 'info' : 'error',
+          code: 'BUNKER_SPLIT',
+          message: label + ' received: ' + parts.join('; ') + ' = ' + fmtVal(round3(sum)) + ' t' +
+            (aligned ? ' (matches quantity added ' + fmtVal(add) + ' t).' :
+              ' — split totals ' + fmtVal(round3(sum)) + ' t but quantity added is ' + fmtVal(add) + ' t.')
+        });
+      } else if (ids.length > 1) {
+        hints.push({
+          level: 'warn',
+          code: 'BUNKER_SPLIT_NEEDED',
+          message: label + ': ' + ids.length + ' tanks selected — enter a per-tank split totalling ' + fmtVal(add) + ' t.'
+        });
+      } else {
+        hints.push({
+          level: 'info',
+          code: 'BUNKER_SINGLE',
+          message: label + ': full ' + fmtVal(add) + ' t to ' + tankLabel(setup, ids[0]) + '.'
+        });
+      }
+    }
+    if (code === 'H' && want.has('26.3')) bunkerReceiveHint('fuelTank', 'fuelQty', 'fuelSplit', 'Fuel bunkering');
+    if (code === 'H' && want.has('26.4')) bunkerReceiveHint('lubeTank', 'lubeQty', 'lubeSplit', 'Lube oil bunkering');
+
+    return hints;
   }
 
   /**
@@ -1741,16 +1933,23 @@
         if (resolve(item.fields[3]) !== '') bits.push(resolve(item.fields[3]) + ' m³ retained');
         text = bits.join(', ');
       }
-      if (code === 'D' && item.no === '14') text = 'start: ' + resolve(item.fields[0]) + ', stop: ' + resolve(item.fields[1]);
-      if (code === 'D' && item.no === '15.1') text = 'through 15 ppm equipment, start ' + resolve(item.fields[0]) + ', end ' + resolve(item.fields[1]);
+      if (code === 'D' && item.no === '14') {
+        text = 'start: ' + resolve(item.fields[0]) + ' UTC, stop: ' + resolve(item.fields[1]) + ' UTC';
+      }
+      if (code === 'D' && item.no === '15.1') {
+        text = 'through 15 ppm equipment overboard, position start ' + resolve(item.fields[0]) +
+          ', position stop ' + resolve(item.fields[1]);
+      }
       if (code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
       if (code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
       if (code === 'H' && item.no === '26.3') {
         const split = item.fields[3] ? resolve(item.fields[3]) : '';
         const total = item.fields[4] ? resolve(item.fields[4]) : '';
+        const api = item.fields[5] ? resolve(item.fields[5]) : '';
         text = resolve(item.fields[0]) + ' ' + resolve(item.fields[1]) + ' t to ' + resolve(item.fields[2]) +
           (split ? (', split ' + split) : '') +
-          (total !== '' ? (', total content ' + total + ' t') : '');
+          (total !== '' ? (', total content ' + total + ' t') : '') +
+          (api !== '' ? (', API ' + api) : '');
       }
       if (code === 'H' && item.no === '26.4') {
         const tank = resolve(item.fields[2]) || resolve(item.fields[3]);
@@ -1761,7 +1960,15 @@
           (total !== '' ? (', total content ' + total + ' t') : '');
       }
       if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
-        text = [resolve(item.fields[0]), extraDetailText(val, setup)].filter(Boolean).join(' ');
+        const remark = resolve(item.fields[0]);
+        const dur = numOrNull(val.testDurationMin);
+        if (dur != null && remark && remark.toLowerCase().indexOf('recirculation') !== -1) {
+          text = 'Test of OWS through recirculation line for ' + fmtVal(dur) +
+            ' minutes and test of OCM with satisfactory results. ' +
+            [remark, extraDetailText(val, setup).replace(/duration of test[^.]+\.\s?/i, '')].filter(Boolean).join(' ');
+        } else {
+          text = [remark, extraDetailText(val, setup)].filter(Boolean).join(' ');
+        }
       }
       if (Number(part) === 3 && code === 'C') {
         const dir = item.no === '1' || item.no === '2' ? 'to low-sulphur fuel' : 'to residual fuel';
@@ -1829,6 +2036,37 @@
     return s ? s.toUpperCase() : '';
   }
 
+  /** Code column — Part II/III entries read like the reference beORB sheets (PART III C). */
+  function formatOrbBookCode(entry) {
+    const p = Number(entry && entry.part) || 1;
+    const c = String(entry && entry.code || '').trim();
+    if (p === 3) return 'PART III ' + c;
+    if (p === 2) return 'PART II ' + c;
+    return c;
+  }
+
+  /** Footer timestamp — beORB “Report Rendered: 29-Sep-2026 10:57:29”. */
+  function formatOrbRenderStamp(when) {
+    const d = when instanceof Date ? when : new Date(when || Date.now());
+    if (isNaN(d.getTime())) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return dd + '-' + months[d.getMonth()] + '-' + d.getFullYear() + ' ' +
+      hh + ':' + mm + ':' + ss;
+  }
+
+  function orbAppLabel() {
+    try {
+      if (global.location && /[?&]chengaio=1(?:&|$)/.test(String(global.location.search || ''))) {
+        return 'ChEng AIO';
+      }
+    } catch (_e) { /* non-browser */ }
+    return APP_NAME;
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1886,6 +2124,138 @@
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   }
 
+  function wizardInputHtml(f, preset) {
+    const val = preset != null ? String(preset) : '';
+    if (f.type === 'select') {
+      return '<select class="orb-form-input" data-orb-field="' + escapeHtml(f.name) + '">' +
+        (f.options || []).map(o => '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>').join('') +
+        '</select>';
+    }
+    if (f.type === 'textarea') {
+      return '<textarea class="orb-form-input" rows="2" data-orb-field="' + escapeHtml(f.name) + '">' +
+        escapeHtml(val) + '</textarea>';
+    }
+    const t = f.type === 'number' ? 'number' : (f.type === 'time' ? 'time' : (f.type === 'date' ? 'date' : 'text'));
+    return '<input type="' + t + '" class="orb-form-input" step="any" data-orb-field="' + escapeHtml(f.name) + '" value="' +
+      escapeHtml(val) + '">';
+  }
+
+  function wizardTankSelectHtml(f, setup, opts) {
+    const group = (opts.fieldTankGroups && opts.fieldTankGroups[f.name]) || f.tankGroup || 'any';
+    const tanks = tanksForGroup(setup, group);
+    const empty = tanks.length ? '' : '<option value="" disabled>No tanks in Vessel Setup</option>';
+    const optsHtml = tanks.map(t =>
+      '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(tankLabel(setup, t.id)) + '</option>').join('');
+    return '<select class="orb-form-input" data-orb-field="' + escapeHtml(f.name) + '"><option value="">— tank —</option>' +
+      empty + optsHtml + '</select>';
+  }
+
+  /** Inline record-book row wording with embedded inputs (beORB-style form sheet). */
+  function wizardItemNarrativeHtml(part, code, item, setup, opts, presets) {
+    const p = presets || (opts && opts.presets) || {};
+    const fld = (name) => (item.fields || []).find(x => x.name === name);
+    const ctrl = (name) => {
+      const f = fld(name);
+      if (!f) return '';
+      if (f.type === 'tank' || f.type === 'tankMulti') return wizardTankSelectHtml(f, setup, opts);
+      return wizardInputHtml(f, p[f.name]);
+    };
+    if (code === 'D' && item.no === '13') {
+      return ctrl('qty') + ' m³ bilge water from ' + ctrl('fromTank') +
+        ' capacity ' + ctrl('fromCap') + ' m³, ' + ctrl('fromRetained') + ' m³ retained.';
+    }
+    if (code === 'D' && item.no === '14') {
+      return 'Start: ' + ctrl('timeStart') + ' UTC &nbsp; Stop: ' + ctrl('timeStop') + ' UTC';
+    }
+    if (code === 'D' && item.no === '15.1') {
+      return 'Through 15 ppm equipment overboard.<br>Position start: ' + ctrl('posStart') +
+        '<br>Position stop: ' + ctrl('posEnd');
+    }
+    if (code === 'C' && item.no === '11.1') return ctrl('tank') || ctrl((item.fields[0] || {}).name);
+    if (code === 'C' && item.no === '11.2') return ctrl((item.fields[0] || {}).name) + ' m³ capacity.';
+    if (code === 'C' && item.no === '11.3') return ctrl((item.fields[0] || {}).name) + ' m³ retained.';
+    if (code === 'C' && item.no === '11.4') {
+      return ctrl('manualCollected') + ' m³ collected by manual operation.';
+    }
+    if (code === 'C' && item.no === '12.3') {
+      return ctrl('qtyDisposed') + ' m³ from ' + ctrl('tankEmptied') + ', ' +
+        ctrl('retained') + ' m³ retained, incinerated ' + ctrl('incinHours') + ' h.';
+    }
+    if (code === 'H' && item.no === '26.3') {
+      return ctrl('fuelType') + ' ' + ctrl('fuelQty') + ' t to ' + ctrl('fuelTank') +
+        ', split ' + ctrl('fuelSplit') + ', total content ' + ctrl('fuelTotal') + ' t, API ' + ctrl('fuelApi') + '.';
+    }
+    if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
+      return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
+    }
+    return (item.fields || []).map(f => {
+      if (f.type === 'tank' || f.type === 'tankMulti') return f.label + ': ' + wizardTankSelectHtml(f, setup, opts);
+      return f.label + ': ' + wizardInputHtml(f, p[f.name]);
+    }).join('<br>');
+  }
+
+  /**
+   * Table form matching the printed ORB columns — date / code / item / inline record fields.
+   */
+  function buildWizardFormSheet(part, code, op, setup, opts, selectedItems) {
+    if (!op) return { html: '', extraHtml: '' };
+    opts = opts || {};
+    const sel = new Set(selectedItems || []);
+    const codeLabel = formatOrbBookCode({ part, code });
+    const presets = opts.presets || {};
+    const seen = new Set();
+    let body = '';
+    let first = true;
+    (op.items || []).forEach(it => {
+      if (sel.size && !sel.has(it.no)) return;
+      body += '<tr class="orb-form-row" data-orb-item="' + escapeHtml(it.no) + '">' +
+        '<td class="orb-form-date">' + (first ? '<output id="orbFormDateOut">—</output>' : '') + '</td>' +
+        '<td class="orb-form-code">' + (first ? escapeHtml(codeLabel) : '') + '</td>' +
+        '<td class="orb-form-item">' + escapeHtml(String(it.no)) + '</td>' +
+        '<td class="orb-form-record">' + wizardItemNarrativeHtml(part, code, it, setup, opts, presets) + '</td></tr>';
+      first = false;
+    });
+    let extraHtml = '';
+    if (opts.scenarioId === 'seal-broken') {
+      extraHtml = '<div class="orb-form-extra-row"><div class="orb-form-extra-body">' +
+        wizardInputHtml({ name: 'extraEquipment', type: 'text' }, presets.extraEquipment) +
+        ' unsealed for normal operation of 15 ppm unit.<br>Seal no.: ' +
+        wizardInputHtml({ name: 'extraSealNo', type: 'text' }, presets.extraSealNo) + '</div></div>';
+      seen.add('extraEquipment');
+      seen.add('extraSealNo');
+    }
+    const selSet = sel;
+    if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
+      extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
+        '<strong>Fuel API calculator</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Enter density or SG:</span>' +
+        '<div class="orb-form-extra-body" style="margin-top:6px;line-height:2;">' +
+        'Density @15°C (kg/m³) <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;">' +
+        ' &nbsp; or SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
+        ' → API <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 8px;">—</output>' +
+        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API field</button></div></div>';
+    }
+    (opts.extraFields || []).forEach(f => {
+      if (seen.has(f.name)) return;
+      seen.add(f.name);
+      let inner = '';
+      if (f.name === 'testDurationMin') {
+        inner = 'Test of OWS through recirculation line for ' + wizardInputHtml(f, presets.testDurationMin) +
+          ' minutes and test of OCM with satisfactory results.';
+      } else if (f.type === 'tank' || f.type === 'tankMulti') {
+        inner = escapeHtml(f.label) + ' ' + wizardTankSelectHtml(f, setup, opts);
+      } else {
+        inner = escapeHtml(f.label) + ' ' + wizardInputHtml(f, presets[f.name]);
+      }
+      extraHtml += '<div class="orb-form-extra-row"><label>' + escapeHtml(f.label) + '</label><div class="orb-form-extra-body">' +
+        inner + '</div></div>';
+    });
+    const table = '<table class="orb-form-sheet"><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
+      '<th>Record of operations / signature of officer in charge</th></tr></thead><tbody>' +
+      (body || '<tr><td colspan="4" class="hint">Tick item numbers above to show fields.</td></tr>') +
+      '</tbody></table>';
+    return { html: table, extraHtml, seenFields: seen };
+  }
+
   /**
    * The body of the record book: one <tr> per item line, with the date and the letter
    * code printed only on the first line of each entry, and the officer's signature under
@@ -1904,7 +2274,7 @@
       const lines = e.lines || [];
       const voided = !!e.voided;
       lines.forEach((ln, idx) => {
-        const text = escapeHtml(ln.text);
+        const text = escapeHtml(String(ln.text || '').toUpperCase());
         let itemNo = ln.itemNo == null ? '' : String(ln.itemNo);
         /* Older saves put "I"/"O" in Item No.; suppress so Code column alone carries the letter. */
         if ((e.code === 'I' && itemNo.toUpperCase() === 'I') ||
@@ -1918,9 +2288,9 @@
           : '';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
           '<td>' + (idx === 0 ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
-          '<td>' + (idx === 0 ? escapeHtml(e.code) : '') + '</td>' +
+          '<td class="orb-code">' + (idx === 0 ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
-          '<td>' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
+          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
       });
     });
     return body;
@@ -1947,31 +2317,41 @@
      and position explicitly, because on screen they land inside a dark-theme app whose
      page-wide table rules would otherwise paint this light page's own cells. */
   const BOOK_CSS = [
-    '.orb-book{background:#fdfbf4; color:#16202e; border:1px solid #cbbf9e; border-radius:3px;',
+    '.orb-book{background:#fff; color:#111; border:1px solid #c5c5c5; border-radius:3px;',
     '  padding:14px 16px; min-width:640px; font-family:Arial,Helvetica,sans-serif;}',
-    '.orb-book-head{border-bottom:2px solid #16202e; padding-bottom:8px; margin-bottom:10px;}',
-    '.orb-book-head h3{margin:0 0 2px; font-size:15px; text-transform:uppercase; letter-spacing:.05em; color:#16202e;}',
-    '.orb-book-head .sub{font-size:11px; color:#4a5568;}',
-    '.orb-book-meta{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:2px 14px; margin-top:6px; font-size:10.5px; color:#33415c;}',
-    '.orb-book table{width:100%; border-collapse:collapse; font-size:11px; color:#16202e;}',
-    '.orb-book thead th{background:#e9e2cd; color:#16202e; font-size:9.5px; position:static; font-family:inherit;',
-    '  text-transform:uppercase; letter-spacing:.04em; text-align:left;}',
-    '.orb-book th, .orb-book td{border:1px solid #b9ae8e; padding:4px 6px; vertical-align:top;',
-    '  color:#16202e; white-space:normal;}',
-    '.orb-book tbody td{color:#16202e; border-bottom:1px solid #b9ae8e;}',
-    '.orb-book tbody tr:hover{background:rgba(0,0,0,.03);}',
-    '.orb-book td:nth-child(1){width:96px; white-space:nowrap;}',
-    '.orb-book td:nth-child(2){width:52px; text-align:center; font-weight:700;}',
-    '.orb-book td:nth-child(3){width:64px; text-align:center;}',
+    '.orb-book-head-split{display:flex; justify-content:space-between; align-items:flex-start; gap:20px;',
+    '  border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:8px;}',
+    '.orb-book-ship{flex:1; min-width:0; font-size:11px; line-height:1.55;}',
+    '.orb-book-ship-row{display:flex; align-items:baseline; gap:6px; margin:2px 0;}',
+    '.orb-book-ship-row .lbl{white-space:nowrap; color:#222; font-weight:600;}',
+    '.orb-book-ship-row .val{flex:1; border-bottom:1px solid #333; min-height:14px; padding:0 2px 1px;}',
+    '.orb-book-brand{text-align:right; flex:0 0 auto;}',
+    '.orb-book-brand .suite{font-size:10px; color:#555; letter-spacing:.02em;}',
+    '.orb-book-brand .product{font-size:22px; font-weight:700; letter-spacing:.02em; color:#111; line-height:1.1;}',
+    '.orb-book-partline{font-size:10px; color:#444; margin:0 0 8px; text-transform:uppercase; letter-spacing:.04em;}',
+    '.orb-book-partline .range{color:#666; font-weight:400; text-transform:none; letter-spacing:0;}',
+    '.orb-book table{width:100%; border-collapse:collapse; font-size:10.5px; color:#111; table-layout:fixed;}',
+    '.orb-book thead th{background:#d9d9d9; color:#111; font-size:9px; position:static; font-family:inherit;',
+    '  font-weight:700; text-transform:none; letter-spacing:0; text-align:left; border:1px solid #999; padding:5px 6px;}',
+    '.orb-book th, .orb-book td{border:1px solid #999; padding:4px 6px; vertical-align:top;',
+    '  color:#111; white-space:normal;}',
+    '.orb-book tbody tr:nth-child(even){background:#ececec;}',
+    '.orb-book tbody tr:hover{background:rgba(0,0,0,.04);}',
+    '.orb-book td:nth-child(1){width:11%; white-space:nowrap;}',
+    '.orb-book td.orb-code{width:14%; text-align:center; font-weight:700; font-size:9.5px; line-height:1.25;}',
+    '.orb-book td:nth-child(3){width:9%; text-align:center;}',
     '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
-    '.orb-book tr.orb-voided td{color:#7a8496;}',
-    '.orb-book .orb-sign{margin-top:4px; font-size:9.5px; font-style:italic; color:#4a5568;}',
-    '.orb-book-empty{padding:22px; text-align:center; color:#6b7280; font-size:11px;}',
+    '.orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
+    '.orb-book tr.orb-voided td{color:#666;}',
+    '.orb-book .orb-sign{margin-top:6px; font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book-empty{padding:22px; text-align:center; color:#666; font-size:11px;}',
     '.orb-book-master{margin-top:16px; display:flex; justify-content:space-between; gap:24px;}',
-    '.orb-book-master > div{flex:1; border-top:1px solid #16202e; padding-top:4px; min-height:34px; font-size:10px; color:#33415c;}',
+    '.orb-book-master > div{flex:1; border-top:1px solid #333; padding-top:4px; min-height:34px; font-size:10px; color:#333;}',
     '.orb-book-master img{max-height:24mm; max-width:42mm; object-fit:contain; display:block; margin-top:2px;}',
-    '.orb-book-foot{margin-top:12px; padding-top:6px; border-top:1px solid #b9ae8e; font-size:9px; color:#6b7280; line-height:1.45;}' +
-    '.orb-book-byline{margin-top:5px; font-size:8px; color:#8b8578; letter-spacing:.04em;}'
+    '.orb-book-foot{margin-top:14px; padding-top:6px; border-top:1px solid #999; font-size:9px; color:#444; line-height:1.45;}',
+    '.orb-book-foot-bar{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;}',
+    '.orb-book-foot-legal{font-size:8px; color:#666; line-height:1.4;}',
+    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}'
   ].join('\n');
 
   /** The part this set of entries belongs to, named as the book names it. */
@@ -1996,7 +2376,9 @@
     const rows = sortEntriesForBook(entries);
     const t = bookPartTitles(rows);
     const body = bookRowsHtml(rows);
-    const sub = [t.subtitle, opts.rangeLabel].filter(Boolean).join(' · ');
+    const appLabel = orbAppLabel();
+    const renderStamp = formatOrbRenderStamp(opts.renderedAt || new Date());
+    const rangeBit = opts.rangeLabel ? (' <span class="range">· ' + escapeHtml(opts.rangeLabel) + '</span>') : '';
     const table = body
       ? '<table><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
         '<th>Record of operations / signature of officer in charge</th></tr></thead>' +
@@ -2006,27 +2388,36 @@
       ? '<div class="orb-book-master"><div>Master\'s signature / date</div><div>Ship\'s stamp' +
         (opts.stampDataUrl ? '<img src="' + opts.stampDataUrl + '" alt="">' : '') + '</div></div>'
       : '';
-    const foot = opts.foot != null ? opts.foot
-      : ('MARPOL Annex I Appendix III codes. Flag: ' + escapeHtml(flag.admin) +
+    const footLegal = opts.foot != null ? opts.foot
+      : ('MARPOL Annex I Appendix III. Flag: ' + escapeHtml(flag.admin) +
          '. Language: ' + escapeHtml(flag.language) + '. ' +
-         'This printout is generated by ' + escapeHtml(APP_NAME) + ' e-ORB. Official electronic ORB use as a hard-copy replacement ' +
+         'Generated by ' + escapeHtml(appLabel) + ' e-ORB. Official electronic ORB use as a hard-copy replacement ' +
          'requires flag-approved software under IMO MEPC.312(74) and a ship-specific Declaration. ' +
          escapeHtml(flag.erbNote));
+    const officialNo = setup.officialNumber || setup.callSign || '';
     return '<div class="orb-book">' +
-      '<div class="orb-book-head">' +
-        '<h3>' + escapeHtml(t.title) + '</h3>' +
-        '<div class="sub">' + escapeHtml(sub) + '</div>' +
-        '<div class="orb-book-meta">' +
-          '<div><strong>Name of ship:</strong> ' + escapeHtml(setup.shipName || '') + '</div>' +
-          '<div><strong>IMO No.:</strong> ' + escapeHtml(setup.imo || '') + '</div>' +
-          '<div><strong>Distinctive number or letters:</strong> ' + escapeHtml(setup.callSign || '') + '</div>' +
-          '<div><strong>Gross tonnage:</strong> ' + escapeHtml(fmtVal(setup.gt)) + '</div>' +
-          '<div><strong>Flag administration:</strong> ' + escapeHtml(flag.name) + '</div>' +
-          '<div><strong>Entries shown:</strong> ' + rows.length + '</div>' +
+      '<div class="orb-book-head-split">' +
+        '<div class="orb-book-ship">' +
+          '<div class="orb-book-ship-row"><span class="lbl">Name of Ship:</span><span class="val">' +
+            escapeHtml(setup.shipName || '') + '</span></div>' +
+          '<div class="orb-book-ship-row"><span class="lbl">Official Number:</span><span class="val">' +
+            escapeHtml(officialNo) + '</span></div>' +
+          '<div class="orb-book-ship-row"><span class="lbl">IMO Number:</span><span class="val">' +
+            escapeHtml(setup.imo || '') + '</span></div>' +
+        '</div>' +
+        '<div class="orb-book-brand">' +
+          '<div class="suite">' + escapeHtml(appLabel) + '</div>' +
+          '<div class="product">e-ORB</div>' +
         '</div>' +
       '</div>' +
+      '<p class="orb-book-partline">' + escapeHtml(t.title) + rangeBit + '</p>' +
       table + master +
-      '<div class="orb-book-foot">' + foot +
+      '<div class="orb-book-foot">' +
+        '<div class="orb-book-foot-bar">' +
+          '<span>e-ORB Report Rendered: ' + escapeHtml(renderStamp) + '</span>' +
+          '<span class="orb-book-page">Page <span class="orb-page-num"></span></span>' +
+        '</div>' +
+        '<div class="orb-book-foot-legal">' + footLegal + '</div>' +
         '<div class="orb-book-byline">' + escapeHtml(AUTHOR_LINE) + '</div></div>' +
     '</div>';
   }
@@ -2042,19 +2433,14 @@
     });
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Oil Record Book</title>' +
       '<style>' +
-      '@page{size:A4 portrait;margin:12mm}' +
+      '@page{size:A4 portrait;margin:14mm 12mm 16mm;}' +
       'body{margin:0; background:#fff; font-family:Arial,Helvetica,sans-serif;}' +
       BOOK_CSS +
-      /* After the shared sheet, not before it, or these lose on equal specificity.
-         The card border and rounded corner belong to the panel the book sits in on
-         screen; on paper the sheet is the page. print-color-adjust keeps the cream
-         page and the ruled header band, which browsers drop from printed output by
-         default — without it the sheet comes out plain white and stops matching
-         what the engineer checked on screen. */
       '.orb-book{border:0; border-radius:0; padding:0; min-width:0;' +
       '  -webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
-      '.orb-book thead th, .orb-book tbody tr{-webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
+      '.orb-book thead th, .orb-book tbody tr:nth-child(even){-webkit-print-color-adjust:exact; print-color-adjust:exact;}' +
       '.orb-book tbody tr:hover{background:transparent;}' +
+      '.orb-page-num::after{content:counter(page) " of " counter(pages);}' +
       '</style></head><body>' + inner + '</body></html>';
   }
 
@@ -2092,11 +2478,16 @@
     buildWeeklyInventory,
     autofillOperationValues,
     capacityWarnings,
+    operationFieldHelpers,
+    apiFromSpecificGravity,
+    apiFromDensityKgM3,
     applyOperationRob,
     findTank,
     validateEntry,
     formatOrbDate,
     formatOrbSignDate,
+    formatOrbBookCode,
+    formatOrbRenderStamp,
     formatOrbSignature,
     buildPrintHtml,
     selectedItemNos,
@@ -2105,6 +2496,11 @@
     daysBetweenIso,
     isWeeklySludgeInventory,
     isWeeklyOwsTest,
+    isOwsOcmTestEntry,
+    isOverboardSealBreakEntry,
+    owsDischargePrereqErrors,
+    owsDischargePrereqChecklist,
+    buildWizardFormSheet,
     lastMatchingEntryDate,
     weeklyDueStatus,
     weeklyInventoryDateError
