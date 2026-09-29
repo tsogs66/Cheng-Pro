@@ -2726,7 +2726,123 @@
       empty + optsHtml + '</select>';
   }
 
-  /** Inline record-book row wording with embedded inputs (beORB-style form sheet). */
+  function wizardControlForField(f, setup, opts, presets, bunkerFam) {
+    const p = presets || {};
+    if (f.type === 'tank' || f.type === 'tankMulti') return wizardTankSelectHtml(f, setup, opts);
+    if (f.bunkerSelect === 'type') return wizardBunkerSelectHtml(f.name, bunkerFam.types, p[f.name]);
+    if (f.bunkerSelect === 'iso') return wizardBunkerSelectHtml(f.name, bunkerFam.iso, p[f.name]);
+    return wizardInputHtml(f, p[f.name]);
+  }
+
+  function wizardLabeledField(f, setup, opts, presets, bunkerFam) {
+    return '<div class="orb-wizard-field">' +
+      '<label>' + escapeHtml(f.label) + '</label>' +
+      wizardControlForField(f, setup, opts, presets, bunkerFam) +
+      (f.hint ? '<span class="hint">' + escapeHtml(f.hint) + '</span>' : '') +
+      '</div>';
+  }
+
+  /** Plain labeled inputs — print wording is built on save / in Preview only. */
+  function wizardSimpleItemFieldsHtml(part, code, item, setup, opts, presets, seen, bunkerFam) {
+    const skip = { fuelTank: 1, fuelSplit: 1, fuelRobSplit: 1, fuelTotal: 1 };
+    if (code === 'H' && item.no === '26.3') {
+      (item.fields || []).forEach(f => {
+        if (skip[f.name] || seen.has(f.name)) return;
+        seen.add(f.name);
+      });
+      return '';
+    }
+    let html = '<div class="orb-wizard-fields">';
+    (item.fields || []).forEach(f => {
+      if (seen.has(f.name)) return;
+      seen.add(f.name);
+      html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function wizardFuelBunkerTankInputHtml(setup, presets, opts) {
+    const cat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
+    const tanks = tanksForBunkerCategory(setup, cat);
+    if (!tanks.length) {
+      const hint = cat === 'distillate'
+        ? 'No distillate-service fuel tanks in ORB setup — mark tanks as Distillate under IOPP / ORB Tanks.'
+        : 'No residual / heavy-fuel tanks in ORB setup — mark tanks as Residual under IOPP / ORB Tanks.';
+      return '<p class="hint">' + escapeHtml(hint) + '</p>';
+    }
+    const ids = tanks.map(t => t.id);
+    const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
+    const robSplit = parseTankSplit(setup, (presets && presets.fuelRobSplit) || '', ids);
+    const rows = tanks.map(t => {
+      const added = split && split.has(t.id) ? split.get(t.id) : '';
+      const rob = robSplit && robSplit.has(t.id) ? robSplit.get(t.id) : '';
+      const label = tankIdentity(setup, t.id);
+      return '<tr class="orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
+        '<td class="orb-bunker-tank-name">' + escapeHtml(label) + '</td>' +
+        '<td><input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(added === '' ? '' : added)) + '" aria-label="MT added"></td>' +
+        '<td><input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '" aria-label="ROB after bunkering MT"></td></tr>';
+    }).join('');
+    return '<table class="orb-bunker-tanks-table"><thead><tr><th>Tank</th><th>MT added</th><th>ROB after (MT)</th></tr></thead><tbody>' +
+      rows + '</tbody></table>';
+  }
+
+  function wizardBunkerEntryPanel(part, code, op, setup, opts, presets, selSet, seen) {
+    const bunkerCat = opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId);
+    const bunkerFam = BUNKER_FUEL_FAMILY[bunkerCat] || BUNKER_FUEL_FAMILY.residual;
+    const byNo = {};
+    (op.items || []).forEach(it => { byNo[it.no] = it; });
+    let html = '<section class="orb-wizard-section"><h3 class="orb-wizard-section-title">Bunkering data</h3>';
+    html += '<p class="hint">Enter values here; the ORB printout wording is composed when you save (see Preview below).</p>';
+    if (selSet.has('26.1') && byNo['26.1']) {
+      (byNo['26.1'].fields || []).forEach(f => {
+        if (seen.has(f.name)) return;
+        seen.add(f.name);
+        html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      });
+    }
+    if (selSet.has('26.2') && byNo['26.2']) {
+      html += '<div class="orb-wizard-fields cols2">';
+      (byNo['26.2'].fields || []).forEach(f => {
+        if (seen.has(f.name)) return;
+        seen.add(f.name);
+        html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      });
+      html += '</div>';
+    }
+    if (selSet.has('26.3') && byNo['26.3']) {
+      html += '<h4 class="orb-wizard-subtitle">Fuel received (' + (bunkerCat === 'distillate' ? 'distillate' : 'residual') + ')</h4>';
+      html += '<div class="orb-wizard-fields cols2">';
+      (byNo['26.3'].fields || []).forEach(f => {
+        if (f.name === 'fuelTank' || f.name === 'fuelSplit' || f.name === 'fuelRobSplit' || f.name === 'fuelTotal' ||
+            f.name === 'fuelDensity' || f.name === 'fuelApi' || f.name === 'fuelSg' || seen.has(f.name)) return;
+        seen.add(f.name);
+        html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      });
+      html += '</div>';
+      html += '<h4 class="orb-wizard-subtitle">Per tank</h4>';
+      html += wizardFuelBunkerTankInputHtml(setup, presets, opts);
+      html += '<h4 class="orb-wizard-subtitle">BDN specification</h4>';
+      html += '<div class="orb-bdn-grid">';
+      ['fuelDensity', 'fuelSg', 'fuelApi'].forEach(name => {
+        let f = (byNo['26.3'].fields || []).find(x => x.name === name);
+        if (!f || seen.has(name)) return;
+        seen.add(name);
+        if (name === 'fuelApi') f = Object.assign({}, f, { readOnly: true, label: 'API (auto from density or SG)' });
+        html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      });
+      html += '</div>';
+      if (partThreeSupplementsEnabled(setup)) {
+        html += '<p class="hint">Part III C item 3 (BDN type, API, density, sulphur) is appended automatically on save.</p>';
+      }
+    }
+    html += '</section>';
+    return html;
+  }
+
+  /** @deprecated Inline print-style narrative — use wizardSimpleItemFieldsHtml / wizardBunkerEntryPanel. */
   function wizardItemNarrativeHtml(part, code, item, setup, opts, presets) {
     const p = presets || (opts && opts.presets) || {};
     const bunkerCat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
@@ -2776,131 +2892,58 @@
     }).join('<br>');
   }
 
-  /** One form row per fuel tank: MT added + ROB after bunkering (beORB Code H). */
-  function wizardFuelBunkerTankRowsHtml(setup, presets, opts) {
-    const cat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
-    const tanks = tanksForBunkerCategory(setup, cat);
-    if (!tanks.length) {
-      const hint = cat === 'distillate'
-        ? 'No distillate-service fuel tanks in ORB setup — mark tanks as Distillate under IOPP / ORB Tanks → Fuel oil tanks.'
-        : 'No residual / heavy-fuel tanks in ORB setup — mark tanks as Residual under IOPP / ORB Tanks → Fuel oil tanks.';
-      return '<tr><td colspan="4" class="hint">' + escapeHtml(hint) + '</td></tr>';
-    }
-    const ids = tanks.map(t => t.id);
-    const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
-    const robSplit = parseTankSplit(setup, (presets && presets.fuelRobSplit) || '', ids);
-    return tanks.map(t => {
-      const added = split && split.has(t.id) ? split.get(t.id) : '';
-      const rob = robSplit && robSplit.has(t.id) ? robSplit.get(t.id) : '';
-      const label = tankIdentity(setup, t.id);
-      return '<tr class="orb-form-row orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
-        '<td></td><td></td><td></td>' +
-        '<td class="orb-form-record">' + escapeHtml(label) + '<br>' +
-        '<span class="orb-bunker-tank-qty">MT added <input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
-        escapeHtml(t.id) + '" value="' + escapeHtml(String(added === '' ? '' : added)) + '">' +
-        ' now containing <input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
-        escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '"> MT</span></td></tr>';
-    }).join('');
-  }
-
   /**
-   * Table form matching the printed ORB columns — date / code / item / inline record fields.
+   * Entry wizard — labeled fields only. ORB book layout is shown in Preview / after save.
    */
   function buildWizardFormSheet(part, code, op, setup, opts, selectedItems) {
     if (!op) return { html: '', extraHtml: '' };
-    opts = opts || {};
+    opts = Object.assign({}, opts, {
+      bunkerFuelCategory: opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId)
+    });
     const sel = new Set(selectedItems || []);
-    const codeLabel = formatOrbBookCode({ part, code });
     const presets = opts.presets || {};
     const seen = new Set();
-    let body = '';
-    let first = true;
+    const bunkerFam = BUNKER_FUEL_FAMILY[opts.bunkerFuelCategory] || BUNKER_FUEL_FAMILY.residual;
+    let panel = '';
+    const selSet = sel;
+    const isBunkerFuel = Number(part) === 1 && code === 'H' &&
+      (selSet.has('26.1') || selSet.has('26.2') || selSet.has('26.3'));
+    if (isBunkerFuel) {
+      panel += wizardBunkerEntryPanel(part, code, op, setup, opts, presets, selSet, seen);
+    }
     (op.items || []).forEach(it => {
       if (sel.size && !sel.has(it.no)) return;
-      body += '<tr class="orb-form-row" data-orb-item="' + escapeHtml(it.no) + '">' +
-        '<td class="orb-form-date">' + (first ? '<output id="orbFormDateOut">—</output>' : '') + '</td>' +
-        '<td class="orb-form-code">' + (first ? escapeHtml(codeLabel) : '') + '</td>' +
-        '<td class="orb-form-item">' + escapeHtml(String(it.no)) + '</td>' +
-        '<td class="orb-form-record">' + wizardItemNarrativeHtml(part, code, it, setup, Object.assign({}, opts, {
-          bunkerFuelCategory: opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId)
-        }), presets) + '</td></tr>';
-      first = false;
+      if (isBunkerFuel && (it.no === '26.1' || it.no === '26.2' || it.no === '26.3')) return;
+      panel += '<section class="orb-wizard-section" data-orb-item="' + escapeHtml(it.no) + '">' +
+        '<h3 class="orb-wizard-section-title">Item ' + escapeHtml(String(it.no)) + '</h3>' +
+        '<p class="hint orb-wizard-item-label">' + escapeHtml(it.label || '') + '</p>' +
+        wizardSimpleItemFieldsHtml(part, code, it, setup, opts, presets, seen, bunkerFam) +
+        '</section>';
     });
+    if (!panel) {
+      panel = '<p class="hint">Tick item numbers above to show entry fields.</p>';
+    }
     let extraHtml = '';
     if (opts.scenarioId === 'seal-broken') {
-      extraHtml = '<div class="orb-form-extra-row"><div class="orb-form-extra-body">' +
-        wizardInputHtml({ name: 'extraEquipment', type: 'text' }, presets.extraEquipment) +
-        ' unsealed for normal operation of 15 ppm unit.<br>Seal no.: ' +
-        wizardInputHtml({ name: 'extraSealNo', type: 'text' }, presets.extraSealNo) + '</div></div>';
+      extraHtml += '<section class="orb-wizard-section"><h3 class="orb-wizard-section-title">Seal broken</h3>' +
+        '<div class="orb-wizard-fields">' +
+        wizardLabeledField({ name: 'extraEquipment', label: 'Valve / equipment', type: 'text' }, setup, opts, presets, bunkerFam) +
+        wizardLabeledField({ name: 'extraSealNo', label: 'Seal no.', type: 'text' }, setup, opts, presets, bunkerFam) +
+        '</div></section>';
       seen.add('extraEquipment');
       seen.add('extraSealNo');
     }
-    const selSet = sel;
-    function partThreePreviewRow(itemNo, text) {
-      return '<tr class="orb-form-row orb-part3-preview"><td></td><td class="orb-form-code">PART III C</td>' +
-        '<td class="orb-form-item">' + escapeHtml(String(itemNo)) + '</td>' +
-        '<td class="orb-form-record hint">' + escapeHtml(text) + '</td></tr>';
-    }
-    if (partThreeSupplementsEnabled(setup)) {
-      if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
-        body += partThreePreviewRow('3',
-          'On save: BDN specification (type, API, density @15 °C, sulphur %) appended under Part III C item 3.');
-      }
-      if (Number(part) === 1 && code === 'H' && selSet.has('26.4')) {
-        body += partThreePreviewRow('3', 'On save: lubricating oil bunkering details appended under Part III C item 3.');
-      }
-      if (Number(part) === 1 && code === 'C' && selSet.has('12.3')) {
-        body += partThreePreviewRow('3', 'On save: incinerator operation supplement (rated capacity, burn time) under Part III C item 3.');
-      }
-      if (Number(part) === 1 && code === 'I' &&
-          (opts.scenarioId === 'ows-ocm-test' || opts.scenarioId === 'ows-weekly-test')) {
-        body += partThreePreviewRow('3', 'On save: OWS / 15 ppm equipment test supplement under Part III C item 3.');
-      }
-      if (Number(part) === 1 && code === 'D' && selSet.has('15.1')) {
-        body += partThreePreviewRow('3', 'On save: overboard discharge supplement (same-day OWS test / seal sequence) under Part III C item 3.');
-      }
-      if (Number(part) === 1 && code === 'F' &&
-          (opts.scenarioId === 'ows-failure' || opts.scenarioId === 'ows-restored')) {
-        body += partThreePreviewRow('3', 'On save: 15 ppm / OWS failure or restoration supplement under Part III C item 3.');
-      }
-    }
-    if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
-      const bunkerOpts = Object.assign({}, opts, {
-        bunkerFuelCategory: opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId)
-      });
-      body += wizardFuelBunkerTankRowsHtml(setup, presets, bunkerOpts);
-      extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
-        '<strong>Fuel specification (BDN)</strong> <span class="hint">API updates automatically when density or SG is entered (141.5 ÷ SG − 131.5 @15°C).</span>' +
-        '<div class="orb-bdn-grid orb-form-extra-body">' +
-        '<label class="orb-bdn-field"><span>Density @15°C (kg/m³)</span>' +
-        wizardInputHtml({ name: 'fuelDensity', type: 'number' }, presets.fuelDensity) + '</label>' +
-        '<label class="orb-bdn-field"><span>SG @15°C</span>' +
-        wizardInputHtml({ name: 'fuelSg', type: 'number' }, presets.fuelSg) + '</label>' +
-        '<label class="orb-bdn-field"><span>API (auto)</span>' +
-        wizardInputHtml({ name: 'fuelApi', type: 'text', readOnly: true }, presets.fuelApi) + '</label>' +
-        '</div></div>';
-      seen.add('fuelSg');
+    if (Number(part) === 1 && code === 'H' && selSet.has('26.4') && partThreeSupplementsEnabled(setup)) {
+      extraHtml += '<p class="hint">Part III C item 3 lube supplement is appended automatically on save.</p>';
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
       seen.add(f.name);
-      let inner = '';
-      if (f.name === 'testDurationMin') {
-        inner = 'Test of OWS through recirculation line for ' + wizardInputHtml(f, presets.testDurationMin) +
-          ' minutes and test of OCM with satisfactory results.';
-      } else if (f.type === 'tank' || f.type === 'tankMulti') {
-        inner = escapeHtml(f.label) + ' ' + wizardTankSelectHtml(f, setup, opts);
-      } else {
-        inner = escapeHtml(f.label) + ' ' + wizardInputHtml(f, presets[f.name]);
-      }
-      extraHtml += '<div class="orb-form-extra-row"><label>' + escapeHtml(f.label) + '</label><div class="orb-form-extra-body">' +
-        inner + '</div></div>';
+      extraHtml += '<section class="orb-wizard-section"><div class="orb-wizard-fields">' +
+        wizardLabeledField(f, setup, opts, presets, bunkerFam) + '</div></section>';
     });
-    const table = '<table class="orb-form-sheet"><thead><tr><th>Date</th><th>Code<br>(letter)</th><th>Item No.<br>(number)</th>' +
-      '<th>Record of operations / signature of officer in charge</th></tr></thead><tbody>' +
-      (body || '<tr><td colspan="4" class="hint">Tick item numbers above to show fields.</td></tr>') +
-      '</tbody></table>';
-    return { html: table, extraHtml, seenFields: seen };
+    const html = '<div class="orb-wizard-panel">' + panel + '</div>';
+    return { html, extraHtml, seenFields: seen };
   }
 
   function isLastEntryInBookSet(sorted, entryIdx) {

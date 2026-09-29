@@ -132,6 +132,14 @@ check('bunker-diesel scenario category', EORB.bunkerFuelCategoryForScenario('bun
 check('residual bunkering lists only residual tanks', EORB.tanksForBunkerCategory(mixedTanks, 'residual').map(t => t.id), ['hfo1']);
 check('distillate bunkering lists only distillate tanks', EORB.tanksForBunkerCategory(mixedTanks, 'distillate').map(t => t.id), ['mgo1']);
 
+console.log('\nbunkering wizard — simple inputs, not printout table');
+const bunkerForm = EORB.buildWizardFormSheet(1, 'H', EORB.getOperation(1, 'H'), bunkerLayoutSetup,
+  { scenarioId: 'bunker-fuel', bunkerFuelCategory: 'residual' }, ['26.1', '26.2', '26.3']);
+checkTrue('labeled entry panel', bunkerForm.html.indexOf('orb-wizard-panel') !== -1);
+checkTrue('per-tank MT table not ORB book columns', bunkerForm.html.indexOf('orb-bunker-tanks-table') !== -1 &&
+  bunkerForm.html.indexOf('Record of operations') === -1);
+checkTrue('fuel type select present', bunkerForm.html.indexOf('data-orb-field="fuelType"') !== -1);
+
 console.log('\nPart III supplements — incinerator, OWS, de-bunkering');
 const incLines = EORB.buildItemLines(1, 'C', ['12.3'], {
   qtyDisposed: 0.5, tankEmptied: 'sludge1', retained: 0.2, incinHours: 10
@@ -444,7 +452,7 @@ console.log('\nOWS overboard discharge sequence (OCM test then valve unseal)');
   check('allows discharge when OCM and unseal logged same day',
     EORB.owsDischargePrereqErrors(book, { date: '2026-09-29', scenarioId: 'bilge-ows-sea' }).length, 0);
   checkTrue('form sheet builder includes table headers',
-    EORB.buildWizardFormSheet(1, 'D', EORB.getOperation(1, 'D'), EORB.defaultOrbSetup({}), { scenarioId: 'bilge-ows-sea' }, ['13']).html.indexOf('orb-form-sheet') !== -1);
+    EORB.buildWizardFormSheet(1, 'D', EORB.getOperation(1, 'D'), EORB.defaultOrbSetup({}), { scenarioId: 'bilge-ows-sea' }, ['13']).html.indexOf('orb-wizard-panel') !== -1);
 }
 
 console.log('\nbeORB-style date / code / item No. columns');

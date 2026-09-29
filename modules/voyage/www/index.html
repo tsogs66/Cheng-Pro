@@ -1087,9 +1087,31 @@
     color:var(--brass); border:1px solid var(--brass-dim); border-radius:10px; padding:1px 7px;
   }
   .orb-scenario-card.routine{border-color:var(--brass) !important;}
-  /* Entry wizard — beORB-style table form (matches printed ORB columns) */
+  /* Entry wizard — labeled inputs; Preview shows print layout */
   #orbEntryWizard{max-width:100%; overflow-x:hidden;}
   #orbFormSheetWrap,#orbFormExtraWrap{max-width:100%; overflow-x:hidden;}
+  .orb-wizard-panel{margin-top:8px;}
+  .orb-wizard-section{
+    margin-bottom:14px; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    background:var(--nav-item-bg);
+  }
+  .orb-wizard-section-title{
+    margin:0 0 8px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em;
+    text-transform:uppercase; color:var(--brass);
+  }
+  .orb-wizard-subtitle{margin:12px 0 6px; font-size:12px; font-weight:600; color:var(--paper);}
+  .orb-wizard-item-label{margin:-4px 0 10px !important;}
+  .orb-wizard-fields{display:grid; grid-template-columns:1fr; gap:10px 12px;}
+  .orb-wizard-fields.cols2{grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));}
+  .orb-wizard-field{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .orb-wizard-field > label{font-size:11px; font-weight:600; color:var(--paper-dim); letter-spacing:0.03em;}
+  .orb-wizard-field .orb-form-input{width:100%; max-width:100%;}
+  .orb-wizard-field .hint{font-size:10px; margin-top:2px;}
+  .orb-bunker-tanks-table{width:100%; max-width:100%; border-collapse:collapse; font-size:12px; margin-top:4px;}
+  .orb-bunker-tanks-table th,.orb-bunker-tanks-table td{border:1px solid var(--line); padding:6px 8px; vertical-align:middle;}
+  .orb-bunker-tanks-table thead th{font-size:10px; text-transform:uppercase; letter-spacing:0.05em; background:rgba(201,154,83,0.15);}
+  .orb-bunker-tanks-table .orb-bunker-tank-name{font-size:11px; line-height:1.35; word-break:break-word;}
+  .orb-bunker-tanks-table .orb-form-input{width:100%; max-width:7em; min-width:0;}
   .orb-form-sheet{width:100%; max-width:100%; table-layout:fixed; border-collapse:collapse; margin:10px 0 0; font-size:12px;}
   .orb-form-sheet th,.orb-form-sheet td{border:1px solid var(--line); padding:6px 8px; vertical-align:top; overflow-wrap:anywhere; word-break:break-word;}
   .orb-form-sheet thead th{background:rgba(201,154,83,0.18); font-size:10px; font-weight:700; text-align:left;}
@@ -4240,6 +4262,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div id="orbItemChips"></div>
         <div id="orbFormSheetWrap" style="margin-top:10px;"></div>
         <div id="orbFormExtraWrap"></div>
+        <div class="hint" style="margin-top:8px;">Preview below shows how the entry will appear in the ORB printout.</div>
         <div class="form-grid cols2" id="orbFieldGrid" style="display:none;margin-top:10px;"></div>
         <div class="form-grid cols2" style="margin-top:10px;">
           <div class="field"><label>Date of operation</label><input type="date" id="orb_wizardEntryDate"></div>
@@ -25667,7 +25690,7 @@ function orbMergeBunkerTankFields(values){
   const added = [];
   const rob = [];
   let sumAdded = 0;
-  document.querySelectorAll('#orbFormSheetWrap .orb-bunker-added').forEach(el=>{
+  document.querySelectorAll('#orbEntryWizard .orb-bunker-added').forEach(el=>{
     const id = el.getAttribute('data-tank-id');
     const v = String(el.value || '').trim();
     if (!id || v === '') return;
@@ -25675,7 +25698,7 @@ function orbMergeBunkerTankFields(values){
     const n = parseFloat(v);
     if (isFinite(n)) sumAdded += n;
   });
-  document.querySelectorAll('#orbFormSheetWrap .orb-bunker-rob').forEach(el=>{
+  document.querySelectorAll('#orbEntryWizard .orb-bunker-rob').forEach(el=>{
     const id = el.getAttribute('data-tank-id');
     const v = String(el.value || '').trim();
     if (!id || v === '') return;
@@ -26365,6 +26388,7 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   const signDate = document.getElementById('orb_weeklyOfficerSignDate')?.value || date;
   const now = new Date().toISOString();
   let saved = 0;
+  const weeklySavedRecords = [];
   for (const draft of entriesToSave){
     const baseId = 'orb_' + uid() + '_' + Date.now().toString(36) + '_' + saved;
     let draftEntry = {
@@ -26391,6 +26415,7 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
     for (const entry of records){
       state.orbEntries.push(entry);
       await dbPut('orbEntries', entry);
+      weeklySavedRecords.push(entry);
       saved += 1;
     }
   }
@@ -26402,9 +26427,11 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   renderOrbBook();
   fillOrbSetupForm();
   applyOrbDateBounds();
-  alert('Weekly inventory saved: ' + saved + ' ORB operation(s).\n\n• Code C — sludge tanks (IOPP 3.1)\n' +
-    (includeBilge && entriesToSave.some(e => e.code === 'I') ? '• Code I — oily bilge / bilge tanks\n' : '') +
-    '\nOpen Browse / Print to review.');
+  const weeklyMsg = 'Weekly inventory saved: ' + saved + ' ORB line(s).\n\n• Code C — sludge tanks (IOPP 3.1)\n' +
+    (includeBilge && entriesToSave.some(e => e.code === 'I') ? '• Code I — oily bilge / bilge tanks\n' : '');
+  offerPrintOrbEntriesAfterSave(weeklySavedRecords,
+    EORB.formatOrbDate(date) + ' — weekly inventory (saved)',
+    weeklyMsg);
 });
 document.getElementById('orbItemChips')?.addEventListener('change', ()=>{
   renderOrbWizardFormSheet();
@@ -26530,9 +26557,12 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   renderOrbBook();
   fillOrbSetupForm();
   applyOrbDateBounds();
-  alert('ORB saved: ' + EORB.formatOrbDate(date) + ' code ' + code + ' — ' + records.length +
+  const saveMsg = 'ORB saved: ' + EORB.formatOrbDate(date) + ' code ' + code + ' — ' + records.length +
     ' item line(s) in the book (signature row after each code+item set).' +
-    (robNotes.length ? ('\n\nTank ROB updated:\n• ' + robNotes.join('\n• ')) : ''));
+    (robNotes.length ? ('\n\nTank ROB updated:\n• ' + robNotes.join('\n• ')) : '');
+  offerPrintOrbEntriesAfterSave(records,
+    EORB.formatOrbDate(date) + ' — Code ' + code + ' (saved entry)',
+    saveMsg);
 });
 document.getElementById('btnOrbFilter')?.addEventListener('click', ()=>{
   const from = document.getElementById('orb_from')?.value || '';
@@ -26567,21 +26597,10 @@ document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
   applyOrbDateBounds();
   alert(n + ' ORB line(s) struck through. Record the correct operation as a new entry.');
 });
-document.getElementById('btnOrbPrint')?.addEventListener('click', ()=>{
-  if (!window.EORB) return;
-  const checked = new Set([...document.querySelectorAll('.orb-browse-check:checked')].map(c=>c.value));
-  let rows = filteredOrbEntries();
-  if (checked.size) rows = rows.filter(e => checked.has(e.id));
-  const from = document.getElementById('orb_from')?.value || '';
-  const to = document.getElementById('orb_to')?.value || '';
-  let range = orbRangeLabel(from, to) || 'All saved entries';
-  /* Name the officer on the printout when the report is filtered to one. */
-  const officerId = document.getElementById('orb_browseOfficer')?.value || 'all';
-  if (officerId !== 'all'){
-    const off = (orbSetup().officers || []).find(o=>o.id===officerId);
-    if (off) range += ` — officer in charge: ${off.rank ? off.rank + ' ' : ''}${off.name}`;
-  }
-  const html = EORB.buildPrintHtml(orbSetup(), rows, range, { stampDataUrl: vesselStampDataUrl() });
+/** Open the system print dialog for the given ORB entry rows (same layout as Browse / Print). */
+function printOrbEntries(rows, rangeLabel){
+  if (!window.EORB || !rows || !rows.length) return;
+  const html = EORB.buildPrintHtml(orbSetup(), rows, rangeLabel || 'ORB entry', { stampDataUrl: vesselStampDataUrl() });
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
@@ -26597,6 +26616,30 @@ document.getElementById('btnOrbPrint')?.addEventListener('click', ()=>{
       try{ iframe.remove(); }catch(_e2){}
     }
   }, 250);
+}
+
+function offerPrintOrbEntriesAfterSave(rows, rangeLabel, savedMessage){
+  if (!rows || !rows.length) return;
+  if (confirm((savedMessage || 'Entry saved.') + '\n\nPrint this saved entry now?')) {
+    printOrbEntries(rows, rangeLabel);
+  }
+}
+
+document.getElementById('btnOrbPrint')?.addEventListener('click', ()=>{
+  if (!window.EORB) return;
+  const checked = new Set([...document.querySelectorAll('.orb-browse-check:checked')].map(c=>c.value));
+  let rows = filteredOrbEntries();
+  if (checked.size) rows = rows.filter(e => checked.has(e.id));
+  const from = document.getElementById('orb_from')?.value || '';
+  const to = document.getElementById('orb_to')?.value || '';
+  let range = orbRangeLabel(from, to) || 'All saved entries';
+  /* Name the officer on the printout when the report is filtered to one. */
+  const officerId = document.getElementById('orb_browseOfficer')?.value || 'all';
+  if (officerId !== 'all'){
+    const off = (orbSetup().officers || []).find(o=>o.id===officerId);
+    if (off) range += ` — officer in charge: ${off.rank ? off.rank + ' ' : ''}${off.name}`;
+  }
+  printOrbEntries(rows, range);
 });
 document.getElementById('btnOrbExportJson')?.addEventListener('click', ()=>{
   const rows = filteredOrbEntries();
