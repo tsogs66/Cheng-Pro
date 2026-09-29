@@ -120,6 +120,19 @@ checkTrue('BDN spec on Part III C item 3 (not Part I continuation)',
     l.text.indexOf('API 28.5') !== -1 && l.text.indexOf('991') !== -1));
 check('two tank detail rows', bunkerLines.filter(l => /MT added to/i.test(l.text)).length, 2);
 
+console.log('\nbunkering — only paired MT added + ROB tanks in record');
+const pairedOnly = EORB.resolveFuelBunkerTankRows(bunkerLayoutSetup, {
+  fuelType: 'VLSFO', fuelQty: 120, fuelTank: 'fo1|fo2',
+  fuelSplit: 'fo1=120, fo2=80', fuelRobSplit: 'fo1=220'
+});
+check('exclude tank without ROB after', pairedOnly.length, 1);
+check('included tank id', pairedOnly[0].id, 'fo1');
+const pairedLines = EORB.buildItemLines(1, 'H', ['26.3'], {
+  fuelType: 'VLSFO', fuelQty: 120, fuelTank: 'fo1',
+  fuelSplit: 'fo1=120', fuelRobSplit: 'fo1=220'
+}, bunkerLayoutSetup);
+check('one per-tank print line when one tank filled', pairedLines.filter(l => /MT added to/i.test(l.text)).length, 1);
+
 console.log('\nbunkering fuel family — residual vs distillate tanks');
 checkTrue('residual ISO list includes RMG 380', EORB.BUNKER_FUEL_FAMILY.residual.iso.indexOf('RMG 380') !== -1);
 checkTrue('distillate types include MGO', EORB.BUNKER_FUEL_FAMILY.distillate.types.indexOf('MGO') !== -1);

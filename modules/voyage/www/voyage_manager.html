@@ -25687,28 +25687,43 @@ function openWeeklyInventoryWizard(){
 }
 
 function orbMergeBunkerTankFields(values){
-  const added = [];
-  const rob = [];
-  let sumAdded = 0;
+  const addedById = new Map();
+  const robById = new Map();
   document.querySelectorAll('#orbEntryWizard .orb-bunker-added').forEach(el=>{
     const id = el.getAttribute('data-tank-id');
     const v = String(el.value || '').trim();
     if (!id || v === '') return;
-    added.push(id + '=' + v);
-    const n = parseFloat(v);
-    if (isFinite(n)) sumAdded += n;
+    addedById.set(id, v);
   });
   document.querySelectorAll('#orbEntryWizard .orb-bunker-rob').forEach(el=>{
     const id = el.getAttribute('data-tank-id');
     const v = String(el.value || '').trim();
     if (!id || v === '') return;
-    rob.push(id + '=' + v);
+    robById.set(id, v);
   });
-  if (added.length){
-    values.fuelSplit = added.join(', ');
+  const filledIds = [];
+  const addedParts = [];
+  const robParts = [];
+  let sumAdded = 0;
+  addedById.forEach((addedVal, id) => {
+    if (!robById.has(id)) return;
+    const robVal = robById.get(id);
+    filledIds.push(id);
+    addedParts.push(id + '=' + addedVal);
+    robParts.push(id + '=' + robVal);
+    const n = parseFloat(addedVal);
+    if (isFinite(n)) sumAdded += n;
+  });
+  if (filledIds.length) {
+    values.fuelTank = filledIds.join('|');
+    values.fuelSplit = addedParts.join(', ');
+    values.fuelRobSplit = robParts.join(', ');
     if (sumAdded > 0) values.fuelQty = String(Math.round(sumAdded * 1000) / 1000);
+  } else {
+    delete values.fuelSplit;
+    delete values.fuelRobSplit;
+    delete values.fuelTank;
   }
-  if (rob.length) values.fuelRobSplit = rob.join(', ');
   return values;
 }
 
@@ -26517,6 +26532,14 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
         return;
       }
       if (!confirm(owsErr + '\n\nSave as overdue today?')) return;
+    }
+  }
+  orbMergeBunkerTankFields(values);
+  if (code === 'H' && selected.includes('26.3')) {
+    const tankRows = EORB.resolveFuelBunkerTankRows(setup, values);
+    if (!tankRows.length) {
+      alert('Enter MT added and ROB after (MT) for at least one receiving tank.\n\nBlank tanks are excluded from the ORB record.');
+      return;
     }
   }
   const lines = EORB.buildItemLines(part, code, selected, values, setup, _orbWizard.scenarioId || '');

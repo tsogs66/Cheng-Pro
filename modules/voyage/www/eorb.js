@@ -1682,13 +1682,28 @@
   function resolveFuelBunkerTankRows(setup, val) {
     const v = val || {};
     const ids = tankIdList(v.fuelTank);
+    const splitMap = parseTankSplit(setup, v.fuelSplit, ids.length ? ids : null);
+    const robMap = parseTankSplit(setup, v.fuelRobSplit, ids.length ? ids : null);
+    if (splitMap && splitMap.size && robMap && robMap.size) {
+      const paired = [];
+      splitMap.forEach((added, id) => {
+        if (!robMap.has(id)) return;
+        paired.push({
+          id,
+          added,
+          rob: robMap.get(id),
+          label: tankIdentity(setup, id)
+        });
+      });
+      if (paired.length) return paired;
+    }
     const total = numOrNull(v.fuelQty);
     const shares = resolveTankShares(setup, ids, total, v.fuelSplit);
-    const robMap = parseTankSplit(setup, v.fuelRobSplit, ids);
     const rows = [];
     if (shares) {
       shares.forEach((added, id) => {
         let rob = robMap && robMap.has(id) ? robMap.get(id) : null;
+        if (robMap && robMap.size && !robMap.has(id)) return;
         if (rob == null) {
           const hit = findTank(setup, id);
           const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
@@ -2239,8 +2254,12 @@
       const add = numOrNull(v[qtyField]);
       if (!ids.length) return;
       const robMap = robSplitField ? parseTankSplit(setup, v[robSplitField], ids) : null;
+      const shareMap = parseTankSplit(setup, v[splitField], ids);
       if (robMap && robMap.size) {
-        robMap.forEach((rob, id) => setRob(id, rob));
+        robMap.forEach((rob, id) => {
+          if (shareMap && shareMap.size && !shareMap.has(id)) return;
+          setRob(id, rob);
+        });
         return;
       }
       if (ids.length === 1 && v[totalField] != null && v[totalField] !== '') {
@@ -2823,6 +2842,7 @@
       });
       html += '</div>';
       html += '<h4 class="orb-wizard-subtitle">Per tank</h4>';
+      html += '<p class="hint">Only tanks with both MT added and ROB after are included in the saved record.</p>';
       html += wizardFuelBunkerTankInputHtml(setup, presets, opts);
       html += '<h4 class="orb-wizard-subtitle">BDN specification</h4>';
       html += '<div class="orb-bdn-grid">';
