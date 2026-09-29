@@ -788,6 +788,107 @@
   html.short-viewport.landscape-view #btnRecalcSummaryPage,
   html.short-viewport.landscape-view #vsTopActions{display:inline-flex !important;}
   html.short-viewport.landscape-view #summaryRecalcHint{display:none;}
+
+  /* One control scale for the whole suite — see apps/web/css/shell.css and
+     modules/tanks/public/css/app.css, which carry the same block. Three
+     documents that cannot share a file: change one, change all three.
+
+     Heights are shared because a control's size is ergonomics. The radius is
+     not: Voyage Chief's square 3px edge is its instrument look, and flattening
+     it to match the AIO's rounded shell would cost the program its character
+     for no gain. Each program keeps one radius; they need not be the same one.
+
+     The coarse-pointer step is not cosmetic — these pages run on an engine
+     room tablet, where a 32px control is a missed tap. */
+  :root {
+    --ctl-h: 38px;
+    --ctl-h-sm: 32px;
+    --ctl-r: 3px;
+    --cell-pad-y: 6px;
+    --cell-pad-x: 10px;
+
+    /* The bottom bar is a control too, and the one a chief hits most often.
+       46px is a phone's bar: it has to leave room for the page. */
+    --nav-item-h: 46px;
+    --nav-ic: 18px;
+    --nav-label: 8px;
+    --nav-pad-y: 3px;
+    /* What the page keeps clear below itself: the items, the bar's padding and
+       a little air. Derived, so a taller bar never sits over the last row. */
+    --nav-bar-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 12px);
+  }
+
+  /* A tablet, told from a phone by having room on both sides: a phone in
+     landscape is wide but short, and is still a phone. On the tablet the bar
+     is the program's main control, used standing up with the screen at arm's
+     length, so it gets a target that does not have to be aimed at — and the
+     label under the icon becomes readable rather than merely present. */
+  @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
+    :root {
+      --nav-item-h: 72px;
+      --nav-ic: 26px;
+      --nav-label: 11px;
+      --nav-pad-y: 7px;
+    }
+    /* A tablet is not a compact phone, however short its screen reports
+       itself. The compact classes are set from screen size in script and
+       catch a ten-inch tablet, whose short side is under 900; they carry
+       their own bar heights, which would otherwise win here on specificity
+       alone and hold the bar at a phone's 42px. */
+    html.compact-phone .bn-item,
+    html.short-viewport .bn-item,
+    html.short-viewport.landscape-view .bn-item {
+      min-height: var(--nav-item-h);
+      font-size: var(--nav-label);
+    }
+    html.compact-phone .bn-item svg,
+    html.short-viewport .bn-item svg,
+    html.short-viewport.landscape-view .bn-item svg {
+      width: var(--nav-ic);
+      height: var(--nav-ic);
+    }
+  }
+
+  @media (pointer: coarse) {
+    :root { --ctl-h: 44px; --ctl-h-sm: 38px; }
+  }
+  button { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
+  input, select, textarea { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
+  input[type="checkbox"], input[type="radio"] { min-height: 0; }
+  /* A field inside a dense grid takes the row's height, not the form's. */
+  table input, table select, table textarea { min-height: var(--ctl-h-sm); }
+  /* A control sitting in a row of figures takes the row's height, not the
+     form's, or it makes the row taller than the data in it. */
+  table button, .voyage-bf-samples button { min-height: var(--ctl-h-sm); }
+  th, td { padding: var(--cell-pad-y) var(--cell-pad-x); }
+
+
+  /* Nothing in this suite is smaller than 12px — see apps/web/css/shell.css
+   * for why, and for the measurement this list came from. The densest screens
+   * in the product are here: Voyage Chief alone had 195 visible elements under
+   * 12px, down to 9px on the readout units.
+   *
+   * !important for the same reason it is used there: these sizes are set by
+   * rules more specific than anything that can be written without naming every
+   * ancestor. Screen only — everything under .pr- is a printed form typeset in
+   * points and is deliberately outside this block. */
+  @media screen {
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table),
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table) th,
+    table:not(.pr-table):not(.pr-fm-table):not(.bunker-table) td,
+    .lbl, .unit, .gauge-cap, .gauge-label,
+    .hint, label, h3.sub, .footer-note, sub,
+    button, button.ghost, button.primary,
+    .orb-subtab, .nav-group-label, .orb-tank-head,
+    .tag, .pill {
+      font-size: 12px !important;
+    }
+    /* The Consumption Plan grid is table-layout:fixed with a min-width — it
+       cannot take the extra pixels without overflowing, so it keeps 11px.
+       Called out rather than silently excluded. */
+    .bunker-table, .bunker-table th, .bunker-table td { font-size: 11px !important; }
+  }
+
   button{font-family:'Oswald',sans-serif; letter-spacing:0.06em; text-transform:uppercase; font-size:12px; padding:10px 18px; border-radius:3px; border:1px solid var(--brass-dim); cursor:pointer; background:transparent; color:var(--brass); transition:all .15s ease;}
   button.primary{background:var(--brass); color:var(--ink); font-weight:600;}
   button.primary:hover{background:#dcae6c;}
