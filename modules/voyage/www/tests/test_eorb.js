@@ -368,7 +368,7 @@ console.log('\nthe on-screen book and the printed sheet are one document');
     { date: '2026-08-16', code: 'C', part: 1, officerName: 'A. Ruiz', createdAt: '2026-08-16T00:00:00Z',
       lines: [{ itemNo: '11.1', text: 'Sludge Tk' }, { itemNo: '11.3', text: '16.10 m³' }] }
   ];
-  const rowsHtml = EORB.bookRowsHtml(entries);
+  const rowsHtml = EORB.bookRowsHtml(entries, st);
   /* The print sheet is built from the same helper, so what is on screen is what
      comes out of the printer — the pair that silently diverged once before. */
   const printed = EORB.buildPrintHtml(st, entries, 'test');
@@ -439,6 +439,29 @@ console.log('\nbeORB-style date / code / item No. columns');
     sheet.indexOf('Official Number:') !== -1 && sheet.indexOf('IMO Number:') !== -1);
   checkTrue('rendered timestamp footer', sheet.indexOf('e-ORB Report Rendered:') !== -1);
   checkTrue('zebra and grey header styles', sheet.indexOf('nth-child(even)') !== -1);
+}
+
+console.log('\nflag state ORB signatory policy');
+{
+  check('Marshall Islands requires dual signatures', EORB.flagSignatoryPolicy('MH').mode,
+    EORB.SIGNATORY_MODES.engineer_and_chief_engineer);
+  check('Malta expects Chief Engineer only', EORB.flagSignatoryPolicy('MT').mode,
+    EORB.SIGNATORY_MODES.chief_engineer_only);
+  checkTrue('C/E rank is recognised', EORB.isChiefEngineerRank('C/E'));
+  checkTrue('4/E is not C/E', !EORB.isChiefEngineerRank('4/E'));
+  const mtSetup = EORB.defaultOrbSetup({ flag: 'MT', chiefEng: 'A. Ruiz' });
+  check('Malta rejects non-C/E rank on save',
+    EORB.validateEntrySignatory(mtSetup, { officerName: 'Jay', officerRank: '4/E' }).length, 1);
+  const mhSetup = EORB.defaultOrbSetup({ flag: 'MH', chiefEng: 'Marvin C. Endozo' });
+  const mhEntry = {
+    date: '2026-08-18', code: 'D', part: 1,
+    officerName: 'Jaycee S. Lugtu', officerRank: '4/E', officerSignedAt: '2026-08-18',
+    chiefEngName: 'Marvin C. Endozo', chiefEngRank: 'C/E', chiefEngSignedAt: '2026-08-18',
+    lines: [{ itemNo: '13', text: '3 m³' }]
+  };
+  check('dual policy prints two signature rows',
+    (EORB.bookRowsHtml([mhEntry], mhSetup).match(/orb-sign-row/g) || []).length, 2);
+  check('dual signatory lines differ', EORB.orbSignatoryLines(mhEntry, mhSetup).length, 2);
 }
 
 console.log();
