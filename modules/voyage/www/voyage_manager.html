@@ -4186,6 +4186,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Signature date</label><input type="date" id="orb_officerSignDate"></div>
         </div>
         <div class="hint" id="orbAutoRobNotes" style="margin-top:10px;"></div>
+        <div id="orbOperationHelpers" style="margin-top:8px;"></div>
         <div id="orbCapacityWarnings" style="margin-top:8px;"></div>
         <div class="field" style="margin-top:10px;"><label>Preview (as recorded in ORB)</label></div>
         <div class="orb-preview" id="orbPreview"></div>
@@ -25542,6 +25543,41 @@ function renderOrbCapacityWarnings(warnings){
   }).join('');
 }
 
+function renderOrbOperationHelpers(hints){
+  const box = document.getElementById('orbOperationHelpers');
+  if (!box) return;
+  if (!hints || !hints.length){
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = hints.map(h=>{
+    const color = h.level === 'error' ? 'var(--alert)' : (h.level === 'info' ? 'var(--teal)' : 'var(--brass)');
+    return `<div class="orb-flag-box" style="border-left-color:${color};margin-top:6px;opacity:0.95;"><strong style="color:${color};text-transform:uppercase;font-size:10px;letter-spacing:0.06em;">Helper</strong><div style="margin-top:4px;">${escHtml(h.message)}</div></div>`;
+  }).join('');
+}
+
+function updateOrbFuelApiCalc(){
+  if (!window.EORB) return;
+  const densEl = document.getElementById('orbFuelCalcDensity');
+  const sgEl = document.getElementById('orbFuelCalcSg');
+  const out = document.getElementById('orbFuelCalcApiOut');
+  if (!out) return;
+  const d = densEl && densEl.value !== '' ? Number(densEl.value) : null;
+  const sg = sgEl && sgEl.value !== '' ? Number(sgEl.value) : null;
+  let api = null;
+  if (sg != null && isFinite(sg) && sg > 0) api = EORB.apiFromSpecificGravity(sg);
+  else if (d != null && isFinite(d) && d > 0) api = EORB.apiFromDensityKgM3(d);
+  out.textContent = api != null ? String(api) : '—';
+}
+
+function applyOrbFuelApiCalc(){
+  const out = document.getElementById('orbFuelCalcApiOut');
+  const target = document.querySelector('#orbEntryWizard [data-orb-field="fuelApi"]');
+  if (!out || !target || out.textContent === '—') return;
+  target.value = out.textContent;
+  renderOrbPreview();
+}
+
 function renderOrbPreview(){
   if (!window.EORB || !_orbWizard.code) return;
   const setup = orbSetup();
@@ -25553,7 +25589,7 @@ function renderOrbPreview(){
   values = filled.values;
   /* Write auto-filled blanks back into empty inputs (do not overwrite user edits). */
   Object.keys(values).forEach(name=>{
-    const el = document.querySelector(`#orbFieldGrid [data-orb-field="${name}"]`);
+    const el = document.querySelector(`#orbEntryWizard [data-orb-field="${name}"]`);
     if (!el || el.multiple) return;
     if (el.value !== '' && el.value != null) return;
     if (values[name] == null || values[name] === '') return;
@@ -25565,8 +25601,11 @@ function renderOrbPreview(){
       ? ('Auto-ROB: ' + filled.notes.join(' '))
       : 'Auto-ROB: retained / receiving totals fill from tank ROB when you pick tanks and quantities.';
   }
+  const helpers = EORB.operationFieldHelpers(setup, part, code, selected, values);
+  renderOrbOperationHelpers(helpers);
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
   renderOrbCapacityWarnings(warnings);
+  updateOrbFuelApiCalc();
   const lines = EORB.buildItemLines(part, code, selected, values, setup);
   const date = document.getElementById('orb_wizardEntryDate')?.value
     || document.getElementById('orb_entryDate')?.value || '';
@@ -26155,8 +26194,14 @@ document.getElementById('orbItemChips')?.addEventListener('change', ()=>{
 });
 document.getElementById('orbFormSheetWrap')?.addEventListener('input', renderOrbPreview);
 document.getElementById('orbFormSheetWrap')?.addEventListener('change', renderOrbPreview);
-document.getElementById('orbFormExtraWrap')?.addEventListener('input', renderOrbPreview);
+document.getElementById('orbFormExtraWrap')?.addEventListener('input', (e)=>{
+  if (e.target && (e.target.id === 'orbFuelCalcDensity' || e.target.id === 'orbFuelCalcSg')) updateOrbFuelApiCalc();
+  renderOrbPreview();
+});
 document.getElementById('orbFormExtraWrap')?.addEventListener('change', renderOrbPreview);
+document.getElementById('orbFormExtraWrap')?.addEventListener('click', (e)=>{
+  if (e.target && e.target.id === 'orbFuelCalcApply') applyOrbFuelApiCalc();
+});
 document.getElementById('orb_wizardEntryDate')?.addEventListener('change', ()=>{
   syncOrbFormDateOut();
   renderOrbWizardPrereq();

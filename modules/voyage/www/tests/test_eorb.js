@@ -111,6 +111,32 @@ const bunkerText = (bunkerLines.find(l => l.itemNo === '26.3') || {}).text || ''
 checkTrue('print names the grade and tonnes', bunkerText.indexOf('VLSFO') !== -1 && bunkerText.indexOf('200 t') !== -1);
 checkTrue('print does not call the split the tank total', bunkerText.indexOf('total content fo1=120') === -1);
 checkTrue('print states total content 350 t', bunkerText.indexOf('total content 350 t') !== -1);
+checkTrue('print can include API gravity',
+  EORB.buildItemLines(1, 'H', ['26.3'], {
+    fuelType: 'VLSFO', fuelQty: 200, fuelTank: 'fo1', fuelApi: 28.5
+  }, { tanks: { fuel: [{ id: 'fo1', name: 'FO 1 P', capacityM3: 200, robM3: 50 }] } })[0].text.indexOf('API 28.5') !== -1);
+
+console.log('\nAPI calculator (141.5/SG − 131.5)');
+check('API from SG 0.991', EORB.apiFromSpecificGravity(0.991), 11.285);
+check('API from density 991 kg/m³', EORB.apiFromDensityKgM3(991), 11.285);
+
+console.log('\nincinerator rate alignment autofill');
+const incSetup = EORB.defaultOrbSetup({ equipment: { incineratorM3PerH: 0.05 } });
+const incFill = EORB.autofillOperationValues(incSetup, 1, 'C', ['12.3'], { qtyDisposed: 0.5 });
+check('hours from qty and rate', incFill.values.incinHours, 10);
+const incHints = EORB.operationFieldHelpers(incSetup, 1, 'C', ['12.3'], { qtyDisposed: 0.5, incinHours: 10 });
+checkTrue('incinerator helper mentions rated capacity', incHints.some(h => h.message.indexOf('0.05') !== -1));
+
+console.log('\nbunkering split alignment helper');
+const bunkerSetup = EORB.defaultOrbSetup({ tanks: { fuel: [
+  { id: 'fo1', name: 'FO 1 P', capacityM3: 200, robM3: 50 },
+  { id: 'fo2', name: 'FO 2 S', capacityM3: 200, robM3: 100 }
+] } });
+const bunkerHints = EORB.operationFieldHelpers(bunkerSetup, 1, 'H', ['26.3'], {
+  fuelQty: 200, fuelTank: ['fo1', 'fo2'], fuelSplit: 'fo1=120, fo2=80'
+});
+checkTrue('split helper confirms total matches quantity added',
+  bunkerHints.some(h => h.code === 'BUNKER_SPLIT' && h.message.indexOf('matches quantity added') !== -1));
 
 console.log('\nsludge transfer ROB');
 const setup = EORB.defaultOrbSetup({
@@ -353,7 +379,6 @@ console.log('\nOWS overboard discharge sequence (OCM test then valve unseal)');
     EORB.owsDischargePrereqErrors(book, { date: '2026-09-29', scenarioId: 'bilge-ows-sea' }).length, 0);
   checkTrue('form sheet builder includes table headers',
     EORB.buildWizardFormSheet(1, 'D', EORB.getOperation(1, 'D'), EORB.defaultOrbSetup({}), { scenarioId: 'bilge-ows-sea' }, ['13']).html.indexOf('orb-form-sheet') !== -1);
-  pass += 1;
 }
 
 console.log('\nbeORB-style date / code / item No. columns');

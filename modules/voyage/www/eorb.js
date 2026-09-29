@@ -300,7 +300,8 @@
           field('fuelTank', 'Tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
           field('fuelSplit', 'Per-tank split (e.g. FO1=120, FO2=80)', 'text',
             { hint: 'Leave blank when bunkering into a single tank — the whole quantity goes there.' }),
-          field('fuelTotal', 'Total content of tank(s) (t)', 'number')
+          field('fuelTotal', 'Total content of tank(s) (t)', 'number'),
+          field('fuelApi', 'API gravity (@15°C)', 'number')
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
           field('lubeType', 'Lube type', 'text'),
@@ -1333,6 +1334,21 @@
           notes.push('Retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
         }
       }
+      if (want.has('12.3')) {
+        const eq = (setup && setup.equipment) || {};
+        const rate = numOrNull(eq.incineratorM3PerH);
+        const qty = numOrNull(v.qtyDisposed);
+        const hours = numOrNull(v.incinHours);
+        if (rate != null && rate > 0) {
+          if (qty != null && qty > 0 && (v.incinHours == null || v.incinHours === '')) {
+            v.incinHours = round3(qty / rate);
+            notes.push('Incinerator hours auto-calculated: ' + fmtVal(qty) + ' m³ ÷ ' + fmtVal(rate) + ' m³/h.');
+          } else if (hours != null && hours > 0 && (v.qtyDisposed == null || v.qtyDisposed === '')) {
+            v.qtyDisposed = round3(rate * hours);
+            notes.push('Incinerated quantity auto-calculated from rated capacity × hours.');
+          }
+        }
+      }
       if (want.has('12.2')) {
         const fromId = v.fromTank;
         const toId = v.toTank;
@@ -1548,6 +1564,120 @@
     if (code === 'H' && want.has('26.4')) bunkerWarnings('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil bunkering');
 
     return warnings;
+  }
+
+  /** API gravity from specific gravity at 15°C (141.5/SG − 131.5). */
+  function apiFromSpecificGravity(sg) {
+    const s = numOrNull(sg);
+    if (s == null || !(s > 0)) return null;
+    return round3(141.5 / s - 131.5);
+  }
+
+  /** API from density @15°C in kg/m³ (SG = ρ/1000). */
+  function apiFromDensityKgM3(density) {
+    const d = numOrNull(density);
+    if (d == null || !(d > 0)) return null;
+    return apiFromSpecificGravity(d / 1000);
+  }
+
+  /**
+   * Live alignment hints (rate × time vs quantity, bunkering split vs total received).
+   * Shown beside the form sheet; capacityWarnings still flags out-of-tolerance cases.
+   */
+  function operationFieldHelpers(setup, part, code, selectedItems, values) {
+    const hints = [];
+    if (Number(part) !== 1) return hints;
+    const v = values || {};
+    const want = new Set(selectedItemNos(selectedItems));
+    const eq = (setup && setup.equipment) || {};
+
+    function pushRateHint(label, qty, hours, rate, unit) {
+      if (qty == null || hours == null || !(hours > 0) || rate == null || !(rate > 0)) return;
+      const expected = rate * hours;
+      const aligned = Math.abs(qty - expected) / expected * 100 <= tolPct(setup);
+      hints.push({
+        level: aligned ? 'info' : 'warn',
+        code: 'RATE_ALIGN',
+        message: label + ': ' + fmtVal(qty) + ' ' + unit + ' recorded vs ' + fmtVal(rate) + ' ' + unit +
+          '/h × ' + fmtVal(hours) + ' h ≈ ' + fmtVal(round3(expected)) + ' ' + unit +
+          (aligned ? ' (within setup tolerance).' : ' — adjust quantity, duration, or rated capacity.')
+      });
+      if (!aligned && qty > 0 && rate > 0) {
+        hints.push({
+          level: 'info',
+          code: 'RATE_SUGGEST_H',
+          message: 'Implied duration at rated capacity: ' + fmtVal(round3(qty / rate)) + ' h.'
+        });
+      }
+      if (!aligned && hours > 0 && rate > 0) {
+        hints.push({
+          level: 'info',
+          code: 'RATE_SUGGEST_Q',
+          message: 'Implied quantity at rated capacity: ' + fmtVal(round3(rate * hours)) + ' ' + unit + '.'
+        });
+      }
+    }
+
+    if (code === 'C' && want.has('12.3')) {
+      const rate = numOrNull(eq.incineratorM3PerH);
+      if (eq.incineratorFitted !== false && rate != null && rate > 0) {
+        pushRateHint('Incinerator burn', numOrNull(v.qtyDisposed), numOrNull(v.incinHours), rate, 'm³');
+      } else if (eq.incineratorFitted !== false) {
+        hints.push({ level: 'warn', code: 'INCIN_RATE_MISSING',
+          message: 'Set incinerator sludge capacity (m³/h) in ORB Vessel Setup to align burn time with quantity.' });
+      }
+    }
+
+    if (code === 'C' && (want.has('12.1') || want.has('12.2'))) {
+      const rate = numOrNull(eq.sludgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
+      const hours = hoursBetween(v.timeStart, v.timeStop);
+      pushRateHint('Sludge / transfer pump', numOrNull(v.qtyDisposed), hours, rate, 'm³');
+    }
+
+    if (code === 'D') {
+      const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
+      const hours = hoursBetween(v.timeStart, v.timeStop);
+      pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³');
+    }
+
+    function bunkerReceiveHint(tankField, qtyField, splitField, label) {
+      const ids = tankIdList(v[tankField]);
+      const add = numOrNull(v[qtyField]);
+      if (!ids.length || add == null) return;
+      const shares = resolveTankShares(setup, ids, add, v[splitField]);
+      if (shares) {
+        const parts = [];
+        let sum = 0;
+        shares.forEach((q, id) => {
+          sum += q;
+          parts.push(tankLabel(setup, id) + ' +' + fmtVal(q) + ' t');
+        });
+        const aligned = Math.abs(sum - add) <= 0.001;
+        hints.push({
+          level: aligned ? 'info' : 'error',
+          code: 'BUNKER_SPLIT',
+          message: label + ' received: ' + parts.join('; ') + ' = ' + fmtVal(round3(sum)) + ' t' +
+            (aligned ? ' (matches quantity added ' + fmtVal(add) + ' t).' :
+              ' — split totals ' + fmtVal(round3(sum)) + ' t but quantity added is ' + fmtVal(add) + ' t.')
+        });
+      } else if (ids.length > 1) {
+        hints.push({
+          level: 'warn',
+          code: 'BUNKER_SPLIT_NEEDED',
+          message: label + ': ' + ids.length + ' tanks selected — enter a per-tank split totalling ' + fmtVal(add) + ' t.'
+        });
+      } else {
+        hints.push({
+          level: 'info',
+          code: 'BUNKER_SINGLE',
+          message: label + ': full ' + fmtVal(add) + ' t to ' + tankLabel(setup, ids[0]) + '.'
+        });
+      }
+    }
+    if (code === 'H' && want.has('26.3')) bunkerReceiveHint('fuelTank', 'fuelQty', 'fuelSplit', 'Fuel bunkering');
+    if (code === 'H' && want.has('26.4')) bunkerReceiveHint('lubeTank', 'lubeQty', 'lubeSplit', 'Lube oil bunkering');
+
+    return hints;
   }
 
   /**
@@ -1815,9 +1945,11 @@
       if (code === 'H' && item.no === '26.3') {
         const split = item.fields[3] ? resolve(item.fields[3]) : '';
         const total = item.fields[4] ? resolve(item.fields[4]) : '';
+        const api = item.fields[5] ? resolve(item.fields[5]) : '';
         text = resolve(item.fields[0]) + ' ' + resolve(item.fields[1]) + ' t to ' + resolve(item.fields[2]) +
           (split ? (', split ' + split) : '') +
-          (total !== '' ? (', total content ' + total + ' t') : '');
+          (total !== '' ? (', total content ' + total + ' t') : '') +
+          (api !== '' ? (', API ' + api) : '');
       }
       if (code === 'H' && item.no === '26.4') {
         const tank = resolve(item.fields[2]) || resolve(item.fields[3]);
@@ -2045,6 +2177,14 @@
     if (code === 'C' && item.no === '11.4') {
       return ctrl('manualCollected') + ' m³ collected by manual operation.';
     }
+    if (code === 'C' && item.no === '12.3') {
+      return ctrl('qtyDisposed') + ' m³ from ' + ctrl('tankEmptied') + ', ' +
+        ctrl('retained') + ' m³ retained, incinerated ' + ctrl('incinHours') + ' h.';
+    }
+    if (code === 'H' && item.no === '26.3') {
+      return ctrl('fuelType') + ' ' + ctrl('fuelQty') + ' t to ' + ctrl('fuelTank') +
+        ', split ' + ctrl('fuelSplit') + ', total content ' + ctrl('fuelTotal') + ' t, API ' + ctrl('fuelApi') + '.';
+    }
     if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
       return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
     }
@@ -2083,6 +2223,16 @@
         wizardInputHtml({ name: 'extraSealNo', type: 'text' }, presets.extraSealNo) + '</div></div>';
       seen.add('extraEquipment');
       seen.add('extraSealNo');
+    }
+    const selSet = sel;
+    if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
+      extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
+        '<strong>Fuel API calculator</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Enter density or SG:</span>' +
+        '<div class="orb-form-extra-body" style="margin-top:6px;line-height:2;">' +
+        'Density @15°C (kg/m³) <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;">' +
+        ' &nbsp; or SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
+        ' → API <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 8px;">—</output>' +
+        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API field</button></div></div>';
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
@@ -2328,6 +2478,9 @@
     buildWeeklyInventory,
     autofillOperationValues,
     capacityWarnings,
+    operationFieldHelpers,
+    apiFromSpecificGravity,
+    apiFromDensityKgM3,
     applyOperationRob,
     findTank,
     validateEntry,
