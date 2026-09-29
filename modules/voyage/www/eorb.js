@@ -38,6 +38,241 @@
     note: 'MARPOL Annex I Reg. 17: each completed operation is signed by the officer or officers in charge; the Master countersigns each completed page.'
   };
 
+  /**
+   * beORB-style Part III rows appended to the same Part I entry (PART III C, item 3, …).
+   * Enabled for all supported flag states — Annex VI fuel specs, OWS/OCM, incinerator, etc.
+   */
+  const PART_III_SUPPLEMENT_RULES = [
+    {
+      id: 'bunker-fuel-bdn',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'H' && ctx.items.indexOf('26.3') !== -1;
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const place = String(v.place || '').trim();
+        const grade = String(v.fuelType || '').trim();
+        const head = place ? ('At: ' + place + ' received') : 'Fuel oil bunkering received';
+        const typeBit = grade ? ('Type of Fuel: ' + grade) : '';
+        const spec = [];
+        if (v.fuelApi != null && String(v.fuelApi).trim() !== '') spec.push('API ' + fmtVal(v.fuelApi));
+        if (v.fuelDensity != null && String(v.fuelDensity).trim() !== '') {
+          spec.push('Density at 15 °C ' + fmtVal(v.fuelDensity) + ' kg/m³');
+        }
+        if (v.fuelSulphur != null && String(v.fuelSulphur).trim() !== '') {
+          spec.push('Sulphur as per BDN ' + fmtVal(v.fuelSulphur) + '%');
+        }
+        const text = [head, typeBit, spec.join(', ')].filter(Boolean).join('. ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'bunker-lube-received',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'H' && ctx.items.indexOf('26.4') !== -1;
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const grade = String(v.lubeType || '').trim();
+        const qty = fmtVal(v.lubeQty);
+        const text = [
+          String(v.place || '').trim() ? ('At: ' + v.place + ' received') : 'Lubricating oil received',
+          grade ? ('Type: ' + grade) : '',
+          qty !== '' ? (qty + ' t bulk lubricating oil bunkered') : ''
+        ].filter(Boolean).join('. ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'incinerator-operation',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'C' && ctx.items.indexOf('12.3') !== -1;
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const qty = fmtVal(v.qtyDisposed);
+        const hrs = fmtVal(v.incinHours);
+        const rate = ctx.setup && ctx.setup.equipment && numOrNull(ctx.setup.equipment.incineratorM3PerH);
+        const tank = v.tankEmptied ? tankIdentity(ctx.setup, v.tankEmptied) : '';
+        const text = [
+          'Incinerator: ' + qty + ' m³ oil residue burned' + (tank ? (' from ' + tank) : ''),
+          hrs !== '' ? ('total time of operation ' + hrs + ' h') : '',
+          v.retained != null && String(v.retained).trim() !== '' ? (fmtVal(v.retained) + ' m³ retained in source tank') : '',
+          rate != null ? ('ship incinerator rated capacity ' + fmtVal(rate) + ' m³/h') : ''
+        ].filter(Boolean).join(', ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'ows-ocm-test',
+      code: 'C',
+      when(ctx) {
+        if (ctx.part !== 1 || ctx.code !== 'I') return false;
+        if (ctx.scenarioId === 'ows-ocm-test' || ctx.scenarioId === 'ows-weekly-test') return true;
+        const r = String(ctx.val.remarks || '').toLowerCase();
+        return r.indexOf('recirculation') !== -1 || r.indexOf('ocm') !== -1 ||
+          r.indexOf('15 ppm') !== -1 || r.indexOf('oily-water separator') !== -1;
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const dur = numOrNull(v.testDurationMin);
+        const text = [
+          'OWS / 15 ppm equipment test supplement',
+          dur != null ? ('duration of test ' + fmtVal(dur) + ' minutes') : '',
+          v.timeStart ? ('start ' + v.timeStart + ' UTC') : '',
+          v.timeStop ? ('stop ' + v.timeStop + ' UTC') : '',
+          'recirculation line and OCM / 15 ppm alarm tested with satisfactory results'
+        ].filter(Boolean).join(', ');
+        return [{ itemNo: '3', text }];
+      }
+    },
+    {
+      id: 'ows-overboard-discharge',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'D' &&
+          (ctx.items.indexOf('15.1') !== -1 || ctx.scenarioId === 'bilge-ows-sea');
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        return [{
+          itemNo: '3',
+          text: [
+            'Overboard discharge through 15 ppm equipment — supplement',
+            'position start ' + (v.posStart || '—') + ', position stop ' + (v.posStop || '—'),
+            'same-day OWS / OCM test and overboard valve unsealing must be recorded under Code I before this discharge'
+          ].join('; ')
+        }];
+      }
+    },
+    {
+      id: 'ows-equipment-failure',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'F' &&
+          (ctx.scenarioId === 'ows-failure' || ctx.scenarioId === 'ows-restored' ||
+            ctx.items.some(n => n === '19' || n === '20' || n === '21'));
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const fail = ctx.scenarioId === 'ows-failure' || ctx.items.indexOf('19') !== -1;
+        const text = fail
+          ? ['15 ppm / oily-water separator failure supplement', String(v.failureReason || v.remarks || 'Equipment failure recorded').trim(),
+            v.failureTime ? ('time ' + v.failureTime) : ''].filter(Boolean).join(', ')
+          : ['15 ppm / oily-water separator restored supplement',
+            v.restoreTime ? ('restored ' + v.restoreTime + ' UTC') : '',
+            String(v.restoreAction || v.remarks || '').trim()].filter(Boolean).join(', ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'annex-i-seal',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'I' &&
+          (ctx.scenarioId === 'seal-broken' || ctx.scenarioId === 'seal-applied' ||
+            ctx.val.extraSealNo || ctx.val.extraEquipment);
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const broken = ctx.scenarioId === 'seal-broken';
+        const text = [
+          broken ? 'Annex I valve / equipment unsealed for operation' : 'Annex I valve / equipment sealed',
+          v.extraEquipment ? String(v.extraEquipment) : '',
+          v.extraSealNo ? ('seal no. ' + v.extraSealNo) : '',
+          v.timeStart ? ('time ' + v.timeStart + ' UTC') : ''
+        ].filter(Boolean).join(', ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'debunker-fuel',
+      code: 'C',
+      when(ctx) {
+        if (ctx.part !== 1 || ctx.code !== 'I') return false;
+        if (ctx.scenarioId === 'debunker-fuel' || ctx.scenarioId === 'debunker-diesel') return true;
+        return /de-bunker/i.test(String(ctx.val.remarks || ''));
+      },
+      lines(ctx) {
+        const v = ctx.val;
+        const qty = fmtVal(v.extraQtyT);
+        const tank = v.extraFromTank ? tankIdentity(ctx.setup, v.extraFromTank) : '';
+        const kind = ctx.scenarioId === 'debunker-diesel' ? 'Diesel oil' : 'Fuel oil';
+        const text = [
+          kind + ' de-bunkering supplement',
+          String(v.extraPlace || '').trim() ? ('at ' + v.extraPlace) : '',
+          qty !== '' ? (qty + ' t landed from vessel') : '',
+          tank ? ('from ' + tank) : '',
+          v.timeStart ? ('time ' + v.timeStart + ' UTC') : ''
+        ].filter(Boolean).join(', ');
+        return text ? [{ itemNo: '3', text }] : [];
+      }
+    },
+    {
+      id: 'sludge-reception-receipt',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'C' && ctx.items.indexOf('12.1') !== -1;
+      },
+      lines(ctx) {
+        const place = String((ctx.val && ctx.val.receptionPort) || '').trim();
+        return [{
+          itemNo: '3',
+          text: 'Sludge reception facility supplement — signed receipt to be retained with the ORB' +
+            (place ? (' (' + place + ')') : '')
+        }];
+      }
+    },
+    {
+      id: 'bilge-reception-receipt',
+      code: 'C',
+      when(ctx) {
+        return ctx.part === 1 && ctx.code === 'D' && ctx.items.indexOf('15.2') !== -1;
+      },
+      lines() {
+        return [{
+          itemNo: '3',
+          text: 'Bilge water reception facility supplement — signed receipt to be retained with the ORB'
+        }];
+      }
+    }
+  ];
+
+  function partThreeSupplementsEnabled(setup) {
+    const f = getFlag(setup && setup.flag);
+    return f.partIIISupplements !== false;
+  }
+
+  function appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup, scenarioId) {
+    if (!partThreeSupplementsEnabled(setup)) return;
+    const ctx = {
+      part: Number(part) || 1,
+      code,
+      items: selectedItemNos(selectedItems),
+      val: val || {},
+      setup: setup || {},
+      scenarioId: scenarioId || (val && val.scenarioId) || ''
+    };
+    PART_III_SUPPLEMENT_RULES.forEach(rule => {
+      if (!rule.when(ctx)) return;
+      const built = rule.lines(ctx) || [];
+      built.forEach((sl, i) => {
+        if (!sl || !sl.text) return;
+        lines.push({
+          itemNo: sl.itemNo != null ? sl.itemNo : '3',
+          recordPart: 3,
+          recordCode: rule.code || 'C',
+          showDate: false,
+          showCode: i === 0,
+          text: sl.text
+        });
+      });
+    });
+  }
+
   /** Flags that print officer in charge + Chief Engineer (second signature row). */
   const DUAL_SIGNATORY_NOTE =
     'Print the executing officer and the Chief Engineer on separate signature rows when they are different people (company beORB / PSC layout). Master still countersigns each completed page.';
@@ -62,6 +297,7 @@
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
         'Recording retained quantity in IOPP 3.3 oily bilge water holding tanks is voluntary (MEPC.1/Circ.736) — use Code I if your SMS requires it.',
         'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.',
+        'Part III C item 3 supplements (BDN specs, OWS tests, incinerator, de-bunkering) append automatically after the related Part I entry on print/export — all flag states.',
         'Use D (manual start) vs E (automatic mode) carefully — mode of starting, not equipment capability.'
       ]
     },
@@ -345,12 +581,17 @@
           field('timeStop', 'Stop', 'time')
         ]},
         { no: '26.3', label: 'Fuel oil bunkered', fields: [
-          field('fuelType', 'Fuel type', 'text', { required: true }),
-          field('fuelQty', 'Quantity added (t)', 'number', { required: true }),
-          field('fuelTank', 'Tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
-          field('fuelSplit', 'Per-tank split (e.g. FO1=120, FO2=80)', 'text',
-            { hint: 'Leave blank when bunkering into a single tank — the whole quantity goes there.' }),
-          field('fuelTotal', 'Total content of tank(s) (t)', 'number'),
+          field('fuelType', 'Fuel type / grade', 'text', { required: true }),
+          field('fuelQty', 'Total quantity added (MT)', 'number', { required: true }),
+          field('fuelIsoSpec', 'ISO spec (e.g. 8217:2010)', 'text'),
+          field('fuelSulphur', 'Sulphur as per BDN (% m/m)', 'number'),
+          field('fuelTank', 'Receiving tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
+          field('fuelSplit', 'Per-tank quantity added (MT)', 'text',
+            { hint: 'Filled from the per-tank rows on the form — e.g. fo1=120, fo2=80.' }),
+          field('fuelRobSplit', 'Per-tank content after bunkering (MT)', 'text',
+            { hint: 'ROB in each tank after loading — e.g. fo1=350, fo2=200.' }),
+          field('fuelTotal', 'Total content (legacy single field, MT)', 'number'),
+          field('fuelDensity', 'Density at 15 °C (kg/m³)', 'number'),
           field('fuelApi', 'API gravity (@15°C)', 'number')
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
@@ -1089,6 +1330,7 @@
   function getFlag(code) {
     const f = FLAGS.find(x => x.code === code) || FLAGS[0];
     return Object.assign({}, f, {
+      partIIISupplements: f.partIIISupplements !== false,
       signatory: Object.assign({}, DEFAULT_SIGNATORY, f.signatory || {})
     });
   }
@@ -1395,6 +1637,39 @@
     return null;
   }
 
+  /** Per-tank added MT and ROB after bunkering (beORB Code H layout). */
+  function resolveFuelBunkerTankRows(setup, val) {
+    const v = val || {};
+    const ids = tankIdList(v.fuelTank);
+    const total = numOrNull(v.fuelQty);
+    const shares = resolveTankShares(setup, ids, total, v.fuelSplit);
+    const robMap = parseTankSplit(setup, v.fuelRobSplit, ids);
+    const rows = [];
+    if (shares) {
+      shares.forEach((added, id) => {
+        let rob = robMap && robMap.has(id) ? robMap.get(id) : null;
+        if (rob == null) {
+          const hit = findTank(setup, id);
+          const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
+          if (prior != null && added != null) rob = round3(prior + added);
+        }
+        rows.push({ id, added, rob, label: tankIdentity(setup, id) });
+      });
+      return rows;
+    }
+    if (ids.length === 1 && total != null) {
+      const id = ids[0];
+      let rob = robMap && robMap.has(id) ? robMap.get(id) : numOrNull(v.fuelTotal);
+      if (rob == null) {
+        const hit = findTank(setup, id);
+        const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
+        if (prior != null) rob = round3(prior + total);
+      }
+      rows.push({ id, added: total, rob, label: tankIdentity(setup, id) });
+    }
+    return rows;
+  }
+
   function tolPct(setup) {
     const t = setup && setup.equipment && Number(setup.equipment.capacityWarnTolerancePct);
     return isFinite(t) && t >= 0 ? t : 15;
@@ -1545,7 +1820,22 @@
           + (shares.size > 1 ? ' across ' + shares.size + ' tanks.' : '.'));
       }
     }
-    if (code === 'H' && want.has('26.3')) bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
+    if (code === 'H' && want.has('26.3')) {
+      bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
+      const ids = tankIdList(v.fuelTank);
+      const add = numOrNull(v.fuelQty);
+      const shares = resolveTankShares(setup, ids, add, v.fuelSplit);
+      if (shares && (v.fuelRobSplit == null || String(v.fuelRobSplit).trim() === '')) {
+        const parts = [];
+        shares.forEach((qty, id) => {
+          const hit = findTank(setup, id);
+          const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
+          parts.push(id + '=' + round3(prior + qty));
+        });
+        v.fuelRobSplit = parts.join(', ');
+        notes.push('Per-tank ROB after bunkering auto-calculated (prior + MT added).');
+      }
+    }
     if (code === 'H' && want.has('26.4')) bunkerTotals('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil tank');
 
     return { values: v, notes };
@@ -1903,10 +2193,15 @@
     }
 
     /* Bunkering adds to each receiving tank — a single stem, or a split across several. */
-    function applyBunker(tankField, qtyField, splitField, totalField) {
+    function applyBunker(tankField, qtyField, splitField, totalField, robSplitField) {
       const ids = tankIdList(v[tankField]);
       const add = numOrNull(v[qtyField]);
       if (!ids.length) return;
+      const robMap = robSplitField ? parseTankSplit(setup, v[robSplitField], ids) : null;
+      if (robMap && robMap.size) {
+        robMap.forEach((rob, id) => setRob(id, rob));
+        return;
+      }
       if (ids.length === 1 && v[totalField] != null && v[totalField] !== '') {
         setRob(ids[0], Number(v[totalField]));
         return;
@@ -1921,7 +2216,7 @@
         setRob(id, base + qty);
       });
     }
-    if (code === 'H' && want.has('26.3')) applyBunker('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal');
+    if (code === 'H' && want.has('26.3')) applyBunker('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'fuelRobSplit');
     if (code === 'H' && want.has('26.4')) applyBunker('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal');
 
     /* Code I records operations MARPOL gives no item fields for, so the movement is
@@ -2078,13 +2373,33 @@
       if (code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
       if (code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
       if (code === 'H' && item.no === '26.3') {
-        const split = item.fields[3] ? resolve(item.fields[3]) : '';
-        const total = item.fields[4] ? resolve(item.fields[4]) : '';
-        const api = item.fields[5] ? resolve(item.fields[5]) : '';
-        text = resolve(item.fields[0]) + ' ' + resolve(item.fields[1]) + ' t to ' + resolve(item.fields[2]) +
-          (split ? (', split ' + split) : '') +
-          (total !== '' ? (', total content ' + total + ' t') : '') +
-          (api !== '' ? (', API ' + api) : '');
+        const grade = String(val.fuelType || '').trim();
+        const qty = fmtVal(val.fuelQty);
+        const iso = String(val.fuelIsoSpec || '').trim();
+        const sulphur = val.fuelSulphur != null && String(val.fuelSulphur).trim() !== '' ? fmtVal(val.fuelSulphur) : '';
+        const summary = [
+          qty !== '' ? (qty + ' MT') : '',
+          iso ? ('ISO ' + iso) : '',
+          grade,
+          sulphur !== '' ? (sulphur + '% S') : ''
+        ].filter(Boolean).join(' ') + ' bunkered in tanks:';
+        lines.push({ itemNo: '26.3', text: summary });
+        resolveFuelBunkerTankRows(setup, val).forEach(row => {
+          const added = row.added != null ? fmtVal(row.added) : '—';
+          const rob = row.rob != null ? fmtVal(row.rob) : '—';
+          lines.push({
+            itemNo: '',
+            text: added + ' MT added to ' + String(row.label || '').toUpperCase() +
+              ' now containing ' + rob + ' MT'
+          });
+        });
+        const spec = [];
+        if (val.fuelApi != null && String(val.fuelApi).trim() !== '') spec.push('API ' + fmtVal(val.fuelApi));
+        if (val.fuelDensity != null && String(val.fuelDensity).trim() !== '') {
+          spec.push('density at 15 °C ' + fmtVal(val.fuelDensity) + ' kg/m³');
+        }
+        if (sulphur !== '') spec.push('sulphur as per BDN ' + sulphur + '%');
+        return;
       }
       if (code === 'H' && item.no === '26.4') {
         const tank = resolve(item.fields[2]) || resolve(item.fields[3]);
@@ -2121,6 +2436,8 @@
       const itemNo = ((code === 'I' && item.no === 'I') || (code === 'O' && item.no === 'O')) ? '' : item.no;
       lines.push({ itemNo, text });
     });
+    appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup,
+      arguments.length > 5 ? arguments[5] : (val.scenarioId || ''));
     return lines;
   }
 
@@ -2130,8 +2447,10 @@
    */
   function expandLinesForPerTankSignoff(part, code, values, setup, lines) {
     if (Number(part) !== 1 || code !== 'H' || !lines || !lines.length) return lines;
+    /* Code H 26.3 uses beORB multi-line layout from buildItemLines — do not re-expand. */
     const v = values || {};
     function expandBunker(itemNo, tankField, qtyField, splitField, typeField) {
+      if (itemNo === '26.3') return lines;
       const has = lines.some(l => String(l.itemNo) === itemNo);
       if (!has) return lines;
       const ids = tankIdList(v[tankField]);
@@ -2383,8 +2702,8 @@
         ctrl('retained') + ' m³ retained, incinerated ' + ctrl('incinHours') + ' h.';
     }
     if (code === 'H' && item.no === '26.3') {
-      return ctrl('fuelType') + ' ' + ctrl('fuelQty') + ' t to ' + ctrl('fuelTank') +
-        ', split ' + ctrl('fuelSplit') + ', total content ' + ctrl('fuelTotal') + ' t, API ' + ctrl('fuelApi') + '.';
+      return ctrl('fuelQty') + ' MT of ISO ' + ctrl('fuelIsoSpec') + ' ' + ctrl('fuelType') + ' ' +
+        ctrl('fuelSulphur') + ' % S bunkered in tanks:';
     }
     if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
       return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
@@ -2393,6 +2712,29 @@
       if (f.type === 'tank' || f.type === 'tankMulti') return f.label + ': ' + wizardTankSelectHtml(f, setup, opts);
       return f.label + ': ' + wizardInputHtml(f, p[f.name]);
     }).join('<br>');
+  }
+
+  /** One form row per fuel tank: MT added + ROB after bunkering (beORB Code H). */
+  function wizardFuelBunkerTankRowsHtml(setup, presets) {
+    const tanks = tanksForGroup(setup, 'fuel');
+    if (!tanks.length) {
+      return '<tr><td colspan="4" class="hint">Add fuel tanks under ORB Vessel Setup → IOPP / ORB Tanks.</td></tr>';
+    }
+    const ids = tanks.map(t => t.id);
+    const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
+    const robSplit = parseTankSplit(setup, (presets && presets.fuelRobSplit) || '', ids);
+    return tanks.map(t => {
+      const added = split && split.has(t.id) ? split.get(t.id) : '';
+      const rob = robSplit && robSplit.has(t.id) ? robSplit.get(t.id) : '';
+      const label = tankIdentity(setup, t.id);
+      return '<tr class="orb-form-row orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
+        '<td></td><td></td><td></td>' +
+        '<td class="orb-form-record">' + escapeHtml(label) + '<br>' +
+        'MT added <input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
+        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(added === '' ? '' : added)) + '">' +
+        ' now containing <input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
+        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '"> MT</td></tr>';
+    }).join('');
   }
 
   /**
@@ -2426,14 +2768,45 @@
       seen.add('extraSealNo');
     }
     const selSet = sel;
+    function partThreePreviewRow(itemNo, text) {
+      return '<tr class="orb-form-row orb-part3-preview"><td></td><td class="orb-form-code">PART III C</td>' +
+        '<td class="orb-form-item">' + escapeHtml(String(itemNo)) + '</td>' +
+        '<td class="orb-form-record hint">' + escapeHtml(text) + '</td></tr>';
+    }
+    if (partThreeSupplementsEnabled(setup)) {
+      if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
+        body += partThreePreviewRow('3',
+          'On save: BDN specification (type, API, density @15 °C, sulphur %) appended under Part III C item 3.');
+      }
+      if (Number(part) === 1 && code === 'H' && selSet.has('26.4')) {
+        body += partThreePreviewRow('3', 'On save: lubricating oil bunkering details appended under Part III C item 3.');
+      }
+      if (Number(part) === 1 && code === 'C' && selSet.has('12.3')) {
+        body += partThreePreviewRow('3', 'On save: incinerator operation supplement (rated capacity, burn time) under Part III C item 3.');
+      }
+      if (Number(part) === 1 && code === 'I' &&
+          (opts.scenarioId === 'ows-ocm-test' || opts.scenarioId === 'ows-weekly-test')) {
+        body += partThreePreviewRow('3', 'On save: OWS / 15 ppm equipment test supplement under Part III C item 3.');
+      }
+      if (Number(part) === 1 && code === 'D' && selSet.has('15.1')) {
+        body += partThreePreviewRow('3', 'On save: overboard discharge supplement (same-day OWS test / seal sequence) under Part III C item 3.');
+      }
+      if (Number(part) === 1 && code === 'F' &&
+          (opts.scenarioId === 'ows-failure' || opts.scenarioId === 'ows-restored')) {
+        body += partThreePreviewRow('3', 'On save: 15 ppm / OWS failure or restoration supplement under Part III C item 3.');
+      }
+    }
     if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
+      body += wizardFuelBunkerTankRowsHtml(setup, presets);
       extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
-        '<strong>Fuel API calculator</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Enter density or SG:</span>' +
+        '<strong>Fuel specification (BDN)</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Separate entry per grade if required.</span>' +
         '<div class="orb-form-extra-body" style="margin-top:6px;line-height:2;">' +
-        'Density @15°C (kg/m³) <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;">' +
-        ' &nbsp; or SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
-        ' → API <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 8px;">—</output>' +
-        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API field</button></div></div>';
+        'Density @15°C (kg/m³) ' + wizardInputHtml({ name: 'fuelDensity', type: 'number' }, presets.fuelDensity) +
+        ' &nbsp; API ' + wizardInputHtml({ name: 'fuelApi', type: 'number' }, presets.fuelApi) +
+        ' &nbsp; or calc: <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;" placeholder="kg/m³">' +
+        ' / SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
+        ' → <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 6px;">—</output>' +
+        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API</button></div></div>';
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
@@ -2490,10 +2863,20 @@
             (e.code === 'O' && itemNo.toUpperCase() === 'O')) {
           itemNo = '';
         }
-        const showDateCode = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
+        let showDate = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
+        let showCode = showDate;
+        if (ln.showDate === false) showDate = false;
+        if (ln.recordPart != null || ln.recordCode != null) {
+          if (ln.showDate === false) showDate = false;
+          showCode = ln.showCode === true || (ln.showCode !== false && showDate);
+        }
+        const codeEntry = {
+          part: ln.recordPart != null ? Number(ln.recordPart) : (Number(e.part) || 1),
+          code: ln.recordCode != null ? String(ln.recordCode) : e.code
+        };
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
-          '<td>' + (showDateCode ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
-          '<td class="orb-code">' + (showDateCode ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
+          '<td>' + (showDate ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
+          '<td class="orb-code">' + (showCode ? escapeHtml(formatOrbBookCode(codeEntry)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + '</td></tr>';
       });
@@ -2695,6 +3078,7 @@
     tankIdList,
     parseTankSplit,
     resolveTankShares,
+    resolveFuelBunkerTankRows,
     buildItemLines,
     expandLinesForPerTankSignoff,
     splitEntryPerItemLine,
