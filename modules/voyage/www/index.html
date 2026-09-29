@@ -25650,11 +25650,12 @@ function renderOrbPreview(){
   const officer = document.getElementById('orb_officerName')?.value?.trim() || '';
   const rank = document.getElementById('orb_officerRank')?.value?.trim() || '';
   const signDate = document.getElementById('orb_officerSignDate')?.value || date;
-  const signStub = officer
-    ? '\t[' + officer + (rank ? ' - ' + rank : '') + ', ' + (EORB.formatOrbSignDate(signDate) || '') + ' SIGNATURE]'
-    : '';
-  prev.textContent = lines.map((l, i) =>
-    `${i === 0 ? EORB.formatOrbDate(date) : ''}\t${i === 0 ? code : ''}\t${l.itemNo}\t${l.text}${signStub}`).join('\n');
+  const signLine = EORB.formatOrbSignature({
+    officerName: officer, officerRank: rank, officerSignedAt: signDate
+  });
+  const itemRows = lines.map((l, i) =>
+    `${i === 0 ? EORB.formatOrbDate(date) : ''}\t${i === 0 ? code : ''}\t${l.itemNo}\t${l.text}`).join('\n');
+  prev.textContent = signLine ? (itemRows + '\n\t\t\t' + signLine) : itemRows;
 }
 
 function syncOrbFormDateOut(){

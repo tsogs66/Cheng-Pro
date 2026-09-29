@@ -2336,22 +2336,28 @@
     return { html: table, extraHtml, seenFields: seen };
   }
 
+  function isLastEntryInBookSet(sorted, entryIdx) {
+    const e = sorted[entryIdx];
+    const next = sorted[entryIdx + 1];
+    if (e.entryGroupId) return !next || next.entryGroupId !== e.entryGroupId;
+    return true;
+  }
+
   /**
-   * The body of the record book: one <tr> per item line. Date and letter code print
-   * only at the start of each entry (multi-line legacy row) or once per code+item set
-   * (shards sharing entryGroupId from one save). Every line still carries its own
-   * signatory.
+   * The body of the record book: one <tr> per item line, then a signature row at the
+   * end of each code+item set (legacy multi-line row, or shards sharing entryGroupId).
    *
    * Layout matches company beORB / MARPOL Appendix III paper books:
    *   Date → 24-Aug-2026 (first line of the set only)
    *   Code (letter) → D / C / I (first line of the set only)
    *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
-   *   Signature → NAME - RANK, 24-AUG-2026 [SIGNATURE] (each line)
+   *   Signature → separate row: NAME - RANK, 24-AUG-2026 [SIGNATURE]
    */
   function bookRowsHtml(entries) {
     let body = '';
     let lastHeaderKey = null;
-    sortEntriesForBook(entries).forEach(e => {
+    const sorted = sortEntriesForBook(entries);
+    sorted.forEach((e, entryIdx) => {
       const lines = e.lines || [];
       const voided = !!e.voided;
       const headerKey = e.entryGroupId || e.id;
@@ -2364,15 +2370,23 @@
           itemNo = '';
         }
         const showDateCode = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
-        const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
-        const signed = '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) + voidSuffix + '</div>';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
           '<td>' + (showDateCode ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
           '<td class="orb-code">' + (showDateCode ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
-          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
+          '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + '</td></tr>';
       });
       lastHeaderKey = headerKey;
+      if (isLastEntryInBookSet(sorted, entryIdx)) {
+        const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
+        const sig = formatOrbSignature(e);
+        if (sig || voidSuffix) {
+          body += '<tr class="orb-sign-row' + (voided ? ' orb-voided' : '') + '">' +
+            '<td></td><td></td><td></td>' +
+            '<td class="orb-record orb-sign-cell"><div class="orb-sign">' +
+            escapeHtml(sig) + voidSuffix + '</div></td></tr>';
+        }
+      }
     });
     return body;
   }
@@ -2424,7 +2438,9 @@
     '.orb-book th:nth-child(2), .orb-book th:nth-child(3){text-align:center; line-height:1.25;}',
     '.orb-book td.orb-record{width:auto; font-size:10px; line-height:1.35; text-transform:uppercase;}',
     '.orb-book tr.orb-voided td{color:#666;}',
-    '.orb-book .orb-sign{margin-top:6px; font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book .orb-sign{font-size:9.5px; font-style:italic; color:#333; text-transform:none;}',
+    '.orb-book tr.orb-sign-row td{border-top:none;}',
+    '.orb-book tr.orb-sign-row + tr td{border-top:1px solid #999;}',
     '.orb-book-empty{padding:22px; text-align:center; color:#666; font-size:11px;}',
     '.orb-book-master{margin-top:16px; display:flex; justify-content:space-between; gap:24px;}',
     '.orb-book-master > div{flex:1; border-top:1px solid #333; padding-top:4px; min-height:34px; font-size:10px; color:#333;}',
