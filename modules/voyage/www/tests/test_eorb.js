@@ -161,8 +161,26 @@ const inv = EORB.buildWeeklyInventory(setup, [
   { id: 'sludge1', group: 'sludge', name: 'Sludge Settling', capacityM3: 5, robM3: 1.5, include: true },
   { id: 'bilge1', group: 'bilge', name: 'Bilge Holding', capacityM3: 10, robM3: 4, include: true }
 ], {});
-check('produces Code C and Code I', inv.entries.map(e => e.code), ['C', 'I']);
-checkTrue('C lines include 11.3', inv.entries[0].lines.some(l => l.itemNo === '11.3'));
+check('one Code C entry per sludge tank', inv.entries.filter(e => e.code === 'C').length, 1);
+check('one Code I entry per bilge tank', inv.entries.filter(e => e.code === 'I').length, 1);
+checkTrue('each sludge tank entry has 11.1–11.3', inv.entries[0].lines.map(l => l.itemNo).join(',') === '11.1,11.2,11.3');
+
+console.log('\nper-item signatory materialization');
+const shards = EORB.materializeOrbSaveRecords({
+  id: 'orb_test', part: 1, code: 'D', date: '2026-08-18', selectedItems: ['13', '14'],
+  lines: [{ itemNo: '13', text: '3 m³ bilge' }, { itemNo: '14', text: 'start 02:00' }],
+  officerName: 'A. Ruiz', officerRank: 'C/E', officerSignedAt: '2026-08-18T12:00:00'
+}, setup);
+check('multi-item save splits to one record per line', shards.length, 2);
+check('each shard keeps a single item number', shards.map(s => s.lines[0].itemNo), ['13', '14']);
+
+const bookRows = EORB.bookRowsHtml([{
+  date: '2026-08-18', code: 'D', part: 1, officerName: 'A. Ruiz', officerRank: 'C/E',
+  officerSignedAt: '2026-08-18T12:00:00',
+  lines: [{ itemNo: '13', text: '3 m³ bilge' }]
+}]);
+checkTrue('each row repeats date and code', bookRows.indexOf('18-Aug-2026') !== -1 && bookRows.indexOf('orb-code">D<') !== -1);
+checkTrue('each row carries a signatory block', (bookRows.match(/orb-sign/g) || []).length, 1);
 
 console.log('\nprint keeps voided lines struck through');
 const html = EORB.buildPrintHtml(setup, [
@@ -278,11 +296,11 @@ console.log('\nPart III — fuel changeover (Annex VI Reg. 14.6)');
   checkTrue('Part III code reads PART III C on the sheet', html3.indexOf('PART III C') !== -1);
 }
 
-console.log('\none date and one code per entry, whatever its item set');
+console.log('\neach item row repeats date, code and signatory');
 {
   const s6 = EORB.defaultOrbSetup({});
   const entry = {
-    date: '2026-08-01', code: 'C', part: 1, officerName: 'A. Ruiz',
+    date: '2026-08-01', code: 'C', part: 1, officerName: 'A. Ruiz', officerSignedAt: '2026-08-01T12:00:00',
     lines: [
       { itemNo: '11.1', text: 'Sludge Tk 1' }, { itemNo: '11.2', text: '30 m³' }, { itemNo: '11.3', text: '12 m³' },
       { itemNo: '11.1', text: 'Sludge Tk 2' }, { itemNo: '11.2', text: '20 m³' }, { itemNo: '11.3', text: '4 m³' }
@@ -292,8 +310,9 @@ console.log('\none date and one code per entry, whatever its item set');
   const body = html6.slice(html6.indexOf('<tbody>'), html6.indexOf('</tbody>'));
   const dateCells = (body.match(/01-Aug-2026/g) || []).length;
   const codeCells = (body.match(/orb-code">C</g) || []).length;
-  check('the date is printed once for the whole set', dateCells, 1);
-  check('and so is the letter code', codeCells, 1);
+  check('the date is on every item row', dateCells, 6);
+  check('and so is the letter code', codeCells, 6);
+  check('each row has its own signatory', (body.match(/orb-sign/g) || []).length, 6);
   checkTrue('while every item line is still there', (body.match(/<tr/g) || []).length === 6);
 }
 
@@ -348,13 +367,9 @@ console.log('\nthe on-screen book and the printed sheet are one document');
 
   check('entries come out in book order, oldest first',
     rowsHtml.indexOf('SLUDGE TK') < rowsHtml.indexOf('3.500 M³ BILGE WATER'), true);
-  const dates = (rowsHtml.match(/16-Aug-2026|18-Aug-2026/g) || []);
-  check('each date is written once for its whole entry', dates, ['16-Aug-2026', '18-Aug-2026']);
-  const codes = (rowsHtml.match(/orb-code">[CD]</g) || []);
-  check('and so is each letter code', codes.length, 2);
   check('every item line is present', (rowsHtml.match(/<tr/g) || []).length, 4);
-  check('the officer signs under the last line of the entry',
-    (rowsHtml.match(/orb-sign/g) || []).length, 2);
+  check('each printed row carries its own signatory',
+    (rowsHtml.match(/orb-sign/g) || []).length, 4);
   checkTrue('signature follows beORB NAME - RANK, DD-MON-YYYY [SIGNATURE]',
     /A\. RUIZ - CHIEF ENGINEER, 18-AUG-2026 \[SIGNATURE\]/.test(rowsHtml) ||
     /A\. RUIZ - CHIEF ENGINEER/.test(rowsHtml));

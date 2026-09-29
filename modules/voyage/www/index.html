@@ -818,11 +818,6 @@
     --nav-bar-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 12px);
   }
 
-  /* A tablet, told from a phone by having room on both sides: a phone in
-     landscape is wide but short, and is still a phone. On the tablet the bar
-     is the program's main control, used standing up with the screen at arm's
-     length, so it gets a target that does not have to be aimed at — and the
-     label under the icon becomes readable rather than merely present. */
   @media (pointer: coarse) and (min-width: 600px) and (min-height: 600px) {
     :root {
       --nav-item-h: 72px;
@@ -830,11 +825,6 @@
       --nav-label: 11px;
       --nav-pad-y: 7px;
     }
-    /* A tablet is not a compact phone, however short its screen reports
-       itself. The compact classes are set from screen size in script and
-       catch a ten-inch tablet, whose short side is under 900; they carry
-       their own bar heights, which would otherwise win here on specificity
-       alone and hold the bar at a phone's 42px. */
     html.compact-phone .bn-item,
     html.short-viewport .bn-item,
     html.short-viewport.landscape-view .bn-item {
@@ -855,23 +845,10 @@
   button { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
   input, select, textarea { min-height: var(--ctl-h); border-radius: var(--ctl-r); }
   input[type="checkbox"], input[type="radio"] { min-height: 0; }
-  /* A field inside a dense grid takes the row's height, not the form's. */
   table input, table select, table textarea { min-height: var(--ctl-h-sm); }
-  /* A control sitting in a row of figures takes the row's height, not the
-     form's, or it makes the row taller than the data in it. */
   table button, .voyage-bf-samples button { min-height: var(--ctl-h-sm); }
   th, td { padding: var(--cell-pad-y) var(--cell-pad-x); }
 
-
-  /* Nothing in this suite is smaller than 12px — see apps/web/css/shell.css
-   * for why, and for the measurement this list came from. The densest screens
-   * in the product are here: Voyage Chief alone had 195 visible elements under
-   * 12px, down to 9px on the readout units.
-   *
-   * !important for the same reason it is used there: these sizes are set by
-   * rules more specific than anything that can be written without naming every
-   * ancestor. Screen only — everything under .pr- is a printed form typeset in
-   * points and is deliberately outside this block. */
   @media screen {
     table:not(.pr-table):not(.pr-fm-table):not(.bunker-table),
     table:not(.pr-table):not(.pr-fm-table):not(.bunker-table) th,
@@ -883,9 +860,6 @@
     .tag, .pill {
       font-size: 12px !important;
     }
-    /* The Consumption Plan grid is table-layout:fixed with a min-width — it
-       cannot take the extra pixels without overflowing, so it keeps 11px.
-       Called out rather than silently excluded. */
     .bunker-table, .bunker-table th, .bunker-table td { font-size: 11px !important; }
   }
 
@@ -21858,44 +21832,6 @@ function syncCredentialsMirrorValue(sync){
   };
 }
 
-/** Electron/AIO loopback disk mirror — survives Chromium origin wipe when the HTTP port changes. */
-function localSyncCredsMirrorUrl(){
-  try{
-    if (typeof location === 'undefined') return '';
-    if (!/^https?:$/i.test(location.protocol || '')) return '';
-    const host = location.hostname || '';
-    if (host !== '127.0.0.1' && host !== 'localhost') return '';
-    return '/api/shell/local-sync-creds';
-  }catch(_){ return ''; }
-}
-
-function mirrorSyncCredentialsToDisk(creds){
-  const url = localSyncCredsMirrorUrl();
-  if (!url || typeof fetch !== 'function') return;
-  try{
-    const has = creds && (creds.serverUrl || creds.apiToken);
-    fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credentials: has ? syncCredentialsMirrorValue(creds) : null }),
-      credentials: 'same-origin',
-      keepalive: true
-    }).catch(()=>{});
-  }catch(_){}
-}
-
-async function hydrateSyncCredentialsFromDisk(){
-  const url = localSyncCredsMirrorUrl();
-  if (!url || typeof fetch !== 'function') return null;
-  try{
-    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const creds = data && data.credentials;
-    return (creds && typeof creds === 'object') ? creds : null;
-  }catch(_){ return null; }
-}
-
 function readSyncCredentialsFromLocalStorage(){
   try{
     const raw = localStorage.getItem(SYNC_CREDS_LS_KEY);
@@ -21909,14 +21845,13 @@ function writeSyncCredentialsToLocalStorage(creds){
   const value = syncCredentialsMirrorValue(creds || {});
   localStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value));
   try{ sessionStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value)); }catch(_){}
-  mirrorSyncCredentialsToDisk(value);
   return value;
 }
 
 async function persistSyncCredentialsMirror(sync){
   /*
    * localStorage first — synchronous, works on fresh tablets even while IndexedDB
-   * is busy seeding the demo fleet. IndexedDB + disk mirrors are best-effort afterward.
+   * is busy seeding the demo fleet. IndexedDB mirror is best-effort afterward.
    */
   const value = writeSyncCredentialsToLocalStorage(sync);
   try{
@@ -22092,16 +22027,6 @@ async function applyMirroredSyncCredentials(){
         const row = await dbGet('meta', 'syncCredentials');
         creds = row && row.value;
         if (creds) writeSyncCredentialsToLocalStorage(creds);
-      }catch(_){}
-    }
-    /* Electron disk mirror — recovers Backup→Server Sync after a loopback port change. */
-    if (!creds || !(creds.apiToken || creds.serverUrl)){
-      try{
-        const fromDisk = await hydrateSyncCredentialsFromDisk();
-        if (fromDisk && (fromDisk.apiToken || fromDisk.serverUrl)){
-          creds = Object.assign({}, creds || {}, fromDisk);
-          writeSyncCredentialsToLocalStorage(creds);
-        }
       }catch(_){}
     }
     if (creds && typeof creds !== 'object') creds = null;
@@ -25722,11 +25647,12 @@ function renderOrbPreview(){
     prev.textContent = 'Select item numbers and fill fields to preview the ORB wording.';
     return;
   }
-  /* One date and one code per entry, on its first line — the item numbers underneath
-     belong to that same set. Repeating them down every line is not how the book reads,
-     and the preview has to show the engineer what will actually be printed. */
-  prev.textContent = lines.map((l, i) =>
-    `${i === 0 ? EORB.formatOrbDate(date) : ''}\t${i === 0 ? code : ''}\t${l.itemNo}\t${l.text}`).join('\n');
+  const officer = document.getElementById('orb_officerName')?.value?.trim() || '';
+  const rank = document.getElementById('orb_officerRank')?.value?.trim() || '';
+  const signDate = document.getElementById('orb_officerSignDate')?.value || date;
+  const signStub = officer ? ('\t[' + (officer + (rank ? (' - ' + rank) : '') + ', ' + (EORB.formatOrbSignDate(signDate) || '') + ' SIGNATURE]') : '';
+  prev.textContent = lines.map(l =>
+    `${EORB.formatOrbDate(date)}\t${code}\t${l.itemNo}\t${l.text}${signStub}`).join('\n');
 }
 
 function syncOrbFormDateOut(){
@@ -26260,8 +26186,9 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   const now = new Date().toISOString();
   let saved = 0;
   for (const draft of entriesToSave){
-    const entry = {
-      id: 'orb_' + uid() + '_' + Date.now().toString(36) + '_' + saved,
+    const baseId = 'orb_' + uid() + '_' + Date.now().toString(36) + '_' + saved;
+    const draftEntry = {
+      id: baseId,
       vesselId: state.activeVesselId,
       part: draft.part,
       code: draft.code,
@@ -26279,9 +26206,12 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
       weeklyInventory: true,
       scenarioId: 'weekly-sludge-bilge'
     };
-    state.orbEntries.push(entry);
-    await dbPut('orbEntries', entry);
-    saved += 1;
+    const records = EORB.materializeOrbSaveRecords(draftEntry, setup);
+    for (const entry of records){
+      state.orbEntries.push(entry);
+      await dbPut('orbEntries', entry);
+      saved += 1;
+    }
   }
   await saveSetup();
   document.getElementById('orbWeeklyWizard').style.display = 'none';
@@ -26379,8 +26309,9 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   const robNotes = EORB.applyOperationRob(setup, part, code, selected, values);
   state.setup.orb = setup;
 
-  const entry = {
-    id: 'orb_' + uid() + '_' + Date.now().toString(36),
+  const baseId = 'orb_' + uid() + '_' + Date.now().toString(36);
+  const draftEntry = {
+    id: baseId,
     vesselId: state.activeVesselId,
     part, code, date,
     selectedItems: selected,
@@ -26397,8 +26328,11 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
     updatedAt: new Date().toISOString(),
     voided: false
   };
-  state.orbEntries.push(entry);
-  await dbPut('orbEntries', entry);
+  const records = EORB.materializeOrbSaveRecords(draftEntry, setup);
+  for (const entry of records){
+    state.orbEntries.push(entry);
+    await dbPut('orbEntries', entry);
+  }
   await saveSetup();
   document.getElementById('orbEntryWizard').style.display = 'none';
   _orbWizard.code = null;
@@ -26408,7 +26342,8 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   renderOrbBook();
   fillOrbSetupForm();
   applyOrbDateBounds();
-  alert('ORB entry saved: ' + EORB.formatOrbDate(date) + ' code ' + code + ' (' + lines.length + ' item line(s)).' +
+  alert('ORB saved: ' + EORB.formatOrbDate(date) + ' code ' + code + ' — ' + records.length +
+    ' signed item line(s) (one signatory per item).' +
     (robNotes.length ? ('\n\nTank ROB updated:\n• ' + robNotes.join('\n• ')) : ''));
 });
 document.getElementById('btnOrbFilter')?.addEventListener('click', ()=>{

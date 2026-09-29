@@ -1112,9 +1112,6 @@
       if (row.group === 'sludge') {
         if (rob == null || rob === '') return;
         sludgeTanks.push({ id: row.id, name, capacityM3: cap, robM3: rob });
-        sludgeLines.push({ itemNo: '11.1', text: String(name) });
-        sludgeLines.push({ itemNo: '11.2', text: (cap != null && cap !== '' ? fmtVal(Number(cap)) : '—') + ' m³' });
-        sludgeLines.push({ itemNo: '11.3', text: fmtVal(Number(rob)) + ' m³' });
       } else if (row.group === 'bilge') {
         if (rob == null || rob === '') return;
         bilgeParts.push(
@@ -1131,41 +1128,58 @@
     });
 
     const out = { entries: [], errors: [] };
-    if (!sludgeLines.length) {
+    if (!sludgeTanks.length) {
       out.errors.push('Enter retained quantity (m³) for at least one sludge / oil residue tank (IOPP 3.1) — weekly C.11 inventory.');
     } else {
-      out.entries.push({
-        part: 1,
-        code: 'C',
-        selectedItems: ['11.1', '11.2', '11.3'],
-        values: {
-          weeklyInventory: true,
-          sludgeTanks,
-          inventoryKind: 'weekly-sludge'
-        },
-        lines: sludgeLines,
-        title: 'Weekly inventory — oil residue (sludge) tanks (IOPP 3.1)'
+      /* One book operation per sludge tank — not one Code C row compounding every tank. */
+      sludgeTanks.forEach(tank => {
+        out.entries.push({
+          part: 1,
+          code: 'C',
+          selectedItems: ['11.1', '11.2', '11.3'],
+          values: {
+            weeklyInventory: true,
+            sludgeTanks: [tank],
+            inventoryKind: 'weekly-sludge',
+            tankId: tank.id
+          },
+          lines: [
+            { itemNo: '11.1', text: String(tank.name) },
+            { itemNo: '11.2', text: (tank.capacityM3 != null && tank.capacityM3 !== '' ? fmtVal(Number(tank.capacityM3)) : '—') + ' m³' },
+            { itemNo: '11.3', text: fmtVal(Number(tank.robM3)) + ' m³' }
+          ],
+          title: 'Weekly inventory — ' + tank.name + ' (IOPP 3.1)'
+        });
       });
     }
 
-    const bilgeTextParts = [];
     if (bilgeParts.length) {
-      bilgeTextParts.push('Weekly inventory of oily bilge water holding tank(s) (IOPP Supplement item 3.3 — voluntary per MEPC.1/Circ.736): ' + bilgeParts.join('; ') + '.');
+      bilgeParts.forEach(partText => {
+        const remarks = 'Weekly inventory of oily bilge water holding tank (IOPP Supplement item 3.3 — voluntary per MEPC.1/Circ.736): ' + partText + '.';
+        out.entries.push({
+          part: 1,
+          code: 'I',
+          selectedItems: ['I'],
+          values: { remarks, weeklyInventory: true, inventoryKind: 'weekly-bilge' },
+          lines: [{ itemNo: '', text: remarks }],
+          title: 'Weekly inventory — oily bilge holding tank'
+        });
+      });
     }
     if (bilgeWellParts.length) {
-      bilgeTextParts.push('Weekly inventory of bilge tank(s) / wells: ' + bilgeWellParts.join('; ') + '.');
-    }
-    if (bilgeTextParts.length) {
-      const remarks = bilgeTextParts.join(' ');
-      out.entries.push({
-        part: 1,
-        code: 'I',
-        selectedItems: ['I'],
-        values: { remarks, weeklyInventory: true, inventoryKind: 'weekly-bilge' },
-        lines: [{ itemNo: '', text: remarks }],
-        title: 'Weekly inventory — oily bilge / bilge tanks (Code I, voluntary)'
+      bilgeWellParts.forEach(partText => {
+        const remarks = 'Weekly inventory of bilge tank / well: ' + partText + '.';
+        out.entries.push({
+          part: 1,
+          code: 'I',
+          selectedItems: ['I'],
+          values: { remarks, weeklyInventory: true, inventoryKind: 'weekly-bilge-well' },
+          lines: [{ itemNo: '', text: remarks }],
+          title: 'Weekly inventory — bilge well / tank'
+        });
       });
-    } else if (options.requireBilge) {
+    }
+    if (!bilgeParts.length && !bilgeWellParts.length && options.requireBilge) {
       out.errors.push('Enter retained quantity for oily bilge holding and/or bilge tanks, or untick “Require bilge inventory”.');
     }
 
@@ -1989,6 +2003,72 @@
     return lines;
   }
 
+  /**
+   * When bunkering names several receiving tanks, emit one record line per tank so each
+   * can be signed separately (not one compounded H.26.3 line for all tanks).
+   */
+  function expandLinesForPerTankSignoff(part, code, values, setup, lines) {
+    if (Number(part) !== 1 || code !== 'H' || !lines || !lines.length) return lines;
+    const v = values || {};
+    function expandBunker(itemNo, tankField, qtyField, splitField, typeField) {
+      const has = lines.some(l => String(l.itemNo) === itemNo);
+      if (!has) return lines;
+      const ids = tankIdList(v[tankField]);
+      const add = numOrNull(v[qtyField]);
+      if (ids.length <= 1 || add == null) return lines;
+      const shares = resolveTankShares(setup, ids, add, v[splitField]);
+      if (!shares || shares.size <= 1) return lines;
+      const grade = v[typeField] != null ? String(v[typeField]).trim() : '';
+      const out = [];
+      lines.forEach(ln => {
+        if (String(ln.itemNo) !== itemNo) { out.push(ln); return; }
+        shares.forEach((qty, id) => {
+          out.push({
+            itemNo,
+            text: (grade ? grade + ' ' : '') + fmtVal(qty) + ' t to ' + tankLabel(setup, id)
+          });
+        });
+      });
+      return out;
+    }
+    let expanded = expandBunker('26.3', 'fuelTank', 'fuelQty', 'fuelSplit', 'fuelType');
+    expanded = expandBunker('26.4', 'lubeTank', 'lubeQty', 'lubeSplit', 'lubeType');
+    return expanded;
+  }
+
+  /**
+   * Store one ORB entry per completed item line so date, letter code, item number and
+   * signatory are not compounded under a single signature block.
+   */
+  function splitEntryPerItemLine(entry) {
+    if (!entry) return [];
+    const lines = (entry.lines || []).filter(ln => ln && String(ln.text || '').trim() !== '');
+    if (lines.length <= 1) return [entry];
+    const groupId = entry.entryGroupId || entry.id;
+    return lines.map((ln, idx) => {
+      const itemNo = ln.itemNo != null && String(ln.itemNo) !== '' ? String(ln.itemNo) : null;
+      let selectedItems = entry.selectedItems || [];
+      if (itemNo && entry.code !== 'I' && entry.code !== 'O') selectedItems = [itemNo];
+      else if (itemNo === '' && (entry.code === 'I' || entry.code === 'O')) selectedItems = [entry.code];
+      return Object.assign({}, entry, {
+        id: idx === 0 ? entry.id : (String(entry.id) + '_L' + idx),
+        entryGroupId: groupId,
+        lineIndex: idx,
+        selectedItems,
+        lines: [ln],
+        robNotes: idx === 0 ? (entry.robNotes || []) : [],
+        capacityWarnings: idx === 0 ? entry.capacityWarnings : undefined
+      });
+    });
+  }
+
+  /** Expand tank-scoped lines, then one stored entry per item line. */
+  function materializeOrbSaveRecords(entry, setup) {
+    const expanded = expandLinesForPerTankSignoff(entry.part, entry.code, entry.values, setup, entry.lines || []);
+    const withLines = Object.assign({}, entry, { lines: expanded });
+    return splitEntryPerItemLine(withLines);
+  }
+
   function validateEntry(part, code, selectedItems, values, setup) {
     const op = getOperation(part, code);
     const errors = [];
@@ -2257,10 +2337,10 @@
   }
 
   /**
-   * The body of the record book: one <tr> per item line, with the date and the letter
-   * code printed only on the first line of each entry, and the officer's signature under
-   * its last. Shared by the printed sheet and the on-screen book so the two cannot drift
-   * apart — they are meant to be the same document.
+   * The body of the record book: one <tr> per stored item line. Each row repeats the
+   * date and letter code and carries its own signatory (beORB / company book practice:
+   * no compounded item numbers under one signature block). Legacy multi-line entries
+   * still render with a signature on every line.
    *
    * Layout matches company beORB / MARPOL Appendix III paper books:
    *   Date → 24-Aug-2026 (first line only)
@@ -2281,14 +2361,11 @@
             (e.code === 'O' && itemNo.toUpperCase() === 'O')) {
           itemNo = '';
         }
-        const signed = idx === lines.length - 1
-          ? '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) +
-              (voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '') +
-              '</div>'
-          : '';
+        const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
+        const signed = '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) + voidSuffix + '</div>';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
-          '<td>' + (idx === 0 ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
-          '<td class="orb-code">' + (idx === 0 ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
+          '<td>' + escapeHtml(formatOrbDate(e.date)) + '</td>' +
+          '<td class="orb-code">' + escapeHtml(formatOrbBookCode(e)) + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
       });
@@ -2467,6 +2544,9 @@
     parseTankSplit,
     resolveTankShares,
     buildItemLines,
+    expandLinesForPerTankSignoff,
+    splitEntryPerItemLine,
+    materializeOrbSaveRecords,
     bookRowsHtml,
     bookDocumentHtml,
     bookPartTitles,
