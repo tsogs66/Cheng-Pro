@@ -100,21 +100,24 @@ checkTrue('C.11 without 12.x counts as weekly inventory',
 check('C.12 transfer is not a weekly inventory',
   EORB.isWeeklySludgeInventory({ code: 'C', selectedItems: ['12.2'] }), false);
 
-console.log('\nbunkering print uses total content, not the split string');
+console.log('\nbunkering beORB layout — summary, per-tank MT added / ROB, sulphur %');
+const bunkerLayoutSetup = { tanks: { fuel: [
+  { id: 'fo1', name: 'No.1 H.F.O. TK.', frameNo: 'FR 71-101 (P)', capacityM3: 500, robM3: 100 },
+  { id: 'fo2', name: 'No.2 H.F.O. TK.', frameNo: 'FR 41-71 (S)', capacityM3: 500, robM3: 200 }
+] } };
 const bunkerLines = EORB.buildItemLines(1, 'H', ['26.3'], {
-  fuelType: 'VLSFO', fuelQty: 200, fuelTank: 'fo1|fo2', fuelSplit: 'fo1=120, fo2=80', fuelTotal: 350
-}, { tanks: { fuel: [
-  { id: 'fo1', name: 'FO 1 P', frameNo: 'Fr. 10', capacityM3: 200, robM3: 50 },
-  { id: 'fo2', name: 'FO 2 S', frameNo: 'Fr. 10', capacityM3: 200, robM3: 100 }
-] } });
+  fuelType: 'VLSFO', fuelIsoSpec: '8217:2010', fuelSulphur: 0.5,
+  fuelQty: 200, fuelTank: 'fo1|fo2', fuelSplit: 'fo1=120, fo2=80',
+  fuelRobSplit: 'fo1=220, fo2=280', fuelApi: 28.5, fuelDensity: 991
+}, bunkerLayoutSetup);
 const bunkerText = (bunkerLines.find(l => l.itemNo === '26.3') || {}).text || '';
-checkTrue('print names the grade and tonnes', bunkerText.indexOf('VLSFO') !== -1 && bunkerText.indexOf('200 t') !== -1);
-checkTrue('print does not call the split the tank total', bunkerText.indexOf('total content fo1=120') === -1);
-checkTrue('print states total content 350 t', bunkerText.indexOf('total content 350 t') !== -1);
-checkTrue('print can include API gravity',
-  EORB.buildItemLines(1, 'H', ['26.3'], {
-    fuelType: 'VLSFO', fuelQty: 200, fuelTank: 'fo1', fuelApi: 28.5
-  }, { tanks: { fuel: [{ id: 'fo1', name: 'FO 1 P', capacityM3: 200, robM3: 50 }] } })[0].text.indexOf('API 28.5') !== -1);
+checkTrue('summary names grade, ISO and sulphur', bunkerText.indexOf('VLSFO') !== -1 &&
+  bunkerText.indexOf('8217:2010') !== -1 && bunkerText.indexOf('0.5% S') !== -1);
+checkTrue('per-tank added and ROB lines', bunkerLines.some(l =>
+  /120 MT added to/i.test(l.text) && /now containing 220 MT/i.test(l.text)));
+checkTrue('BDN spec line includes API and density',
+  bunkerLines.some(l => l.text.indexOf('API 28.5') !== -1 && l.text.indexOf('991') !== -1));
+check('two tank detail rows', bunkerLines.filter(l => /MT added to/i.test(l.text)).length, 2);
 
 console.log('\nAPI calculator (141.5/SG − 131.5)');
 check('API from SG 0.991', EORB.apiFromSpecificGravity(0.991), 11.285);

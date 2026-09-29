@@ -345,12 +345,17 @@
           field('timeStop', 'Stop', 'time')
         ]},
         { no: '26.3', label: 'Fuel oil bunkered', fields: [
-          field('fuelType', 'Fuel type', 'text', { required: true }),
-          field('fuelQty', 'Quantity added (t)', 'number', { required: true }),
-          field('fuelTank', 'Tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
-          field('fuelSplit', 'Per-tank split (e.g. FO1=120, FO2=80)', 'text',
-            { hint: 'Leave blank when bunkering into a single tank — the whole quantity goes there.' }),
-          field('fuelTotal', 'Total content of tank(s) (t)', 'number'),
+          field('fuelType', 'Fuel type / grade', 'text', { required: true }),
+          field('fuelQty', 'Total quantity added (MT)', 'number', { required: true }),
+          field('fuelIsoSpec', 'ISO spec (e.g. 8217:2010)', 'text'),
+          field('fuelSulphur', 'Sulphur as per BDN (% m/m)', 'number'),
+          field('fuelTank', 'Receiving tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
+          field('fuelSplit', 'Per-tank quantity added (MT)', 'text',
+            { hint: 'Filled from the per-tank rows on the form — e.g. fo1=120, fo2=80.' }),
+          field('fuelRobSplit', 'Per-tank content after bunkering (MT)', 'text',
+            { hint: 'ROB in each tank after loading — e.g. fo1=350, fo2=200.' }),
+          field('fuelTotal', 'Total content (legacy single field, MT)', 'number'),
+          field('fuelDensity', 'Density at 15 °C (kg/m³)', 'number'),
           field('fuelApi', 'API gravity (@15°C)', 'number')
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
@@ -1395,6 +1400,39 @@
     return null;
   }
 
+  /** Per-tank added MT and ROB after bunkering (beORB Code H layout). */
+  function resolveFuelBunkerTankRows(setup, val) {
+    const v = val || {};
+    const ids = tankIdList(v.fuelTank);
+    const total = numOrNull(v.fuelQty);
+    const shares = resolveTankShares(setup, ids, total, v.fuelSplit);
+    const robMap = parseTankSplit(setup, v.fuelRobSplit, ids);
+    const rows = [];
+    if (shares) {
+      shares.forEach((added, id) => {
+        let rob = robMap && robMap.has(id) ? robMap.get(id) : null;
+        if (rob == null) {
+          const hit = findTank(setup, id);
+          const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
+          if (prior != null && added != null) rob = round3(prior + added);
+        }
+        rows.push({ id, added, rob, label: tankIdentity(setup, id) });
+      });
+      return rows;
+    }
+    if (ids.length === 1 && total != null) {
+      const id = ids[0];
+      let rob = robMap && robMap.has(id) ? robMap.get(id) : numOrNull(v.fuelTotal);
+      if (rob == null) {
+        const hit = findTank(setup, id);
+        const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
+        if (prior != null) rob = round3(prior + total);
+      }
+      rows.push({ id, added: total, rob, label: tankIdentity(setup, id) });
+    }
+    return rows;
+  }
+
   function tolPct(setup) {
     const t = setup && setup.equipment && Number(setup.equipment.capacityWarnTolerancePct);
     return isFinite(t) && t >= 0 ? t : 15;
@@ -1545,7 +1583,22 @@
           + (shares.size > 1 ? ' across ' + shares.size + ' tanks.' : '.'));
       }
     }
-    if (code === 'H' && want.has('26.3')) bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
+    if (code === 'H' && want.has('26.3')) {
+      bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
+      const ids = tankIdList(v.fuelTank);
+      const add = numOrNull(v.fuelQty);
+      const shares = resolveTankShares(setup, ids, add, v.fuelSplit);
+      if (shares && (v.fuelRobSplit == null || String(v.fuelRobSplit).trim() === '')) {
+        const parts = [];
+        shares.forEach((qty, id) => {
+          const hit = findTank(setup, id);
+          const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
+          parts.push(id + '=' + round3(prior + qty));
+        });
+        v.fuelRobSplit = parts.join(', ');
+        notes.push('Per-tank ROB after bunkering auto-calculated (prior + MT added).');
+      }
+    }
     if (code === 'H' && want.has('26.4')) bunkerTotals('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil tank');
 
     return { values: v, notes };
@@ -1903,10 +1956,15 @@
     }
 
     /* Bunkering adds to each receiving tank — a single stem, or a split across several. */
-    function applyBunker(tankField, qtyField, splitField, totalField) {
+    function applyBunker(tankField, qtyField, splitField, totalField, robSplitField) {
       const ids = tankIdList(v[tankField]);
       const add = numOrNull(v[qtyField]);
       if (!ids.length) return;
+      const robMap = robSplitField ? parseTankSplit(setup, v[robSplitField], ids) : null;
+      if (robMap && robMap.size) {
+        robMap.forEach((rob, id) => setRob(id, rob));
+        return;
+      }
       if (ids.length === 1 && v[totalField] != null && v[totalField] !== '') {
         setRob(ids[0], Number(v[totalField]));
         return;
@@ -1921,7 +1979,7 @@
         setRob(id, base + qty);
       });
     }
-    if (code === 'H' && want.has('26.3')) applyBunker('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal');
+    if (code === 'H' && want.has('26.3')) applyBunker('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'fuelRobSplit');
     if (code === 'H' && want.has('26.4')) applyBunker('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal');
 
     /* Code I records operations MARPOL gives no item fields for, so the movement is
@@ -2078,13 +2136,34 @@
       if (code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
       if (code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
       if (code === 'H' && item.no === '26.3') {
-        const split = item.fields[3] ? resolve(item.fields[3]) : '';
-        const total = item.fields[4] ? resolve(item.fields[4]) : '';
-        const api = item.fields[5] ? resolve(item.fields[5]) : '';
-        text = resolve(item.fields[0]) + ' ' + resolve(item.fields[1]) + ' t to ' + resolve(item.fields[2]) +
-          (split ? (', split ' + split) : '') +
-          (total !== '' ? (', total content ' + total + ' t') : '') +
-          (api !== '' ? (', API ' + api) : '');
+        const grade = String(val.fuelType || '').trim();
+        const qty = fmtVal(val.fuelQty);
+        const iso = String(val.fuelIsoSpec || '').trim();
+        const sulphur = val.fuelSulphur != null && String(val.fuelSulphur).trim() !== '' ? fmtVal(val.fuelSulphur) : '';
+        const summary = [
+          qty !== '' ? (qty + ' MT') : '',
+          iso ? ('ISO ' + iso) : '',
+          grade,
+          sulphur !== '' ? (sulphur + '% S') : ''
+        ].filter(Boolean).join(' ') + ' bunkered in tanks:';
+        lines.push({ itemNo: '26.3', text: summary });
+        resolveFuelBunkerTankRows(setup, val).forEach(row => {
+          const added = row.added != null ? fmtVal(row.added) : '—';
+          const rob = row.rob != null ? fmtVal(row.rob) : '—';
+          lines.push({
+            itemNo: '',
+            text: added + ' MT added to ' + String(row.label || '').toUpperCase() +
+              ' now containing ' + rob + ' MT'
+          });
+        });
+        const spec = [];
+        if (val.fuelApi != null && String(val.fuelApi).trim() !== '') spec.push('API ' + fmtVal(val.fuelApi));
+        if (val.fuelDensity != null && String(val.fuelDensity).trim() !== '') {
+          spec.push('density at 15 °C ' + fmtVal(val.fuelDensity) + ' kg/m³');
+        }
+        if (sulphur !== '') spec.push('sulphur as per BDN ' + sulphur + '%');
+        if (spec.length) lines.push({ itemNo: '', text: spec.join(', ') });
+        return;
       }
       if (code === 'H' && item.no === '26.4') {
         const tank = resolve(item.fields[2]) || resolve(item.fields[3]);
@@ -2130,8 +2209,10 @@
    */
   function expandLinesForPerTankSignoff(part, code, values, setup, lines) {
     if (Number(part) !== 1 || code !== 'H' || !lines || !lines.length) return lines;
+    /* Code H 26.3 uses beORB multi-line layout from buildItemLines — do not re-expand. */
     const v = values || {};
     function expandBunker(itemNo, tankField, qtyField, splitField, typeField) {
+      if (itemNo === '26.3') return lines;
       const has = lines.some(l => String(l.itemNo) === itemNo);
       if (!has) return lines;
       const ids = tankIdList(v[tankField]);
@@ -2383,8 +2464,8 @@
         ctrl('retained') + ' m³ retained, incinerated ' + ctrl('incinHours') + ' h.';
     }
     if (code === 'H' && item.no === '26.3') {
-      return ctrl('fuelType') + ' ' + ctrl('fuelQty') + ' t to ' + ctrl('fuelTank') +
-        ', split ' + ctrl('fuelSplit') + ', total content ' + ctrl('fuelTotal') + ' t, API ' + ctrl('fuelApi') + '.';
+      return ctrl('fuelQty') + ' MT of ISO ' + ctrl('fuelIsoSpec') + ' ' + ctrl('fuelType') + ' ' +
+        ctrl('fuelSulphur') + ' % S bunkered in tanks:';
     }
     if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
       return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
@@ -2393,6 +2474,29 @@
       if (f.type === 'tank' || f.type === 'tankMulti') return f.label + ': ' + wizardTankSelectHtml(f, setup, opts);
       return f.label + ': ' + wizardInputHtml(f, p[f.name]);
     }).join('<br>');
+  }
+
+  /** One form row per fuel tank: MT added + ROB after bunkering (beORB Code H). */
+  function wizardFuelBunkerTankRowsHtml(setup, presets) {
+    const tanks = tanksForGroup(setup, 'fuel');
+    if (!tanks.length) {
+      return '<tr><td colspan="4" class="hint">Add fuel tanks under ORB Vessel Setup → IOPP / ORB Tanks.</td></tr>';
+    }
+    const ids = tanks.map(t => t.id);
+    const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
+    const robSplit = parseTankSplit(setup, (presets && presets.fuelRobSplit) || '', ids);
+    return tanks.map(t => {
+      const added = split && split.has(t.id) ? split.get(t.id) : '';
+      const rob = robSplit && robSplit.has(t.id) ? robSplit.get(t.id) : '';
+      const label = tankIdentity(setup, t.id);
+      return '<tr class="orb-form-row orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
+        '<td></td><td></td><td></td>' +
+        '<td class="orb-form-record">' + escapeHtml(label) + '<br>' +
+        'MT added <input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
+        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(added === '' ? '' : added)) + '">' +
+        ' now containing <input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
+        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '"> MT</td></tr>';
+    }).join('');
   }
 
   /**
@@ -2427,13 +2531,16 @@
     }
     const selSet = sel;
     if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
+      body += wizardFuelBunkerTankRowsHtml(setup, presets);
       extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
-        '<strong>Fuel API calculator</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Enter density or SG:</span>' +
+        '<strong>Fuel specification (BDN)</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Separate entry per grade if required.</span>' +
         '<div class="orb-form-extra-body" style="margin-top:6px;line-height:2;">' +
-        'Density @15°C (kg/m³) <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;">' +
-        ' &nbsp; or SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
-        ' → API <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 8px;">—</output>' +
-        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API field</button></div></div>';
+        'Density @15°C (kg/m³) ' + wizardInputHtml({ name: 'fuelDensity', type: 'number' }, presets.fuelDensity) +
+        ' &nbsp; API ' + wizardInputHtml({ name: 'fuelApi', type: 'number' }, presets.fuelApi) +
+        ' &nbsp; or calc: <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;" placeholder="kg/m³">' +
+        ' / SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
+        ' → <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 6px;">—</output>' +
+        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API</button></div></div>';
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
@@ -2695,6 +2802,7 @@
     tankIdList,
     parseTankSplit,
     resolveTankShares,
+    resolveFuelBunkerTankRows,
     buildItemLines,
     expandLinesForPerTankSignoff,
     splitEntryPerItemLine,

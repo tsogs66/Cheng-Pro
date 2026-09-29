@@ -25617,6 +25617,32 @@ function openWeeklyInventoryWizard(){
   renderWeeklyPreview();
 }
 
+function orbMergeBunkerTankFields(values){
+  const added = [];
+  const rob = [];
+  let sumAdded = 0;
+  document.querySelectorAll('#orbFormSheetWrap .orb-bunker-added').forEach(el=>{
+    const id = el.getAttribute('data-tank-id');
+    const v = String(el.value || '').trim();
+    if (!id || v === '') return;
+    added.push(id + '=' + v);
+    const n = parseFloat(v);
+    if (isFinite(n)) sumAdded += n;
+  });
+  document.querySelectorAll('#orbFormSheetWrap .orb-bunker-rob').forEach(el=>{
+    const id = el.getAttribute('data-tank-id');
+    const v = String(el.value || '').trim();
+    if (!id || v === '') return;
+    rob.push(id + '=' + v);
+  });
+  if (added.length){
+    values.fuelSplit = added.join(', ');
+    if (sumAdded > 0) values.fuelQty = String(Math.round(sumAdded * 1000) / 1000);
+  }
+  if (rob.length) values.fuelRobSplit = rob.join(', ');
+  return values;
+}
+
 function orbCollectValues(){
   const values = {};
   document.querySelectorAll('#orbEntryWizard [data-orb-field]').forEach(el=>{
@@ -25627,6 +25653,7 @@ function orbCollectValues(){
       values[name] = el.value;
     }
   });
+  orbMergeBunkerTankFields(values);
   return values;
 }
 
