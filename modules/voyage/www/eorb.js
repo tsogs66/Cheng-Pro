@@ -2337,22 +2337,24 @@
   }
 
   /**
-   * The body of the record book: one <tr> per stored item line. Each row repeats the
-   * date and letter code and carries its own signatory (beORB / company book practice:
-   * no compounded item numbers under one signature block). Legacy multi-line entries
-   * still render with a signature on every line.
+   * The body of the record book: one <tr> per item line. Date and letter code print
+   * only at the start of each entry (multi-line legacy row) or once per code+item set
+   * (shards sharing entryGroupId from one save). Every line still carries its own
+   * signatory.
    *
    * Layout matches company beORB / MARPOL Appendix III paper books:
-   *   Date → 24-Aug-2026 (first line only)
-   *   Code (letter) → D / C / I (first line only)
+   *   Date → 24-Aug-2026 (first line of the set only)
+   *   Code (letter) → D / C / I (first line of the set only)
    *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
-   *   Signature → NAME - RANK, 24-AUG-2026 [SIGNATURE]
+   *   Signature → NAME - RANK, 24-AUG-2026 [SIGNATURE] (each line)
    */
   function bookRowsHtml(entries) {
     let body = '';
+    let lastHeaderKey = null;
     sortEntriesForBook(entries).forEach(e => {
       const lines = e.lines || [];
       const voided = !!e.voided;
+      const headerKey = e.entryGroupId || e.id;
       lines.forEach((ln, idx) => {
         const text = escapeHtml(String(ln.text || '').toUpperCase());
         let itemNo = ln.itemNo == null ? '' : String(ln.itemNo);
@@ -2361,14 +2363,16 @@
             (e.code === 'O' && itemNo.toUpperCase() === 'O')) {
           itemNo = '';
         }
+        const showDateCode = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
         const voidSuffix = voided ? (' — VOID' + (e.voidReason ? (': ' + escapeHtml(e.voidReason)) : '')) : '';
         const signed = '<div class="orb-sign">' + escapeHtml(formatOrbSignature(e)) + voidSuffix + '</div>';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
-          '<td>' + escapeHtml(formatOrbDate(e.date)) + '</td>' +
-          '<td class="orb-code">' + escapeHtml(formatOrbBookCode(e)) + '</td>' +
+          '<td>' + (showDateCode ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
+          '<td class="orb-code">' + (showDateCode ? escapeHtml(formatOrbBookCode(e)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + signed + '</td></tr>';
       });
+      lastHeaderKey = headerKey;
     });
     return body;
   }

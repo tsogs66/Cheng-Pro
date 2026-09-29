@@ -179,8 +179,8 @@ const bookRows = EORB.bookRowsHtml([{
   officerSignedAt: '2026-08-18T12:00:00',
   lines: [{ itemNo: '13', text: '3 m³ bilge' }]
 }]);
-checkTrue('each row repeats date and code', bookRows.indexOf('18-Aug-2026') !== -1 && bookRows.indexOf('orb-code">D<') !== -1);
-checkTrue('each row carries a signatory block', (bookRows.match(/orb-sign/g) || []).length, 1);
+checkTrue('date and code appear on the entry head row', bookRows.indexOf('18-Aug-2026') !== -1 && bookRows.indexOf('orb-code">D<') !== -1);
+checkTrue('each row carries a signatory block', (bookRows.match(/orb-sign/g) || []).length === 1);
 
 console.log('\nprint keeps voided lines struck through');
 const html = EORB.buildPrintHtml(setup, [
@@ -296,7 +296,7 @@ console.log('\nPart III — fuel changeover (Annex VI Reg. 14.6)');
   checkTrue('Part III code reads PART III C on the sheet', html3.indexOf('PART III C') !== -1);
 }
 
-console.log('\neach item row repeats date, code and signatory');
+console.log('\ndate and code once per entry set, signatory on every item line');
 {
   const s6 = EORB.defaultOrbSetup({});
   const entry = {
@@ -310,10 +310,19 @@ console.log('\neach item row repeats date, code and signatory');
   const body = html6.slice(html6.indexOf('<tbody>'), html6.indexOf('</tbody>'));
   const dateCells = (body.match(/01-Aug-2026/g) || []).length;
   const codeCells = (body.match(/orb-code">C</g) || []).length;
-  check('the date is on every item row', dateCells, 6);
-  check('and so is the letter code', codeCells, 6);
+  check('the date is printed once for the legacy multi-line entry', dateCells, 1);
+  check('and so is the letter code', codeCells, 1);
   check('each row has its own signatory', (body.match(/orb-sign/g) || []).length, 6);
   checkTrue('while every item line is still there', (body.match(/<tr/g) || []).length === 6);
+
+  const group = EORB.materializeOrbSaveRecords({
+    id: 'orb_grp', part: 1, code: 'D', date: '2026-08-18', selectedItems: ['13', '14'],
+    lines: [{ itemNo: '13', text: '3 m³' }, { itemNo: '14', text: 'start 02:00' }],
+    officerName: 'A. Ruiz', officerSignedAt: '2026-08-18T12:00:00'
+  }, s6);
+  const groupHtml = EORB.bookRowsHtml(group);
+  check('split save shows date once for the code+item set', (groupHtml.match(/18-Aug-2026/g) || []).length, 1);
+  check('but signs both item lines', (groupHtml.match(/orb-sign/g) || []).length, 2);
 }
 
 console.log('\ntank R.O.B. carries how full each tank is');
