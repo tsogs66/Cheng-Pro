@@ -1726,6 +1726,34 @@
     return rows;
   }
 
+  /** Sum of MT added for receiving tanks that have both added and ROB after filled in. */
+  function fuelBunkerPairedAddedSum(setup, values) {
+    let sum = 0;
+    resolveFuelBunkerTankRows(setup, values).forEach(r => {
+      const n = numOrNull(r.added);
+      if (n != null) sum += n;
+    });
+    return round3(sum);
+  }
+
+  function validateFuelBunkerQtyErrors(setup, code, selectedItems, values) {
+    const errors = [];
+    if (code !== 'H' || !selectedItemNos(selectedItems).includes('26.3')) return errors;
+    const rows = resolveFuelBunkerTankRows(setup, values);
+    if (!rows.length) {
+      errors.push('Enter MT added and ROB after (MT) for at least one receiving tank. Blank tanks are excluded from the ORB record.');
+      return errors;
+    }
+    const sum = fuelBunkerPairedAddedSum(setup, values);
+    const total = numOrNull((values || {}).fuelQty);
+    if (total == null) return errors;
+    if (Math.abs(sum - total) > 0.001) {
+      errors.push('Total quantity added (' + fmtVal(total) + ' MT) must equal the sum of per-tank MT added (' +
+        fmtVal(sum) + ' MT).');
+    }
+    return errors;
+  }
+
   function tolPct(setup) {
     const t = setup && setup.equipment && Number(setup.equipment.capacityWarnTolerancePct);
     return isFinite(t) && t >= 0 ? t : 15;
@@ -2155,7 +2183,29 @@
         });
       }
     }
-    if (code === 'H' && want.has('26.3')) bunkerReceiveHint('fuelTank', 'fuelQty', 'fuelSplit', 'Fuel bunkering');
+    if (code === 'H' && want.has('26.3')) {
+      const rows = resolveFuelBunkerTankRows(setup, v);
+      const add = numOrNull(v.fuelQty);
+      if (rows.length) {
+        const sum = fuelBunkerPairedAddedSum(setup, v);
+        const parts = rows.map(r => tankLabel(setup, r.id) + ' +' + fmtVal(r.added) + ' MT');
+        const aligned = add != null && Math.abs(sum - add) <= 0.001;
+        hints.push({
+          level: add == null ? 'warn' : (aligned ? 'info' : 'error'),
+          code: 'BUNKER_TOTAL',
+          message: 'Per-tank MT added: ' + parts.join('; ') + ' = ' + fmtVal(sum) + ' MT' +
+            (add == null ? '.' :
+              (aligned ? ' (matches total quantity added ' + fmtVal(add) + ' MT).' :
+                ' — adjust total or per-tank MT added (total is ' + fmtVal(add) + ' MT).'))
+        });
+      } else if (add != null) {
+        hints.push({
+          level: 'warn',
+          code: 'BUNKER_TANKS_NEEDED',
+          message: 'Fuel bunkering: enter MT added and ROB after for at least one receiving tank.'
+        });
+      }
+    }
     if (code === 'H' && want.has('26.4')) bunkerReceiveHint('lubeTank', 'lubeQty', 'lubeSplit', 'Lube oil bunkering');
 
     return hints;
@@ -2594,6 +2644,7 @@
         }
       });
     });
+    errors.push(...validateFuelBunkerQtyErrors(setup, code, selectedItems, values));
     return errors;
   }
 
@@ -2842,7 +2893,7 @@
       });
       html += '</div>';
       html += '<h4 class="orb-wizard-subtitle">Per tank</h4>';
-      html += '<p class="hint">Only tanks with both MT added and ROB after are included in the saved record.</p>';
+      html += '<p class="hint">Only tanks with both MT added and ROB after are included. Total quantity added (MT) must equal the sum of per-tank MT added.</p>';
       html += wizardFuelBunkerTankInputHtml(setup, presets, opts);
       html += '<h4 class="orb-wizard-subtitle">BDN specification</h4>';
       html += '<div class="orb-bdn-grid">';
