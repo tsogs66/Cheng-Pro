@@ -397,6 +397,41 @@
     return Object.assign({ name, label, type: type || 'text', required: false }, opts || {});
   }
 
+  /** Residual vs distillate — ISO 8217 lists and ORB tank filtering for Code H bunkering. */
+  const BUNKER_FUEL_FAMILY = {
+    residual: {
+      label: 'Residual fuel',
+      types: ['HFO', 'LFO', 'VLSFO'],
+      iso: ['RMA 10', 'RMB 30', 'RMD 80', 'RME 180', 'RMG 180', 'RMG 380', 'RMG 500', 'RMG 700', 'RMK 380', 'RMK 500', 'RMK 700']
+    },
+    distillate: {
+      label: 'Distillate fuel',
+      types: ['MDO', 'MGO', 'LSMGO'],
+      iso: ['DMX', 'DMA', 'DFA', 'DFZ', 'DMZ', 'DMB', 'DFB']
+    }
+  };
+
+  function bunkerFuelCategoryForScenario(scenarioId) {
+    if (scenarioId === 'bunker-diesel') return 'distillate';
+    if (scenarioId === 'bunker-fuel') return 'residual';
+    return 'residual';
+  }
+
+  function inferTankFuelService(tank) {
+    if (!tank) return 'residual';
+    const svc = String(tank.fuelService || '').trim().toLowerCase();
+    if (svc === 'distillate' || svc === 'residual') return svc;
+    const name = String(tank.name || '').toUpperCase();
+    if (/MDO|MGO|LSMGO|DIESEL|GAS OIL|DISTILLATE|DO\b|GO\b/.test(name)) return 'distillate';
+    if (/HFO|VLSFO|LSFO|LFO|HEAVY|RESIDUAL|FO\b/.test(name)) return 'residual';
+    return 'residual';
+  }
+
+  function tanksForBunkerCategory(setup, category) {
+    const cat = category === 'distillate' ? 'distillate' : 'residual';
+    return tanksForGroup(setup, 'fuel').filter(t => inferTankFuelService(t) === cat);
+  }
+
   /* Scenario-level fields.
      Codes A–H carry the fields MARPOL prescribes for each item. Code I is a single
      free-text remark, so an operation recorded under it — de-bunkering, a seal broken,
@@ -581,9 +616,10 @@
           field('timeStop', 'Stop', 'time')
         ]},
         { no: '26.3', label: 'Fuel oil bunkered', fields: [
-          field('fuelType', 'Fuel type / grade', 'text', { required: true }),
+          field('fuelType', 'Fuel type / grade', 'select', { required: true, bunkerSelect: 'type' }),
           field('fuelQty', 'Total quantity added (MT)', 'number', { required: true }),
-          field('fuelIsoSpec', 'ISO spec (e.g. 8217:2010)', 'text'),
+          field('fuelIsoSpec', 'ISO 8217 designation', 'select', { bunkerSelect: 'iso' }),
+          field('fuelSg', 'Specific gravity @15°C', 'number'),
           field('fuelSulphur', 'Sulphur as per BDN (% m/m)', 'number'),
           field('fuelTank', 'Receiving tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true }),
           field('fuelSplit', 'Per-tank quantity added (MT)', 'text',
@@ -879,13 +915,16 @@
     /* ---- Fuel oil ---- */
     { id: 'bunker-fuel', group: 'Fuel oil', part: 1, code: 'H',
       title: 'Bunkering fuel oil',
-      blurb: 'Taking fuel oil bunkers. Records place, time, grade, quantity and tank totals after loading.',
-      items: ['26.1', '26.2', '26.3'] },
+      blurb: 'Taking residual fuel oil bunkers (HFO / LFO / VLSFO) into heavy-fuel tanks only. Records place, time, ISO grade, quantity and tank totals after loading.',
+      items: ['26.1', '26.2', '26.3'],
+      bunkerFuelCategory: 'residual',
+      presets: { fuelType: 'VLSFO', fuelIsoSpec: 'RMG 380' } },
     { id: 'bunker-diesel', group: 'Fuel oil', part: 1, code: 'H',
       title: 'Bunkering diesel oil',
-      blurb: 'Taking diesel / gas oil bunkers. Same Code H record as fuel oil — grade, quantity and tank totals after loading.',
+      blurb: 'Taking distillate bunkers (MDO / MGO / LSMGO) into diesel-service tanks only. Same Code H record — grade, quantity and tank totals after loading.',
       items: ['26.1', '26.2', '26.3'],
-      presets: { fuelType: 'MGO' } },
+      bunkerFuelCategory: 'distillate',
+      presets: { fuelType: 'MGO', fuelIsoSpec: 'DMA' } },
     { id: 'bunker-lube', group: 'Fuel oil', part: 1, code: 'H',
       title: 'Bunkering lubricating oil',
       blurb: 'Taking bulk lube oil. Records place, time, grade, quantity and tank totals.',
@@ -1420,6 +1459,8 @@
     if (group === 'bilge') return t.bilge || [];
     if (group === 'bilgeWells') return t.bilgeWells || [];
     if (group === 'fuel') return t.fuel || [];
+    if (group === 'fuelResidual') return tanksForBunkerCategory(setup, 'residual');
+    if (group === 'fuelDistillate') return tanksForBunkerCategory(setup, 'distillate');
     if (group === 'lube') return t.lube || [];
     if (group === 'cargo') return t.cargo || [];
     if (group === 'slop') return t.slop || [];
@@ -2644,12 +2685,27 @@
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   }
 
+  function wizardBunkerSelectHtml(name, options, preset, attrs) {
+    const val = preset != null ? String(preset) : '';
+    const extra = attrs || '';
+    const opts = (options || []).map(o => {
+      const sel = val === o ? ' selected' : '';
+      return '<option value="' + escapeHtml(o) + '"' + sel + '>' + escapeHtml(o) + '</option>';
+    }).join('');
+    return '<select class="orb-form-input orb-bunker-select" data-orb-field="' + escapeHtml(name) + '"' + extra + '>' +
+      '<option value="">— select —</option>' + opts + '</select>';
+  }
+
   function wizardInputHtml(f, preset) {
     const val = preset != null ? String(preset) : '';
     if (f.type === 'select') {
       return '<select class="orb-form-input" data-orb-field="' + escapeHtml(f.name) + '">' +
         (f.options || []).map(o => '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>').join('') +
         '</select>';
+    }
+    if (f.readOnly) {
+      return '<input type="text" class="orb-form-input orb-form-readonly" readonly tabindex="-1" data-orb-field="' +
+        escapeHtml(f.name) + '" value="' + escapeHtml(val) + '">';
     }
     if (f.type === 'textarea') {
       return '<textarea class="orb-form-input" rows="2" data-orb-field="' + escapeHtml(f.name) + '">' +
@@ -2673,11 +2729,15 @@
   /** Inline record-book row wording with embedded inputs (beORB-style form sheet). */
   function wizardItemNarrativeHtml(part, code, item, setup, opts, presets) {
     const p = presets || (opts && opts.presets) || {};
+    const bunkerCat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
+    const bunkerFam = BUNKER_FUEL_FAMILY[bunkerCat] || BUNKER_FUEL_FAMILY.residual;
     const fld = (name) => (item.fields || []).find(x => x.name === name);
     const ctrl = (name) => {
       const f = fld(name);
       if (!f) return '';
       if (f.type === 'tank' || f.type === 'tankMulti') return wizardTankSelectHtml(f, setup, opts);
+      if (f.bunkerSelect === 'type') return wizardBunkerSelectHtml(f.name, bunkerFam.types, p[f.name]);
+      if (f.bunkerSelect === 'iso') return wizardBunkerSelectHtml(f.name, bunkerFam.iso, p[f.name]);
       return wizardInputHtml(f, p[f.name]);
     };
     if (code === 'D' && item.no === '13') {
@@ -2702,8 +2762,10 @@
         ctrl('retained') + ' m³ retained, incinerated ' + ctrl('incinHours') + ' h.';
     }
     if (code === 'H' && item.no === '26.3') {
-      return ctrl('fuelQty') + ' MT of ISO ' + ctrl('fuelIsoSpec') + ' ' + ctrl('fuelType') + ' ' +
-        ctrl('fuelSulphur') + ' % S bunkered in tanks:';
+      return '<div class="orb-bunker-line">' +
+        ctrl('fuelQty') + ' <span class="orb-bunker-unit">MT</span> ISO ' + ctrl('fuelIsoSpec') + ' ' +
+        ctrl('fuelType') + ' ' + ctrl('fuelSulphur') + ' <span class="orb-bunker-unit">% S</span> bunkered in ' +
+        (bunkerCat === 'distillate' ? 'distillate' : 'residual') + ' tanks:</div>';
     }
     if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
       return wizardInputHtml({ name: 'remarks', type: 'textarea' }, p.remarks || '');
@@ -2715,10 +2777,14 @@
   }
 
   /** One form row per fuel tank: MT added + ROB after bunkering (beORB Code H). */
-  function wizardFuelBunkerTankRowsHtml(setup, presets) {
-    const tanks = tanksForGroup(setup, 'fuel');
+  function wizardFuelBunkerTankRowsHtml(setup, presets, opts) {
+    const cat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
+    const tanks = tanksForBunkerCategory(setup, cat);
     if (!tanks.length) {
-      return '<tr><td colspan="4" class="hint">Add fuel tanks under ORB Vessel Setup → IOPP / ORB Tanks.</td></tr>';
+      const hint = cat === 'distillate'
+        ? 'No distillate-service fuel tanks in ORB setup — mark tanks as Distillate under IOPP / ORB Tanks → Fuel oil tanks.'
+        : 'No residual / heavy-fuel tanks in ORB setup — mark tanks as Residual under IOPP / ORB Tanks → Fuel oil tanks.';
+      return '<tr><td colspan="4" class="hint">' + escapeHtml(hint) + '</td></tr>';
     }
     const ids = tanks.map(t => t.id);
     const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
@@ -2730,10 +2796,10 @@
       return '<tr class="orb-form-row orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
         '<td></td><td></td><td></td>' +
         '<td class="orb-form-record">' + escapeHtml(label) + '<br>' +
-        'MT added <input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
-        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(added === '' ? '' : added)) + '">' +
+        '<span class="orb-bunker-tank-qty">MT added <input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(added === '' ? '' : added)) + '">' +
         ' now containing <input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
-        escapeHtml(t.id) + '" style="width:5.5em" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '"> MT</td></tr>';
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '"> MT</span></td></tr>';
     }).join('');
   }
 
@@ -2755,7 +2821,9 @@
         '<td class="orb-form-date">' + (first ? '<output id="orbFormDateOut">—</output>' : '') + '</td>' +
         '<td class="orb-form-code">' + (first ? escapeHtml(codeLabel) : '') + '</td>' +
         '<td class="orb-form-item">' + escapeHtml(String(it.no)) + '</td>' +
-        '<td class="orb-form-record">' + wizardItemNarrativeHtml(part, code, it, setup, opts, presets) + '</td></tr>';
+        '<td class="orb-form-record">' + wizardItemNarrativeHtml(part, code, it, setup, Object.assign({}, opts, {
+          bunkerFuelCategory: opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId)
+        }), presets) + '</td></tr>';
       first = false;
     });
     let extraHtml = '';
@@ -2797,16 +2865,21 @@
       }
     }
     if (Number(part) === 1 && code === 'H' && selSet.has('26.3')) {
-      body += wizardFuelBunkerTankRowsHtml(setup, presets);
+      const bunkerOpts = Object.assign({}, opts, {
+        bunkerFuelCategory: opts.bunkerFuelCategory || bunkerFuelCategoryForScenario(opts.scenarioId)
+      });
+      body += wizardFuelBunkerTankRowsHtml(setup, presets, bunkerOpts);
       extraHtml += '<div class="orb-form-extra-row orb-api-calc" id="orbFuelApiCalc">' +
-        '<strong>Fuel specification (BDN)</strong> <span class="hint">API = 141.5 ÷ SG − 131.5 (@15°C). Separate entry per grade if required.</span>' +
-        '<div class="orb-form-extra-body" style="margin-top:6px;line-height:2;">' +
-        'Density @15°C (kg/m³) ' + wizardInputHtml({ name: 'fuelDensity', type: 'number' }, presets.fuelDensity) +
-        ' &nbsp; API ' + wizardInputHtml({ name: 'fuelApi', type: 'number' }, presets.fuelApi) +
-        ' &nbsp; or calc: <input type="number" class="orb-form-input" step="any" id="orbFuelCalcDensity" style="width:6em;" placeholder="kg/m³">' +
-        ' / SG <input type="number" class="orb-form-input" step="any" id="orbFuelCalcSg" style="width:5em;">' +
-        ' → <output id="orbFuelCalcApiOut" style="font-weight:700;margin:0 6px;">—</output>' +
-        '<button type="button" class="ghost small" id="orbFuelCalcApply">Use for API</button></div></div>';
+        '<strong>Fuel specification (BDN)</strong> <span class="hint">API updates automatically when density or SG is entered (141.5 ÷ SG − 131.5 @15°C).</span>' +
+        '<div class="orb-bdn-grid orb-form-extra-body">' +
+        '<label class="orb-bdn-field"><span>Density @15°C (kg/m³)</span>' +
+        wizardInputHtml({ name: 'fuelDensity', type: 'number' }, presets.fuelDensity) + '</label>' +
+        '<label class="orb-bdn-field"><span>SG @15°C</span>' +
+        wizardInputHtml({ name: 'fuelSg', type: 'number' }, presets.fuelSg) + '</label>' +
+        '<label class="orb-bdn-field"><span>API (auto)</span>' +
+        wizardInputHtml({ name: 'fuelApi', type: 'text', readOnly: true }, presets.fuelApi) + '</label>' +
+        '</div></div>';
+      seen.add('fuelSg');
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
@@ -3055,6 +3128,10 @@
     PART_III,
     EXTRA_FIELDS,
     SCENARIOS,
+    BUNKER_FUEL_FAMILY,
+    bunkerFuelCategoryForScenario,
+    inferTankFuelService,
+    tanksForBunkerCategory,
     extraDetailText,
     getScenarios,
     getScenario,
