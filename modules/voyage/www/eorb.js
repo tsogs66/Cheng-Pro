@@ -90,10 +90,13 @@
       code: 'C',
       when(ctx) {
         if (ctx.part !== 1 || ctx.code !== 'I') return false;
-        if (ctx.scenarioId === 'ows-ocm-test' || ctx.scenarioId === 'ows-weekly-test') return true;
+        /* Recirculation prints one Code I sentence. A second supplement line would
+           repeat the test after that sentence. */
         const r = String(ctx.val.remarks || '').toLowerCase();
-        return r.indexOf('recirculation') !== -1 || r.indexOf('ocm') !== -1 ||
-          r.indexOf('15 ppm') !== -1 || r.indexOf('oily-water separator') !== -1;
+        if (ctx.scenarioId === 'ows-ocm-test' || r.indexOf('recirculation') !== -1) return false;
+        if (ctx.scenarioId === 'ows-weekly-test') return true;
+        return r.indexOf('ocm') !== -1 || r.indexOf('15 ppm') !== -1 ||
+          r.indexOf('oily-water separator') !== -1;
       },
       lines(ctx) {
         const v = ctx.val;
@@ -1830,13 +1833,14 @@
     return isFinite(t) && t >= 0 ? t : 15;
   }
 
-  function mismatchWarning(label, actual, expected, unit, setup) {
+  function mismatchWarning(label, actual, expected, unit, setup, field) {
     if (actual == null || expected == null || !(expected > 0)) return null;
     const pct = Math.abs(actual - expected) / expected * 100;
     if (pct <= tolPct(setup)) return null;
     return {
       level: pct >= 40 ? 'error' : 'warn',
       code: 'CAPACITY_MISMATCH',
+      field: field || '',
       message: label + ': recorded ' + fmtVal(actual) + ' ' + unit +
         ' vs equipment capacity ≈ ' + fmtVal(round3(expected)) + ' ' + unit +
         ' (' + fmtVal(round3(pct)) + '% difference; tolerance ' + tolPct(setup) + '%). Check quantity, time, or rated capacity in ORB Vessel Setup.'
@@ -1850,9 +1854,14 @@
   function autofillOperationValues(setup, part, code, selectedItems, values) {
     const v = Object.assign({}, values || {});
     const notes = [];
+    const derived = [];
     const want = new Set(selectedItemNos(selectedItems));
     if (Number(part) === 2) return autofillPartTwoValues(setup, code, selectedItems, values);
-    if (Number(part) !== 1) return { values: v, notes };
+    if (Number(part) !== 1) return { values: v, notes, derived };
+
+    function markDerived(name) {
+      if (derived.indexOf(name) === -1) derived.push(name);
+    }
 
     function tankRob(id) {
       const hit = findTank(setup, id);
@@ -1920,13 +1929,17 @@
         const qty = numOrNull(v.qtyDisposed);
         const fromPrior = tankRob(fromId);
         const toPrior = tankRob(toId);
-        if (fromId && qty != null && (v.retained == null || v.retained === '') && fromPrior != null) {
+        /* The transferred quantity drives both remainings, including when a previous
+           figure is already in the box. */
+        if (fromId && qty != null && fromPrior != null) {
           v.retained = round3(Math.max(0, fromPrior - qty));
-          notes.push('Source retained auto-calculated from ROB.');
+          markDerived('retained');
+          notes.push('Source retained auto-calculated: ' + fmtVal(fromPrior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
         }
-        if (toId && qty != null && (v.toTotal == null || v.toTotal === '') && toPrior != null) {
+        if (toId && qty != null && toPrior != null) {
           v.toTotal = round3(toPrior + qty);
-          notes.push('Receiving tank total auto-calculated from ROB + transferred.');
+          markDerived('toTotal');
+          notes.push('Receiving tank total auto-calculated: ' + fmtVal(toPrior) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.toTotal) + ' m³.');
         }
       }
     }
@@ -1939,16 +1952,19 @@
         const c = tankCap(fromId);
         if (c != null) v.fromCap = c;
       }
-      if (fromId && qty != null && (v.fromRetained == null || v.fromRetained === '') && prior != null) {
+      const tankToTank = want.has('15.3') && v.toTank;
+      if (fromId && qty != null && prior != null && (tankToTank || v.fromRetained == null || v.fromRetained === '')) {
         v.fromRetained = round3(Math.max(0, prior - qty));
-        notes.push('Bilge holding retained auto-calculated from ROB − quantity.');
+        if (tankToTank) markDerived('fromRetained');
+        notes.push('Bilge holding retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.fromRetained) + ' m³.');
       }
-      if (want.has('15.3')) {
+      if (tankToTank) {
         const toId = v.toTank;
         const toPrior = tankRob(toId);
-        if (toId && qty != null && (v.toRetained == null || v.toRetained === '') && toPrior != null) {
+        if (toId && qty != null && toPrior != null) {
           v.toRetained = round3(toPrior + qty);
-          notes.push('Receiving tank retained auto-calculated from ROB + transferred.');
+          markDerived('toRetained');
+          notes.push('Receiving tank retained auto-calculated: ' + fmtVal(toPrior) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.toRetained) + ' m³.');
         }
       }
     }
@@ -1998,7 +2014,24 @@
       autofillBunkerRobSplit('lubeTank', 'lubeQty', 'lubeSplit', 'lubeRobSplit', 'Ltrs');
     }
 
-    return { values: v, notes };
+    /* Code I tank-to-tank moves (bilge or sludge) use the scenario quantity fields. */
+    if (code === 'I' && v.extraFromTank && v.extraToTank) {
+      const qty = numOrNull(v.extraQty);
+      const fromPrior = tankRob(v.extraFromTank);
+      const toPrior = tankRob(v.extraToTank);
+      if (qty != null && fromPrior != null) {
+        v.extraFromRetained = round3(Math.max(0, fromPrior - qty));
+        markDerived('extraFromRetained');
+        notes.push('Source retained auto-calculated: ' + fmtVal(fromPrior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.extraFromRetained) + ' m³.');
+      }
+      if (qty != null && toPrior != null) {
+        v.extraToTotal = round3(toPrior + qty);
+        markDerived('extraToTotal');
+        notes.push('Receiving tank total auto-calculated: ' + fmtVal(toPrior) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.extraToTotal) + ' m³.');
+      }
+    }
+
+    return { values: v, notes, derived };
   }
 
   /**
@@ -2008,8 +2041,9 @@
   function autofillPartTwoValues(setup, code, selectedItems, values) {
     const v = Object.assign({}, values || {});
     const notes = [];
+    const derived = [];
     const want = new Set(selectedItemNos(selectedItems));
-    if (code !== 'J') return { values: v, notes };
+    if (code !== 'J') return { values: v, notes, derived };
 
     function tankRob(id) {
       const hit = findTank(setup, id);
@@ -2019,22 +2053,24 @@
     const ids = tankIdList(v.tanks);
 
     /* 56 — retained in the source tank(s) after the operation. */
-    if (want.has('56') && qty != null && ids.length === 1 && (v.retained == null || v.retained === '')) {
+    if (want.has('56') && qty != null && ids.length === 1) {
       const prior = tankRob(ids[0]);
       if (prior != null) {
         v.retained = round3(Math.max(0, prior - qty));
+        derived.push('retained');
         notes.push('Retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
       }
     }
     /* 57.3 — quantity moved into another tank. */
-    if (want.has('57.3') && qty != null && v.toTank && (v.toTotal == null || v.toTotal === '')) {
+    if (want.has('57.3') && qty != null && v.toTank) {
       const toPrior = tankRob(v.toTank);
       if (toPrior != null) {
         v.toTotal = round3(toPrior + qty);
-        notes.push('Receiving tank total auto-calculated from ROB + transferred.');
+        derived.push('toTotal');
+        notes.push('Receiving tank total auto-calculated: ' + fmtVal(toPrior) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.toTotal) + ' m³.');
       }
     }
-    return { values: v, notes };
+    return { values: v, notes, derived };
   }
 
   /**
@@ -2053,7 +2089,7 @@
       const rate = numOrNull(eq.incineratorM3PerH);
       if (qty != null && hours != null && hours > 0 && rate != null && rate > 0) {
         const expected = rate * hours;
-        const w = mismatchWarning('Incinerator sludge burning capacity', qty, expected, 'm³', setup);
+        const w = mismatchWarning('Incinerator sludge burning capacity', qty, expected, 'm³', setup, 'qtyDisposed');
         if (w) warnings.push(w);
         else warnings.push({
           level: 'info',
@@ -2062,12 +2098,12 @@
             ' h ≈ ' + fmtVal(round3(expected)) + ' m³ at ' + fmtVal(rate) + ' m³/h rated capacity.'
         });
       } else if (eq.incineratorFitted !== false && (rate == null || !(rate > 0))) {
-        warnings.push({ level: 'warn', code: 'INCIN_RATE_MISSING', message: 'Set incinerator sludge capacity (m³/h) in ORB Vessel Setup to validate burning quantity vs time.' });
+        warnings.push({ level: 'warn', code: 'INCIN_RATE_MISSING', field: 'incinHours', message: 'Set incinerator sludge capacity (m³/h) in ORB Vessel Setup to validate burning quantity vs time.' });
       }
       const id = v.tankEmptied;
       const hit = findTank(setup, id);
       if (hit && qty != null && hit.tank.robM3 != null && qty - Number(hit.tank.robM3) > 0.001) {
-        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', message: 'Incinerated quantity (' + fmtVal(qty) + ' m³) exceeds current ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
+        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', field: 'qtyDisposed', message: 'Incinerated quantity (' + fmtVal(qty) + ' m³) exceeds current ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
       }
     }
 
@@ -2077,19 +2113,19 @@
       const rate = numOrNull(eq.sludgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
       if (qty != null && hours != null && hours > 0 && rate != null && rate > 0) {
         const expected = rate * hours;
-        const w = mismatchWarning('Sludge / transfer pump capacity', qty, expected, 'm³', setup);
+        const w = mismatchWarning('Sludge / transfer pump capacity', qty, expected, 'm³', setup, 'qtyDisposed');
         if (w) warnings.push(w);
       }
       const fromId = want.has('12.2') ? v.fromTank : v.tankEmptied;
       const hit = findTank(setup, fromId);
       if (hit && qty != null && hit.tank.robM3 != null && qty - Number(hit.tank.robM3) > 0.001) {
-        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', message: 'Transferred/disposed quantity (' + fmtVal(qty) + ' m³) exceeds ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
+        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', field: 'qtyDisposed', message: 'Transferred/disposed quantity (' + fmtVal(qty) + ' m³) exceeds ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
       }
       if (want.has('12.2')) {
         const toHit = findTank(setup, v.toTank);
         const toTotal = numOrNull(v.toTotal);
         if (toHit && toTotal != null && toHit.tank.capacityM3 != null && toTotal - Number(toHit.tank.capacityM3) > 0.001) {
-          warnings.push({ level: 'error', code: 'OVERFILL', message: 'Receiving tank total (' + fmtVal(toTotal) + ' m³) exceeds capacity of ' + toHit.tank.name + ' (' + fmtVal(toHit.tank.capacityM3) + ' m³).' });
+          warnings.push({ level: 'error', code: 'OVERFILL', field: 'qtyDisposed', message: 'Receiving tank total (' + fmtVal(toTotal) + ' m³) exceeds capacity of ' + toHit.tank.name + ' (' + fmtVal(toHit.tank.capacityM3) + ' m³).' });
         }
       }
     }
@@ -2100,14 +2136,14 @@
       const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
       if (qty != null && hours != null && hours > 0 && rate != null && rate > 0) {
         const expected = rate * hours;
-        const w = mismatchWarning('Bilge pump capacity', qty, expected, 'm³', setup);
+        const w = mismatchWarning('Bilge pump capacity', qty, expected, 'm³', setup, 'qty');
         if (w) warnings.push(w);
       } else if (qty != null && hours != null && hours > 0 && !(rate > 0)) {
-        warnings.push({ level: 'warn', code: 'BILGE_RATE_MISSING', message: 'Set bilge pump capacity (m³/h) in ORB Vessel Setup to validate quantity vs pumping time.' });
+        warnings.push({ level: 'warn', code: 'BILGE_RATE_MISSING', field: 'qty', message: 'Set bilge pump capacity (m³/h) in ORB Vessel Setup to validate quantity vs pumping time.' });
       }
       const hit = findTank(setup, v.fromTank);
       if (hit && qty != null && hit.tank.robM3 != null && qty - Number(hit.tank.robM3) > 0.001) {
-        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', message: 'Bilge quantity (' + fmtVal(qty) + ' m³) exceeds ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
+        warnings.push({ level: 'error', code: 'ROB_EXCEEDED', field: 'qty', message: 'Bilge quantity (' + fmtVal(qty) + ' m³) exceeds ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
       }
     }
 
@@ -2119,14 +2155,14 @@
       if (ids.length === 1 && total != null) {
         const hit = findTank(setup, ids[0]);
         if (hit && hit.tank.capacityM3 != null && total - Number(hit.tank.capacityM3) > 0.001) {
-          warnings.push({ level: 'error', code: 'OVERFILL', message: label + ' total content (' + fmtVal(total) + ') exceeds capacity of ' + hit.tank.name + ' (' + fmtVal(hit.tank.capacityM3) + ').' });
+          warnings.push({ level: 'error', code: 'OVERFILL', field: qtyField, message: label + ' total content (' + fmtVal(total) + ') exceeds capacity of ' + hit.tank.name + ' (' + fmtVal(hit.tank.capacityM3) + ').' });
         }
         return;
       }
       if (ids.length <= 1 || add == null) return;
       const shares = resolveTankShares(setup, ids, add, v[splitField]);
       if (!shares) {
-        warnings.push({ level: 'warn', code: 'SPLIT_REQUIRED',
+        warnings.push({ level: 'warn', code: 'SPLIT_REQUIRED', field: qtyField,
           message: label + ': ' + ids.length + ' tanks selected. Enter a per-tank split (e.g. "' + ids[0] + '=' + fmtVal(add) + '") so tank ROB can be updated.' });
         return;
       }
@@ -2137,11 +2173,11 @@
         if (!hit || hit.tank.capacityM3 == null) return;
         const base = hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
         if (base + qty - Number(hit.tank.capacityM3) > 0.001) {
-          warnings.push({ level: 'error', code: 'OVERFILL', message: label + ': ' + hit.tank.name + ' would reach ' + fmtVal(base + qty) + ' vs capacity ' + fmtVal(hit.tank.capacityM3) + '.' });
+          warnings.push({ level: 'error', code: 'OVERFILL', field: qtyField, message: label + ': ' + hit.tank.name + ' would reach ' + fmtVal(base + qty) + ' vs capacity ' + fmtVal(hit.tank.capacityM3) + '.' });
         }
       });
       if (Math.abs(sum - add) > 0.001) {
-        warnings.push({ level: 'error', code: 'SPLIT_MISMATCH',
+        warnings.push({ level: 'error', code: 'SPLIT_MISMATCH', field: qtyField,
           message: label + ': per-tank split totals ' + fmtVal(sum) + ' but quantity added is ' + fmtVal(add) + '.' });
       }
     }
@@ -2176,13 +2212,14 @@
     const want = new Set(selectedItemNos(selectedItems));
     const eq = (setup && setup.equipment) || {};
 
-    function pushRateHint(label, qty, hours, rate, unit) {
+    function pushRateHint(label, qty, hours, rate, unit, field) {
       if (qty == null || hours == null || !(hours > 0) || rate == null || !(rate > 0)) return;
       const expected = rate * hours;
       const aligned = Math.abs(qty - expected) / expected * 100 <= tolPct(setup);
       hints.push({
         level: aligned ? 'info' : 'warn',
         code: 'RATE_ALIGN',
+        field: aligned ? '' : (field || ''),
         message: label + ': ' + fmtVal(qty) + ' ' + unit + ' recorded vs ' + fmtVal(rate) + ' ' + unit +
           '/h × ' + fmtVal(hours) + ' h ≈ ' + fmtVal(round3(expected)) + ' ' + unit +
           (aligned ? ' (within setup tolerance).' : ' — adjust quantity, duration, or rated capacity.')
@@ -2191,6 +2228,7 @@
         hints.push({
           level: 'info',
           code: 'RATE_SUGGEST_H',
+          field: field || '',
           message: 'Implied duration at rated capacity: ' + fmtVal(round3(qty / rate)) + ' h.'
         });
       }
@@ -2198,6 +2236,7 @@
         hints.push({
           level: 'info',
           code: 'RATE_SUGGEST_Q',
+          field: field || '',
           message: 'Implied quantity at rated capacity: ' + fmtVal(round3(rate * hours)) + ' ' + unit + '.'
         });
       }
@@ -2206,9 +2245,9 @@
     if (code === 'C' && want.has('12.3')) {
       const rate = numOrNull(eq.incineratorM3PerH);
       if (eq.incineratorFitted !== false && rate != null && rate > 0) {
-        pushRateHint('Incinerator burn', numOrNull(v.qtyDisposed), numOrNull(v.incinHours), rate, 'm³');
+        pushRateHint('Incinerator burn', numOrNull(v.qtyDisposed), numOrNull(v.incinHours), rate, 'm³', 'qtyDisposed');
       } else if (eq.incineratorFitted !== false) {
-        hints.push({ level: 'warn', code: 'INCIN_RATE_MISSING',
+        hints.push({ level: 'warn', code: 'INCIN_RATE_MISSING', field: 'incinHours',
           message: 'Set incinerator sludge capacity (m³/h) in ORB Vessel Setup to align burn time with quantity.' });
       }
     }
@@ -2216,16 +2255,16 @@
     if (code === 'C' && (want.has('12.1') || want.has('12.2'))) {
       const rate = numOrNull(eq.sludgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
       const hours = hoursBetween(v.timeStart, v.timeStop);
-      pushRateHint('Sludge / transfer pump', numOrNull(v.qtyDisposed), hours, rate, 'm³');
+      pushRateHint('Sludge / transfer pump', numOrNull(v.qtyDisposed), hours, rate, 'm³', 'qtyDisposed');
     }
 
     if (code === 'D') {
       const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
       const hours = hoursBetween(v.timeStart, v.timeStop);
-      pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³');
+      pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³', 'qty');
     }
 
-    function pushBunkerPairHint(rows, add, missingMsg, unit) {
+    function pushBunkerPairHint(rows, add, missingMsg, unit, field) {
       const u = unit || 'MT';
       if (rows.length) {
         const sum = bunkerPairedAddedSum(rows);
@@ -2234,20 +2273,23 @@
         hints.push({
           level: add == null ? 'warn' : (aligned ? 'info' : 'error'),
           code: 'BUNKER_TOTAL',
+          field: aligned ? '' : (field || ''),
           message: 'Per-tank ' + u + ' added: ' + parts.join('; ') + ' = ' + fmtVal(sum) + ' ' + u +
             (add == null ? '.' :
               (aligned ? ' (matches total quantity added ' + fmtVal(add) + ' ' + u + ').' :
                 ' — adjust total or per-tank ' + u + ' added (total is ' + fmtVal(add) + ' ' + u + ').'))
         });
       } else if (add != null) {
-        hints.push({ level: 'warn', code: 'BUNKER_TANKS_NEEDED', message: missingMsg });
+        hints.push({ level: 'warn', code: 'BUNKER_TANKS_NEEDED', field: field || '', message: missingMsg });
       }
     }
     if (code === 'H' && want.has('26.3')) {
       pushBunkerPairHint(
         resolveFuelBunkerTankRows(setup, v),
         numOrNull(v.fuelQty),
-        'Fuel bunkering: enter MT added and ROB after for at least one receiving tank.'
+        'Fuel bunkering: enter MT added and ROB after for at least one receiving tank.',
+        'MT',
+        'fuelQty'
       );
     }
     if (code === 'H' && want.has('26.4')) {
@@ -2255,11 +2297,36 @@
         resolveLubeBunkerTankRows(setup, v),
         numOrNull(v.lubeQty),
         'Lube oil bunkering: enter Ltrs added and ROB after for at least one receiving tank.',
-        'Ltrs'
+        'Ltrs',
+        'lubeQty'
       );
     }
 
     return hints;
+  }
+
+  /**
+   * Save and print stop on a validation error, a capacity warning, or an entry helper
+   * that is not merely informational. `field` is the input to focus.
+   */
+  function entrySaveBlockers(setup, part, code, selectedItems, values, scenarioId) {
+    const blocks = [];
+    const errors = validateEntry(part, code, selectedItems, values, setup, scenarioId);
+    errors.forEach((message, i) => {
+      blocks.push({
+        level: 'error',
+        code: 'VALIDATION',
+        message,
+        field: (errors.focusFields && errors.focusFields[i]) || ''
+      });
+    });
+    capacityWarnings(setup, part, code, selectedItems, values).forEach(w => {
+      if (w.level === 'error' || w.level === 'warn') blocks.push(w);
+    });
+    operationFieldHelpers(setup, part, code, selectedItems, values).forEach(h => {
+      if (h.level === 'error' || h.level === 'warn') blocks.push(h);
+    });
+    return blocks;
   }
 
   /**
@@ -2599,8 +2666,7 @@
         const dur = numOrNull(val.testDurationMin);
         if (dur != null && remark && remark.toLowerCase().indexOf('recirculation') !== -1) {
           text = 'Test of OWS through recirculation line for ' + fmtVal(dur) +
-            ' minutes and test of OCM with satisfactory results. ' +
-            [remark, extraDetailText(val, setup).replace(/duration of test[^.]+\.\s?/i, '')].filter(Boolean).join(' ');
+            ' minutes and test of OCM with satisfactory results.';
         } else {
           text = [remark, extraDetailText(val, setup)].filter(Boolean).join(' ');
         }
@@ -2707,35 +2773,62 @@
   function validateEntry(part, code, selectedItems, values, setup, scenarioId) {
     const op = getOperation(part, code);
     const errors = [];
-    if (!op) { errors.push('Unknown operation code.'); return errors; }
+    errors.focusFields = [];
+    function pushErr(message, field) {
+      errors.push(message);
+      errors.focusFields.push(field || '');
+    }
+    if (!op) { pushErr('Unknown operation code.', ''); return errors; }
     if (Number(part) === 2 && setup && setup.shipType !== 'tanker') {
-      errors.push('Part II is for oil tankers. Set ship type to Tanker in ORB Vessel Setup.');
+      pushErr('Part II is for oil tankers. Set ship type to Tanker in ORB Vessel Setup.', '');
     }
     const want = selectedItemNos(selectedItems);
-    if (!want.length) errors.push('Select at least one item number for this operation.');
+    if (!want.length) pushErr('Select at least one item number for this operation.', '');
     const byNo = {};
     op.items.forEach(it => { byNo[it.no] = it; });
     want.forEach(no => {
       const it = byNo[no];
-      if (!it) { errors.push('Unknown item ' + no); return; }
+      if (!it) { pushErr('Unknown item ' + no, ''); return; }
       (it.fields || []).forEach(f => {
         if (!f.required) return;
         let v = values[f.name];
         if (f.type === 'tankMulti') {
           const arr = Array.isArray(v) ? v : (v ? String(v).split('|') : []);
-          if (!arr.length) errors.push(f.label + ' is required (' + no + ').');
+          if (!arr.length) pushErr(f.label + ' is required (' + no + ').', f.name);
         } else if (v == null || String(v).trim() === '') {
-          errors.push(f.label + ' is required (' + no + ').');
+          pushErr(f.label + ' is required (' + no + ').', f.name);
         }
       });
     });
-    errors.push(...validateFuelBunkerQtyErrors(setup, code, selectedItems, values));
-    errors.push(...validateLubeBunkerQtyErrors(setup, code, selectedItems, values));
+    validateFuelBunkerQtyErrors(setup, code, selectedItems, values).forEach(message => {
+      pushErr(message, 'fuelQty');
+    });
+    validateLubeBunkerQtyErrors(setup, code, selectedItems, values).forEach(message => {
+      pushErr(message, 'lubeQty');
+    });
     const followScenario = scenarioId || (values && values.scenarioId) || '';
+    if (isOwsRecirculationTest(values, followScenario)) {
+      const dur = numOrNull(values && values.testDurationMin);
+      if (dur != null && dur < 10) {
+        pushErr('OWS / OCM recirculation test must run for at least 10 minutes. Entered duration is ' +
+          fmtVal(dur) + ' minutes.', 'testDurationMin');
+      }
+    }
     if (incineratorFollowOnActive(part, code, selectedItems, followScenario)) {
-      errors.push(...validateEntry(3, 'E', ['6', '7', '8'], values, setup, ''));
+      const followErrs = validateEntry(3, 'E', ['6', '7', '8'], values, setup, '');
+      followErrs.forEach((message, i) => {
+        pushErr(message, (followErrs.focusFields && followErrs.focusFields[i]) || '');
+      });
     }
     return errors;
+  }
+
+  /** OWS through the recirculation line — the 10-minute OCM test, not the weekly alarm test. */
+  function isOwsRecirculationTest(values, scenarioId) {
+    const sid = scenarioId || (values && values.scenarioId) || '';
+    if (sid === 'ows-ocm-test') return true;
+    const remark = String((values && values.remarks) || '').toLowerCase();
+    return remark.indexOf('recirculation') !== -1;
   }
 
   /**
@@ -3564,6 +3657,7 @@
     autofillOperationValues,
     capacityWarnings,
     operationFieldHelpers,
+    entrySaveBlockers,
     apiFromSpecificGravity,
     apiFromDensityKgM3,
     applyOperationRob,
