@@ -469,8 +469,8 @@
           field('prevOil', 'Previous oil type (if not cleaned)', 'text')
         ]},
         { no: '3.1', label: 'Cleaning — position & time start/completion', fields: [
-          field('cleanPosStart', 'Position at start', 'text'), field('cleanTimeStart', 'Time start', 'time'),
-          field('cleanPosEnd', 'Position at completion', 'text'), field('cleanTimeEnd', 'Time end', 'time')
+          field('cleanPosStart', 'Start Position', 'position'), field('cleanTimeStart', 'Start Time', 'time'),
+          field('cleanPosEnd', 'Stop Position', 'position'), field('cleanTimeEnd', 'Stop Time', 'time')
         ]},
         { no: '3.2', label: 'Cleaning method / chemicals', fields: [
           field('cleanMethod', 'Method', 'select', { options: ['Rinsing through', 'Steaming', 'Cleaning with chemicals', 'Other'] }),
@@ -481,8 +481,8 @@
           field('washQty', 'Quantity (m³)', 'number')
         ]},
         { no: '4.1', label: 'Ballasting — position & time', fields: [
-          field('balPosStart', 'Position start', 'text'), field('balTimeStart', 'Time start', 'time'),
-          field('balPosEnd', 'Position end', 'text'), field('balTimeEnd', 'Time end', 'time')
+          field('balPosStart', 'Start Position', 'position'), field('balTimeStart', 'Start Time', 'time'),
+          field('balPosEnd', 'Stop Position', 'position'), field('balTimeEnd', 'Stop Time', 'time')
         ]},
         { no: '4.2', label: 'Ballast quantity if tanks not cleaned (m³)', fields: [field('ballastQty', 'Quantity (m³)', 'number')] }
       ]
@@ -492,8 +492,8 @@
       guide: 'Discharge of dirty ballast/cleaning water from fuel oil tanks referred to under (A).',
       items: [
         { no: '5', label: 'Identity of tank(s)', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'fuel', required: true })] },
-        { no: '6', label: 'Position at start of discharge', fields: [field('posStart', 'Position', 'text', { required: true })] },
-        { no: '7', label: 'Position on completion', fields: [field('posEnd', 'Position', 'text', { required: true })] },
+        { no: '6', label: 'Position at start of discharge', fields: [field('posStart', 'Start Position', 'position', { required: true })] },
+        { no: '7', label: 'Position on completion', fields: [field('posEnd', 'Stop Position', 'position', { required: true })] },
         { no: '8', label: 'Ship’s speed(s) during discharge', fields: [field('speed', 'Speed (kn)', 'text')] },
         { no: '9.1', label: 'Method — through 15 ppm equipment', fields: [field('viaOws', 'Discharged via 15 ppm?', 'select', { options: ['Yes', 'No'] })] },
         { no: '9.2', label: 'Method — to reception facilities', fields: [field('receptionPort', 'Reception facility / port', 'text')] },
@@ -555,8 +555,8 @@
           field('timeStop', 'Stop time', 'time', { required: true })
         ]},
         { no: '15.1', label: 'Through 15 ppm equipment', fields: [
-          field('posStart', 'Position at start', 'text', { required: true }),
-          field('posEnd', 'Position at end', 'text', { required: true })
+          field('posStart', 'Start Position', 'position', { required: true }),
+          field('posEnd', 'Stop Position', 'position', { required: true })
         ]},
         { no: '15.2', label: 'To reception facilities', fields: [field('receptionPort', 'Port / facility', 'text', { required: true })] },
         { no: '15.3', label: 'To slop/holding/other tank(s)', fields: [
@@ -699,7 +699,7 @@
     ]},
     { code: 'E', title: 'Ballasting of cargo tanks', items: [
       { no: '18', label: 'Position at start and end of ballasting', fields: [
-        field('posStart', 'Position start', 'text'), field('posEnd', 'Position end', 'text')
+        field('posStart', 'Start Position', 'position'), field('posEnd', 'Stop Position', 'position')
       ]},
       { no: '19.1', label: 'Identity of tank(s) ballasted', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
       { no: '19.2', label: 'Time of start and end', fields: [field('timeStart', 'Start', 'time'), field('timeStop', 'End', 'time')] },
@@ -735,8 +735,8 @@
     ]},
     { code: 'H', title: 'Discharge of dirty ballast', items: [
       { no: '32', label: 'Identity of tank(s)', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
-      { no: '33', label: 'Time & position at start into the sea', fields: [field('timeStart', 'Time', 'time'), field('posStart', 'Position', 'text')] },
-      { no: '34', label: 'Time & position on completion into the sea', fields: [field('timeStop', 'Time', 'time'), field('posEnd', 'Position', 'text')] },
+      { no: '33', label: 'Time & position at start into the sea', fields: [field('timeStart', 'Start Time', 'time'), field('posStart', 'Start Position', 'position')] },
+      { no: '34', label: 'Time & position on completion into the sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
       { no: '35', label: 'Quantity discharged into the sea (m³)', fields: [field('seaQty', 'Quantity (m³)', 'number')] },
       { no: '36', label: 'Ship’s speed(s) during discharge', fields: [field('speed', 'Speed (kn)', 'text')] },
       { no: '37', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
@@ -753,12 +753,12 @@
       { no: '41', label: 'Identity of slop tanks', fields: [field('tanks', 'Slop tank(s)', 'tankMulti', { tankGroup: 'slop', required: true })] },
       { no: '42', label: 'Time of settling from last entry of residues', fields: [field('settleResidues', 'Settling time', 'text')] },
       { no: '43', label: 'Time of settling from last discharge', fields: [field('settleDischarge', 'Settling time', 'text')] },
-      { no: '44', label: 'Time & position at start of discharge', fields: [field('timeStart', 'Time', 'time'), field('posStart', 'Position', 'text')] },
+      { no: '44', label: 'Time & position at start of discharge', fields: [field('timeStart', 'Start Time', 'time'), field('posStart', 'Start Position', 'position')] },
       { no: '45', label: 'Ullage of total contents at start', fields: [field('ullageTotal', 'Ullage', 'text')] },
       { no: '46', label: 'Ullage of oil/water interface at start', fields: [field('ullageInterface', 'Interface ullage', 'text')] },
       { no: '47', label: 'Bulk quantity discharged & rate', fields: [field('bulkQty', 'Bulk (m³)', 'number'), field('bulkRate', 'Rate (m³/h)', 'number')] },
       { no: '48', label: 'Final quantity discharged & rate', fields: [field('finalQty', 'Final (m³)', 'number'), field('finalRate', 'Rate (m³/h)', 'number')] },
-      { no: '49', label: 'Time & position on completion', fields: [field('timeStop', 'Time', 'time'), field('posEnd', 'Position', 'text')] },
+      { no: '49', label: 'Time & position on completion', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
       { no: '50', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
       { no: '51', label: 'Interface ullage on completion (m)', fields: [field('ullageEnd', 'Ullage (m)', 'number')] },
       { no: '52', label: 'Ship’s speed(s)', fields: [field('speed', 'Speed (kn)', 'text')] },
@@ -781,16 +781,16 @@
       { no: '57.4', label: 'Other method', fields: [field('otherMethod', 'Method', 'text'), field('qty', 'Quantity (m³)', 'number')] }
     ]},
     { code: 'K', title: 'Discharge of clean ballast contained in cargo tanks', items: [
-      { no: '58', label: 'Position at start', fields: [field('posStart', 'Position', 'text')] },
+      { no: '58', label: 'Position at start', fields: [field('posStart', 'Start Position', 'position')] },
       { no: '59', label: 'Identity of tank(s) discharged', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo' })] },
       { no: '60', label: 'Tank(s) empty on completion?', fields: [field('emptied', 'Empty?', 'select', { options: ['Yes', 'No'] })] },
-      { no: '61', label: 'Position on completion (if different)', fields: [field('posEnd', 'Position', 'text')] },
+      { no: '61', label: 'Position on completion (if different)', fields: [field('posEnd', 'Stop Position', 'position')] },
       { no: '62', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] }
     ]},
     { code: 'L', title: 'Discharge of ballast from dedicated CBTs', items: [
       { no: '63', label: 'Identity of tank(s) discharged', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt' })] },
-      { no: '64', label: 'Time & position at start into sea', fields: [field('timeStart', 'Time', 'time'), field('posStart', 'Position', 'text')] },
-      { no: '65', label: 'Time & position on completion into sea', fields: [field('timeStop', 'Time', 'time'), field('posEnd', 'Position', 'text')] },
+      { no: '64', label: 'Time & position at start into sea', fields: [field('timeStart', 'Start Time', 'time'), field('posStart', 'Start Position', 'position')] },
+      { no: '65', label: 'Time & position on completion into sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
       { no: '66.1', label: 'Quantity into the sea (m³)', fields: [field('seaQty', 'Quantity (m³)', 'number')] },
       { no: '66.2', label: 'Quantity to reception facility', fields: [field('receptionPort', 'Port', 'text'), field('shoreQty', 'Quantity (m³)', 'number')] },
       { no: '67', label: 'Indication of oil contamination?', fields: [field('contamination', 'Contamination?', 'select', { options: ['Yes', 'No'] })] },
@@ -882,19 +882,20 @@
     },
     {
       code: 'E', title: 'Use of incinerator for garbage',
-      guide: 'Garbage burned in the shipboard incinerator. Oil residue (sludge) burned in the incinerator stays under Part I Code C item 12.3.',
+      guide: 'Sludge quantity burned stays under Part I Code C item 12.3.',
       common: true,
       items: [
-        { no: '1', label: 'Incinerator used for garbage', fields: [
-          field('timeStart', 'Start', 'time', { required: true }),
-          field('timeStop', 'Stop', 'time', { required: true }),
-          field('position', 'Position of ship', 'text', { required: true }),
-          field('garbageType', 'Garbage category', 'select', {
-            required: true,
-            options: ['Plastics', 'Food wastes', 'Domestic wastes', 'Cooking oil', 'Operational wastes', 'Oily rags', 'Other']
-          }),
-          field('garbageQty', 'Quantity incinerated (m³)', 'number', { required: true }),
-          field('remarks', 'Remarks', 'textarea')
+        { no: '6', label: 'Start and stop position and time', fields: [
+          field('posStart', 'Start Position', 'position', { required: true }),
+          field('timeStart', 'Start Time', 'time', { required: true }),
+          field('posEnd', 'Stop Position', 'position', { required: true }),
+          field('timeStop', 'Stop Time', 'time', { required: true })
+        ]},
+        { no: '7', label: 'Oxygen percentage in the combustion chamber', fields: [
+          field('oxygenPct', 'Oxygen Percentage', 'number', { required: true, suffix: 'in the combustion chamber' })
+        ]},
+        { no: '8', label: 'Combustion chamber temperature', fields: [
+          field('chamberTempC', 'Combustion chamber temperature', 'number', { required: true, suffix: 'Deg Celsius' })
         ]}
       ]
     }
@@ -1176,8 +1177,8 @@
       items: ['4'] },
     { id: 'incinerator-garbage', group: 'Incinerator', part: 3, code: 'E',
       title: 'Use of incinerator for garbage',
-      blurb: 'Garbage burned in the shipboard incinerator. Record start and stop, position, garbage category and quantity. Sludge burned in the incinerator stays under Part I Code C.12.3.',
-      items: ['1'],
+      blurb: 'Incinerator operation. Start and stop position in degrees and minutes, start and stop time UTC, oxygen percentage in the combustion chamber, and combustion chamber temperature. Sludge quantity burned stays under Part I Code C.12.3.',
+      items: ['6', '7', '8'],
       requires: { incinerator: true } }
   ];
 
@@ -2567,17 +2568,21 @@
         });
         return;
       }
-      if (Number(part) === 3 && code === 'E') {
-        const qty = fmtVal(val.garbageQty);
+      if (Number(part) === 3 && code === 'E' && item.no === '6') {
         text = [
-          'Use of incinerator for garbage',
-          val.garbageType ? String(val.garbageType).trim() : '',
-          qty !== '' ? (qty + ' m³') : '',
-          val.timeStart ? ('start ' + val.timeStart + ' UTC') : '',
-          val.timeStop ? ('stop ' + val.timeStop + ' UTC') : '',
-          val.position ? ('position ' + String(val.position).trim()) : '',
-          val.remarks ? String(val.remarks).trim() : ''
+          val.posStart ? ('Start position: ' + String(val.posStart).trim()) : '',
+          val.timeStart ? ('Start time: ' + val.timeStart + ' UTC') : '',
+          val.posEnd ? ('Stop position: ' + String(val.posEnd).trim()) : '',
+          val.timeStop ? ('Stop time: ' + val.timeStop + ' UTC') : ''
         ].filter(Boolean).join(', ');
+      }
+      if (Number(part) === 3 && code === 'E' && item.no === '7') {
+        const pct = fmtVal(val.oxygenPct);
+        text = pct !== '' ? ('Oxygen percentage: ' + pct + '% in the combustion chamber') : '';
+      }
+      if (Number(part) === 3 && code === 'E' && item.no === '8') {
+        const temp = fmtVal(val.chamberTempC);
+        text = temp !== '' ? ('Combustion chamber temperature: ' + temp + ' Deg Celsius') : '';
       }
       if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
         const remark = resolve(item.fields[0]);
@@ -2857,18 +2862,134 @@
       empty + optsHtml + '</select>';
   }
 
+  /**
+   * "12 deg 30 min N, 103 deg 51 min E" — the start/stop position written into the book.
+   * Returns '' until degrees, minutes and both hemispheres are filled in.
+   */
+  function formatLatLonPosition(parts) {
+    const p = parts || {};
+    const latDeg = String(p.latDeg ?? '').trim();
+    const latMin = String(p.latMin ?? '').trim();
+    const latHem = String(p.latHem || '').trim().toUpperCase();
+    const lonDeg = String(p.lonDeg ?? '').trim();
+    const lonMin = String(p.lonMin ?? '').trim();
+    const lonHem = String(p.lonHem || '').trim().toUpperCase();
+    if (!latDeg || !latMin || !lonDeg || !lonMin) return '';
+    if (latHem !== 'N' && latHem !== 'S') return '';
+    if (lonHem !== 'E' && lonHem !== 'W') return '';
+    return latDeg + ' deg ' + latMin + ' min ' + latHem + ', ' +
+      lonDeg + ' deg ' + lonMin + ' min ' + lonHem;
+  }
+
+  /**
+   * Records that take a start and a stop. Rows render in the book order:
+   * Start Position, Start Time UTC, Stop Position, Stop Time UTC.
+   * A row is omitted when that operation does not ask for it.
+   */
+  const POSITION_RUNS = [
+    [
+      { role: 'startPos', name: 'cleanPosStart', label: 'Start Position' },
+      { role: 'startTime', name: 'cleanTimeStart', label: 'Start Time' },
+      { role: 'stopPos', name: 'cleanPosEnd', label: 'Stop Position' },
+      { role: 'stopTime', name: 'cleanTimeEnd', label: 'Stop Time' }
+    ],
+    [
+      { role: 'startPos', name: 'balPosStart', label: 'Start Position' },
+      { role: 'startTime', name: 'balTimeStart', label: 'Start Time' },
+      { role: 'stopPos', name: 'balPosEnd', label: 'Stop Position' },
+      { role: 'stopTime', name: 'balTimeEnd', label: 'Stop Time' }
+    ],
+    [
+      { role: 'startPos', name: 'posStart', label: 'Start Position' },
+      { role: 'startTime', name: 'timeStart', label: 'Start Time' },
+      { role: 'stopPos', name: 'posEnd', label: 'Stop Position' },
+      { role: 'stopTime', name: 'timeStop', label: 'Stop Time' }
+    ]
+  ];
+
+  function positionRunsFor(selectedNames) {
+    return POSITION_RUNS.map(run => {
+      const hasPosition = run.some(row =>
+        (row.role === 'startPos' || row.role === 'stopPos') && selectedNames.has(row.name));
+      if (!hasPosition) return null;
+      const rows = run.filter(row => selectedNames.has(row.name));
+      return rows.length ? rows : null;
+    }).filter(Boolean);
+  }
+
+  function wizardHemSelect(part, options, label) {
+    const opts = '<option value=""></option>' +
+      options.map(o => '<option value="' + o + '">' + o + '</option>').join('');
+    return '<select class="orb-form-input orb-pos-hem" data-pos-part="' + part + '" aria-label="' +
+      escapeHtml(label) + '">' + opts + '</select>';
+  }
+
+  function wizardPosNumber(part, label, cls) {
+    return '<input type="number" step="any" min="0" class="orb-form-input ' + cls + '" data-pos-part="' +
+      part + '" aria-label="' + escapeHtml(label) + '">';
+  }
+
+  /** deg / min / hemisphere, then deg / min / hemisphere — latitude then longitude. */
+  function wizardLatLonHtml(name) {
+    return '<div class="orb-pos-line" data-orb-position="' + escapeHtml(name) + '">' +
+      wizardPosNumber('latDeg', 'Latitude degrees', 'orb-pos-deg') +
+      '<span class="orb-pos-unit">deg</span>' +
+      wizardPosNumber('latMin', 'Latitude minutes', 'orb-pos-min') +
+      '<span class="orb-pos-unit">min</span>' +
+      wizardHemSelect('latHem', ['N', 'S'], 'Latitude hemisphere') +
+      '<span class="orb-pos-unit">,</span>' +
+      wizardPosNumber('lonDeg', 'Longitude degrees', 'orb-pos-deg') +
+      '<span class="orb-pos-unit">deg</span>' +
+      wizardPosNumber('lonMin', 'Longitude minutes', 'orb-pos-min') +
+      '<span class="orb-pos-unit">min</span>' +
+      wizardHemSelect('lonHem', ['E', 'W'], 'Longitude hemisphere') +
+      '<input type="hidden" data-orb-field="' + escapeHtml(name) + '" value="">' +
+      '</div>';
+  }
+
+  function wizardUtcTimeHtml(name, value) {
+    const v = value != null && value !== '' ? ' value="' + escapeHtml(String(value)) + '"' : '';
+    return '<input type="time" class="orb-form-input orb-pos-time" data-orb-field="' + escapeHtml(name) + '"' +
+      v + ' aria-label="' + escapeHtml(name) + '">' +
+      '<span class="orb-pos-unit">UTC</span>';
+  }
+
+  function wizardPositionRunHtml(rows, presets) {
+    const p = presets || {};
+    let html = '<div class="orb-pos-run">';
+    rows.forEach(row => {
+      const control = (row.role === 'startPos' || row.role === 'stopPos')
+        ? wizardLatLonHtml(row.name)
+        : wizardUtcTimeHtml(row.name, p[row.name]);
+      html += '<div class="orb-pos-row"><span class="orb-pos-label">' + escapeHtml(row.label) +
+        ':</span>' + control + '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
   function wizardControlForField(f, setup, opts, presets, bunkerFam) {
     const p = presets || {};
     if (f.type === 'tank' || f.type === 'tankMulti') return wizardTankSelectHtml(f, setup, opts);
+    if (f.type === 'position') return wizardLatLonHtml(f.name);
     if (f.bunkerSelect === 'type') return wizardBunkerSelectHtml(f.name, bunkerFam.types, p[f.name]);
     if (f.bunkerSelect === 'iso') return wizardBunkerSelectHtml(f.name, bunkerFam.iso, p[f.name]);
     return wizardInputHtml(f, p[f.name]);
   }
 
   function wizardLabeledField(f, setup, opts, presets, bunkerFam) {
+    const control = wizardControlForField(f, setup, opts, presets, bunkerFam);
+    if (f.suffix) {
+      return '<div class="orb-wizard-field orb-inline-suffix">' +
+        '<label>' + escapeHtml(f.label) + ':</label>' +
+        '<div class="orb-suffix-row">' + control +
+        '<span class="orb-pos-unit">' + escapeHtml(f.suffix) + '</span></div>' +
+        (f.hint ? '<span class="hint">' + escapeHtml(f.hint) + '</span>' : '') +
+        '</div>';
+    }
     return '<div class="orb-wizard-field">' +
       '<label>' + escapeHtml(f.label) + '</label>' +
-      wizardControlForField(f, setup, opts, presets, bunkerFam) +
+      control +
       (f.hint ? '<span class="hint">' + escapeHtml(f.hint) + '</span>' : '') +
       '</div>';
   }
@@ -2883,14 +3004,14 @@
       });
       return '';
     }
-    let html = '<div class="orb-wizard-fields">';
+    let inner = '';
     (item.fields || []).forEach(f => {
       if (seen.has(f.name)) return;
       seen.add(f.name);
-      html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      inner += wizardLabeledField(f, setup, opts, presets, bunkerFam);
     });
-    html += '</div>';
-    return html;
+    if (!inner) return '';
+    return '<div class="orb-wizard-fields">' + inner + '</div>';
   }
 
   function wizardBunkerTankTableHtml(setup, tanks, presets, kind) {
@@ -3068,6 +3189,13 @@
     const presets = opts.presets || {};
     const seen = new Set();
     const bunkerFam = BUNKER_FUEL_FAMILY[opts.bunkerFuelCategory] || BUNKER_FUEL_FAMILY.residual;
+    const selectedNames = new Set();
+    (op.items || []).forEach(it => {
+      if (sel.size && !sel.has(it.no)) return;
+      (it.fields || []).forEach(f => selectedNames.add(f.name));
+    });
+    const positionRuns = positionRunsFor(selectedNames);
+    const positionRunDone = new Set();
     let panel = '';
     const selSet = sel;
     const isBunkerEntry = Number(part) === 1 && code === 'H' &&
@@ -3078,10 +3206,21 @@
     (op.items || []).forEach(it => {
       if (sel.size && !sel.has(it.no)) return;
       if (isBunkerEntry && (it.no === '26.1' || it.no === '26.2' || it.no === '26.3' || it.no === '26.4')) return;
+      let runHtml = '';
+      positionRuns.forEach((rows, idx) => {
+        if (positionRunDone.has(idx)) return;
+        const names = new Set(rows.map(row => row.name));
+        if (!(it.fields || []).some(f => names.has(f.name))) return;
+        positionRunDone.add(idx);
+        rows.forEach(row => seen.add(row.name));
+        runHtml += wizardPositionRunHtml(rows, presets);
+      });
+      const simpleHtml = wizardSimpleItemFieldsHtml(part, code, it, setup, opts, presets, seen, bunkerFam);
+      if (!runHtml && !simpleHtml) return;
       panel += '<section class="orb-wizard-section" data-orb-item="' + escapeHtml(it.no) + '">' +
         '<h3 class="orb-wizard-section-title">Item ' + escapeHtml(String(it.no)) + '</h3>' +
         '<p class="hint orb-wizard-item-label">' + escapeHtml(it.label || '') + '</p>' +
-        wizardSimpleItemFieldsHtml(part, code, it, setup, opts, presets, seen, bunkerFam) +
+        runHtml + simpleHtml +
         '</section>';
     });
     if (!panel) {
@@ -3408,6 +3547,7 @@
     owsDischargePrereqErrors,
     owsDischargePrereqChecklist,
     buildWizardFormSheet,
+    formatLatLonPosition,
     lastMatchingEntryDate,
     weeklyDueStatus,
     weeklyInventoryDateError
