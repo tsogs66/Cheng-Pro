@@ -156,10 +156,10 @@ const lubeLines = EORB.buildItemLines(1, 'H', ['26.4'], {
   lubeSplit: 'cyl1=8, sump1=4', lubeRobSplit: 'cyl1=16, sump1=14'
 }, lubeSetup);
 const lubeText = (lubeLines.find(l => l.itemNo === '26.4') || {}).text || '';
-checkTrue('lube summary names grade and MT', lubeText.indexOf('12 MT') !== -1 && lubeText.indexOf('Cylinder oil') !== -1);
+checkTrue('lube summary names grade and litres', lubeText.indexOf('12 Ltrs') !== -1 && lubeText.indexOf('Cylinder oil') !== -1);
 checkTrue('lube per-tank added and ROB lines', lubeLines.some(l =>
-  /8 MT added to/i.test(l.text) && /now containing 16 MT/i.test(l.text)));
-check('two lube tank detail rows', lubeLines.filter(l => /MT added to/i.test(l.text)).length, 2);
+  /8 Ltrs added to/i.test(l.text) && /now containing 16 Ltrs/i.test(l.text)));
+check('two lube tank detail rows', lubeLines.filter(l => /Ltrs added to/i.test(l.text)).length, 2);
 const lubePaired = EORB.resolveLubeBunkerTankRows(lubeSetup, {
   lubeQty: 8, lubeTank: 'cyl1|sump1', lubeSplit: 'cyl1=8, sump1=4', lubeRobSplit: 'cyl1=16'
 });
@@ -169,19 +169,19 @@ const lubeQtyErrs = EORB.validateEntry(1, 'H', ['26.1', '26.2', '26.4'], {
   lubeTank: 'cyl1', lubeSplit: 'cyl1=8', lubeRobSplit: 'cyl1=16'
 }, lubeSetup);
 checkTrue('lube rejects total that does not match per-tank sum',
-  lubeQtyErrs.some(e => /must equal the sum of per-tank MT added/i.test(e)));
+  lubeQtyErrs.some(e => /must equal the sum of per-tank Ltrs added/i.test(e)));
 const lubeForm = EORB.buildWizardFormSheet(1, 'H', EORB.getOperation(1, 'H'), lubeSetup,
   { scenarioId: 'bunker-lube' }, ['26.1', '26.2', '26.4']);
-checkTrue('lube form uses the per-tank MT table', lubeForm.html.indexOf('data-orb-bunker-kind="lube"') !== -1 &&
-  lubeForm.html.indexOf('MT added') !== -1);
-checkTrue('lube form asks for type and total MT', lubeForm.html.indexOf('data-orb-field="lubeType"') !== -1 &&
-  lubeForm.html.indexOf('data-orb-field="lubeQty"') !== -1);
+checkTrue('lube form uses the per-tank litres table', lubeForm.html.indexOf('data-orb-bunker-kind="lube"') !== -1 &&
+  lubeForm.html.indexOf('Ltrs added') !== -1 && lubeForm.html.indexOf('>MT added<') === -1);
+checkTrue('lube form asks for type and total litres', lubeForm.html.indexOf('data-orb-field="lubeType"') !== -1 &&
+  lubeForm.html.indexOf('Total quantity added (Ltrs)') !== -1);
 const lubeSupp = EORB.buildItemLines(1, 'H', ['26.4'], {
   place: 'Singapore', lubeType: 'Cylinder oil', lubeQty: 12,
   lubeTank: 'cyl1', lubeSplit: 'cyl1=12', lubeRobSplit: 'cyl1=20'
 }, lubeSetup);
-checkTrue('lube Part III supplement uses MT', lubeSupp.some(l =>
-  l.recordPart === 3 && /12 MT bulk lubricating oil/i.test(l.text)));
+checkTrue('lube Part III supplement uses litres', lubeSupp.some(l =>
+  l.recordPart === 3 && /12 Ltrs bulk lubricating oil/i.test(l.text)));
 
 console.log('\nbunkering fuel family — residual vs distillate tanks');
 checkTrue('residual ISO list includes RMG 380', EORB.BUNKER_FUEL_FAMILY.residual.iso.indexOf('RMG 380') !== -1);
@@ -205,12 +205,19 @@ checkTrue('fuel type select present', bunkerForm.html.indexOf('data-orb-field="f
 
 console.log('\nPart III supplements — incinerator, OWS, de-bunkering');
 const incLines = EORB.buildItemLines(1, 'C', ['12.3'], {
-  qtyDisposed: 0.5, tankEmptied: 'sludge1', retained: 0.2, incinHours: 10
+  qtyDisposed: 0.5, tankEmptied: 'sludge1', retained: 0.2, incinHours: 10,
+  posStart: '01 deg 12 min N, 103 deg 51 min E', timeStart: '08:00',
+  posEnd: '01 deg 18 min N, 103 deg 55 min E', timeStop: '10:30',
+  oxygenPct: 8, chamberTempC: 850
 }, EORB.defaultOrbSetup({ equipment: { incineratorM3PerH: 0.05 }, tanks: { sludge: [
   { id: 'sludge1', name: 'Sludge Tank', capacityM3: 5, robM3: 1 }
 ] } }));
-checkTrue('incinerator adds Part III supplement', incLines.some(l =>
-  l.recordPart === 3 && /incinerator/i.test(l.text) && l.itemNo === '3'));
+checkTrue('sludge burn keeps Code C quantity', incLines.some(l => l.itemNo === '12.3' && /0\.5 m³/.test(l.text)));
+checkTrue('sludge burn continues as Part III E', incLines.some(l =>
+  l.recordPart === 3 && l.recordCode === 'E' && l.itemNo === '6' && /Start position/.test(l.text)));
+checkTrue('sludge burn records oxygen and temperature',
+  incLines.some(l => l.itemNo === '7' && /8%/.test(l.text)) &&
+  incLines.some(l => l.itemNo === '8' && /850 Deg Celsius/.test(l.text)));
 const owsLines = EORB.buildItemLines(1, 'I', ['I'], { remarks: 'Weekly test', testDurationMin: 15 },
   EORB.defaultOrbSetup({}), 'ows-weekly-test');
 checkTrue('OWS weekly test adds Part III supplement', owsLines.some(l => l.recordPart === 3 && /OWS/i.test(l.text)));
@@ -336,12 +343,12 @@ console.log('\nthe operation list covers what the flag e-ORB offers');
     ['I', 'I', 'evaporation of water from a bilge tank'],
     ['I', 'I', 'OWS / OCM test'],
     ['I', 'I', 'condensate from air coolers to a bilge holding tank'],
-    ['I', 'I', 'additional operational procedures and general remarks']
+    ['I', 'I', 'additional operational procedures and general remarks'],
+    ['I', 'I', 'garbage incinerated']
   ];
   const WANTED_PART3 = [
     ['C', '2', 'change over completion from HFO to MGO'],
-    ['C', '3', 'change over commencement from MGO to HFO'],
-    ['E', '6', 'use of incinerator for garbage']
+    ['C', '3', 'change over commencement from MGO to HFO']
   ];
   const part1 = EORB.SCENARIOS.filter(s => Number(s.part) === 1);
   const covered = (code, item) => part1.some(s => s.code === code && (s.items || []).indexOf(item) !== -1);
@@ -403,7 +410,30 @@ console.log('\nPart III — fuel changeover (Annex VI Reg. 14.6)');
   check('Part III operations', EORB.getPartOps(3).map(op => op.code), ['C', 'E']);
   check('four changeover events', EORB.getPartOps(3)[0].items.map(i => i.no), ['1', '2', '3', '4']);
   check('incinerator items are 6, 7 and 8', EORB.getPartOps(3)[1].items.map(i => i.no), ['6', '7', '8']);
-  check('a scenario for each changeover plus incinerator', EORB.getScenarios(s5, 3).length, 5);
+  check('a scenario for each changeover', EORB.getScenarios(s5, 3).length, 4);
+  const garbScenario = EORB.getScenario('incinerator-garbage');
+  check('garbage burning starts as Code I', garbScenario && garbScenario.code, 'I');
+  check('garbage burning is a Part I entry', garbScenario && garbScenario.part, 1);
+  const garbForm = EORB.buildWizardFormSheet(1, 'I', EORB.getOperation(1, 'I'), s5,
+    { scenarioId: 'incinerator-garbage' }, ['I']);
+  checkTrue('garbage form asks for a description then Part III E',
+    garbForm.html.indexOf('Description') !== -1 &&
+    garbForm.html.indexOf('Code I') < garbForm.html.indexOf('Part III E') &&
+    garbForm.html.indexOf('data-orb-position="posStart"') !== -1);
+  const garbEntry = EORB.buildItemLines(1, 'I', ['I'], {
+    remarks: 'Food waste and oily rags',
+    posStart: '01 deg 12 min N, 103 deg 51 min E', timeStart: '08:00',
+    posEnd: '01 deg 18 min N, 103 deg 55 min E', timeStop: '10:30',
+    oxygenPct: 6, chamberTempC: 800
+  }, s5, 'incinerator-garbage');
+  checkTrue('garbage description is the Code I line', garbEntry[0].text.indexOf('Food waste and oily rags') !== -1 && !garbEntry[0].recordPart);
+  checkTrue('garbage continues as Part III E', garbEntry.some(l => l.recordCode === 'E' && l.itemNo === '6'));
+  const burnForm = EORB.buildWizardFormSheet(1, 'C', EORB.getOperation(1, 'C'), s5,
+    { scenarioId: 'sludge-incinerated' }, ['12.3']);
+  checkTrue('sludge burn form includes the start and stop arrangement',
+    burnForm.html.indexOf('Item 12.3') !== -1 &&
+    burnForm.html.indexOf('Item 12.3') < burnForm.html.indexOf('Part III E') &&
+    burnForm.html.indexOf('data-orb-position="posStart"') !== -1);
   check('lat/lon wording', EORB.formatLatLonPosition({
     latDeg: '01', latMin: '12.5', latHem: 'N', lonDeg: '103', lonMin: '51.2', lonHem: 'E'
   }), '01 deg 12.5 min N, 103 deg 51.2 min E');

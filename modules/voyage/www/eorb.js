@@ -80,29 +80,8 @@
         const text = [
           String(v.place || '').trim() ? ('At: ' + v.place + ' received') : 'Lubricating oil received',
           grade ? ('Type: ' + grade) : '',
-          qty !== '' ? (qty + ' MT bulk lubricating oil bunkered') : ''
+          qty !== '' ? (qty + ' Ltrs bulk lubricating oil bunkered') : ''
         ].filter(Boolean).join('. ');
-        return text ? [{ itemNo: '3', text }] : [];
-      }
-    },
-    {
-      id: 'incinerator-operation',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'C' && ctx.items.indexOf('12.3') !== -1;
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const qty = fmtVal(v.qtyDisposed);
-        const hrs = fmtVal(v.incinHours);
-        const rate = ctx.setup && ctx.setup.equipment && numOrNull(ctx.setup.equipment.incineratorM3PerH);
-        const tank = v.tankEmptied ? tankIdentity(ctx.setup, v.tankEmptied) : '';
-        const text = [
-          'Incinerator: ' + qty + ' m³ oil residue burned' + (tank ? (' from ' + tank) : ''),
-          hrs !== '' ? ('total time of operation ' + hrs + ' h') : '',
-          v.retained != null && String(v.retained).trim() !== '' ? (fmtVal(v.retained) + ' m³ retained in source tank') : '',
-          rate != null ? ('ship incinerator rated capacity ' + fmtVal(rate) + ' m³/h') : ''
-        ].filter(Boolean).join(', ');
         return text ? [{ itemNo: '3', text }] : [];
       }
     },
@@ -269,6 +248,34 @@
           showCode: i === 0,
           text: sl.text
         });
+      });
+    });
+  }
+
+  /**
+   * Burning sludge (C.12.3) and burning garbage (Code I description) both continue
+   * into Part III E: start/stop position and time, oxygen, combustion temperature.
+   */
+  function incineratorFollowOnActive(part, code, selectedItems, scenarioId) {
+    if (Number(part) === 3 && code === 'E') return false;
+    if (scenarioId === 'incinerator-garbage' && Number(part) === 1 && code === 'I') return true;
+    const items = selectedItemNos(selectedItems);
+    return Number(part) === 1 && code === 'C' && items.indexOf('12.3') !== -1;
+  }
+
+  function appendIncineratorFollowOnLines(lines, part, code, selectedItems, val, setup, scenarioId) {
+    if (!incineratorFollowOnActive(part, code, selectedItems, scenarioId)) return;
+    const follow = buildItemLines(3, 'E', ['6', '7', '8'], val, setup, '');
+    follow.forEach((ln, i) => {
+      if (!ln || !ln.text) return;
+      lines.push({
+        itemNo: ln.itemNo,
+        text: ln.text,
+        recordPart: 3,
+        recordCode: 'E',
+        showDate: i === 0,
+        showCode: i === 0,
+        signBreak: i === 0
       });
     });
   }
@@ -632,14 +639,14 @@
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
           field('lubeType', 'Lube type / grade', 'text', { required: true }),
-          field('lubeQty', 'Total quantity added (MT)', 'number', { required: true }),
+          field('lubeQty', 'Total quantity added (Ltrs)', 'number', { required: true }),
           field('lubeTank', 'Receiving tank(s)', 'tankMulti', { tankGroup: 'lube', required: true }),
           field('lubeTankOther', 'Tank(s) — if not listed in ORB setup', 'text'),
-          field('lubeSplit', 'Per-tank quantity added (MT)', 'text',
+          field('lubeSplit', 'Per-tank quantity added (Ltrs)', 'text',
             { hint: 'Filled from the per-tank rows on the form — e.g. cyl1=12, sump=5.' }),
-          field('lubeRobSplit', 'Per-tank content after bunkering (MT)', 'text',
+          field('lubeRobSplit', 'Per-tank content after bunkering (Ltrs)', 'text',
             { hint: 'ROB in each tank after loading — e.g. cyl1=20, sump=15.' }),
-          field('lubeTotal', 'Total content (legacy single field, MT)', 'number')
+          field('lubeTotal', 'Total content (legacy single field, Ltrs)', 'number')
         ]}
       ]
     },
@@ -949,7 +956,7 @@
       presets: { fuelType: 'MGO', fuelIsoSpec: 'DMA' } },
     { id: 'bunker-lube', group: 'Fuel oil', part: 1, code: 'H',
       title: 'Bunkering of bulk lubricating oil',
-      blurb: 'Taking bulk lubricating oil into lube tanks. Same Code H record as fuel and diesel — grade, total quantity added (MT), and per-tank MT added with ROB after loading.',
+      blurb: 'Taking bulk lubricating oil into lube tanks. Same Code H record as fuel and diesel — grade, total quantity added (Ltrs), and per-tank litres added with ROB after loading.',
       items: ['26.1', '26.2', '26.4'] },
     { id: 'fo-tank-ballast', group: 'Fuel oil', part: 1, code: 'A',
       title: 'Ballasting or cleaning a fuel oil tank',
@@ -1040,8 +1047,12 @@
     /* ---- Incineration & disposal ---- */
     { id: 'sludge-incinerated', group: 'Incineration & disposal', part: 1, code: 'C',
       title: 'Sludge incinerated',
-      blurb: 'Burning oil residue in the incinerator. Records quantity, tank, retained quantity and total burn time.',
+      blurb: 'Burning oil residue in the incinerator. Code C.12.3 is the quantity, tank, quantity retained and burn time. Part III E is the start and stop position and time, oxygen percentage and combustion chamber temperature.',
       items: ['12.3'], requires: { incinerator: true } },
+    { id: 'incinerator-garbage', group: 'Incineration & disposal', part: 1, code: 'I',
+      title: 'Garbage incinerated',
+      blurb: 'Burning garbage in the incinerator. Code I is the description of what was burned. Part III E follows with start and stop position and time, oxygen percentage and combustion chamber temperature.',
+      items: ['I'], requires: { incinerator: true } },
     { id: 'sludge-other-disposal', group: 'Incineration & disposal', part: 1, code: 'C',
       title: 'Sludge disposed by another method',
       blurb: 'Any disposal route other than reception facility, transfer or incineration — state the method.',
@@ -1175,11 +1186,6 @@
       title: 'Changeover completion — MGO to HFO',
       blurb: 'Changeover back to residual fuel complete, with position, time and the low-sulphur volume remaining on board.',
       items: ['4'] },
-    { id: 'incinerator-garbage', group: 'Incinerator', part: 3, code: 'E',
-      title: 'Use of incinerator for garbage',
-      blurb: 'Incinerator operation. Start and stop position in degrees and minutes, start and stop time UTC, oxygen percentage in the combustion chamber, and combustion chamber temperature. Sludge quantity burned stays under Part I Code C.12.3.',
-      items: ['6', '7', '8'],
-      requires: { incinerator: true } }
   ];
 
   /** Scenarios available for a part, filtered by what the ship is actually fitted with. */
@@ -1786,17 +1792,18 @@
     return bunkerPairedAddedSum(resolveFuelBunkerTankRows(setup, values));
   }
 
-  function validatePairedBunkerQtyErrors(rows, total) {
+  function validatePairedBunkerQtyErrors(rows, total, unit) {
+    const u = unit || 'MT';
     const errors = [];
     if (!rows.length) {
-      errors.push('Enter MT added and ROB after (MT) for at least one receiving tank. Blank tanks are excluded from the ORB record.');
+      errors.push('Enter ' + u + ' added and ROB after (' + u + ') for at least one receiving tank. Blank tanks are excluded from the ORB record.');
       return errors;
     }
     const sum = bunkerPairedAddedSum(rows);
     if (total == null) return errors;
     if (Math.abs(sum - total) > 0.001) {
-      errors.push('Total quantity added (' + fmtVal(total) + ' MT) must equal the sum of per-tank MT added (' +
-        fmtVal(sum) + ' MT).');
+      errors.push('Total quantity added (' + fmtVal(total) + ' ' + u + ') must equal the sum of per-tank ' + u + ' added (' +
+        fmtVal(sum) + ' ' + u + ').');
     }
     return errors;
   }
@@ -1813,7 +1820,8 @@
     if (code !== 'H' || !selectedItemNos(selectedItems).includes('26.4')) return [];
     return validatePairedBunkerQtyErrors(
       resolveLubeBunkerTankRows(setup, values),
-      numOrNull((values || {}).lubeQty)
+      numOrNull((values || {}).lubeQty),
+      'Ltrs'
     );
   }
 
@@ -1967,7 +1975,7 @@
           + (shares.size > 1 ? ' across ' + shares.size + ' tanks.' : '.'));
       }
     }
-    function autofillBunkerRobSplit(tankField, qtyField, splitField, robField) {
+    function autofillBunkerRobSplit(tankField, qtyField, splitField, robField, unit) {
       const ids = tankIdList(v[tankField]);
       const add = numOrNull(v[qtyField]);
       const shares = resolveTankShares(setup, ids, add, v[splitField]);
@@ -1979,7 +1987,7 @@
         parts.push(id + '=' + round3(prior + qty));
       });
       v[robField] = parts.join(', ');
-      notes.push('Per-tank ROB after bunkering auto-calculated (prior + MT added).');
+      notes.push('Per-tank ROB after bunkering auto-calculated (prior + ' + (unit || 'MT') + ' added).');
     }
     if (code === 'H' && want.has('26.3')) {
       bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
@@ -1987,7 +1995,7 @@
     }
     if (code === 'H' && want.has('26.4')) {
       bunkerTotals('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil tank');
-      autofillBunkerRobSplit('lubeTank', 'lubeQty', 'lubeSplit', 'lubeRobSplit');
+      autofillBunkerRobSplit('lubeTank', 'lubeQty', 'lubeSplit', 'lubeRobSplit', 'Ltrs');
     }
 
     return { values: v, notes };
@@ -2217,18 +2225,19 @@
       pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³');
     }
 
-    function pushBunkerPairHint(rows, add, missingMsg) {
+    function pushBunkerPairHint(rows, add, missingMsg, unit) {
+      const u = unit || 'MT';
       if (rows.length) {
         const sum = bunkerPairedAddedSum(rows);
-        const parts = rows.map(r => tankLabel(setup, r.id) + ' +' + fmtVal(r.added) + ' MT');
+        const parts = rows.map(r => tankLabel(setup, r.id) + ' +' + fmtVal(r.added) + ' ' + u);
         const aligned = add != null && Math.abs(sum - add) <= 0.001;
         hints.push({
           level: add == null ? 'warn' : (aligned ? 'info' : 'error'),
           code: 'BUNKER_TOTAL',
-          message: 'Per-tank MT added: ' + parts.join('; ') + ' = ' + fmtVal(sum) + ' MT' +
+          message: 'Per-tank ' + u + ' added: ' + parts.join('; ') + ' = ' + fmtVal(sum) + ' ' + u +
             (add == null ? '.' :
-              (aligned ? ' (matches total quantity added ' + fmtVal(add) + ' MT).' :
-                ' — adjust total or per-tank MT added (total is ' + fmtVal(add) + ' MT).'))
+              (aligned ? ' (matches total quantity added ' + fmtVal(add) + ' ' + u + ').' :
+                ' — adjust total or per-tank ' + u + ' added (total is ' + fmtVal(add) + ' ' + u + ').'))
         });
       } else if (add != null) {
         hints.push({ level: 'warn', code: 'BUNKER_TANKS_NEEDED', message: missingMsg });
@@ -2245,7 +2254,8 @@
       pushBunkerPairHint(
         resolveLubeBunkerTankRows(setup, v),
         numOrNull(v.lubeQty),
-        'Lube oil bunkering: enter MT added and ROB after for at least one receiving tank.'
+        'Lube oil bunkering: enter Ltrs added and ROB after for at least one receiving tank.',
+        'Ltrs'
       );
     }
 
@@ -2555,15 +2565,15 @@
       if (code === 'H' && item.no === '26.4') {
         const grade = String(val.lubeType || '').trim();
         const qty = fmtVal(val.lubeQty);
-        const summary = [qty !== '' ? (qty + ' MT') : '', grade].filter(Boolean).join(' ') + ' bunkered in tanks:';
+        const summary = [qty !== '' ? (qty + ' Ltrs') : '', grade].filter(Boolean).join(' ') + ' bunkered in tanks:';
         lines.push({ itemNo: '26.4', text: summary });
         resolveLubeBunkerTankRows(setup, val).forEach(row => {
           const added = row.added != null ? fmtVal(row.added) : '—';
           const rob = row.rob != null ? fmtVal(row.rob) : '—';
           lines.push({
             itemNo: '',
-            text: added + ' MT added to ' + String(row.label || '').toUpperCase() +
-              ' now containing ' + rob + ' MT'
+            text: added + ' Ltrs added to ' + String(row.label || '').toUpperCase() +
+              ' now containing ' + rob + ' Ltrs'
           });
         });
         return;
@@ -2611,8 +2621,9 @@
       const itemNo = ((code === 'I' && item.no === 'I') || (code === 'O' && item.no === 'O')) ? '' : item.no;
       lines.push({ itemNo, text });
     });
-    appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup,
-      arguments.length > 5 ? arguments[5] : (val.scenarioId || ''));
+    const scenarioId = arguments.length > 5 ? arguments[5] : (val.scenarioId || '');
+    appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup, scenarioId);
+    appendIncineratorFollowOnLines(lines, part, code, selectedItems, val, setup, scenarioId);
     return lines;
   }
 
@@ -2659,14 +2670,23 @@
     if (!entry) return [];
     const lines = (entry.lines || []).filter(ln => ln && String(ln.text || '').trim() !== '');
     if (lines.length <= 1) return [entry];
-    const groupId = entry.entryGroupId || entry.id;
+    let groupId = entry.entryGroupId || entry.id;
+    let secPart = Number(entry.part) || 1;
+    let secCode = entry.code;
     return lines.map((ln, idx) => {
+      if (ln.signBreak && idx > 0) {
+        groupId = String(entry.id || 'orb') + '_follow';
+        if (ln.recordPart != null) secPart = Number(ln.recordPart);
+        if (ln.recordCode != null) secCode = String(ln.recordCode);
+      }
       const itemNo = ln.itemNo != null && String(ln.itemNo) !== '' ? String(ln.itemNo) : null;
       let selectedItems = entry.selectedItems || [];
-      if (itemNo && entry.code !== 'I' && entry.code !== 'O') selectedItems = [itemNo];
-      else if (itemNo === '' && (entry.code === 'I' || entry.code === 'O')) selectedItems = [entry.code];
+      if (itemNo && secCode !== 'I' && secCode !== 'O') selectedItems = [itemNo];
+      else if (itemNo === '' && (secCode === 'I' || secCode === 'O')) selectedItems = [secCode];
       return Object.assign({}, entry, {
         id: idx === 0 ? entry.id : (String(entry.id) + '_L' + idx),
+        part: secPart,
+        code: secCode,
         entryGroupId: groupId,
         lineIndex: idx,
         selectedItems,
@@ -2684,7 +2704,7 @@
     return splitEntryPerItemLine(withLines);
   }
 
-  function validateEntry(part, code, selectedItems, values, setup) {
+  function validateEntry(part, code, selectedItems, values, setup, scenarioId) {
     const op = getOperation(part, code);
     const errors = [];
     if (!op) { errors.push('Unknown operation code.'); return errors; }
@@ -2711,6 +2731,10 @@
     });
     errors.push(...validateFuelBunkerQtyErrors(setup, code, selectedItems, values));
     errors.push(...validateLubeBunkerQtyErrors(setup, code, selectedItems, values));
+    const followScenario = scenarioId || (values && values.scenarioId) || '';
+    if (incineratorFollowOnActive(part, code, selectedItems, followScenario)) {
+      errors.push(...validateEntry(3, 'E', ['6', '7', '8'], values, setup, ''));
+    }
     return errors;
   }
 
@@ -3008,13 +3032,18 @@
     (item.fields || []).forEach(f => {
       if (seen.has(f.name)) return;
       seen.add(f.name);
-      inner += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      let shown = f;
+      if (opts && opts.scenarioId === 'incinerator-garbage' && f.name === 'remarks') {
+        shown = Object.assign({}, f, { label: 'Description' });
+      }
+      inner += wizardLabeledField(shown, setup, opts, presets, bunkerFam);
     });
     if (!inner) return '';
     return '<div class="orb-wizard-fields">' + inner + '</div>';
   }
 
   function wizardBunkerTankTableHtml(setup, tanks, presets, kind) {
+    const unit = kind === 'lube' ? 'Ltrs' : 'MT';
     const splitKey = kind === 'lube' ? 'lubeSplit' : 'fuelSplit';
     const robKey = kind === 'lube' ? 'lubeRobSplit' : 'fuelRobSplit';
     const ids = tanks.map(t => t.id);
@@ -3027,12 +3056,12 @@
       return '<tr class="orb-bunker-tank-row" data-orb-bunker-tank="' + escapeHtml(t.id) + '">' +
         '<td class="orb-bunker-tank-name">' + escapeHtml(label) + '</td>' +
         '<td><input type="number" step="any" class="orb-form-input orb-bunker-added" data-tank-id="' +
-        escapeHtml(t.id) + '" value="' + escapeHtml(String(added === '' ? '' : added)) + '" aria-label="MT added"></td>' +
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(added === '' ? '' : added)) + '" aria-label="' + unit + ' added"></td>' +
         '<td><input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
-        escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '" aria-label="ROB after bunkering MT"></td></tr>';
+        escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '" aria-label="ROB after bunkering ' + unit + '"></td></tr>';
     }).join('');
     return '<table class="orb-bunker-tanks-table" data-orb-bunker-kind="' + escapeHtml(kind) + '">' +
-      '<thead><tr><th>Tank</th><th>MT added</th><th>ROB after (MT)</th></tr></thead><tbody>' +
+      '<thead><tr><th>Tank</th><th>' + unit + ' added</th><th>ROB after (' + unit + ')</th></tr></thead><tbody>' +
       rows + '</tbody></table>';
   }
 
@@ -3117,7 +3146,7 @@
       });
       html += '</div>';
       html += '<h4 class="orb-wizard-subtitle">Per tank</h4>';
-      html += '<p class="hint">Only tanks with both MT added and ROB after are included. Total quantity added (MT) must equal the sum of per-tank MT added.</p>';
+      html += '<p class="hint">Only tanks with both Ltrs added and ROB after are included. Total quantity added (Ltrs) must equal the sum of per-tank Ltrs added.</p>';
       html += wizardLubeBunkerTankInputHtml(setup, presets);
       if (partThreeSupplementsEnabled(setup)) {
         html += '<p class="hint">Part III C item 3 (place, lube type, quantity) is appended automatically on save.</p>';
@@ -3206,6 +3235,7 @@
     (op.items || []).forEach(it => {
       if (sel.size && !sel.has(it.no)) return;
       if (isBunkerEntry && (it.no === '26.1' || it.no === '26.2' || it.no === '26.3' || it.no === '26.4')) return;
+      const garbage = opts.scenarioId === 'incinerator-garbage' && String(it.no) === 'I';
       let runHtml = '';
       positionRuns.forEach((rows, idx) => {
         if (positionRunDone.has(idx)) return;
@@ -3218,11 +3248,19 @@
       const simpleHtml = wizardSimpleItemFieldsHtml(part, code, it, setup, opts, presets, seen, bunkerFam);
       if (!runHtml && !simpleHtml) return;
       panel += '<section class="orb-wizard-section" data-orb-item="' + escapeHtml(it.no) + '">' +
-        '<h3 class="orb-wizard-section-title">Item ' + escapeHtml(String(it.no)) + '</h3>' +
-        '<p class="hint orb-wizard-item-label">' + escapeHtml(it.label || '') + '</p>' +
+        '<h3 class="orb-wizard-section-title">' + (garbage ? 'Code I' : ('Item ' + escapeHtml(String(it.no)))) + '</h3>' +
+        '<p class="hint orb-wizard-item-label">' + escapeHtml(garbage ? 'Description' : (it.label || '')) + '</p>' +
         runHtml + simpleHtml +
         '</section>';
     });
+    if (!opts.skipIncineratorFollowOn && incineratorFollowOnActive(part, code, selectedItems, opts.scenarioId)) {
+      const followOp = getOperation(3, 'E');
+      const followBuilt = buildWizardFormSheet(3, 'E', followOp, setup,
+        Object.assign({}, opts, { skipIncineratorFollowOn: true }), ['6', '7', '8']);
+      panel += '<section class="orb-wizard-section"><h3 class="orb-wizard-section-title">Part III E</h3>' +
+        '<p class="hint">Start and stop position and time, oxygen percentage in the combustion chamber, and combustion chamber temperature.</p></section>' +
+        followBuilt.html;
+    }
     if (!panel) {
       panel = '<p class="hint">Tick item numbers above to show entry fields.</p>';
     }
@@ -3281,6 +3319,7 @@
         }
         let showDate = lines.length > 1 ? idx === 0 : headerKey !== lastHeaderKey;
         let showCode = showDate;
+        if (ln.showDate === true) showDate = true;
         if (ln.showDate === false) showDate = false;
         if (ln.recordPart != null || ln.recordCode != null) {
           if (ln.showDate === false) showDate = false;

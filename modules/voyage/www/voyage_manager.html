@@ -25866,7 +25866,7 @@ function renderOrbPreview(){
   }, setup, false);
   const signLines = EORB.orbSignatoryLines(draft, setup);
   const itemRows = lines.map((l, i) => {
-    let showDate = i === 0;
+    let showDate = i === 0 || l.showDate === true;
     let showCode = showDate;
     if (l.showDate === false) showDate = false;
     if (l.recordPart != null || l.recordCode != null) {
@@ -26524,7 +26524,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   const merged = EORB.autofillOperationValues(setup, part, code, selected, values);
   values = merged.values;
 
-  const errors = EORB.validateEntry(part, code, selected, values, setup);
+  const errors = EORB.validateEntry(part, code, selected, values, setup, _orbWizard && _orbWizard.scenarioId);
   if (errors.length){ alert('Cannot save entry:\n\n• ' + errors.join('\n• ')); return; }
 
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
