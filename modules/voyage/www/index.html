@@ -4201,7 +4201,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="panel">
         <h2>Guided New Entry</h2>
         <div class="form-grid cols3">
-          <div class="field"><label>ORB Part</label><select id="orb_part"><option value="1">Part I — Machinery space</option><option value="2">Part II — Cargo/ballast (tankers)</option><option value="3">Part III — Fuel changeover (Annex VI)</option></select></div>
+          <div class="field"><label>ORB Part</label><select id="orb_part"><option value="1">Part I — Machinery space</option><option value="2">Part II — Cargo/ballast (tankers)</option><option value="3">Part III — Fuel changeover &amp; incinerator</option></select></div>
           <div class="field"><label>Date of operation</label><input type="date" id="orb_entryDate"></div>
           <div class="field"><label>Ship position / place (optional default)</label><input id="orb_defaultPos" placeholder="Lat/Long or port"></div>
         </div>
@@ -25687,42 +25687,45 @@ function openWeeklyInventoryWizard(){
 }
 
 function orbMergeBunkerTankFields(values){
-  const addedById = new Map();
-  const robById = new Map();
-  document.querySelectorAll('#orbEntryWizard .orb-bunker-added').forEach(el=>{
-    const id = el.getAttribute('data-tank-id');
-    const v = String(el.value || '').trim();
-    if (!id || v === '') return;
-    addedById.set(id, v);
+  const tables = document.querySelectorAll('#orbEntryWizard .orb-bunker-tanks-table');
+  tables.forEach(table => {
+    const kind = table.getAttribute('data-orb-bunker-kind') === 'lube' ? 'lube' : 'fuel';
+    const addedById = new Map();
+    const robById = new Map();
+    table.querySelectorAll('.orb-bunker-added').forEach(el=>{
+      const id = el.getAttribute('data-tank-id');
+      const v = String(el.value || '').trim();
+      if (!id || v === '') return;
+      addedById.set(id, v);
+    });
+    table.querySelectorAll('.orb-bunker-rob').forEach(el=>{
+      const id = el.getAttribute('data-tank-id');
+      const v = String(el.value || '').trim();
+      if (!id || v === '') return;
+      robById.set(id, v);
+    });
+    const filledIds = [];
+    const addedParts = [];
+    const robParts = [];
+    addedById.forEach((addedVal, id) => {
+      if (!robById.has(id)) return;
+      filledIds.push(id);
+      addedParts.push(id + '=' + addedVal);
+      robParts.push(id + '=' + robById.get(id));
+    });
+    const tankKey = kind + 'Tank';
+    const splitKey = kind + 'Split';
+    const robKey = kind + 'RobSplit';
+    if (filledIds.length) {
+      values[tankKey] = filledIds.join('|');
+      values[splitKey] = addedParts.join(', ');
+      values[robKey] = robParts.join(', ');
+    } else {
+      delete values[splitKey];
+      delete values[robKey];
+      delete values[tankKey];
+    }
   });
-  document.querySelectorAll('#orbEntryWizard .orb-bunker-rob').forEach(el=>{
-    const id = el.getAttribute('data-tank-id');
-    const v = String(el.value || '').trim();
-    if (!id || v === '') return;
-    robById.set(id, v);
-  });
-  const filledIds = [];
-  const addedParts = [];
-  const robParts = [];
-  let sumAdded = 0;
-  addedById.forEach((addedVal, id) => {
-    if (!robById.has(id)) return;
-    const robVal = robById.get(id);
-    filledIds.push(id);
-    addedParts.push(id + '=' + addedVal);
-    robParts.push(id + '=' + robVal);
-    const n = parseFloat(addedVal);
-    if (isFinite(n)) sumAdded += n;
-  });
-  if (filledIds.length) {
-    values.fuelTank = filledIds.join('|');
-    values.fuelSplit = addedParts.join(', ');
-    values.fuelRobSplit = robParts.join(', ');
-  } else {
-    delete values.fuelSplit;
-    delete values.fuelRobSplit;
-    delete values.fuelTank;
-  }
   return values;
 }
 
@@ -25838,9 +25841,9 @@ function renderOrbPreview(){
       showCode = l.showCode === true || (l.showCode !== false && showDate);
     }
     const codeCol = showCode
-      ? (l.recordPart != null
-        ? EORB.formatOrbBookCode({ part: l.recordPart, code: l.recordCode || 'C' })
-        : code)
+      ? EORB.formatOrbBookCode(l.recordPart != null
+        ? { part: l.recordPart, code: l.recordCode || 'C' }
+        : { part, code })
       : '';
     return `${showDate ? EORB.formatOrbDate(date) : ''}\t${codeCol}\t${l.itemNo}\t${l.text}`;
   }).join('\n');
