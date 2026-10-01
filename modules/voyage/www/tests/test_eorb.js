@@ -146,6 +146,43 @@ const bunkerQtyOk = EORB.validateEntry(1, 'H', ['26.3'], {
 check('accept when total matches per-tank sum',
   bunkerQtyOk.some(e => /must equal the sum of per-tank MT added/i.test(e)), false);
 
+console.log('\nlube bunkering uses the same per-tank MT added / ROB layout');
+const lubeSetup = { tanks: { lube: [
+  { id: 'cyl1', name: 'Cyl. Oil TK.', capacityM3: 40, robM3: 8 },
+  { id: 'sump1', name: 'M.E. Sump TK.', capacityM3: 30, robM3: 10 }
+] } };
+const lubeLines = EORB.buildItemLines(1, 'H', ['26.4'], {
+  lubeType: 'Cylinder oil', lubeQty: 12, lubeTank: 'cyl1|sump1',
+  lubeSplit: 'cyl1=8, sump1=4', lubeRobSplit: 'cyl1=16, sump1=14'
+}, lubeSetup);
+const lubeText = (lubeLines.find(l => l.itemNo === '26.4') || {}).text || '';
+checkTrue('lube summary names grade and MT', lubeText.indexOf('12 MT') !== -1 && lubeText.indexOf('Cylinder oil') !== -1);
+checkTrue('lube per-tank added and ROB lines', lubeLines.some(l =>
+  /8 MT added to/i.test(l.text) && /now containing 16 MT/i.test(l.text)));
+check('two lube tank detail rows', lubeLines.filter(l => /MT added to/i.test(l.text)).length, 2);
+const lubePaired = EORB.resolveLubeBunkerTankRows(lubeSetup, {
+  lubeQty: 8, lubeTank: 'cyl1|sump1', lubeSplit: 'cyl1=8, sump1=4', lubeRobSplit: 'cyl1=16'
+});
+check('lube excludes tank without ROB after', lubePaired.length, 1);
+const lubeQtyErrs = EORB.validateEntry(1, 'H', ['26.1', '26.2', '26.4'], {
+  place: 'Singapore', timeStart: '08:00', lubeType: 'Cylinder oil', lubeQty: 12,
+  lubeTank: 'cyl1', lubeSplit: 'cyl1=8', lubeRobSplit: 'cyl1=16'
+}, lubeSetup);
+checkTrue('lube rejects total that does not match per-tank sum',
+  lubeQtyErrs.some(e => /must equal the sum of per-tank MT added/i.test(e)));
+const lubeForm = EORB.buildWizardFormSheet(1, 'H', EORB.getOperation(1, 'H'), lubeSetup,
+  { scenarioId: 'bunker-lube' }, ['26.1', '26.2', '26.4']);
+checkTrue('lube form uses the per-tank MT table', lubeForm.html.indexOf('data-orb-bunker-kind="lube"') !== -1 &&
+  lubeForm.html.indexOf('MT added') !== -1);
+checkTrue('lube form asks for type and total MT', lubeForm.html.indexOf('data-orb-field="lubeType"') !== -1 &&
+  lubeForm.html.indexOf('data-orb-field="lubeQty"') !== -1);
+const lubeSupp = EORB.buildItemLines(1, 'H', ['26.4'], {
+  place: 'Singapore', lubeType: 'Cylinder oil', lubeQty: 12,
+  lubeTank: 'cyl1', lubeSplit: 'cyl1=12', lubeRobSplit: 'cyl1=20'
+}, lubeSetup);
+checkTrue('lube Part III supplement uses MT', lubeSupp.some(l =>
+  l.recordPart === 3 && /12 MT bulk lubricating oil/i.test(l.text)));
+
 console.log('\nbunkering fuel family — residual vs distillate tanks');
 checkTrue('residual ISO list includes RMG 380', EORB.BUNKER_FUEL_FAMILY.residual.iso.indexOf('RMG 380') !== -1);
 checkTrue('distillate types include MGO', EORB.BUNKER_FUEL_FAMILY.distillate.types.indexOf('MGO') !== -1);
@@ -301,10 +338,20 @@ console.log('\nthe operation list covers what the flag e-ORB offers');
     ['I', 'I', 'condensate from air coolers to a bilge holding tank'],
     ['I', 'I', 'additional operational procedures and general remarks']
   ];
+  const WANTED_PART3 = [
+    ['C', '2', 'change over completion from HFO to MGO'],
+    ['C', '3', 'change over commencement from MGO to HFO'],
+    ['E', '1', 'use of incinerator for garbage']
+  ];
   const part1 = EORB.SCENARIOS.filter(s => Number(s.part) === 1);
   const covered = (code, item) => part1.some(s => s.code === code && (s.items || []).indexOf(item) !== -1);
   WANTED.forEach(([code, item, what]) => {
     checkTrue(`${code}.${item} — ${what}`, covered(code, item));
+  });
+  const part3 = EORB.SCENARIOS.filter(s => Number(s.part) === 3);
+  const covered3 = (code, item) => part3.some(s => s.code === code && (s.items || []).indexOf(item) !== -1);
+  WANTED_PART3.forEach(([code, item, what]) => {
+    checkTrue(`Part III ${code}.${item} — ${what}`, covered3(code, item));
   });
   /* One scenario per operation, not one shared entry doing several jobs. */
   const ids = part1.map(s => s.id);
@@ -353,9 +400,19 @@ console.log('\nCode I carries the tank, quantity and duration MARPOL gives it no
 console.log('\nPart III — fuel changeover (Annex VI Reg. 14.6)');
 {
   const s5 = EORB.defaultOrbSetup({});
-  check('Part III has its own operation table', EORB.getPartOps(3).length, 1);
+  check('Part III operations', EORB.getPartOps(3).map(op => op.code), ['C', 'E']);
   check('four changeover events', EORB.getPartOps(3)[0].items.map(i => i.no), ['1', '2', '3', '4']);
-  check('and a scenario for each', EORB.getScenarios(s5, 3).length, 4);
+  check('incinerator garbage is one Part III E item', EORB.getPartOps(3)[1].items.map(i => i.no), ['1']);
+  check('a scenario for each changeover plus incinerator', EORB.getScenarios(s5, 3).length, 5);
+  const garb = EORB.buildItemLines(3, 'E', ['1'], {
+    timeStart: '08:00', timeStop: '10:30', position: '01 12.5 N 103 51.2 E',
+    garbageType: 'Plastics', garbageQty: 0.2
+  }, s5)[0];
+  checkTrue('incinerator entry names the garbage', garb.text.indexOf('Plastics') !== -1 && garb.text.indexOf('0.2 m³') !== -1);
+  checkTrue('incinerator entry carries the position', garb.text.indexOf('01 12.5 N 103 51.2 E') !== -1);
+  const garbHtml = EORB.buildPrintHtml(s5, [{ date: '2026-08-02', code: 'E', part: 3, lines: [garb], officerName: 'A. Ruiz' }], 'test');
+  checkTrue('incinerator prints under its own heading', garbHtml.indexOf('Incinerator Record — Part III') !== -1);
+  checkTrue('Part III code reads PART III E on the sheet', garbHtml.indexOf('PART III E') !== -1);
   const v = { coTime: '06:30', coPosition: '51 20 N 002 10 E', coToGrade: 'LSMGO', coSulphur: 0.08, coVolume: 145 };
   const done = EORB.buildItemLines(3, 'C', ['2'], v, s5)[0];
   checkTrue('completion reads as completed', done.text.indexOf('Changeover completed') !== -1);

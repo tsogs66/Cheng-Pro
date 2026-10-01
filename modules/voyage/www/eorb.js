@@ -80,7 +80,7 @@
         const text = [
           String(v.place || '').trim() ? ('At: ' + v.place + ' received') : 'Lubricating oil received',
           grade ? ('Type: ' + grade) : '',
-          qty !== '' ? (qty + ' t bulk lubricating oil bunkered') : ''
+          qty !== '' ? (qty + ' MT bulk lubricating oil bunkered') : ''
         ].filter(Boolean).join('. ');
         return text ? [{ itemNo: '3', text }] : [];
       }
@@ -631,12 +631,15 @@
           field('fuelApi', 'API gravity (@15°C)', 'number')
         ]},
         { no: '26.4', label: 'Lubricating oil bunkered', fields: [
-          field('lubeType', 'Lube type', 'text'),
-          field('lubeQty', 'Quantity added (t)', 'number'),
-          field('lubeTank', 'Tank(s)', 'tankMulti', { tankGroup: 'lube' }),
+          field('lubeType', 'Lube type / grade', 'text', { required: true }),
+          field('lubeQty', 'Total quantity added (MT)', 'number', { required: true }),
+          field('lubeTank', 'Receiving tank(s)', 'tankMulti', { tankGroup: 'lube', required: true }),
           field('lubeTankOther', 'Tank(s) — if not listed in ORB setup', 'text'),
-          field('lubeSplit', 'Per-tank split (e.g. CYL1=12, SUMP=5)', 'text'),
-          field('lubeTotal', 'Total content of tank(s) (t)', 'number')
+          field('lubeSplit', 'Per-tank quantity added (MT)', 'text',
+            { hint: 'Filled from the per-tank rows on the form — e.g. cyl1=12, sump=5.' }),
+          field('lubeRobSplit', 'Per-tank content after bunkering (MT)', 'text',
+            { hint: 'ROB in each tank after loading — e.g. cyl1=20, sump=15.' }),
+          field('lubeTotal', 'Total content (legacy single field, MT)', 'number')
         ]}
       ]
     },
@@ -876,6 +879,24 @@
           field('coVolume', 'Volume of low-sulphur fuel on board (m³)', 'number')
         ]}
       ]
+    },
+    {
+      code: 'E', title: 'Use of incinerator for garbage',
+      guide: 'Garbage burned in the shipboard incinerator. Oil residue (sludge) burned in the incinerator stays under Part I Code C item 12.3.',
+      common: true,
+      items: [
+        { no: '1', label: 'Incinerator used for garbage', fields: [
+          field('timeStart', 'Start', 'time', { required: true }),
+          field('timeStop', 'Stop', 'time', { required: true }),
+          field('position', 'Position of ship', 'text', { required: true }),
+          field('garbageType', 'Garbage category', 'select', {
+            required: true,
+            options: ['Plastics', 'Food wastes', 'Domestic wastes', 'Cooking oil', 'Operational wastes', 'Oily rags', 'Other']
+          }),
+          field('garbageQty', 'Quantity incinerated (m³)', 'number', { required: true }),
+          field('remarks', 'Remarks', 'textarea')
+        ]}
+      ]
     }
   ];
 
@@ -926,8 +947,8 @@
       bunkerFuelCategory: 'distillate',
       presets: { fuelType: 'MGO', fuelIsoSpec: 'DMA' } },
     { id: 'bunker-lube', group: 'Fuel oil', part: 1, code: 'H',
-      title: 'Bunkering lubricating oil',
-      blurb: 'Taking bulk lube oil. Records place, time, grade, quantity and tank totals.',
+      title: 'Bunkering of bulk lubricating oil',
+      blurb: 'Taking bulk lubricating oil into lube tanks. Same Code H record as fuel and diesel — grade, total quantity added (MT), and per-tank MT added with ROB after loading.',
       items: ['26.1', '26.2', '26.4'] },
     { id: 'fo-tank-ballast', group: 'Fuel oil', part: 1, code: 'A',
       title: 'Ballasting or cleaning a fuel oil tank',
@@ -1152,7 +1173,12 @@
     { id: 'changeover-to-hs-complete', group: 'Fuel changeover', part: 3, code: 'C',
       title: 'Changeover completion — MGO to HFO',
       blurb: 'Changeover back to residual fuel complete, with position, time and the low-sulphur volume remaining on board.',
-      items: ['4'] }
+      items: ['4'] },
+    { id: 'incinerator-garbage', group: 'Incinerator', part: 3, code: 'E',
+      title: 'Use of incinerator for garbage',
+      blurb: 'Garbage burned in the shipboard incinerator. Record start and stop, position, garbage category and quantity. Sludge burned in the incinerator stays under Part I Code C.12.3.',
+      items: ['1'],
+      requires: { incinerator: true } }
   ];
 
   /** Scenarios available for a part, filtered by what the ship is actually fitted with. */
@@ -1678,12 +1704,16 @@
     return null;
   }
 
-  /** Per-tank added MT and ROB after bunkering (beORB Code H layout). */
-  function resolveFuelBunkerTankRows(setup, val) {
+  /**
+   * Per-tank added MT and ROB after bunkering (beORB Code H layout).
+   * spec: { tank, split, rob, qty, total } field names on the values object.
+   * A tank is included only when both MT added and ROB after are present.
+   */
+  function resolveBunkerTankRows(setup, val, spec) {
     const v = val || {};
-    const ids = tankIdList(v.fuelTank);
-    const splitMap = parseTankSplit(setup, v.fuelSplit, ids.length ? ids : null);
-    const robMap = parseTankSplit(setup, v.fuelRobSplit, ids.length ? ids : null);
+    const ids = tankIdList(v[spec.tank]);
+    const splitMap = parseTankSplit(setup, v[spec.split], ids.length ? ids : null);
+    const robMap = parseTankSplit(setup, v[spec.rob], ids.length ? ids : null);
     if (splitMap && splitMap.size && robMap && robMap.size) {
       const paired = [];
       splitMap.forEach((added, id) => {
@@ -1697,8 +1727,8 @@
       });
       if (paired.length) return paired;
     }
-    const total = numOrNull(v.fuelQty);
-    const shares = resolveTankShares(setup, ids, total, v.fuelSplit);
+    const total = numOrNull(v[spec.qty]);
+    const shares = resolveTankShares(setup, ids, total, v[spec.split]);
     const rows = [];
     if (shares) {
       shares.forEach((added, id) => {
@@ -1715,7 +1745,7 @@
     }
     if (ids.length === 1 && total != null) {
       const id = ids[0];
-      let rob = robMap && robMap.has(id) ? robMap.get(id) : numOrNull(v.fuelTotal);
+      let rob = robMap && robMap.has(id) ? robMap.get(id) : numOrNull(v[spec.total]);
       if (rob == null) {
         const hit = findTank(setup, id);
         const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
@@ -1726,32 +1756,64 @@
     return rows;
   }
 
+  const FUEL_BUNKER_FIELDS = {
+    tank: 'fuelTank', split: 'fuelSplit', rob: 'fuelRobSplit', qty: 'fuelQty', total: 'fuelTotal'
+  };
+  const LUBE_BUNKER_FIELDS = {
+    tank: 'lubeTank', split: 'lubeSplit', rob: 'lubeRobSplit', qty: 'lubeQty', total: 'lubeTotal'
+  };
+
+  function resolveFuelBunkerTankRows(setup, val) {
+    return resolveBunkerTankRows(setup, val, FUEL_BUNKER_FIELDS);
+  }
+
+  function resolveLubeBunkerTankRows(setup, val) {
+    return resolveBunkerTankRows(setup, val, LUBE_BUNKER_FIELDS);
+  }
+
   /** Sum of MT added for receiving tanks that have both added and ROB after filled in. */
-  function fuelBunkerPairedAddedSum(setup, values) {
+  function bunkerPairedAddedSum(rows) {
     let sum = 0;
-    resolveFuelBunkerTankRows(setup, values).forEach(r => {
+    (rows || []).forEach(r => {
       const n = numOrNull(r.added);
       if (n != null) sum += n;
     });
     return round3(sum);
   }
 
-  function validateFuelBunkerQtyErrors(setup, code, selectedItems, values) {
+  function fuelBunkerPairedAddedSum(setup, values) {
+    return bunkerPairedAddedSum(resolveFuelBunkerTankRows(setup, values));
+  }
+
+  function validatePairedBunkerQtyErrors(rows, total) {
     const errors = [];
-    if (code !== 'H' || !selectedItemNos(selectedItems).includes('26.3')) return errors;
-    const rows = resolveFuelBunkerTankRows(setup, values);
     if (!rows.length) {
       errors.push('Enter MT added and ROB after (MT) for at least one receiving tank. Blank tanks are excluded from the ORB record.');
       return errors;
     }
-    const sum = fuelBunkerPairedAddedSum(setup, values);
-    const total = numOrNull((values || {}).fuelQty);
+    const sum = bunkerPairedAddedSum(rows);
     if (total == null) return errors;
     if (Math.abs(sum - total) > 0.001) {
       errors.push('Total quantity added (' + fmtVal(total) + ' MT) must equal the sum of per-tank MT added (' +
         fmtVal(sum) + ' MT).');
     }
     return errors;
+  }
+
+  function validateFuelBunkerQtyErrors(setup, code, selectedItems, values) {
+    if (code !== 'H' || !selectedItemNos(selectedItems).includes('26.3')) return [];
+    return validatePairedBunkerQtyErrors(
+      resolveFuelBunkerTankRows(setup, values),
+      numOrNull((values || {}).fuelQty)
+    );
+  }
+
+  function validateLubeBunkerQtyErrors(setup, code, selectedItems, values) {
+    if (code !== 'H' || !selectedItemNos(selectedItems).includes('26.4')) return [];
+    return validatePairedBunkerQtyErrors(
+      resolveLubeBunkerTankRows(setup, values),
+      numOrNull((values || {}).lubeQty)
+    );
   }
 
   function tolPct(setup) {
@@ -1904,23 +1966,28 @@
           + (shares.size > 1 ? ' across ' + shares.size + ' tanks.' : '.'));
       }
     }
+    function autofillBunkerRobSplit(tankField, qtyField, splitField, robField) {
+      const ids = tankIdList(v[tankField]);
+      const add = numOrNull(v[qtyField]);
+      const shares = resolveTankShares(setup, ids, add, v[splitField]);
+      if (!shares || !(v[robField] == null || String(v[robField]).trim() === '')) return;
+      const parts = [];
+      shares.forEach((qty, id) => {
+        const hit = findTank(setup, id);
+        const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
+        parts.push(id + '=' + round3(prior + qty));
+      });
+      v[robField] = parts.join(', ');
+      notes.push('Per-tank ROB after bunkering auto-calculated (prior + MT added).');
+    }
     if (code === 'H' && want.has('26.3')) {
       bunkerTotals('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'Fuel tank');
-      const ids = tankIdList(v.fuelTank);
-      const add = numOrNull(v.fuelQty);
-      const shares = resolveTankShares(setup, ids, add, v.fuelSplit);
-      if (shares && (v.fuelRobSplit == null || String(v.fuelRobSplit).trim() === '')) {
-        const parts = [];
-        shares.forEach((qty, id) => {
-          const hit = findTank(setup, id);
-          const prior = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
-          parts.push(id + '=' + round3(prior + qty));
-        });
-        v.fuelRobSplit = parts.join(', ');
-        notes.push('Per-tank ROB after bunkering auto-calculated (prior + MT added).');
-      }
+      autofillBunkerRobSplit('fuelTank', 'fuelQty', 'fuelSplit', 'fuelRobSplit');
     }
-    if (code === 'H' && want.has('26.4')) bunkerTotals('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil tank');
+    if (code === 'H' && want.has('26.4')) {
+      bunkerTotals('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'Lube oil tank');
+      autofillBunkerRobSplit('lubeTank', 'lubeQty', 'lubeSplit', 'lubeRobSplit');
+    }
 
     return { values: v, notes };
   }
@@ -2149,45 +2216,9 @@
       pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³');
     }
 
-    function bunkerReceiveHint(tankField, qtyField, splitField, label) {
-      const ids = tankIdList(v[tankField]);
-      const add = numOrNull(v[qtyField]);
-      if (!ids.length || add == null) return;
-      const shares = resolveTankShares(setup, ids, add, v[splitField]);
-      if (shares) {
-        const parts = [];
-        let sum = 0;
-        shares.forEach((q, id) => {
-          sum += q;
-          parts.push(tankLabel(setup, id) + ' +' + fmtVal(q) + ' t');
-        });
-        const aligned = Math.abs(sum - add) <= 0.001;
-        hints.push({
-          level: aligned ? 'info' : 'error',
-          code: 'BUNKER_SPLIT',
-          message: label + ' received: ' + parts.join('; ') + ' = ' + fmtVal(round3(sum)) + ' t' +
-            (aligned ? ' (matches quantity added ' + fmtVal(add) + ' t).' :
-              ' — split totals ' + fmtVal(round3(sum)) + ' t but quantity added is ' + fmtVal(add) + ' t.')
-        });
-      } else if (ids.length > 1) {
-        hints.push({
-          level: 'warn',
-          code: 'BUNKER_SPLIT_NEEDED',
-          message: label + ': ' + ids.length + ' tanks selected — enter a per-tank split totalling ' + fmtVal(add) + ' t.'
-        });
-      } else {
-        hints.push({
-          level: 'info',
-          code: 'BUNKER_SINGLE',
-          message: label + ': full ' + fmtVal(add) + ' t to ' + tankLabel(setup, ids[0]) + '.'
-        });
-      }
-    }
-    if (code === 'H' && want.has('26.3')) {
-      const rows = resolveFuelBunkerTankRows(setup, v);
-      const add = numOrNull(v.fuelQty);
+    function pushBunkerPairHint(rows, add, missingMsg) {
       if (rows.length) {
-        const sum = fuelBunkerPairedAddedSum(setup, v);
+        const sum = bunkerPairedAddedSum(rows);
         const parts = rows.map(r => tankLabel(setup, r.id) + ' +' + fmtVal(r.added) + ' MT');
         const aligned = add != null && Math.abs(sum - add) <= 0.001;
         hints.push({
@@ -2199,14 +2230,23 @@
                 ' — adjust total or per-tank MT added (total is ' + fmtVal(add) + ' MT).'))
         });
       } else if (add != null) {
-        hints.push({
-          level: 'warn',
-          code: 'BUNKER_TANKS_NEEDED',
-          message: 'Fuel bunkering: enter MT added and ROB after for at least one receiving tank.'
-        });
+        hints.push({ level: 'warn', code: 'BUNKER_TANKS_NEEDED', message: missingMsg });
       }
     }
-    if (code === 'H' && want.has('26.4')) bunkerReceiveHint('lubeTank', 'lubeQty', 'lubeSplit', 'Lube oil bunkering');
+    if (code === 'H' && want.has('26.3')) {
+      pushBunkerPairHint(
+        resolveFuelBunkerTankRows(setup, v),
+        numOrNull(v.fuelQty),
+        'Fuel bunkering: enter MT added and ROB after for at least one receiving tank.'
+      );
+    }
+    if (code === 'H' && want.has('26.4')) {
+      pushBunkerPairHint(
+        resolveLubeBunkerTankRows(setup, v),
+        numOrNull(v.lubeQty),
+        'Lube oil bunkering: enter MT added and ROB after for at least one receiving tank.'
+      );
+    }
 
     return hints;
   }
@@ -2327,7 +2367,7 @@
       });
     }
     if (code === 'H' && want.has('26.3')) applyBunker('fuelTank', 'fuelQty', 'fuelSplit', 'fuelTotal', 'fuelRobSplit');
-    if (code === 'H' && want.has('26.4')) applyBunker('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal');
+    if (code === 'H' && want.has('26.4')) applyBunker('lubeTank', 'lubeQty', 'lubeSplit', 'lubeTotal', 'lubeRobSplit');
 
     /* Code I records operations MARPOL gives no item fields for, so the movement is
        described by the scenario's extra fields instead. Oil that left a tank has to
@@ -2512,12 +2552,32 @@
         return;
       }
       if (code === 'H' && item.no === '26.4') {
-        const tank = resolve(item.fields[2]) || resolve(item.fields[3]);
-        const split = item.fields[4] ? resolve(item.fields[4]) : '';
-        const total = item.fields[5] ? resolve(item.fields[5]) : '';
-        text = resolve(item.fields[0]) + ' ' + resolve(item.fields[1]) + ' t to ' + tank +
-          (split ? (', split ' + split) : '') +
-          (total !== '' ? (', total content ' + total + ' t') : '');
+        const grade = String(val.lubeType || '').trim();
+        const qty = fmtVal(val.lubeQty);
+        const summary = [qty !== '' ? (qty + ' MT') : '', grade].filter(Boolean).join(' ') + ' bunkered in tanks:';
+        lines.push({ itemNo: '26.4', text: summary });
+        resolveLubeBunkerTankRows(setup, val).forEach(row => {
+          const added = row.added != null ? fmtVal(row.added) : '—';
+          const rob = row.rob != null ? fmtVal(row.rob) : '—';
+          lines.push({
+            itemNo: '',
+            text: added + ' MT added to ' + String(row.label || '').toUpperCase() +
+              ' now containing ' + rob + ' MT'
+          });
+        });
+        return;
+      }
+      if (Number(part) === 3 && code === 'E') {
+        const qty = fmtVal(val.garbageQty);
+        text = [
+          'Use of incinerator for garbage',
+          val.garbageType ? String(val.garbageType).trim() : '',
+          qty !== '' ? (qty + ' m³') : '',
+          val.timeStart ? ('start ' + val.timeStart + ' UTC') : '',
+          val.timeStop ? ('stop ' + val.timeStop + ' UTC') : '',
+          val.position ? ('position ' + String(val.position).trim()) : '',
+          val.remarks ? String(val.remarks).trim() : ''
+        ].filter(Boolean).join(', ');
       }
       if ((code === 'I' || code === 'O') && (item.no === 'I' || item.no === 'O')) {
         const remark = resolve(item.fields[0]);
@@ -2560,7 +2620,7 @@
     /* Code H 26.3 uses beORB multi-line layout from buildItemLines — do not re-expand. */
     const v = values || {};
     function expandBunker(itemNo, tankField, qtyField, splitField, typeField) {
-      if (itemNo === '26.3') return lines;
+      if (itemNo === '26.3' || itemNo === '26.4') return lines;
       const has = lines.some(l => String(l.itemNo) === itemNo);
       if (!has) return lines;
       const ids = tankIdList(v[tankField]);
@@ -2645,6 +2705,7 @@
       });
     });
     errors.push(...validateFuelBunkerQtyErrors(setup, code, selectedItems, values));
+    errors.push(...validateLubeBunkerQtyErrors(setup, code, selectedItems, values));
     return errors;
   }
 
@@ -2832,18 +2893,12 @@
     return html;
   }
 
-  function wizardFuelBunkerTankInputHtml(setup, presets, opts) {
-    const cat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
-    const tanks = tanksForBunkerCategory(setup, cat);
-    if (!tanks.length) {
-      const hint = cat === 'distillate'
-        ? 'No distillate-service fuel tanks in ORB setup — mark tanks as Distillate under IOPP / ORB Tanks.'
-        : 'No residual / heavy-fuel tanks in ORB setup — mark tanks as Residual under IOPP / ORB Tanks.';
-      return '<p class="hint">' + escapeHtml(hint) + '</p>';
-    }
+  function wizardBunkerTankTableHtml(setup, tanks, presets, kind) {
+    const splitKey = kind === 'lube' ? 'lubeSplit' : 'fuelSplit';
+    const robKey = kind === 'lube' ? 'lubeRobSplit' : 'fuelRobSplit';
     const ids = tanks.map(t => t.id);
-    const split = parseTankSplit(setup, (presets && presets.fuelSplit) || '', ids);
-    const robSplit = parseTankSplit(setup, (presets && presets.fuelRobSplit) || '', ids);
+    const split = parseTankSplit(setup, (presets && presets[splitKey]) || '', ids);
+    const robSplit = parseTankSplit(setup, (presets && presets[robKey]) || '', ids);
     const rows = tanks.map(t => {
       const added = split && split.has(t.id) ? split.get(t.id) : '';
       const rob = robSplit && robSplit.has(t.id) ? robSplit.get(t.id) : '';
@@ -2855,8 +2910,29 @@
         '<td><input type="number" step="any" class="orb-form-input orb-bunker-rob" data-tank-id="' +
         escapeHtml(t.id) + '" value="' + escapeHtml(String(rob === '' ? '' : rob)) + '" aria-label="ROB after bunkering MT"></td></tr>';
     }).join('');
-    return '<table class="orb-bunker-tanks-table"><thead><tr><th>Tank</th><th>MT added</th><th>ROB after (MT)</th></tr></thead><tbody>' +
+    return '<table class="orb-bunker-tanks-table" data-orb-bunker-kind="' + escapeHtml(kind) + '">' +
+      '<thead><tr><th>Tank</th><th>MT added</th><th>ROB after (MT)</th></tr></thead><tbody>' +
       rows + '</tbody></table>';
+  }
+
+  function wizardFuelBunkerTankInputHtml(setup, presets, opts) {
+    const cat = (opts && opts.bunkerFuelCategory) || bunkerFuelCategoryForScenario(opts && opts.scenarioId);
+    const tanks = tanksForBunkerCategory(setup, cat);
+    if (!tanks.length) {
+      const hint = cat === 'distillate'
+        ? 'No distillate-service fuel tanks in ORB setup — mark tanks as Distillate under IOPP / ORB Tanks.'
+        : 'No residual / heavy-fuel tanks in ORB setup — mark tanks as Residual under IOPP / ORB Tanks.';
+      return '<p class="hint">' + escapeHtml(hint) + '</p>';
+    }
+    return wizardBunkerTankTableHtml(setup, tanks, presets, 'fuel');
+  }
+
+  function wizardLubeBunkerTankInputHtml(setup, presets) {
+    const tanks = tanksForGroup(setup, 'lube');
+    if (!tanks.length) {
+      return '<p class="hint">No lubricating oil tanks in ORB setup — add them under IOPP / ORB Tanks.</p>';
+    }
+    return wizardBunkerTankTableHtml(setup, tanks, presets, 'lube');
   }
 
   function wizardBunkerEntryPanel(part, code, op, setup, opts, presets, selSet, seen) {
@@ -2907,6 +2983,23 @@
       html += '</div>';
       if (partThreeSupplementsEnabled(setup)) {
         html += '<p class="hint">Part III C item 3 (BDN type, API, density, sulphur) is appended automatically on save.</p>';
+      }
+    }
+    if (selSet.has('26.4') && byNo['26.4']) {
+      html += '<h4 class="orb-wizard-subtitle">Lubricating oil received</h4>';
+      html += '<div class="orb-wizard-fields cols2">';
+      (byNo['26.4'].fields || []).forEach(f => {
+        if (f.name === 'lubeTank' || f.name === 'lubeTankOther' || f.name === 'lubeSplit' ||
+            f.name === 'lubeRobSplit' || f.name === 'lubeTotal' || seen.has(f.name)) return;
+        seen.add(f.name);
+        html += wizardLabeledField(f, setup, opts, presets, bunkerFam);
+      });
+      html += '</div>';
+      html += '<h4 class="orb-wizard-subtitle">Per tank</h4>';
+      html += '<p class="hint">Only tanks with both MT added and ROB after are included. Total quantity added (MT) must equal the sum of per-tank MT added.</p>';
+      html += wizardLubeBunkerTankInputHtml(setup, presets);
+      if (partThreeSupplementsEnabled(setup)) {
+        html += '<p class="hint">Part III C item 3 (place, lube type, quantity) is appended automatically on save.</p>';
       }
     }
     html += '</section>';
@@ -2977,14 +3070,14 @@
     const bunkerFam = BUNKER_FUEL_FAMILY[opts.bunkerFuelCategory] || BUNKER_FUEL_FAMILY.residual;
     let panel = '';
     const selSet = sel;
-    const isBunkerFuel = Number(part) === 1 && code === 'H' &&
-      (selSet.has('26.1') || selSet.has('26.2') || selSet.has('26.3'));
-    if (isBunkerFuel) {
+    const isBunkerEntry = Number(part) === 1 && code === 'H' &&
+      (selSet.has('26.1') || selSet.has('26.2') || selSet.has('26.3') || selSet.has('26.4'));
+    if (isBunkerEntry) {
       panel += wizardBunkerEntryPanel(part, code, op, setup, opts, presets, selSet, seen);
     }
     (op.items || []).forEach(it => {
       if (sel.size && !sel.has(it.no)) return;
-      if (isBunkerFuel && (it.no === '26.1' || it.no === '26.2' || it.no === '26.3')) return;
+      if (isBunkerEntry && (it.no === '26.1' || it.no === '26.2' || it.no === '26.3' || it.no === '26.4')) return;
       panel += '<section class="orb-wizard-section" data-orb-item="' + escapeHtml(it.no) + '">' +
         '<h3 class="orb-wizard-section-title">Item ' + escapeHtml(String(it.no)) + '</h3>' +
         '<p class="hint orb-wizard-item-label">' + escapeHtml(it.label || '') + '</p>' +
@@ -3003,9 +3096,6 @@
         '</div></section>';
       seen.add('extraEquipment');
       seen.add('extraSealNo');
-    }
-    if (Number(part) === 1 && code === 'H' && selSet.has('26.4') && partThreeSupplementsEnabled(setup)) {
-      extraHtml += '<p class="hint">Part III C item 3 lube supplement is appended automatically on save.</p>';
     }
     (opts.extraFields || []).forEach(f => {
       if (seen.has(f.name)) return;
@@ -3150,7 +3240,18 @@
     const parts = [...new Set((entries || []).map(e => Number(e.part) || 1))];
     const p = parts.length === 1 ? parts[0] : 1;
     if (parts.length > 1) return { title: 'Oil Record Book', subtitle: 'Machinery Space and Cargo Operations' };
-    if (p === 3) return { title: 'Fuel Oil Changeover Record — Part III', subtitle: 'Fuel Changeover (MARPOL Annex VI Reg. 14.6)' };
+    if (p === 3) {
+      const codes = new Set((entries || []).map(e => String(e.code || '')));
+      const hasC = codes.has('C');
+      const hasE = codes.has('E');
+      if (hasE && !hasC) {
+        return { title: 'Incinerator Record — Part III', subtitle: 'Use of incinerator for garbage' };
+      }
+      if (hasC && hasE) {
+        return { title: 'Part III Record', subtitle: 'Fuel changeover (Annex VI) and incinerator' };
+      }
+      return { title: 'Fuel Oil Changeover Record — Part III', subtitle: 'Fuel Changeover (MARPOL Annex VI Reg. 14.6)' };
+    }
     if (p === 2) return { title: 'Oil Record Book — Part II', subtitle: 'Cargo / Ballast Operations (Oil Tankers)' };
     return { title: 'Oil Record Book — Part I', subtitle: 'Machinery Space Operations (All Ships)' };
   }
@@ -3268,6 +3369,7 @@
     parseTankSplit,
     resolveTankShares,
     resolveFuelBunkerTankRows,
+    resolveLubeBunkerTankRows,
     buildItemLines,
     expandLinesForPerTankSignoff,
     splitEntryPerItemLine,
