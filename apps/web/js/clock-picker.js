@@ -38,7 +38,7 @@ html.bright .ccp-face{background:radial-gradient(circle at 35% 30%,rgba(23,102,9
 .ccp-hand.min{height:var(--ccp-hand-m);margin-top:calc(-1 * var(--ccp-hand-m));background:#c99a53;width:1.5px}
 .ccp-hand.dragging{transition:none}
 .ccp-hand.dim{opacity:.22}
-.ccp-num{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;padding:0 !important;min-width:0;min-height:0;border:none !important;background:transparent;color:inherit;font:inherit;letter-spacing:normal;text-transform:none;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:12px;line-height:1;cursor:pointer;user-select:none;opacity:.9;z-index:4;-webkit-tap-highlight-color:transparent;box-sizing:border-box;box-shadow:none}
+.ccp-num{position:absolute;left:50%;top:50%;width:var(--ccp-num,28px);height:var(--ccp-num,28px);margin:calc(var(--ccp-num, 28px) / -2) 0 0 calc(var(--ccp-num, 28px) / -2);padding:0 !important;min-width:0;min-height:0;border:none !important;background:transparent;color:inherit;font:inherit;letter-spacing:normal;text-transform:none;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:var(--ccp-num-font,12px) !important;line-height:1;cursor:pointer;user-select:none;opacity:.9;z-index:4;-webkit-tap-highlight-color:transparent;box-sizing:border-box;box-shadow:none}
 .ccp-num:hover,.ccp-num.active{background:rgba(201,154,83,.28);opacity:1;box-shadow:0 0 0 1px rgba(201,154,83,.5);border:none !important;color:inherit}
 .ccp-tick{position:absolute;left:50%;top:50%;width:2px;height:7px;margin:-3.5px 0 0 -1px;background:rgba(233,228,214,.35);transform-origin:center center;pointer-events:none;z-index:1}
 .ccp-tick.major{height:11px;margin-top:-5.5px;background:rgba(201,154,83,.65)}
@@ -78,7 +78,6 @@ input.ccp-bound{cursor:pointer}
   .ccp-title{font-size:14px;margin-bottom:12px}
   .ccp-face{width:340px;height:340px;margin:14px auto 18px;--ccp-hand-h:110px;--ccp-hand-m:142px}
   .ccp-center{width:14px;height:14px;margin:-7px 0 0 -7px}
-  .ccp-num{width:40px;height:40px;margin:-20px 0 0 -20px;font-size:16px}
   .ccp-tick{height:10px;margin-top:-5px}
   .ccp-tick.major{height:15px;margin-top:-7.5px}
   .ccp-readout{font-size:2.4rem;margin-bottom:14px}
@@ -91,7 +90,6 @@ input.ccp-bound{cursor:pointer}
 @media (min-width:1100px) and (min-height:700px){
   .ccp-dialog{width:min(600px,90vw);padding:24px 28px 22px}
   .ccp-face{width:400px;height:400px;margin:16px auto 20px;--ccp-hand-h:128px;--ccp-hand-m:166px}
-  .ccp-num{width:46px;height:46px;margin:-23px 0 0 -23px;font-size:18px}
   .ccp-readout{font-size:2.7rem}
   .ccp-title{font-size:15px}
 }
@@ -218,6 +216,9 @@ input.ccp-bound{cursor:pointer}
   }
 
   function close() {
+    if (active && active.faceObserver) {
+      try { active.faceObserver.disconnect(); } catch (_) {}
+    }
     detachActiveListeners();
     if (active && active.overlay && active.overlay.parentNode) {
       active.overlay.parentNode.removeChild(active.overlay);
@@ -321,6 +322,24 @@ input.ccp-bound{cursor:pointer}
     let dragging = false;
     let lastStep = null;
     let suppressReadout = false;
+    let facePx = 0;
+    let faceObserver = null;
+
+    /* Numeral box and type size follow the face that is actually on screen.
+       A viewport shrink/grow changes the dial after the numbers were placed;
+       measuring again keeps the digits the same scale as the dial. */
+    function scaleFace() {
+      const w = Math.round(face.clientWidth || 0);
+      if (!w) return false;
+      const num = Math.max(28, Math.round(w * 0.115));
+      face.style.setProperty('--ccp-num', num + 'px');
+      face.style.setProperty('--ccp-num-font', Math.max(12, Math.round(w * 0.045)) + 'px');
+      face.style.setProperty('--ccp-hand-h', Math.round(w * 0.32) + 'px');
+      face.style.setProperty('--ccp-hand-m', Math.round(w * 0.415) + 'px');
+      if (w === facePx) return false;
+      facePx = w;
+      return true;
+    }
 
     function syncDatePart() {
       state.d = clampDay(state.y, state.mo, state.d);
@@ -458,6 +477,7 @@ input.ccp-bound{cursor:pointer}
       handH.classList.toggle('dim', state.step === 'minute');
       handM.classList.toggle('dim', state.step === 'hour' || state.step === 'ampm');
 
+      if (scaleFace()) lastStep = null;
       if (!keepNums || lastStep !== state.step) {
         lastStep = state.step;
         clearDecor();
@@ -714,13 +734,27 @@ input.ccp-bound{cursor:pointer}
       finish(true);
     };
 
+    if (typeof ResizeObserver !== 'undefined') {
+      faceObserver = new ResizeObserver(() => {
+        if (!scaleFace()) return;
+        lastStep = null;
+        refresh();
+      });
+      faceObserver.observe(face);
+    }
     active = {
       overlay,
       el,
+      faceObserver,
       listeners: { pointerMove, pointerUp, onKey },
     };
     if (isDateTime) setTab('time');
     else refresh();
+    requestAnimationFrame(() => {
+      if (!scaleFace()) return;
+      lastStep = null;
+      refresh();
+    });
     try {
       if (state.tab === 'time') { partH.focus(); partH.select(); }
     } catch (_) {}

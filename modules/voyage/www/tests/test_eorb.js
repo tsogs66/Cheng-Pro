@@ -258,6 +258,30 @@ const bunkerHints = EORB.operationFieldHelpers(bunkerSetup, 1, 'H', ['26.3'], {
 checkTrue('split helper confirms total matches quantity added',
   bunkerHints.some(h => h.code === 'BUNKER_TOTAL' && h.message.indexOf('matches total quantity added') !== -1));
 
+console.log('\nOWS recirculation is one sentence and at least 10 minutes');
+{
+  const recSetup = EORB.defaultOrbSetup({});
+  const recVals = {
+    remarks: 'Test of OWS through recirculation line for satisfactory results and test of OCM with satisfactory results.',
+    testDurationMin: 10, timeStart: '08:00', timeStop: '08:10'
+  };
+  const recLines = EORB.buildItemLines(1, 'I', ['I'], recVals, recSetup, 'ows-ocm-test');
+  const recText = (recLines.find(l => !l.recordPart) || recLines[0] || {}).text || '';
+  check('recirculation sentence names the 10 minute OCM test',
+    recText, 'Test of OWS through recirculation line for 10 minutes and test of OCM with satisfactory results.');
+  check('recirculation output is a single line', recLines.length, 1);
+  checkTrue('the remarks sentence is not appended', recText.indexOf('satisfactory results.') === recText.length - 'satisfactory results.'.length);
+  const short = EORB.validateEntry(1, 'I', ['I'], Object.assign({}, recVals, { testDurationMin: 8 }), recSetup, 'ows-ocm-test');
+  checkTrue('duration under 10 minutes is rejected',
+    short.some(e => /at least 10 minutes/i.test(e)));
+  const shortIdx = short.findIndex(e => /at least 10 minutes/i.test(e));
+  check('duration error focuses the duration input', short.focusFields && short.focusFields[shortIdx], 'testDurationMin');
+  const okDur = EORB.validateEntry(1, 'I', ['I'], recVals, recSetup, 'ows-ocm-test');
+  check('ten minutes is accepted', okDur.some(e => /at least 10 minutes/i.test(e)), false);
+  const blocks = EORB.entrySaveBlockers(recSetup, 1, 'I', ['I'], Object.assign({}, recVals, { testDurationMin: 5 }), 'ows-ocm-test');
+  checkTrue('a short test blocks save', blocks.some(b => b.field === 'testDurationMin'));
+}
+
 console.log('\nsludge transfer ROB');
 const setup = EORB.defaultOrbSetup({
   tanks: {
@@ -275,6 +299,51 @@ check('receiving total auto-fills', filled.values.toTotal, 2.5);
 EORB.applyOperationRob(setup, 1, 'C', ['12.2'], filled.values);
 check('source ROB after transfer', setup.tanks.sludge[0].robM3, 1.5);
 check('receiving ROB after transfer', setup.tanks.sludge[1].robM3, 2.5);
+
+const live = EORB.defaultOrbSetup({
+  tanks: {
+    sludge: [
+      { id: 'sludge1', name: 'Sludge Settling', capacityM3: 5, robM3: 3 },
+      { id: 'sludge2', name: 'Sludge Tank', capacityM3: 8, robM3: 1 }
+    ],
+    bilge: [
+      { id: 'bilge1', name: 'Bilge Holding', capacityM3: 20, robM3: 8 },
+      { id: 'bilge2', name: 'Bilge Tank 2', capacityM3: 12, robM3: 2 }
+    ]
+  }
+});
+const stale = EORB.autofillOperationValues(live, 1, 'C', ['12.2'], {
+  fromTank: 'sludge1', toTank: 'sludge2', qtyDisposed: 1, retained: 9, toTotal: 9
+});
+check('sludge transfer replaces a stale source remaining', stale.values.retained, 2);
+check('sludge transfer replaces a stale receiving total', stale.values.toTotal, 2);
+checkTrue('those remainings are marked to rewrite the form',
+  (stale.derived || []).indexOf('retained') !== -1 && (stale.derived || []).indexOf('toTotal') !== -1);
+const bilgeMove = EORB.autofillOperationValues(live, 1, 'D', ['13', '14', '15.3'], {
+  fromTank: 'bilge1', toTank: 'bilge2', qty: 3, fromRetained: 1, toRetained: 1
+});
+check('bilge transfer subtracts the source remaining', bilgeMove.values.fromRetained, 5);
+check('bilge transfer adds the receiving remaining', bilgeMove.values.toRetained, 5);
+const codeIMove = EORB.autofillOperationValues(live, 1, 'I', ['I'], {
+  remarks: 'Oily bilge water pumped to holding tank.',
+  extraFromTank: 'sludge1', extraToTank: 'bilge1', extraQty: 0.5,
+  extraFromRetained: 0, extraToTotal: 0
+});
+check('code I transfer subtracts the source tank', codeIMove.values.extraFromRetained, 2.5);
+check('code I transfer adds the receiving tank', codeIMove.values.extraToTotal, 8.5);
+
+const burnBad = EORB.defaultOrbSetup({
+  equipment: { incineratorM3PerH: 0.05, incineratorFitted: true },
+  tanks: { sludge: [{ id: 'sludge1', name: 'Sludge Tank', capacityM3: 5, robM3: 4 }] }
+});
+const burnBlocks = EORB.entrySaveBlockers(burnBad, 1, 'C', ['12.3'], {
+  qtyDisposed: 2, tankEmptied: 'sludge1', retained: 2, incinHours: 1,
+  posStart: '01 deg 00 min N, 103 deg 00 min E', timeStart: '08:00',
+  posEnd: '01 deg 01 min N, 103 deg 01 min E', timeStop: '09:00',
+  oxygenPct: 8, chamberTempC: 850
+}, 'sludge-incinerated');
+checkTrue('a wrong sludge burn blocks save and names the quantity',
+  burnBlocks.some(b => (b.level === 'error' || b.level === 'warn') && b.field === 'qtyDisposed'));
 
 console.log('\nweekly inventory builder covers sludge and bilge');
 const inv = EORB.buildWeeklyInventory(setup, [

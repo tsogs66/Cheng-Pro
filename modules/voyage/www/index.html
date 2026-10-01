@@ -25780,6 +25780,55 @@ function orbSelectedItems(){
   return [...document.querySelectorAll('#orbItemChips input[type="checkbox"]:checked')].map(c => c.value);
 }
 
+/** Blank fields fill once. Transfer remainings follow the quantity even after a figure is already shown. */
+function orbWriteAutofilledValues(values, derived){
+  const force = new Set(derived || []);
+  Object.keys(values || {}).forEach(name=>{
+    const el = document.querySelector('#orbEntryWizard [data-orb-field="' + name + '"]');
+    if (!el || el.multiple) return;
+    if (values[name] == null || values[name] === '') return;
+    const empty = el.value === '' || el.value == null;
+    if (!empty && !force.has(name)) return;
+    if (!empty && document.activeElement === el) return;
+    if (String(el.value) === String(values[name])) return;
+    el.value = values[name];
+  });
+}
+
+/** Move the caret to the input named by a save blocker. Position rows focus the first empty part. */
+function orbFocusEntryField(field){
+  if (!field) return;
+  const root = document.getElementById('orbEntryWizard');
+  if (!root) return;
+  let el = null;
+  const pos = root.querySelector('[data-orb-position="' + field + '"]');
+  if (pos){
+    const parts = [...pos.querySelectorAll('input:not([type="hidden"]), select')];
+    el = parts.find(p => String(p.value || '').trim() === '') || parts[0] || null;
+  }
+  if (!el) el = root.querySelector('[data-orb-field="' + field + '"]');
+  if (el && el.type === 'hidden'){
+    const host = el.closest('[data-orb-position]');
+    if (host) el = host.querySelector('input:not([type="hidden"]), select') || el;
+  }
+  if (!el || el.type === 'hidden'){
+    if (/^(fuel|lube)(Qty|Split)$/.test(field)) el = root.querySelector('.orb-bunker-added');
+  }
+  if (!el || el.disabled || el.type === 'hidden') return;
+  try{
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    el.focus();
+    if (typeof el.select === 'function' && el.type !== 'time' && !el.readOnly) el.select();
+  }catch(_e){}
+}
+
+function orbRejectBlockedEntry(blocks){
+  if (!blocks || !blocks.length) return false;
+  alert('Cannot save or print this ORB entry:\n\n• ' + blocks.map(b => b.message).join('\n• '));
+  orbFocusEntryField(blocks[0] && blocks[0].field);
+  return true;
+}
+
 function renderOrbCapacityWarnings(warnings){
   const box = document.getElementById('orbCapacityWarnings');
   if (!box) return;
@@ -25830,14 +25879,7 @@ function renderOrbPreview(){
   let values = orbCollectValues();
   const filled = EORB.autofillOperationValues(setup, part, code, selected, values);
   values = filled.values;
-  /* Write auto-filled blanks back into empty inputs (do not overwrite user edits). */
-  Object.keys(values).forEach(name=>{
-    const el = document.querySelector(`#orbEntryWizard [data-orb-field="${name}"]`);
-    if (!el || el.multiple) return;
-    if (el.value !== '' && el.value != null) return;
-    if (values[name] == null || values[name] === '') return;
-    el.value = values[name];
-  });
+  orbWriteAutofilledValues(values, filled.derived);
   const notesEl = document.getElementById('orbAutoRobNotes');
   if (notesEl){
     notesEl.textContent = filled.notes.length
@@ -26514,30 +26556,18 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   let values = orbCollectValues();
   const filled = EORB.autofillOperationValues(setup, part, code, selected, values);
   values = filled.values;
-  Object.keys(values).forEach(name=>{
-    const el = document.querySelector(`#orbEntryWizard [data-orb-field="${name}"]`);
-    if (!el || el.multiple) return;
-    if (values[name] == null || values[name] === '') return;
-    if (el.value === '' || el.value == null) el.value = values[name];
-  });
+  orbWriteAutofilledValues(values, filled.derived);
   values = orbCollectValues();
   const merged = EORB.autofillOperationValues(setup, part, code, selected, values);
   values = merged.values;
-
-  const errors = EORB.validateEntry(part, code, selected, values, setup, _orbWizard && _orbWizard.scenarioId);
-  if (errors.length){ alert('Cannot save entry:\n\n• ' + errors.join('\n• ')); return; }
+  orbWriteAutofilledValues(values, merged.derived);
 
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
+  const helpers = EORB.operationFieldHelpers(setup, part, code, selected, values);
+  renderOrbOperationHelpers(helpers);
   renderOrbCapacityWarnings(warnings);
-  const blockers = warnings.filter(w => w.level === 'error');
-  const cautions = warnings.filter(w => w.level === 'warn');
-  if (blockers.length){
-    if (!confirm('ROB / capacity ERRORS detected:\n\n• ' + blockers.map(w=>w.message).join('\n• ') +
-      '\n\nSave anyway? (Only if you have verified the figures.)')) return;
-  } else if (cautions.length){
-    if (!confirm('Capacity warnings:\n\n• ' + cautions.map(w=>w.message).join('\n• ') +
-      '\n\nContinue saving this ORB entry?')) return;
-  }
+  const blocks = EORB.entrySaveBlockers(setup, part, code, selected, values, _orbWizard && _orbWizard.scenarioId);
+  if (orbRejectBlockedEntry(blocks)) return;
 
   const officerName = document.getElementById('orb_officerName')?.value?.trim();
   if (!officerName){ alert('Officer in charge name is required.'); return; }
