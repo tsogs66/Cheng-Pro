@@ -1107,6 +1107,18 @@
   .orb-wizard-field > label{font-size:11px; font-weight:600; color:var(--paper-dim); letter-spacing:0.03em;}
   .orb-wizard-field .orb-form-input{width:100%; max-width:100%;}
   .orb-wizard-field .hint{font-size:10px; margin-top:2px;}
+  .orb-pos-run{display:flex; flex-direction:column; gap:8px; margin-top:4px;}
+  .orb-pos-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+  .orb-pos-label{min-width:7.6em; font-size:12px; font-weight:600; color:var(--paper);}
+  .orb-pos-line{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+  .orb-pos-deg{width:4.4em; max-width:22vw;}
+  .orb-pos-min{width:4.8em; max-width:24vw;}
+  .orb-pos-hem{width:3.8em;}
+  .orb-pos-time{width:8.2em;}
+  .orb-pos-unit{font-size:12px; color:var(--paper-dim);}
+  .orb-suffix-row{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+  .orb-suffix-row .orb-form-input{width:8em; max-width:40vw;}
+  .orb-inline-suffix > label{margin-bottom:2px;}
   .orb-bunker-tanks-table{width:100%; max-width:100%; border-collapse:collapse; font-size:12px; margin-top:4px;}
   .orb-bunker-tanks-table th,.orb-bunker-tanks-table td{border:1px solid var(--line); padding:6px 8px; vertical-align:middle;}
   .orb-bunker-tanks-table thead th{font-size:10px; text-transform:uppercase; letter-spacing:0.05em; background:rgba(201,154,83,0.15);}
@@ -25729,6 +25741,26 @@ function orbMergeBunkerTankFields(values){
   return values;
 }
 
+function orbMergePositionFields(values){
+  document.querySelectorAll('#orbEntryWizard .orb-pos-line').forEach(line => {
+    const name = line.getAttribute('data-orb-position');
+    if (!name || !window.EORB || typeof EORB.formatLatLonPosition !== 'function') return;
+    const part = (key) => {
+      const el = line.querySelector('[data-pos-part="' + key + '"]');
+      return el ? el.value : '';
+    };
+    const text = EORB.formatLatLonPosition({
+      latDeg: part('latDeg'), latMin: part('latMin'), latHem: part('latHem'),
+      lonDeg: part('lonDeg'), lonMin: part('lonMin'), lonHem: part('lonHem')
+    });
+    const hidden = line.querySelector('[data-orb-field]');
+    if (hidden) hidden.value = text;
+    if (text) values[name] = text;
+    else delete values[name];
+  });
+  return values;
+}
+
 function orbCollectValues(){
   const values = {};
   document.querySelectorAll('#orbEntryWizard [data-orb-field]').forEach(el=>{
@@ -25739,6 +25771,7 @@ function orbCollectValues(){
       values[name] = el.value;
     }
   });
+  orbMergePositionFields(values);
   orbMergeBunkerTankFields(values);
   return values;
 }
@@ -25833,7 +25866,7 @@ function renderOrbPreview(){
   }, setup, false);
   const signLines = EORB.orbSignatoryLines(draft, setup);
   const itemRows = lines.map((l, i) => {
-    let showDate = i === 0;
+    let showDate = i === 0 || l.showDate === true;
     let showCode = showDate;
     if (l.showDate === false) showDate = false;
     if (l.recordPart != null || l.recordCode != null) {
@@ -26491,7 +26524,7 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   const merged = EORB.autofillOperationValues(setup, part, code, selected, values);
   values = merged.values;
 
-  const errors = EORB.validateEntry(part, code, selected, values, setup);
+  const errors = EORB.validateEntry(part, code, selected, values, setup, _orbWizard && _orbWizard.scenarioId);
   if (errors.length){ alert('Cannot save entry:\n\n• ' + errors.join('\n• ')); return; }
 
   const warnings = EORB.capacityWarnings(setup, part, code, selected, values);
