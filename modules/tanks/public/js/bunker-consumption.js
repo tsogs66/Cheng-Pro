@@ -20,8 +20,6 @@ const BunkerConsumption = (function () {
       qtyLabel: 'MO/MGO/LSMGO',
     },
   ];
-  const MAX_LEGS = 30;
-
   function emptyLeg() {
     return { port: false, from: '', to: '', distance: null, speed: null, dailyCons: null, days: null, marginPct: null };
   }
@@ -58,7 +56,6 @@ const BunkerConsumption = (function () {
     if (!anyPerLeg && legacy != null && !isNaN(legacy)) {
       list.forEach((leg) => { if (!legIsBlank(leg)) leg.marginPct = legacy; });
     }
-    if (list.length > MAX_LEGS) list = list.slice(0, MAX_LEGS);
     return list;
   }
   function emptySide(grade) {
@@ -156,10 +153,12 @@ const BunkerConsumption = (function () {
 
   function addLeg(sideKey) {
     const side = _plan[sideKey];
-    if (!side || side.legs.length >= MAX_LEGS) return;
+    if (!side) return;
     side.legs.push(emptyLeg());
     renderGrid(_plan);
     scheduleSave();
+    const row = document.querySelector(`#bcGrid tr[data-bc-side="${sideKey}"][data-bc-row="${side.legs.length - 1}"]`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
   }
   function removeLeg(sideKey) {
     const side = _plan[sideKey];
