@@ -490,6 +490,15 @@
   .entry-select-row{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
   .entry-select-row .field{flex:1 1 220px; min-width:0;}
   .entry-select-row .nv-leg-btn-wrap{flex:0 0 auto; padding-bottom:1px;}
+  /* Tablet and Windows: New Voyage is three times the compact label width. */
+  @media (min-width:721px){
+    #page-entry #btnNewVoyageLeg{width:276px; min-width:276px; box-sizing:border-box;}
+  }
+  .unit-note{
+    margin:0 0 8px; font-size:11px; line-height:1.35; font-weight:400;
+    letter-spacing:0; text-transform:none; color:var(--paper-dim);
+  }
+  .unit-box h3 + .unit-note{margin-top:-4px;}
   /* Log Entry → Enter Flowmeters popup */
   :root{
     --vv-top: 0px;
@@ -3216,6 +3225,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="unit-group log-fm-rev-grid" id="logFmRevGrid">
         <div class="unit-box">
           <h3>Main Engine</h3>
+          <p class="unit-note">Present flowmeter reading and the fuel the main engine is burning.</p>
           <div id="meMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="me_sg" value="0.980"></div>
@@ -3223,29 +3233,34 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
         <div class="unit-box">
           <h3>Generator</h3>
+          <p class="unit-note">Present generator flowmeter and the fuel in use.</p>
           <div id="geMeterFields"></div>
           <div class="field"><label>Fuel Type</label><select id="ge_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="ge_sg" value="0.870"></div>
         </div>
         <div class="unit-box">
           <h3>Boiler</h3>
+          <p class="unit-note">Present boiler fuel meter and the fuel in use.</p>
           <div class="field"><label>Fuel Meter</label><input type="number" id="blr_meter"></div>
           <div class="field"><label>Fuel Type</label><select id="blr_type"><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
           <div class="field sg-from-density" hidden><label>Spec. Gravity</label><input type="number" step="0.001" id="blr_sg" value="0.870"></div>
         </div>
         <div class="unit-box">
           <h3>Cylinder Oil</h3>
+          <p class="unit-note">Present cylinder-oil meter and the TBN grade in use.</p>
           <div class="field"><label>Cylinder Oil Meter</label><input type="number" id="cyl_meter"></div>
           <div class="field"><label>TBN in Use</label><select id="in_tbn"><option>HIGH</option><option>LOW</option></select></div>
         </div>
         <div class="unit-box">
           <h3>Rev. Counter</h3>
+          <p class="unit-note">Cumulative revolutions, and the hours the main engine turned this report.</p>
           <div class="field"><label>Rev. Counter (cumulative)</label><input type="number" step="1" id="in_revCounter"></div>
           <div class="field"><label>M/E Run Hours (this report)</label><input type="number" step="0.1" id="me_runtime_period" placeholder="hrs the engine actually turned"></div>
           <div class="field log-entry-always-hide" hidden><label>M/E Avg RPM (from summary)</label><input type="text" id="in_rpm_display" readonly></div>
         </div>
         <div class="unit-box" id="logFwCard">
           <h3>FWG Flowmeter</h3>
+          <p class="unit-note">Cumulative fresh-water generator meter. Produced and consumed water are calculated from it.</p>
           <div class="form-grid cols2 log-entry-always-hide" id="inFwTankPickRow" hidden style="display:none;">
             <div class="field"><label>Tank for production</label><select id="in_fwProdTank"></select>
               <div class="hint">Produced water is added to this tank.</div></div>
@@ -3355,7 +3370,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="btn-row" style="margin:0;" id="vsTopActions">
           <button class="ghost small" id="btnRecalcVoyageSummaryTop" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
           <button class="ghost small" id="btnUndoVoyageRecalcTop" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
-          <button class="primary small" id="btnSaveVoyageSummaryTop" type="button">Save Report</button>
           <button class="ghost small" id="btnCloseVoyageSummaryTop" type="button">Close</button>
         </div>
       </div>
@@ -3378,6 +3392,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsRunBlock">
         <h3 class="sub" style="margin-top:0;">Voyage Run — Distance &amp; RPM</h3>
+        <p class="unit-note">Distance the ship ran and the engine's average RPM. Speed, engine distance and slip are calculated.</p>
         <div class="form-grid cols4" id="vsRunFields">
           <div class="field"><label>Distance Run — Ship/GPS (nm)</label><input type="number" step="0.1" id="vs_distanceShip" value="0"></div>
           <div class="field"><label>M/E Avg RPM</label><input type="number" step="0.1" id="vs_rpm"></div>
@@ -3393,6 +3408,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="vs-weather-others-row">
       <div class="panel vs-weather-col" style="padding:16px;">
         <h3 class="sub" style="margin-top:0;">Weather &amp; Sea State</h3>
+        <p class="unit-note">Wind, sea state and air temperature for this report.</p>
         <div class="form-grid vs-weather-stack">
           <div class="field"><label>Wind Direction</label>
             <select id="vs_windDir">
@@ -3449,6 +3465,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel vs-er-col" id="vsErTankBox" style="padding:16px;">
         <h3 class="sub" style="margin-top:0;">Engine Room &amp; Tanks</h3>
+        <p class="unit-note">Engine-room and stern-tube temperatures, and how much bilge and sludge remain.</p>
         <div class="form-grid cols2" id="vsErTankFields">
           <div class="field"><label>E/R Temp (°C)</label><input type="number" step="0.1" id="vs_erTemp"></div>
           <div class="field vs-sea-temp-under-er"><label>Sea Temp (°C)</label><input type="number" step="0.1" id="vs_seaTemp"></div>
@@ -3465,11 +3482,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div id="vsSeaReportBlock">
         <div class="panel" style="margin:0 0 16px; padding:16px;">
           <h3 class="sub" style="margin-top:0;">Main Engine — Cylinder Readings</h3>
+          <p class="unit-note">Pump rack and exhaust temperature for each cylinder. Turbocharger and scavenge readings follow.</p>
           <div class="unit-group cols6" id="vsCylFields"></div>
           <div class="unit-group cols3" id="vsTurboScavRow">
             <div id="vsTurboFields"></div>
             <div class="unit-box" id="vsOthersBox">
               <h3>Others</h3>
+              <p class="unit-note">Scavenge, main-engine lube oil and air-cooler readings.</p>
               <div class="form-grid cols2" id="vsOthersFields">
                 <div class="field"><label>Scavenge Temp (°C)</label><input type="number" step="0.1" id="vs_scavTemp"></div>
                 <div class="field"><label>Scavenge Pressure (bar)</label><input type="number" step="0.01" id="vs_scavPress"></div>
@@ -3487,6 +3506,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsEcaBlock">
         <h3 class="sub" style="margin-top:0;">ECA / Fuel Changeover</h3>
+        <p class="unit-note">Sulphur-compliant grade, the changeover window, and ROB and distance inside the ECA.</p>
         <div class="form-grid cols3">
           <div class="field"><label>Grade in use</label>
             <select id="vs_ecaGrade">
@@ -3505,10 +3525,12 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Generators, Boiler &amp; Incinerator — Runtime / Load</h3>
+        <p class="unit-note">Hours each unit ran this report and its average load. Load percent is calculated.</p>
         <div class="vs-ge-blr-inc-grid" id="vsGeBlrIncGrid">
           <div class="vs-blr-inc-row">
             <div class="unit-box vs-blr-box">
               <h3>Boiler</h3>
+              <p class="unit-note">Hours the boiler ran this report and its average load.</p>
               <div class="field"><label>Boiler Run Hours (this report)</label><input type="number" step="0.1" id="vs_blrRuntime"></div>
               <div class="field vs-blr-cum-hours"><label>Boiler Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_blrCumHours"></div>
               <div class="field"><label>Boiler Avg Load (kW)</label><input type="number" step="1" id="vs_blrKw"></div>
@@ -3516,6 +3538,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             </div>
             <div class="unit-box vs-inc-box">
               <h3>Incinerator</h3>
+              <p class="unit-note">Hours the incinerator ran and its average load.</p>
               <div class="field"><label>Incinerator Run Time (hrs)</label><input type="number" step="0.1" id="vs_incRuntime"></div>
               <div class="field"><label>Incinerator Avg Load (kW)</label><input type="number" step="1" id="vs_incKw"></div>
               <div class="field"><label>Incinerator Load % (calc)</label><input type="text" id="vs_incLoadPct" readonly></div>
@@ -3528,18 +3551,22 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
       <div class="panel" style="margin:0 0 16px; padding:16px;">
         <h3 class="sub" style="margin-top:0;">Fuel Cons. / Misc. / Fresh Water</h3>
+        <p class="unit-note">Fuel burned by each unit, extra diesel oil, and fresh water. Override a fuel figure only when the meter calculation is wrong.</p>
         <div class="unit-group cols3" id="vsFuelConsMiscFwRow">
           <div class="unit-box">
             <h3>Fuel Cons. (by unit — edit to override)</h3>
+            <p class="unit-note">Fuel burned by each unit. Edit a figure only to override the meter calculation.</p>
             <div id="vsFuelConsBox"></div>
           </div>
           <div class="unit-box">
             <h3>Misc. Cons. (manual, added to Consumption)</h3>
+            <p class="unit-note">Extra diesel oil that is not on a unit meter. It is added to consumption.</p>
             <div class="field"><label>MDO/MGO</label><input type="number" step="0.01" id="vs_misc_mdomgo" value="0"></div>
             <div class="field"><label>LS MGO</label><input type="number" step="0.01" id="vs_misc_lsmgo" value="0"></div>
           </div>
           <div class="unit-box">
             <h3>Boiler / Incinerator Extra D.O. (added to Consumption)</h3>
+            <p class="unit-note">Extra diesel oil for the boiler or incinerator, added to consumption.</p>
             <div class="field"><label>Boiler — MDO/MGO</label><input type="number" step="0.01" id="vs_blrExtra_mdomgo" value="0"></div>
             <div class="field"><label>Boiler — LS MGO</label><input type="number" step="0.01" id="vs_blrExtra_lsmgo" value="0"></div>
             <div class="field"><label>Incinerator — MDO/MGO</label><input type="number" step="0.01" id="vs_incExtra_mdomgo" value="0"></div>
@@ -3547,6 +3574,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </div>
           <div class="unit-box">
             <h3>Fresh Water</h3>
+            <p class="unit-note">Fresh-water meter and tank ROB. Produced and consumed quantities are calculated.</p>
             <div class="form-grid cols2" id="vsFwTankPickRow" style="display:none;">
               <div class="field"><label>Tank for production</label><select id="vs_fwProdTank"></select></div>
               <div class="field"><label>Tank for consumption</label><select id="vs_fwConsTank"></select></div>
@@ -3596,18 +3624,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </details>
       </div>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
-        <h3 class="sub" style="margin-top:0;">Remarks &amp; Signatory</h3>
-        <div class="field"><textarea id="vs_remarks" rows="3" style="width:100%; background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px; padding:8px;"></textarea></div>
-        <div class="form-grid cols2" style="margin-top:12px;">
-          <div class="field"><label>Chief Engineer (this entry)</label><input id="vs_entryChEng" placeholder="Signatory on this entry's reports"></div>
-          <div class="field" style="justify-content:flex-end;">
-            <button type="button" class="ghost small" id="btnVsResetEntryChEng">Use vessel's current Chief Engineer</button>
-          </div>
-        </div>
-        <div class="hint">This is the officer printed on this entry's reports. It was stamped when the entry was made and is kept as-is, so a later crew change does not rewrite signatures already issued — correct it here only if the wrong name was recorded. To change who is aboard from now on, edit Chief Engineer on Vessel Data or Voyage Setup.</div>
-      </div>
-
       <details class="panel vs-fold" style="margin:0 0 16px;">
         <summary>Performance — By Unit <span class="vs-fold-hint">optional</span></summary>
         <div class="vs-fold-body">
@@ -3645,8 +3661,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </div>
       </details>
 
-      <div class="panel" style="margin:0 0 16px; padding:16px;">
+      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsRemarksPanel">
+        <h3 class="sub" style="margin-top:0;">Remarks</h3>
+        <p class="unit-note">Notes for this report. They are printed with the entry.</p>
+        <div class="field"><textarea id="vs_remarks" rows="3" style="width:100%; background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px; padding:8px;"></textarea></div>
+      </div>
+
+      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsPhotoPanel">
         <h3 class="sub" style="margin-top:0;">Attached Photo</h3>
+        <p class="unit-note">Handwritten copy of the flowmeter readings and the other engine parameters for this report.</p>
         <div class="form-grid cols3">
           <div class="field span2">
             <label>Photo (optional)</label>
@@ -3660,11 +3683,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </div>
         </div>
         <div class="vs-photo-preview" id="vs_photoPreview"></div>
-        <div class="hint">Attach a photo to this voyage summary (stored with the entry). Use <strong>Take Picture</strong> for the device camera on Android or a webcam on Windows, or choose an existing image file.</div>
+        <div class="hint">Photograph or attach the handwritten sheet of this report's flowmeter readings and other engine parameters — temperatures, pressures and running hours. The picture stays with the entry so the written log can be checked against what was typed. Use <strong>Take Picture</strong> for the camera on Android or a webcam on Windows, or choose an image already on the device.</div>
       </div>
 
-      <div class="btn-row">
-        <button class="primary" id="btnSaveVoyageSummary">Save Report</button>
+      <div class="btn-row" id="vsBottomActions">
+        <button class="primary" id="btnSaveVoyageSummary">Save only</button>
         <button class="ghost" id="btnPrintVoyageSummary">Print &amp; Save (A4 Portrait)</button>
         <button class="ghost" id="btnRecalcVoyageSummary" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
         <button class="ghost" id="btnUndoVoyageRecalc" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
@@ -18196,6 +18219,7 @@ function openVoyageSummary(entryId){
     cylBox.innerHTML = Array.from({length:cylN}, (_,i)=>{
       const n = i+1;
       return `<div class="unit-box"><h3>Cyl ${n}</h3>
+        <p class="unit-note">Pump rack and exhaust temperature for this cylinder.</p>
         <div class="field"><label>Pump Rack</label><input type="number" step="0.1" id="vs_pumpRack${n}" value="${(r.pumpRack && r.pumpRack[i]!=null)?r.pumpRack[i]:''}"></div>
         <div class="field"><label>Exhaust Temp (°C)</label><input type="number" step="0.1" id="vs_exhaust${n}" value="${(r.exhaustTemp && r.exhaustTemp[i]!=null)?r.exhaustTemp[i]:''}"></div>
       </div>`;
@@ -18211,6 +18235,7 @@ function openVoyageSummary(entryId){
       const n = i+1;
       const t = turbos[i] || {};
       return `<div class="unit-box vs-tc-box"><h3>T/C #${n}</h3>
+        <p class="unit-note">Turbocharger temperatures and speed for this unit.</p>
         <div class="field"><label>In Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}in" value="${t.in??''}"></div>
         <div class="field"><label>Out Temp (°C)</label><input type="number" step="0.1" id="vs_t${n}out" value="${t.out??''}"></div>
         <div class="field"><label>RPM</label><input type="number" step="1" id="vs_t${n}rpm" value="${t.rpm??''}"></div>
@@ -18804,6 +18829,7 @@ function renderVsGeRuntimeFields(entryId, report){
     const cum = geCumulativeRunHours(entry, n);
     return `<div class="unit-box${inService?'':' ge-offline'}">
       <h3><label class="ge-on-label"><input type="checkbox" id="vs_ge${n}_on" class="vs-ge-on" ${inService?'checked':''}> A/E #${n} in service</label></h3>
+      <p class="unit-note">Hours this generator ran and its average load. Fuel share is calculated.</p>
       <div class="field"><label>Run Hours (this report)</label><input type="number" step="0.1" id="vs_ge${n}_runhours" class="vs-ge-runhours" value="${runHours===null||runHours===undefined?'':runHours}"></div>
       <div class="field vs-ge-cum-hours"><label>Running Hours (cumulative)</label><input type="number" step="0.1" id="vs_ge${n}_runtime" class="vs-ge-runtime" value="${cum==null?'':fmt(cum,1)}"></div>
       <div class="field"><label>Avg Load (kW)</label><input type="number" step="1" id="vs_ge${n}_kw" class="vs-ge-kw" value="${avgKw===null||avgKw===undefined?'':avgKw}"></div>
@@ -18972,10 +18998,13 @@ function applyVoyageSummaryFormToEntry(entry){
   /* Sea temp is the same figure on Engine Room & Tanks and Weather & Sea State. */
   entry.report.swTemp = readSeaTempFromForm();
   entry.report.remarks = document.getElementById('vs_remarks')?.value || '';
-  /* Correcting the signatory affects this entry only — the vessel's current Chief
-     Engineer is edited on Vessel Data / Voyage Setup, not here. */
-  const entryCe = document.getElementById('vs_entryChEng')?.value?.trim();
-  entry.chEng = entryCe ? entryCe : null;
+  /* The per-entry signatory field was removed from the log. Leave the name
+     stamped on the entry alone so a save does not wipe the printed officer. */
+  const entryCeEl = document.getElementById('vs_entryChEng');
+  if (entryCeEl) {
+    const entryCe = entryCeEl.value.trim();
+    entry.chEng = entryCe ? entryCe : null;
+  }
   entry.report.meLoTemp = num('vs_meLoTemp');
   entry.report.meLoPress = num('vs_meLoPress');
   /* Shaft kW / FO visc·dens / G/E LO / purifier were removed from the summary form;
