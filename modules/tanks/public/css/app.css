@@ -2399,6 +2399,9 @@ html.bright .bunker-side { background: rgba(18,34,56,0.04); }
   -webkit-overflow-scrolling: touch;
   margin: 0 -4px;
   padding: 0 4px 4px;
+  /* Destination lines grow with the voyage. Do not clip the leg table. */
+  max-height: none;
+  overflow-y: visible;
 }
 .bunker-table {
   width: 100%;

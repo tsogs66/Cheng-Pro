@@ -1245,6 +1245,10 @@
   .bunker-side .table-scroll{
     overflow-x:auto; -webkit-overflow-scrolling:touch;
     margin:0 -4px; padding:0 4px 4px;
+    /* Destination lines are not capped. The shared .table-scroll box is 460px
+       tall (~11 rows); this page must grow with every added line. */
+    max-height:none !important;
+    overflow-y:visible;
   }
   .bunker-table{width:100%; min-width:720px; border-collapse:collapse; font-size:11px; table-layout:fixed;}
   .bunker-table th{font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:var(--paper-dim); font-weight:500; padding:4px 3px; border-bottom:1px solid var(--line); white-space:nowrap;}
@@ -12505,7 +12509,6 @@ async function saveSetup(){
 
 /* ---------------- tabs ---------------- */
 const BOTTOM_NAV_MORE = new Set(['bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
-const BUNKER_PLAN_MAX_LEGS = 30;
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -12549,7 +12552,6 @@ function normalizeBunkerLegs(legs, legacySideMargin){
   if (!anyPerLeg && legacy != null && !isNaN(legacy)){
     list.forEach(leg=>{ if (!bunkerLegIsBlank(leg)) leg.marginPct = legacy; });
   }
-  if (list.length > BUNKER_PLAN_MAX_LEGS) list = list.slice(0, BUNKER_PLAN_MAX_LEGS);
   return list;
 }
 function emptyBunkerSide(defaultGrade){
@@ -12644,10 +12646,12 @@ function autoFillBunkerSeaDays(leg){
 }
 function addBunkerPlanLeg(sideKey){
   const side = ensureBunkerPlan()[sideKey];
-  if (!side || side.legs.length >= BUNKER_PLAN_MAX_LEGS) return;
+  if (!side) return;
   side.legs.push(emptyBunkerLeg());
   renderBunkerPlan();
   scheduleBunkerPlanSave();
+  const row = document.querySelector(`#page-bunkerplan tr[data-side="${sideKey}"][data-row="${side.legs.length - 1}"]`);
+  if (row && row.scrollIntoView) row.scrollIntoView({ block:'nearest' });
 }
 function removeBunkerPlanLeg(sideKey){
   const side = ensureBunkerPlan()[sideKey];
