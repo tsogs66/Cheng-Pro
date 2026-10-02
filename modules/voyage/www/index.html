@@ -499,6 +499,56 @@
     letter-spacing:0; text-transform:none; color:var(--paper-dim);
   }
   .unit-box h3 + .unit-note{margin-top:-4px;}
+  /* Unit sits at the right end of the input box. The number stays in the field. */
+  .field.has-unit .input-unit{position:relative; display:block; min-width:0;}
+  .field.has-unit .input-unit input{box-sizing:border-box;}
+  .field.has-unit .unit-suffix{
+    position:absolute; top:50%; transform:translateY(-50%);
+    right:8px; pointer-events:none;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500;
+    letter-spacing:0.02em; color:var(--paper-dim); line-height:1;
+  }
+  .field.has-unit input[type="number"] + .unit-suffix{right:22px;}
+  /* Calculated results only. Labels, units and typed inputs stay at their normal weight. */
+  .field.calc input,
+  input.result-num,
+  .stat .num,
+  .gauge-value,
+  .cii-card .val,
+  .cons-basis .cb-val,
+  #vsPerfBody td:not(:first-child),
+  #vsGeReportBody td:not(:first-child),
+  #consCompareTable td.cmp-num{
+    font-weight:800;
+  }
+  .stat .num .unit,
+  .gauge-value .unit,
+  .cii-card .val .unit,
+  .unit-suffix,
+  .cons-basis .cb-unit,
+  .bp-result-unit,
+  .bp-result-title{
+    font-weight:500;
+  }
+  .cons-basis .cb-unit{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; margin-left:4px; color:var(--paper-dim);
+  }
+  .report-lead{
+    margin:0 0 12px; font-size:13px; line-height:1.5; font-weight:400; color:var(--paper);
+  }
+  #consCompareTable{font-size:13px;}
+  #consCompareTable thead th{font-size:12px;}
+  #consCompareTable td.cmp-when,
+  #consCompareTable td.cmp-item{font-weight:400; color:var(--paper);}
+  #consCompareTable td.cmp-num{text-align:right; font-variant-numeric:tabular-nums;}
+  #consCompareTable tr.cmp-section td{
+    font-family:'Oswald',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--brass); padding-top:14px; border-bottom:none;
+  }
+  #consCompareTable tr.cmp-total td{border-top:1px solid var(--line-strong);}
+  #consCompareTable td.cmp-pos{color:var(--good); font-weight:800; text-align:right;}
+  #consCompareTable td.cmp-neg{color:var(--alert); font-weight:800; text-align:right;}
+  #consCompareTable td.cmp-zero{color:var(--paper); font-weight:800; text-align:right;}
   /* Log Entry → Enter Flowmeters popup */
   :root{
     --vv-top: 0px;
@@ -717,7 +767,7 @@
   .cons-row .field{margin-bottom:0;}
   .cons-basis{display:flex; flex-direction:column; align-items:flex-end; padding-bottom:7px; line-height:1.25;}
   .cons-basis .cb-lbl{font-size:9px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);}
-  .cons-basis .cb-val{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted);}
+  .cons-basis .cb-val{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper); font-weight:800;}
   /* Voyage Summary: keep ER readings and cylinder containers on one horizontal row */
   #voyageSummaryPanel .form-grid.cols5{
     grid-template-columns:repeat(5, minmax(0, 1fr));
@@ -894,7 +944,7 @@
   .gauge-grid.large .gauge-label{font-size:12px;}
   .gauge-grid.large .gauge-cap{font-size:11px;}
   .gauge-label{font-family:'Oswald',sans-serif; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:2px;}
-  .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:600;}
+  .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:800;}
   .gauge-value .unit,.stat .num .unit,.cii-card .val .unit{
     font-size:0.72em; font-weight:500; color:var(--paper-dim); margin-left:0.28em; letter-spacing:0.02em;
   }
@@ -2019,7 +2069,7 @@
   #syncStatus.error{color:var(--alert);}
   .cii-strip{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
   .cii-card{flex:1; min-width:120px; border:1px solid var(--line); border-radius:4px; padding:10px 12px; background:rgba(0,0,0,0.15);}
-  .cii-card .val{font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:600; color:var(--brass);}
+  .cii-card .val{font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:800; color:var(--brass);}
   .cii-card .lbl{font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:3px;}
   .cii-card .sub{font-size:10px; color:var(--teal); margin-top:4px;}
   .sync-banner{border:1px solid var(--line-strong); border-radius:4px; padding:10px 12px; margin-bottom:12px; font-size:12px; line-height:1.5;}
@@ -3624,6 +3674,40 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         </details>
       </div>
 
+      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsRemarksPanel">
+        <h3 class="sub" style="margin-top:0;">Remarks</h3>
+        <p class="unit-note">Notes for this report. They are printed with the entry.</p>
+        <div class="field"><textarea id="vs_remarks" rows="3" style="width:100%; background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px; padding:8px;"></textarea></div>
+      </div>
+
+      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsPhotoPanel">
+        <h3 class="sub" style="margin-top:0;">Attached Photo</h3>
+        <p class="unit-note">Handwritten copy of the flowmeter readings and the other engine parameters for this report.</p>
+        <div class="form-grid cols3">
+          <div class="field span2">
+            <label>Photo (optional)</label>
+            <input type="file" id="vs_photoFile" accept="image/*">
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="ghost small" id="btnVsTakePhoto" type="button">Take Picture</button>
+            </div>
+          </div>
+          <div class="field" style="justify-content:flex-end;">
+            <button class="ghost small" id="btnVsClearPhoto" type="button">Remove Photo</button>
+          </div>
+        </div>
+        <div class="vs-photo-preview" id="vs_photoPreview"></div>
+        <div class="hint">Photograph or attach the handwritten sheet of this report's flowmeter readings and other engine parameters — temperatures, pressures and running hours. The picture stays with the entry so the written log can be checked against what was typed. Use <strong>Take Picture</strong> for the camera on Android or a webcam on Windows, or choose an image already on the device.</div>
+      </div>
+
+      <div class="btn-row" id="vsBottomActions">
+        <button class="primary" id="btnSaveVoyageSummary">Save only</button>
+        <button class="ghost" id="btnPrintVoyageSummary">Print &amp; Save (A4 Portrait)</button>
+        <button class="ghost" id="btnRecalcVoyageSummary" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
+        <button class="ghost" id="btnUndoVoyageRecalc" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
+        <button class="ghost" id="btnCloseVoyageSummary">Close</button>
+      </div>
+      <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures. Use <strong>Recalculate Averages</strong> if voyage totals still show figures from an older calculation — that rebuilds averages from the entries that exist now.</div>
+
       <details class="panel vs-fold" style="margin:0 0 16px;">
         <summary>Performance — By Unit <span class="vs-fold-hint">optional</span></summary>
         <div class="vs-fold-body">
@@ -3660,40 +3744,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </div>
         </div>
       </details>
-
-      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsRemarksPanel">
-        <h3 class="sub" style="margin-top:0;">Remarks</h3>
-        <p class="unit-note">Notes for this report. They are printed with the entry.</p>
-        <div class="field"><textarea id="vs_remarks" rows="3" style="width:100%; background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper); font-family:'IBM Plex Mono',monospace; font-size:13px; padding:8px;"></textarea></div>
-      </div>
-
-      <div class="panel" style="margin:0 0 16px; padding:16px;" id="vsPhotoPanel">
-        <h3 class="sub" style="margin-top:0;">Attached Photo</h3>
-        <p class="unit-note">Handwritten copy of the flowmeter readings and the other engine parameters for this report.</p>
-        <div class="form-grid cols3">
-          <div class="field span2">
-            <label>Photo (optional)</label>
-            <input type="file" id="vs_photoFile" accept="image/*">
-            <div class="btn-row" style="margin-top:8px;">
-              <button class="ghost small" id="btnVsTakePhoto" type="button">Take Picture</button>
-            </div>
-          </div>
-          <div class="field" style="justify-content:flex-end;">
-            <button class="ghost small" id="btnVsClearPhoto" type="button">Remove Photo</button>
-          </div>
-        </div>
-        <div class="vs-photo-preview" id="vs_photoPreview"></div>
-        <div class="hint">Photograph or attach the handwritten sheet of this report's flowmeter readings and other engine parameters — temperatures, pressures and running hours. The picture stays with the entry so the written log can be checked against what was typed. Use <strong>Take Picture</strong> for the camera on Android or a webcam on Windows, or choose an image already on the device.</div>
-      </div>
-
-      <div class="btn-row" id="vsBottomActions">
-        <button class="primary" id="btnSaveVoyageSummary">Save only</button>
-        <button class="ghost" id="btnPrintVoyageSummary">Print &amp; Save (A4 Portrait)</button>
-        <button class="ghost" id="btnRecalcVoyageSummary" type="button" title="Rebuild averages and totals from the current log entries">Recalculate Averages</button>
-        <button class="ghost" id="btnUndoVoyageRecalc" type="button" style="display:none;" title="Restore entries from before the last recalculate">Undo Recalculate</button>
-        <button class="ghost" id="btnCloseVoyageSummary">Close</button>
-      </div>
-      <div class="hint">Edit distance, RPM, boiler/incinerator, freshwater, misc., unit fuel cons, and ROB consumption here. Consumption cells default from meter readings — override any cell as needed. Saving updates this entry and recalculates every later entry. Print &amp; Save commits the report before printing, so the sheet you hand over and the record kept on board are the same figures. Use <strong>Recalculate Averages</strong> if voyage totals still show figures from an older calculation — that rebuilds averages from the entries that exist now.</div>
     </div>
 
     <details class="panel vs-fold">
@@ -4130,6 +4180,17 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
         <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
+      </div>
+    </div>
+
+    <div class="panel" id="consComparePanel">
+      <h2>Flowmeter and Manual Consumption</h2>
+      <p class="report-lead">Fuel and lube oil for each log entry. Flowmeter is the quantity calculated from the meter readings. Manual is the figure booked on the report: the typed override when one was entered, otherwise the same flowmeter figure. Difference is manual minus flowmeter. A plus means more was booked than the meters show. A minus means less.</p>
+      <div class="table-scroll">
+        <table id="consCompareTable">
+          <thead><tr><th>Entry</th><th>Item</th><th>Flowmeter</th><th>Manual</th><th>Difference</th></tr></thead>
+          <tbody id="consCompareBody"><tr class="empty-row"><td colspan="5">No log entries yet.</td></tr></tbody>
+        </table>
       </div>
     </div>
 
@@ -5611,6 +5672,7 @@ function syncKwLoadPctDisplay(kwInputId, loadInputId, maxKw){
   const kw = kwEl && kwEl.value!=='' ? parseFloat(kwEl.value) : NaN;
   const pct = (!isNaN(kw) && maxKw>0) ? (kw/maxKw)*100 : null;
   loadEl.value = pct==null ? '—' : fmt(pct, 2) + ' %';
+  applyLogEntryUnits(document.getElementById('page-entry'));
 }
 function syncIncineratorLoadPctDisplay(kwInputId, loadInputId){
   syncKwLoadPctDisplay(kwInputId, loadInputId, incineratorMaxKw());
@@ -10873,6 +10935,7 @@ function paintFuelMeterBox(box, dual, prefix){
        <div class="field"><label>Outlet Flowmeter</label><input type="number" id="${prefix}_meter_out"></div>`
     : `<div class="field"><label>Fuel Meter</label><input type="number" id="${prefix}_meter"></div>`;
   box.dataset.meterMode = mode;
+  applyLogEntryUnits(box);
 }
 
 function renderFuelMeterFields(){
@@ -12281,6 +12344,8 @@ function render(){
   renderRobByReport();
   renderRobAsOfSelector();
   renderRangeTotals();
+  renderFlowmeterOverrideCompare();
+  watchLogEntryUnits();
 
   // summary
   const totalCons = Object.values(consByFuel).reduce((a,b)=>a+b,0);
@@ -18121,17 +18186,17 @@ function openVoyageSummary(entryId){
   document.getElementById('vsTopStrip').innerHTML = `
     ${stat('Voyage', state.setup.voyageNumber||'—')}
     ${stat('Date', dtStr)}
-    ${stat('Ship Distance', fmt(entry.distanceShip, 2), 'nm')}
+    ${stat('Ship Distance', fmt(entry.distanceShip, 2), 'NM')}
     ${stat('Ship Speed', row.speedShip==null?'—':fmt(row.speedShip,2), 'kn')}
-    ${stat('Run Time', fmt(row.hrs, 2), 'hrs')}
+    ${stat('Run Time', fmt(row.hrs, 2), 'Hrs')}
     ${stat('Load', fmt(row.kwEst, 2), 'kW')}
-    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—', 'nm')}
+    ${stat('Distance To Go', distanceToGo!=null? fmt(distanceToGo, 2):'—', 'NM')}
     ${stat('Days To Go', daysToGoVal!=null? fmt(daysToGoVal,2):'—', 'days')}
     ${stat('Total Rev.', fmt(row.dailyRevs, 2), 'rev')}
     ${stat('Load', fmt(row.mcrPct,2), '%')}
-    ${stat('Engine Distance', fmt(row.distEngine,2), 'nm')}
+    ${stat('Engine Distance', fmt(row.distEngine,2), 'NM')}
     ${stat('Engine Speed', row.speedEngine==null?'—':fmt(row.speedEngine,2), 'kn')}
-    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2), 'rpm')}
+    ${stat('RPM', fmt(row.meStopped ? null : (row.rpmEff!=null?row.rpmEff:entry.rpm), 2), 'RPM')}
     ${stat('Ave. kW', fmt(perf.avgKw, 2), 'kW')}
     ${stat('Slip', fmt(row.slip,2), '%')}
     ${stat('ETA', etaStr)}
@@ -18269,31 +18334,31 @@ function openVoyageSummary(entryId){
   const meVoyageStrip = document.getElementById('vsMeVoyageStrip');
   if (meVoyageStrip){
     meVoyageStrip.innerHTML = `
-      ${stat('Voyage Hours', fmt(perf.totalHrs, 2))}
-      ${stat('M/E Cons (MT)', fmtFuel(row.meCons))}
-      ${stat('Engine Dist (nm)', fmt(row.distEngine,2))}
-      ${stat('Slip %', fmt(row.slip,2))}
-      ${stat('Avg RPM', fmt(perf.avgRpm, 2))}
-      ${stat('Avg %MCR (hrs-wtd)', perf.avgMcrTimeWeighted==null?'—':fmt(perf.avgMcrTimeWeighted, 2))}
-      ${stat('Avg kW', fmt(perf.avgKw, 2))}
-      ${stat('Avg Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip,2))}
-      ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2))}
-      ${stat('Avg Ref. SFOC', perf.avgSfocRef==null?'—':fmt(perf.avgSfocRef, 2))}
-      ${stat('Avg Actual SFOC', perf.avgSfocActual==null?'—':fmt(perf.avgSfocActual, 2))}
-      ${stat('Avg SFOC Δ %', perf.avgSfocDelta==null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta, 2)))}
-      ${stat('Cum. Engine Dist', fmt(perf.totalDistEngine, 2))}
-      ${stat('Cum. Ship Dist', fmt(perf.totalDistShip, 2))}
-      ${stat('Avg Ship Speed', perf.avgSpeedShip==null?'—':fmt(perf.avgSpeedShip,2)+' kn')}
-      ${stat('Load (kW)', fmt(row.kwEst, 2))}
+      ${stat('Voyage Hours', fmt(perf.totalHrs, 2), 'Hrs')}
+      ${stat('M/E Cons (MT)', fmtFuel(row.meCons), 'MT')}
+      ${stat('Engine Dist (nm)', fmt(row.distEngine,2), 'NM')}
+      ${stat('Slip %', fmt(row.slip,2), '%')}
+      ${stat('Avg RPM', fmt(perf.avgRpm, 2), 'RPM')}
+      ${stat('Avg %MCR (hrs-wtd)', perf.avgMcrTimeWeighted==null?'—':fmt(perf.avgMcrTimeWeighted, 2), '%')}
+      ${stat('Avg kW', fmt(perf.avgKw, 2), 'kW')}
+      ${stat('Avg Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip,2), '%')}
+      ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2), 'g/kWh')}
+      ${stat('Avg Ref. SFOC', perf.avgSfocRef==null?'—':fmt(perf.avgSfocRef, 2), 'g/kWh')}
+      ${stat('Avg Actual SFOC', perf.avgSfocActual==null?'—':fmt(perf.avgSfocActual, 2), 'g/kWh')}
+      ${stat('Avg SFOC Δ %', perf.avgSfocDelta==null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta, 2)), '%')}
+      ${stat('Cum. Engine Dist', fmt(perf.totalDistEngine, 2), 'NM')}
+      ${stat('Cum. Ship Dist', fmt(perf.totalDistShip, 2), 'NM')}
+      ${stat('Avg Ship Speed', perf.avgSpeedShip==null?'—':fmt(perf.avgSpeedShip,2), 'kn')}
+      ${stat('Load (kW)', fmt(row.kwEst, 2), 'kW')}
     `;
   }
   document.getElementById('vsVoyageAvgStrip').innerHTML = `
-    ${stat('Voyage Hours', fmt(perf.totalHrs, 2))}
+    ${stat('Voyage Hours', fmt(perf.totalHrs, 2), 'Hrs')}
     ${machineryGeHourCells(perf.geTotals?.hrs, geUnitCount()).map(c =>
-      stat(`A/E #${c.n} Hours`, c.used ? fmt(c.hours, 2) : '—')
+      stat(`A/E #${c.n} Hours`, c.used ? fmt(c.hours, 2) : '—', 'Hrs')
     ).join('')}
-    ${stat('Avg Gen Load %', perf.avgGeLoadPct==null?'—':fmt(perf.avgGeLoadPct, 2))}
-    ${stat('Avg Gen kW (hrs-wtd)', perf.avgGeKwTimeWeighted==null?'—':fmt(perf.avgGeKwTimeWeighted, 2))}
+    ${stat('Avg Gen Load %', perf.avgGeLoadPct==null?'—':fmt(perf.avgGeLoadPct, 2), '%')}
+    ${stat('Avg Gen kW (hrs-wtd)', perf.avgGeKwTimeWeighted==null?'—':fmt(perf.avgGeKwTimeWeighted, 2), 'kW')}
   `;
 
   // Generators / Boiler / Incinerator (same fields as Reports tab)
@@ -18368,7 +18433,7 @@ function openVoyageSummary(entryId){
       <div class="field${editable ? '' : ' calc'}"><label>${label}</label>
         <input class="pf-input" type="${editable ? 'number' : 'text'}"${editable ? ' step="0.001"' : ' readonly tabindex="-1"'} id="${id}" value="${unitVal(val)}"></div>
       <div class="cons-basis" title="Consumption calculated from the flowmeter readings for this period">
-        <span class="cb-lbl">flowmeter</span><span class="cb-val" id="${id}_meter">${basis(meterVal)}</span>
+        <span class="cb-lbl">flowmeter</span><span class="cb-val" id="${id}_meter">${basis(meterVal)}</span><span class="cb-unit">MT</span>
       </div>
     </div>`;
   document.getElementById('vsFuelConsBox').innerHTML =
@@ -18379,7 +18444,7 @@ function openVoyageSummary(entryId){
       <div class="field"><label>TOTAL (MT)</label><input type="text" id="vs_unit_total" value="${fmtFuel((meConsVal||0)+(geConsVal||0)+(blrConsVal||0))}" readonly></div>
       <div class="cons-basis"><span class="cb-lbl">flowmeter</span><span class="cb-val" id="vs_unit_total_meter">${
         basis([metered.meCons, metered.geCons, metered.blrCons].every(v=>v==null) ? null
-          : (metered.meCons||0)+(metered.geCons||0)+(metered.blrCons||0))}</span></div>
+          : (metered.meCons||0)+(metered.geCons||0)+(metered.blrCons||0))}</span><span class="cb-unit">MT</span></div>
     </div>`;
   /* An empty box means "use the flowmeter", not "burned nothing" — everything else
      here reads it that way, so the total has to as well or clearing one unit's
@@ -18496,6 +18561,7 @@ function openVoyageSummary(entryId){
 
   renderVsEntryContext(entry);
   document.getElementById('voyageSummaryPanel').style.display = '';
+  applyLogEntryUnits(document.getElementById('page-entry'));
   switchTab('entry');
   document.getElementById('voyageSummaryPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -18762,6 +18828,7 @@ function updateVsGeSplit(entryId){
         : 'Tick the generators that were in service and enter their run hours for this report.';
   }
   renderVsPerfTable(entryId);
+  applyLogEntryUnits(document.getElementById('page-entry'));
 }
 
 /** Mirror the boiler figure typed under Fuel Cons into Generator Voyage Totals. */
@@ -20118,13 +20185,13 @@ function updateLivePreview(){
   const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   box.className = 'stat-strip cols4';
   box.innerHTML =
-    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2), 'hrs') +
+    stat('Period Hrs', hrs==null?'—':fmt(hrs, 2), 'Hrs') +
     stat('Daily Revs', dailyRevs==null?'—':fmt(dailyRevs, 2), 'rev') +
     stat('Engine Speed', speedEngine==null?'—':fmt(speedEngine,2), 'kn') +
     stat('Actual SFOC', sfocAct==null?'—':fmt(sfocAct, 2), 'g/kWh') +
     stat('M/E Cons', meCons==null?'—':fmtFuel(meCons), 'MT') +
-    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2), 'rpm') +
-    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2), 'nm') +
+    stat('RPM', rpmEff==null?'—':fmt(rpmEff,2), 'RPM') +
+    stat('Engine Dist', distEngine==null?'—':fmt(distEngine,2), 'NM') +
     stat('SFOC @ 100%', sfoc100==null?'—':fmt(sfoc100, 2), 'g/kWh') +
     stat('G/E Cons', geCons==null?'—':fmtFuel(geCons), 'MT') +
     stat('M/E Load', kwEst==null?'—':fmt(kwEst, 2), 'kW') +
@@ -20154,6 +20221,262 @@ function meterDerivedUnitCons(entry){
     : (typeof effectiveCarryover === 'function' ? effectiveCarryover() : null);
   if (!prev) return { meCons:null, geCons:null, blrCons:null };
   return computeRawUnitCons(entry, prev, meterRollovers());
+}
+
+/* Cylinder and system-oil metres, in litres, before any manual override. */
+function meterDerivedLubeCons(entry){
+  const empty = {'CYL HIGH':null,'CYL LOW':null,'ME SYS OIL':null,'GE SYS OIL':null};
+  if (!entry) return empty;
+  const prev = (entry.id && typeof previousEntryFor === 'function')
+    ? (previousEntryFor(entry.id) || effectiveCarryover())
+    : (typeof effectiveCarryover === 'function' ? effectiveCarryover() : null);
+  if (!prev) return empty;
+  const rolls = meterRollovers();
+  const cylD = meterDelta(entry.cylMeter, prev.cylMeter, rolls.cyl);
+  const meLoD = meterDelta(entry.meLo, prev.meLo, rolls.generic);
+  const geLoD = meterDelta(entry.geLo, prev.geLo, rolls.generic);
+  const out = {'CYL HIGH':0,'CYL LOW':0,'ME SYS OIL':0,'GE SYS OIL':0};
+  if (cylD == null){
+    out['CYL HIGH'] = null;
+    out['CYL LOW'] = null;
+  } else {
+    out[entry.tbn === 'LOW' ? 'CYL LOW' : 'CYL HIGH'] = cylD;
+  }
+  out['ME SYS OIL'] = meLoD;
+  out['GE SYS OIL'] = geLoD;
+  return out;
+}
+
+function signedCompare(manual, meter, decimals){
+  if (manual == null || meter == null || !isFinite(Number(manual)) || !isFinite(Number(meter))){
+    return { text:'—', cls:'' };
+  }
+  const d = Number(manual) - Number(meter);
+  const eps = 0.5 * Math.pow(10, -decimals);
+  if (Math.abs(d) < eps) return { text:'+' + fmt(0, decimals), cls:'cmp-zero' };
+  const body = fmt(Math.abs(d), decimals);
+  return d > 0 ? { text:'+' + body, cls:'cmp-pos' } : { text:'-' + body, cls:'cmp-neg' };
+}
+
+function renderFlowmeterOverrideCompare(){
+  const body = document.getElementById('consCompareBody');
+  if (!body) return;
+  const list = sortedEntries();
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">No log entries yet.</td></tr>';
+    return;
+  }
+  const stamp = (e) => {
+    const dt = new Date(e.datetime);
+    if (isNaN(dt.getTime())) return '—';
+    const when = dt.toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    return `${when} — ${e.operation || ''}`.trim();
+  };
+  const booked = (overrideVal, meterVal) => {
+    if (overrideVal != null && overrideVal !== '' && isFinite(Number(overrideVal))) return Number(overrideVal);
+    if (meterVal != null && isFinite(Number(meterVal))) return Number(meterVal);
+    return null;
+  };
+  const qty = (v, decimals) => (v == null || !isFinite(Number(v))) ? '—' : fmt(Number(v), decimals);
+  const fuelItems = [
+    ['M/E', 'ME', 'meCons'],
+    ['D/G', 'GE', 'geCons'],
+    ['Boiler', 'BLR', 'blrCons']
+  ];
+  const lubeItems = ['CYL HIGH','CYL LOW','ME SYS OIL','GE SYS OIL'];
+  const rows = [];
+  const pushSection = (title) => {
+    rows.push(`<tr class="cmp-section"><td colspan="5">${escHtml(title)}</td></tr>`);
+  };
+  const pushRow = (when, item, meter, manual, decimals) => {
+    const diff = signedCompare(manual, meter, decimals);
+    rows.push(`<tr>
+      <td class="cmp-when">${escHtml(when)}</td>
+      <td class="cmp-item">${escHtml(item)}</td>
+      <td class="cmp-num">${qty(meter, decimals)}</td>
+      <td class="cmp-num">${qty(manual, decimals)}</td>
+      <td class="${diff.cls}">${diff.text}</td>
+    </tr>`);
+  };
+  const sum = (arr) => {
+    const nums = arr.filter(v => v != null && isFinite(Number(v)));
+    return nums.length ? nums.reduce((a,b)=>a+Number(b),0) : null;
+  };
+
+  pushSection('Fuel (MT)');
+  const fuelMeterTotals = { ME: [], GE: [], BLR: [] };
+  const fuelManualTotals = { ME: [], GE: [], BLR: [] };
+  list.forEach(e => {
+    const meter = meterDerivedUnitCons(e);
+    const ov = e.unitOverride || {};
+    const when = stamp(e);
+    fuelItems.forEach(([label, key, prop]) => {
+      const m = meter[prop];
+      const man = booked(ov[key], m);
+      fuelMeterTotals[key].push(m);
+      fuelManualTotals[key].push(man);
+      pushRow(when, label, m, man, 3);
+    });
+  });
+  fuelItems.forEach(([label, key]) => {
+    const m = sum(fuelMeterTotals[key]);
+    const man = sum(fuelManualTotals[key]);
+    pushRow('Voyage total', label, m, man, 3);
+  });
+
+  pushSection('Lube oil (L)');
+  const lubeMeterTotals = {};
+  const lubeManualTotals = {};
+  lubeItems.forEach(k => { lubeMeterTotals[k] = []; lubeManualTotals[k] = []; });
+  list.forEach(e => {
+    const meter = meterDerivedLubeCons(e);
+    const when = stamp(e);
+    lubeItems.forEach(label => {
+      const m = meter[label];
+      const ov = overrideForLubeKind(e.consOverride, label, lubeTankList());
+      const man = booked(ov, m);
+      lubeMeterTotals[label].push(m);
+      lubeManualTotals[label].push(man);
+      pushRow(when, label, m, man, 0);
+    });
+  });
+  lubeItems.forEach(label => {
+    pushRow('Voyage total', label, sum(lubeMeterTotals[label]), sum(lubeManualTotals[label]), 0);
+  });
+  body.innerHTML = rows.join('');
+  body.querySelectorAll('tr').forEach(tr => {
+    const first = tr.cells && tr.cells[0];
+    if (first && first.textContent === 'Voyage total') tr.classList.add('cmp-total');
+  });
+}
+
+/* Unit at the right end of each log-entry box, taken from the field's own label. */
+let logEntryUnitLock = false;
+let logEntryUnitObserver = null;
+const LOG_ENTRY_UNIT_TAILS = {
+  '%': /\s*%$/,
+  '°C': /\s*°\s*C$/i,
+  'MT': /\s*MT$/i,
+  'm³': /\s*m(?:³|3)$/i,
+  'NM': /\s*nm$/i,
+  'kn': /\s*kn$/i,
+  'kW': /\s*kw$/i,
+  'bar': /\s*bar$/i,
+  'RPM': /\s*rpm$/i,
+  'Hrs': /\s*hrs?$/i,
+  'g/kWh': /\s*g\/kwh$/i,
+  'L': /\s*L$/
+};
+function unitTokenFromText(chunk){
+  const s = String(chunk || '');
+  const p = s.toLowerCase();
+  if (/m³|m3/.test(p)) return 'm³';
+  if (/°\s*c/.test(p)) return '°C';
+  if (/\bnm\b/.test(p)) return 'NM';
+  if (/\bkn\b/.test(p)) return 'kn';
+  if (/\bkw\b/.test(p)) return 'kW';
+  if (/\bbar\b/.test(p)) return 'bar';
+  if (/\bmt\b/.test(p)) return 'MT';
+  if (/\brpm\b/.test(p)) return 'RPM';
+  if (/%/.test(s)) return '%';
+  if (/g\/kwh/.test(p)) return 'g/kWh';
+  if (/\bhrs?\b|\bhours?\b/.test(p)) return 'Hrs';
+  if (/\blitres?\b|\bliters?\b|\bltrs?\b|(?:^|\s)l(?:\s|$)/.test(p)) return 'L';
+  return '';
+}
+function logEntryUnitForLabel(label){
+  const raw = String(label || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const low = raw.toLowerCase();
+  if (/spec\.?\s*gravity|pump mark|pump rack|rev\.?\s*counter|arrangement|fuel type|operation|condition|time zone|destination|remark|surveyor|place \/ port/.test(low)) return '';
+  const chunks = [...raw.matchAll(/\(([^)]*)\)/g)].map(m => m[1]);
+  for (let i = chunks.length - 1; i >= 0; i--){
+    const u = unitTokenFromText(chunks[i]);
+    if (u) return u;
+  }
+  if (/°\s*c|\btemp\b/.test(low)) return '°C';
+  if (/\brpm\b/.test(low)) return 'RPM';
+  if (/%/.test(raw) || /\bslip\b/.test(low)) return '%';
+  if (/\bpress\b|\bpressure\b|\bbar\b/.test(low)) return 'bar';
+  if (/m³|m3/.test(low)) return 'm³';
+  if (/\bkw\b/.test(low) || /\bavg load\b/.test(low)) return 'kW';
+  if (/\bnm\b|\bdist/.test(low)) return 'NM';
+  if (/\bkn\b|\bspeed\b/.test(low)) return 'kn';
+  if (/\bmt\b|mdo\/mgo|ls mgo|fuel share|fuel cons/.test(low)) return 'MT';
+  if (/\bhrs?\b|\bhours?\b|\brun time\b|\bruntime\b/.test(low)) return 'Hrs';
+  if (/cylinder oil meter/.test(low)) return 'L';
+  if (/fuel meter|inlet flowmeter|outlet flowmeter/.test(low)) return 'L';
+  if (/fwg|fresh water|produced|consumed|fw rob|flowmeter/.test(low)) return 'm³';
+  return '';
+}
+function applyLogEntryUnits(root){
+  const scope = root && root.querySelectorAll ? root : document.getElementById('page-entry');
+  if (!scope || logEntryUnitLock) return;
+  logEntryUnitLock = true;
+  try {
+    scope.querySelectorAll('.field').forEach(field => {
+      if (field.closest && !field.closest('#page-entry')) return;
+      const label = field.querySelector(':scope > label');
+      let input = field.querySelector(':scope > .input-unit > input, :scope > input');
+      if (!input || input.tagName !== 'INPUT') return;
+      const type = (input.getAttribute('type') || 'text').toLowerCase();
+      if (['file','hidden','checkbox','radio','datetime-local','date','time','button','submit'].includes(type)) return;
+      const unit = logEntryUnitForLabel(label ? label.textContent : '');
+      const labLow = (label ? label.textContent : '').toLowerCase();
+      const textual = /arrangement|operation|vessel|surveyor|remark|place|grade in use|fuel type/.test(labLow);
+      if (!unit){
+        const wrap = input.parentElement && input.parentElement.classList.contains('input-unit') ? input.parentElement : null;
+        if (wrap){
+          wrap.querySelector('.unit-suffix')?.remove();
+          field.insertBefore(input, wrap);
+          wrap.remove();
+          field.classList.remove('has-unit');
+          input.style.paddingRight = '';
+        }
+        input.classList.remove('result-num');
+        return;
+      }
+      let wrap = input.parentElement && input.parentElement.classList.contains('input-unit') ? input.parentElement : null;
+      if (!wrap){
+        wrap = document.createElement('div');
+        wrap.className = 'input-unit';
+        input.parentElement.insertBefore(wrap, input);
+        wrap.appendChild(input);
+      }
+      let suffix = wrap.querySelector('.unit-suffix');
+      if (!suffix){
+        suffix = document.createElement('span');
+        suffix.className = 'unit-suffix';
+        suffix.setAttribute('aria-hidden', 'true');
+        wrap.appendChild(suffix);
+      }
+      if (suffix.textContent !== unit) suffix.textContent = unit;
+      field.classList.add('has-unit');
+      const spin = type === 'number' ? 18 : 0;
+      input.style.paddingRight = (Math.max(28, unit.length * 7 + 12) + spin) + 'px';
+      const tail = LOG_ENTRY_UNIT_TAILS[unit];
+      if (tail && typeof input.value === 'string' && tail.test(input.value)){
+        const stripped = input.value.replace(tail, '').trim();
+        if (stripped === '—' || stripped === '-' || /^-?\d/.test(stripped)) input.value = stripped;
+      }
+      const result = !textual && (field.classList.contains('calc') || input.readOnly || input.hasAttribute('readonly'));
+      input.classList.toggle('result-num', result);
+    });
+  } finally {
+    logEntryUnitLock = false;
+  }
+}
+function watchLogEntryUnits(){
+  const page = document.getElementById('page-entry');
+  if (!page) return;
+  if (!logEntryUnitObserver && window.MutationObserver){
+    logEntryUnitObserver = new MutationObserver(() => {
+      if (logEntryUnitLock) return;
+      applyLogEntryUnits(page);
+    });
+    logEntryUnitObserver.observe(page, { childList: true, subtree: true });
+  }
+  applyLogEntryUnits(page);
 }
 
 function renderEntryUnitFields(){
