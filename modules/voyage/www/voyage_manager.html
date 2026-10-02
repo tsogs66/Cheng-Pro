@@ -537,18 +537,19 @@
     margin:0 0 12px; font-size:13px; line-height:1.5; font-weight:400; color:var(--paper);
   }
   #consCompareTable{font-size:13px;}
-  #consCompareTable thead th{font-size:12px;}
+  #consCompareTable thead th{font-size:12px; text-align:left;}
+  #consCompareTable td{text-align:left;}
   #consCompareTable td.cmp-when,
   #consCompareTable td.cmp-item{font-weight:400; color:var(--paper);}
-  #consCompareTable td.cmp-num{text-align:right; font-variant-numeric:tabular-nums;}
+  #consCompareTable td.cmp-num{text-align:left; font-variant-numeric:tabular-nums;}
   #consCompareTable tr.cmp-section td{
     font-family:'Oswald',sans-serif; font-size:12px; font-weight:500; letter-spacing:0.06em;
     text-transform:uppercase; color:var(--brass); padding-top:14px; border-bottom:none;
   }
   #consCompareTable tr.cmp-total td{border-top:1px solid var(--line-strong);}
-  #consCompareTable td.cmp-pos{color:var(--good); font-weight:800; text-align:right;}
-  #consCompareTable td.cmp-neg{color:var(--alert); font-weight:800; text-align:right;}
-  #consCompareTable td.cmp-zero{color:var(--paper); font-weight:800; text-align:right;}
+  #consCompareTable td.cmp-pos{color:var(--good); font-weight:800; text-align:left;}
+  #consCompareTable td.cmp-neg{color:var(--alert); font-weight:800; text-align:left;}
+  #consCompareTable td.cmp-zero{color:var(--paper); font-weight:800; text-align:left;}
   /* Log Entry → Enter Flowmeters popup */
   :root{
     --vv-top: 0px;
