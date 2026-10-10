@@ -256,12 +256,59 @@
   @media (max-width:900px){
     .status-row .theme-toggle{display:inline-flex; padding:5px 10px; font-size:11px;}
   }
-  /* Leave room for ChEng AIO Home FAB (top-right) when embedded */
+  /* ChEng AIO: title, vessel line, and byline share a row with database
+     status, sync, and version. The suite theme control is beside Dashboard. */
   html.chengaio-embed .masthead{
-    padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:center;
+    column-gap:12px;
+    row-gap:1px;
+    padding-right:0;
   }
-  html.chengaio-embed .status-row{align-items:flex-end;}
-  /* AIO already puts the theme control beside Dashboard. */
+  html.chengaio-embed .masthead-left,
+  html.chengaio-embed .masthead-left > div,
+  html.chengaio-embed .status-row,
+  html.chengaio-embed.short-viewport.landscape-view .status-row{
+    display:contents;
+  }
+  html.chengaio-embed .app-logo{
+    grid-column:1;
+    grid-row:1 / span 3;
+    align-self:center;
+  }
+  html.chengaio-embed .masthead h1,
+  html.chengaio-embed #dbStatus{grid-row:1;}
+  html.chengaio-embed .subtitle,
+  html.chengaio-embed.short-viewport .subtitle,
+  html.chengaio-embed.compact-phone .subtitle,
+  html.chengaio-embed.short-viewport.landscape-view .subtitle,
+  html.chengaio-embed #syncStatus{grid-row:2;}
+  html.chengaio-embed .byline,
+  html.chengaio-embed #appVersion{grid-row:3;}
+  html.chengaio-embed .masthead h1,
+  html.chengaio-embed .subtitle,
+  html.chengaio-embed .byline{
+    grid-column:2;
+    align-self:center;
+    margin-top:0;
+    min-width:0;
+  }
+  html.chengaio-embed .subtitle,
+  html.chengaio-embed.short-viewport .subtitle,
+  html.chengaio-embed.compact-phone .subtitle,
+  html.chengaio-embed.short-viewport.landscape-view .subtitle{
+    display:block;
+  }
+  html.chengaio-embed #dbStatus,
+  html.chengaio-embed #syncStatus,
+  html.chengaio-embed #appVersion{
+    grid-column:3;
+    justify-self:end;
+    align-self:center;
+    text-align:right;
+    max-width:min(46vw, 320px);
+  }
   html.chengaio-embed .status-row .theme-toggle,
   html.chengaio-embed .theme-fab{display:none !important;}
 
