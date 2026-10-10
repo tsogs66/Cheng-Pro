@@ -261,6 +261,9 @@
     padding-right:max(72px, calc(56px + env(safe-area-inset-right, 0px)));
   }
   html.chengaio-embed .status-row{align-items:flex-end;}
+  /* AIO already puts the theme control beside Dashboard. */
+  html.chengaio-embed .status-row .theme-toggle,
+  html.chengaio-embed .theme-fab{display:none !important;}
 
   /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
   html.chengaio-embed #vesselSelectionPanel,
