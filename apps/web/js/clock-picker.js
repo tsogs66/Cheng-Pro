@@ -6,16 +6,48 @@
   'use strict';
 
   const STYLE_ID = 'cheng-clock-picker-css';
-  /* Phone default face 220px (r=110). Tablet/Windows CSS grows the face;
-     placeNums/placeMinuteTicks read clientWidth so radii stay proportional. */
+  /* Phone default face 220px (r=110). Desktop CSS caps the dial, then
+     applyFaceSize() fits a square into the viewport that is actually on
+     screen. placeNums/placeMinuteTicks read clientWidth so radii stay
+     proportional after a monitor or DPI change. */
   let active = null;
 
   function faceRadii(face) {
-    const half = Math.max(80, ((face && face.clientWidth) || 220) / 2);
+    const w = (face && face.clientWidth) || 220;
+    const half = Math.max(70, w / 2);
+    let numBox = 28;
+    try {
+      const raw = face && getComputedStyle(face).getPropertyValue('--ccp-num');
+      const parsed = parseFloat(raw);
+      if (parsed > 0) numBox = parsed;
+    } catch (_) { /* ignore */ }
+    const numR = Math.min(Math.round(half * 0.745), Math.round(half - numBox / 2 - 4));
+    const tickR = Math.min(Math.round(half * 0.891), Math.round(half - 8));
     return {
-      numR: Math.round(half * 0.745),
-      tickR: Math.round(half * 0.891),
+      numR: Math.max(36, numR),
+      tickR: Math.max(44, tickR),
     };
+  }
+
+  function viewBox() {
+    const vv = window.visualViewport;
+    const iw = window.innerWidth || 0;
+    const ih = window.innerHeight || 0;
+    const vw = vv && vv.width ? vv.width : iw;
+    const vh = vv && vv.height ? vv.height : ih;
+    return {
+      w: Math.round(Math.min(iw || vw, vw || iw) || 0),
+      h: Math.round(Math.min(ih || vh, vh || ih) || 0),
+    };
+  }
+
+  function desktopPointer() {
+    try {
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')) return false;
+      return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    } catch (_) {
+      return false;
+    }
   }
 
   function ensureCss() {
@@ -26,19 +58,20 @@
       document.head.appendChild(s);
     }
     s.textContent = `
-.ccp-overlay{position:fixed;inset:0;z-index:12000;background:rgba(4,10,18,.62);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);overflow:auto;-webkit-overflow-scrolling:touch}
+.ccp-overlay{position:fixed;inset:0;z-index:12000;background:rgba(4,10,18,.62);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;backdrop-filter:blur(3px);overflow:auto;-webkit-overflow-scrolling:touch}
 html.keyboard-open .ccp-overlay{align-items:flex-start;padding-top:max(8px,env(safe-area-inset-top,0px))}
-.ccp-dialog{width:min(340px,96vw);max-height:min(96vh,96dvh);background:linear-gradient(160deg,rgba(18,34,56,.98),rgba(10,20,32,.98));border:1px solid rgba(201,154,83,.4);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);padding:16px 16px 14px;color:#e9e4d6;font-family:Segoe UI,Helvetica Neue,sans-serif;overflow:auto;box-sizing:border-box}
+.ccp-dialog{width:min(340px,100%);max-width:100%;max-height:100%;background:linear-gradient(160deg,rgba(18,34,56,.98),rgba(10,20,32,.98));border:1px solid rgba(201,154,83,.4);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);padding:16px 16px 14px;color:#e9e4d6;font-family:Segoe UI,Helvetica Neue,sans-serif;overflow:auto;box-sizing:border-box}
 html.bright .ccp-dialog{background:linear-gradient(160deg,#fff,#f4f1ea);color:#122238;border-color:rgba(110,72,20,.35)}
 .ccp-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin-bottom:8px}
-.ccp-face{position:relative;width:220px;height:220px;margin:8px auto 12px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 35% 30%,rgba(87,179,171,.18),transparent 45%),radial-gradient(circle at 50% 50%,rgba(18,34,56,.9),rgba(8,14,22,1));border:2px solid rgba(201,154,83,.45);box-shadow:inset 0 0 30px rgba(0,0,0,.45),0 0 24px rgba(87,179,171,.15);touch-action:none;cursor:crosshair;flex-shrink:0;--ccp-hand-h:70px;--ccp-hand-m:90px}
+.ccp-time-panel{min-width:0}
+.ccp-face{position:relative;box-sizing:border-box;width:min(220px,100%,calc(100dvh - 280px),calc(100vh - 280px));aspect-ratio:1;height:auto;margin:8px auto 12px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 35% 30%,rgba(87,179,171,.18),transparent 45%),radial-gradient(circle at 50% 50%,rgba(18,34,56,.9),rgba(8,14,22,1));border:2px solid rgba(201,154,83,.45);box-shadow:inset 0 0 30px rgba(0,0,0,.45),0 0 24px rgba(87,179,171,.15);touch-action:none;cursor:crosshair;flex-shrink:1;min-width:0;--ccp-hand-h:70px;--ccp-hand-m:90px}
 html.bright .ccp-face{background:radial-gradient(circle at 35% 30%,rgba(23,102,95,.1),transparent 45%),#f7f5ef}
 .ccp-center{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#c99a53;z-index:3;pointer-events:none}
 .ccp-hand{position:absolute;left:50%;top:50%;width:2px;height:var(--ccp-hand-h);margin-top:calc(-1 * var(--ccp-hand-h));margin-left:-1px;background:#57b3ab;transform-origin:bottom center;border-radius:2px;z-index:2;transition:transform .12s ease,opacity .12s ease;pointer-events:none}
 .ccp-hand.min{height:var(--ccp-hand-m);margin-top:calc(-1 * var(--ccp-hand-m));background:#c99a53;width:1.5px}
 .ccp-hand.dragging{transition:none}
 .ccp-hand.dim{opacity:.22}
-.ccp-num{position:absolute;left:50%;top:50%;width:var(--ccp-num,28px);height:var(--ccp-num,28px);margin:calc(var(--ccp-num, 28px) / -2) 0 0 calc(var(--ccp-num, 28px) / -2);padding:0 !important;min-width:0;min-height:0;border:none !important;background:transparent;color:inherit;font:inherit;letter-spacing:normal;text-transform:none;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:var(--ccp-num-font,12px) !important;line-height:1;cursor:pointer;user-select:none;opacity:.9;z-index:4;-webkit-tap-highlight-color:transparent;box-sizing:border-box;box-shadow:none}
+.ccp-num{position:absolute;left:50%;top:50%;width:var(--ccp-num,28px);height:var(--ccp-num,28px);margin:calc(var(--ccp-num, 28px) / -2) 0 0 calc(var(--ccp-num, 28px) / -2);padding:0 !important;min-width:0 !important;min-height:0 !important;max-width:none;border:none !important;background:transparent;color:inherit;font:inherit;letter-spacing:normal;text-transform:none;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;font-size:var(--ccp-num-font,12px) !important;line-height:1;cursor:pointer;user-select:none;opacity:.9;z-index:4;-webkit-tap-highlight-color:transparent;box-sizing:border-box;box-shadow:none}
 .ccp-num:hover,.ccp-num.active{background:rgba(201,154,83,.28);opacity:1;box-shadow:0 0 0 1px rgba(201,154,83,.5);border:none !important;color:inherit}
 .ccp-tick{position:absolute;left:50%;top:50%;width:2px;height:7px;margin:-3.5px 0 0 -1px;background:rgba(233,228,214,.35);transform-origin:center center;pointer-events:none;z-index:1}
 .ccp-tick.major{height:11px;margin-top:-5.5px;background:rgba(201,154,83,.65)}
@@ -72,11 +105,13 @@ html.bright .ccp-face{background:radial-gradient(circle at 35% 30%,rgba(23,102,9
 .ccp-day.selected{background:rgba(87,179,171,.32);border-color:#57b3ab}
 html.bright .ccp-day{background:rgba(18,34,56,.06)}
 input.ccp-bound{cursor:pointer}
-/* Tablet + Windows / desktop: larger dial and hit targets */
+/* Tablet + Windows / desktop: larger type. The dial stays a square that
+   fits the shorter side, so a 1366×768 or 150%-scaled 1080p screen does
+   not clip a fixed 400px face. */
 @media (min-width:721px) and (min-height:480px), (min-width:900px) and (hover:hover) and (pointer:fine){
-  .ccp-dialog{width:min(520px,94vw);padding:22px 24px 20px;border-radius:22px}
+  .ccp-dialog{width:min(520px,100%);padding:22px 24px 20px;border-radius:22px}
   .ccp-title{font-size:14px;margin-bottom:12px}
-  .ccp-face{width:340px;height:340px;margin:14px auto 18px;--ccp-hand-h:110px;--ccp-hand-m:142px}
+  .ccp-face{width:min(360px,100%,calc(100dvh - 300px),calc(100vh - 300px));height:auto;margin:14px auto 18px}
   .ccp-center{width:14px;height:14px;margin:-7px 0 0 -7px}
   .ccp-tick{height:10px;margin-top:-5px}
   .ccp-tick.major{height:15px;margin-top:-7.5px}
@@ -87,9 +122,9 @@ input.ccp-bound{cursor:pointer}
   .ccp-ampm button{min-width:96px;min-height:48px;padding:12px 18px;font-size:16px;border-radius:12px}
   .ccp-actions button{min-height:48px;padding:12px 20px;font-size:16px;border-radius:12px}
 }
-@media (min-width:1100px) and (min-height:700px){
-  .ccp-dialog{width:min(600px,90vw);padding:24px 28px 22px}
-  .ccp-face{width:400px;height:400px;margin:16px auto 20px;--ccp-hand-h:128px;--ccp-hand-m:166px}
+@media (min-width:1100px) and (min-height:640px){
+  .ccp-dialog{width:min(600px,100%);padding:24px 28px 22px}
+  .ccp-face{width:min(420px,100%,calc(100dvh - 320px),calc(100vh - 320px));height:auto;margin:16px auto 20px}
   .ccp-readout{font-size:2.7rem}
   .ccp-title{font-size:15px}
 }
@@ -211,6 +246,14 @@ input.ccp-bound{cursor:pointer}
         window.removeEventListener('touchend', L.pointerUp);
       }
       if (L.onKey) window.removeEventListener('keydown', L.onKey, true);
+      if (L.onViewport) {
+        window.removeEventListener('resize', L.onViewport);
+        if (window.visualViewport) {
+          window.visualViewport.removeEventListener('resize', L.onViewport);
+          window.visualViewport.removeEventListener('scroll', L.onViewport);
+        }
+      }
+      if (L.dprMq && L.onDpr) L.dprMq.removeEventListener('change', L.onDpr);
     } catch (_) { /* ignore */ }
     active.listeners = null;
   }
@@ -324,6 +367,78 @@ input.ccp-bound{cursor:pointer}
     let suppressReadout = false;
     let facePx = 0;
     let faceObserver = null;
+    let inRefresh = false;
+    let layoutQueued = false;
+
+    /* Fit a square dial into the viewport that is on screen now. vw/vh and a
+       fixed 340/400px face stay at the previous monitor's size for a frame
+       after a resolution or DPI change, which clips the numerals. */
+    function pinOverlay() {
+      if (!desktopPointer()) {
+        overlay.style.top = '';
+        overlay.style.left = '';
+        overlay.style.width = '';
+        overlay.style.height = '';
+        return;
+      }
+      const box = viewBox();
+      if (!box.w || !box.h) return;
+      overlay.style.top = '0px';
+      overlay.style.left = '0px';
+      overlay.style.width = box.w + 'px';
+      overlay.style.height = box.h + 'px';
+    }
+
+    function applyFaceSize() {
+      pinOverlay();
+      if (isDateTime && state.tab === 'date') return;
+      const box = viewBox();
+      const dialog = overlay.querySelector('.ccp-dialog');
+      if (!dialog || !box.w || !box.h) return;
+      const cs = getComputedStyle(dialog);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const overlayCs = getComputedStyle(overlay);
+      const overlayPad = (parseFloat(overlayCs.paddingTop) || 0) + (parseFloat(overlayCs.paddingBottom) || 0);
+      let chrome = padY + overlayPad;
+      overlay.querySelectorAll('.ccp-title,.ccp-tabs,.ccp-readout,.ccp-step,.ccp-hint,.ccp-ampm,.ccp-actions').forEach((el) => {
+        if (!el || el.hidden) return;
+        const r = el.getBoundingClientRect();
+        if (!(r.height > 0)) return;
+        const ecs = getComputedStyle(el);
+        chrome += r.height + (parseFloat(ecs.marginTop) || 0) + (parseFloat(ecs.marginBottom) || 0);
+      });
+      const faceCs = getComputedStyle(face);
+      chrome += (parseFloat(faceCs.marginTop) || 0) + (parseFloat(faceCs.marginBottom) || 0);
+      if (chrome < 80) {
+        chrome = box.w >= 721 ? 280 : 200;
+        if (isDateTime) chrome += 52;
+        if (state.step === 'ampm') chrome += 56;
+      }
+      const innerW = Math.max(0, (dialog.clientWidth || box.w) - padX);
+      const cap = box.w >= 1100 && box.h >= 640 ? 420 : (box.w >= 721 ? 360 : 240);
+      const size = Math.floor(Math.max(148, Math.min(cap, innerW, box.h - chrome - 8)));
+      face.style.width = size + 'px';
+      face.style.height = size + 'px';
+      face.style.maxWidth = '100%';
+      face.style.maxHeight = size + 'px';
+    }
+
+    function queueLayout() {
+      if (layoutQueued) return;
+      layoutQueued = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          layoutQueued = false;
+          if (!active || active.overlay !== overlay) return;
+          refresh({ keepNums: true });
+          requestAnimationFrame(() => {
+            if (!active || active.overlay !== overlay) return;
+            refresh({ keepNums: true });
+          });
+        });
+      });
+    }
 
     /* Numeral box and type size follow the face that is actually on screen.
        A viewport shrink/grow changes the dial after the numbers were placed;
@@ -456,6 +571,14 @@ input.ccp-bound{cursor:pointer}
     }
 
     function refresh(opts) {
+      if (inRefresh) return;
+      inRefresh = true;
+      try { refreshBody(opts); }
+      finally { inRefresh = false; }
+    }
+
+    function refreshBody(opts) {
+      pinOverlay();
       if (isDateTime && state.tab === 'date') {
         renderDateGrid();
         return;
@@ -477,6 +600,14 @@ input.ccp-bound{cursor:pointer}
       handH.classList.toggle('dim', state.step === 'minute');
       handM.classList.toggle('dim', state.step === 'hour' || state.step === 'ampm');
 
+      if (state.step === 'ampm') {
+        ampmRow.hidden = false;
+        ampmRow.style.display = '';
+      } else {
+        ampmRow.hidden = true;
+        ampmRow.style.display = 'none';
+      }
+      applyFaceSize();
       if (scaleFace()) lastStep = null;
       if (!keepNums || lastStep !== state.step) {
         lastStep = state.step;
@@ -736,24 +867,39 @@ input.ccp-bound{cursor:pointer}
 
     if (typeof ResizeObserver !== 'undefined') {
       faceObserver = new ResizeObserver(() => {
+        if (inRefresh) return;
         if (!scaleFace()) return;
         lastStep = null;
-        refresh();
+        refresh({ keepNums: true });
       });
       faceObserver.observe(face);
     }
+    function onViewport() { queueLayout(); }
+    let dprMq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    function onDpr() {
+      try { dprMq.removeEventListener('change', onDpr); } catch (_) {}
+      dprMq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      dprMq.addEventListener('change', onDpr);
+      if (active && active.listeners) active.listeners.dprMq = dprMq;
+      queueLayout();
+    }
+    window.addEventListener('resize', onViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onViewport);
+      window.visualViewport.addEventListener('scroll', onViewport);
+    }
+    dprMq.addEventListener('change', onDpr);
     active = {
       overlay,
       el,
       faceObserver,
-      listeners: { pointerMove, pointerUp, onKey },
+      listeners: { pointerMove, pointerUp, onKey, onViewport, onDpr, dprMq },
     };
     if (isDateTime) setTab('time');
     else refresh();
     requestAnimationFrame(() => {
-      if (!scaleFace()) return;
-      lastStep = null;
-      refresh();
+      if (!active || active.overlay !== overlay) return;
+      refresh({ keepNums: true });
     });
     try {
       if (state.tab === 'time') { partH.focus(); partH.select(); }

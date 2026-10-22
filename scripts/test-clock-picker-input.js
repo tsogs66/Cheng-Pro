@@ -41,6 +41,10 @@ for (const [label, file] of COPIES) {
     `${label}: datetime-local fields need a Date tab in the clock picker`);
   assert(/data-ccp-date-grid/.test(src),
     `${label}: clock picker must render a date grid for missed-report dates`);
+  assert(/resolution:/.test(src) && /visualViewport/.test(src),
+    `${label}: clock must relayout when the monitor resolution changes`);
+  assert(!/height:400px/.test(src) && !/height:340px/.test(src),
+    `${label}: the dial must not be a fixed pixel square`);
   console.log('ok —', label);
 }
 
