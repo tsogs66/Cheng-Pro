@@ -13594,6 +13594,7 @@ const REPORT_CATEGORIES = [
   { label: 'Arrival', keyword: 'ARRIVAL' },
   { label: 'Waiting / Anchor / Drifting', keyword: 'DRIFT' },
   { label: 'Shifting', keyword: 'SHIFTING' },
+  { label: 'Delivery / Re-delivery', keyword: 'DELIVERY' },
   { label: 'Pilot', keyword: 'PILOT' },
   { label: 'Bunkering', keyword: 'BUNKER' },
   { label: 'ECA', keyword: 'ECA' },
@@ -13610,7 +13611,7 @@ const OPERATION_GROUPS = [
   ]},
   { label:'Manoeuvring & Passage', ops:[
     'SHIFTING STATIONS', 'PILOT ONBOARD', 'PILOT OFFLOAD', 'CHANGE SPEED',
-    'START OF SEA PASSAGE', 'END OF SEA PASSAGE'
+    'START OF SEA PASSAGE', 'END OF SEA PASSAGE', 'DELIVERY/RE-DELIVERY'
   ]},
   { label:'Noon', ops:[
     'NOON - AT PORT', 'NOON - AT SEA', 'NOON - ANCHORAGE', 'NOON - DRIFTING'
@@ -13700,7 +13701,7 @@ const SEA_TYPE_OPS = new Set([
   'DRIFTING', 'HEAVY WEATHER'
 ]);
 const MANEUVERING_ME_OPS = new Set([
-  'SHIFTING STATIONS', 'PILOT ONBOARD', 'PILOT OFFLOAD',
+  'SHIFTING STATIONS', 'PILOT ONBOARD', 'PILOT OFFLOAD', 'DELIVERY/RE-DELIVERY',
   'ARRIVAL - STANDBY', 'ARRIVAL - FIRST LINE', 'ARRIVAL - ANCHORAGE',
   'ARRIVAL - FINISHED ENGINE'
 ]);
@@ -18207,34 +18208,25 @@ function printRobSnapshot(entry, dt, rowsForPrint){
   printLandscapeFullPages(sheetHtml);
 }
 
-function openVoyageSummary(entryId){
-  const entry = state.entries.find(e=>e.id===entryId);
-  const row = getComputedRow(entryId);
-  if (!entry || !row) return;
-  /* A manual "show anyway" applies to the entry it was clicked on, not the next one. */
-  if (currentVsEntryId !== entryId) vsForceShowMePanels = false;
-  currentVsEntryId = entryId;
+function vsStatHtml(label, val, unit){
+  return `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
+}
 
-  const {perf} = computeDerived({ upToEntryId: entryId });
-  const sorted = sortedEntries();
-  const idx = sorted.findIndex(x=>x.id===entryId);
-  const priorEntry = idx>0 ? sorted[idx-1] : null;
-  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
-  const asOf = robAsOfEntry(entryId);
-
+/** Reference strip: one row of results for the open report. */
+function paintVsReferenceStrip(entry, row, perf){
+  const el = document.getElementById('vsTopStrip');
+  if (!el || !entry || !row || !perf) return;
+  const stat = vsStatHtml;
   const dt = new Date(entry.datetime);
   const dtStr = dt.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-
   const voyageDist = state.setup.voyageDistance;
   const distanceToGo = (voyageDist!=null && row.cumDistShip!=null) ? (voyageDist - row.cumDistShip) : null;
   const refSpeed = row.speedShip || perf.avgSpeedShip;
   const daysToGoVal = (distanceToGo!=null && refSpeed>0) ? (distanceToGo/refSpeed)/24 : null;
   const eta = (daysToGoVal!=null) ? new Date(dt.getTime() + daysToGoVal*24*3600000) : null;
-
-  const stat = (label,val,unit) => `<div class="stat"><div class="num">${withUnit(val, unit)}</div><div class="lbl">${label}</div></div>`;
   const etaStr = eta ? eta.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
   const sfocDeltaStr = row.sfocDelta==null ? '—' : ((row.sfocDelta>0?'+':'')+fmt(row.sfocDelta, 2));
-  document.getElementById('vsTopStrip').innerHTML = `
+  el.innerHTML = `
     ${stat('Voyage', state.setup.voyageNumber||'—')}
     ${stat('Date', dtStr)}
     ${stat('Ship Distance', fmt(entry.distanceShip, 2), 'NM')}
@@ -18256,6 +18248,97 @@ function openVoyageSummary(entryId){
     ${stat('Actual SFOC', fmt(row.sfocActual, 2), 'g/kWh')}
     ${stat('SFOC Δ', sfocDeltaStr, '%')}
   `;
+}
+
+/** Main-engine voyage totals that move with this report's distance and RPM. */
+function paintVsMeVoyageStrip(row, perf){
+  const meVoyageStrip = document.getElementById('vsMeVoyageStrip');
+  if (!meVoyageStrip || !row || !perf) return;
+  const stat = vsStatHtml;
+  meVoyageStrip.innerHTML = `
+    ${stat('Voyage Hours', fmt(perf.totalHrs, 2), 'Hrs')}
+    ${stat('M/E Cons (MT)', fmtFuel(row.meCons), 'MT')}
+    ${stat('Engine Dist (nm)', fmt(row.distEngine,2), 'NM')}
+    ${stat('Slip %', fmt(row.slip,2), '%')}
+    ${stat('Avg RPM', fmt(perf.avgRpm, 2), 'RPM')}
+    ${stat('Avg %MCR (hrs-wtd)', perf.avgMcrTimeWeighted==null?'—':fmt(perf.avgMcrTimeWeighted, 2), '%')}
+    ${stat('Avg kW', fmt(perf.avgKw, 2), 'kW')}
+    ${stat('Avg Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip,2), '%')}
+    ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2), 'g/kWh')}
+    ${stat('Avg Ref. SFOC', perf.avgSfocRef==null?'—':fmt(perf.avgSfocRef, 2), 'g/kWh')}
+    ${stat('Avg Actual SFOC', perf.avgSfocActual==null?'—':fmt(perf.avgSfocActual, 2), 'g/kWh')}
+    ${stat('Avg SFOC Δ %', perf.avgSfocDelta==null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta, 2)), '%')}
+    ${stat('Cum. Engine Dist', fmt(perf.totalDistEngine, 2), 'NM')}
+    ${stat('Cum. Ship Dist', fmt(perf.totalDistShip, 2), 'NM')}
+    ${stat('Avg Ship Speed', perf.avgSpeedShip==null?'—':fmt(perf.avgSpeedShip,2), 'kn')}
+    ${stat('Load (kW)', fmt(row.kwEst, 2), 'kW')}
+  `;
+}
+
+/** Distance, RPM and rev counter as typed on the open Voyage Summary. */
+function summaryLivePatch(){
+  const num = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === '') return null;
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) ? v : null;
+  };
+  const patch = {
+    distanceShip: num('vs_distanceShip') ?? 0,
+    rpm: num('vs_rpm'),
+    revCounter: num('vs_revCounter'),
+  };
+  const hrs = formMeRunHours();
+  if (hrs != null) patch.meRunHours = hrs;
+  return patch;
+}
+
+/** Run fn while this report's distance and RPM are the figures on the form. */
+function withSummaryLiveEntry(entryId, fn){
+  const snapshot = state.entries;
+  const patch = summaryLivePatch();
+  state.entries = snapshot.map(e => String(e.id) === String(entryId) ? Object.assign({}, e, patch) : e);
+  try { return fn(patch); }
+  finally { state.entries = snapshot; }
+}
+
+/**
+ * Voyage Summary — Reference follows the distance and RPM boxes. MCR, kW,
+ * engine speed and distance, total revolutions, slip, SFOC and the voyage
+ * averages are recomputed from those boxes before the report is saved.
+ */
+function refreshVsReferenceStrip(){
+  if (!isVoyageSummaryOpen()) return;
+  if (editingId && String(editingId) !== String(currentVsEntryId)) return;
+  const entryId = currentVsEntryId;
+  const saved = state.entries.find(e => String(e.id) === String(entryId));
+  if (!saved) return;
+  withSummaryLiveEntry(entryId, (patch) => {
+    const derived = computeDerived({ upToEntryId: entryId });
+    const row = derived.rows.find(r => String(r.id) === String(entryId));
+    paintVsReferenceStrip(Object.assign({}, saved, patch), row, derived.perf);
+    paintVsMeVoyageStrip(row, derived.perf);
+  });
+  if (typeof renderVsPerfTable === 'function') renderVsPerfTable(entryId);
+}
+
+function openVoyageSummary(entryId){
+  const entry = state.entries.find(e=>e.id===entryId);
+  const row = getComputedRow(entryId);
+  if (!entry || !row) return;
+  /* A manual "show anyway" applies to the entry it was clicked on, not the next one. */
+  if (currentVsEntryId !== entryId) vsForceShowMePanels = false;
+  currentVsEntryId = entryId;
+
+  const {perf} = computeDerived({ upToEntryId: entryId });
+  const sorted = sortedEntries();
+  const idx = sorted.findIndex(x=>x.id===entryId);
+  const priorEntry = idx>0 ? sorted[idx-1] : null;
+  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const asOf = robAsOfEntry(entryId);
+
+  const stat = vsStatHtml;
+  paintVsReferenceStrip(entry, row, perf);
 
   /* Arrangement reflects the generators actually in service for this entry, not how
      many the ship has installed. Refreshed live by updateVsGeSplit. */
@@ -18382,27 +18465,7 @@ function openVoyageSummary(entryId){
     </tr>`;
   }).join('');
 
-  const meVoyageStrip = document.getElementById('vsMeVoyageStrip');
-  if (meVoyageStrip){
-    meVoyageStrip.innerHTML = `
-      ${stat('Voyage Hours', fmt(perf.totalHrs, 2), 'Hrs')}
-      ${stat('M/E Cons (MT)', fmtFuel(row.meCons), 'MT')}
-      ${stat('Engine Dist (nm)', fmt(row.distEngine,2), 'NM')}
-      ${stat('Slip %', fmt(row.slip,2), '%')}
-      ${stat('Avg RPM', fmt(perf.avgRpm, 2), 'RPM')}
-      ${stat('Avg %MCR (hrs-wtd)', perf.avgMcrTimeWeighted==null?'—':fmt(perf.avgMcrTimeWeighted, 2), '%')}
-      ${stat('Avg kW', fmt(perf.avgKw, 2), 'kW')}
-      ${stat('Avg Slip %', perf.avgSlip==null?'—':fmt(perf.avgSlip,2), '%')}
-      ${stat('SFOC @ 100%', state.setup.sfoc100==null?'—':fmt(state.setup.sfoc100, 2), 'g/kWh')}
-      ${stat('Avg Ref. SFOC', perf.avgSfocRef==null?'—':fmt(perf.avgSfocRef, 2), 'g/kWh')}
-      ${stat('Avg Actual SFOC', perf.avgSfocActual==null?'—':fmt(perf.avgSfocActual, 2), 'g/kWh')}
-      ${stat('Avg SFOC Δ %', perf.avgSfocDelta==null?'—':((perf.avgSfocDelta>0?'+':'')+fmt(perf.avgSfocDelta, 2)), '%')}
-      ${stat('Cum. Engine Dist', fmt(perf.totalDistEngine, 2), 'NM')}
-      ${stat('Cum. Ship Dist', fmt(perf.totalDistShip, 2), 'NM')}
-      ${stat('Avg Ship Speed', perf.avgSpeedShip==null?'—':fmt(perf.avgSpeedShip,2), 'kn')}
-      ${stat('Load (kW)', fmt(row.kwEst, 2), 'kW')}
-    `;
-  }
+  paintVsMeVoyageStrip(row, perf);
   document.getElementById('vsVoyageAvgStrip').innerHTML = `
     ${stat('Voyage Hours', fmt(perf.totalHrs, 2), 'Hrs')}
     ${machineryGeHourCells(perf.geTotals?.hrs, geUnitCount()).map(c =>
@@ -18973,6 +19036,13 @@ function renderVsGeRuntimeFields(entryId, report){
 }
 
 function renderVsPerfTable(entryId){
+  /* Distance and RPM on the open summary are the figures this table must use. */
+  if (!renderVsPerfTable._live && isVoyageSummaryOpen() && String(entryId) === String(currentVsEntryId)
+      && (!editingId || String(editingId) === String(entryId))){
+    renderVsPerfTable._live = true;
+    try { return withSummaryLiveEntry(entryId, () => renderVsPerfTable(entryId)); }
+    finally { renderVsPerfTable._live = false; }
+  }
   const body = document.getElementById('vsPerfBody');
   const thead = document.querySelector('#vsPerfTable thead tr');
   if (!body || !thead) return;
@@ -20063,6 +20133,7 @@ function updateVsRunCalcDisplays(){
   set('vs_slip', slip);
   const rpmDisp = document.getElementById('in_rpm_display');
   if (rpmDisp && document.activeElement!==rpmDisp) rpmDisp.value = rpmEff==null?'—':fmt(rpmEff,2);
+  refreshVsReferenceStrip();
 }
 function updateVsFwDisplays(){
   if (!currentVsEntryId) return;
