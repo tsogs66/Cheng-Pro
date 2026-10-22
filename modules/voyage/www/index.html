@@ -12029,13 +12029,100 @@ function renderRangeTotals(){
 
 /* A4 portrait sheet of the range's totals and averages, in the same theme as the
    noon report and the Dep/Arr R.O.B. sheet. Totals and averages sit side by side so
-   the two read against each other, and the reports the figures came from are listed
+   the two read against each other, and every report the figures came from is listed
    under them — the sheet is signed, so a reader has to be able to check it.
 
-   The page cannot scroll, so a long range would push the list, the signature and the
-   footer off the paper. Past a page's worth the list is cut and says so, and the range
-   is still fully identified by the first and last report in the meta grid above. */
-const RANGE_PRINT_MAX_ROWS = 20;
+   A short range stays on one page. A longer range keeps going onto the next page
+   for as many report lines as the selected stretch contains. The type is not shrunk
+   to force the whole list onto the first sheet, and the list is not cut off. */
+const RANGE_PRINT_MIN_SCALE = 0.92;
+
+/* Measure one portrait page at a time. The iframe matches the printed page, so the
+   split uses the same fit the printer will. */
+function createPortraitPageProbe(){
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildPrintDocumentHtmlPortrait(
+    '<div class="pr-page-portrait"><div class="pr-page-portrait-inner"></div></div>'));
+  doc.close();
+  const page = doc.querySelector('.pr-page-portrait');
+  const inner = doc.querySelector('.pr-page-portrait-inner');
+  return {
+    usable: !!(page && page.clientHeight >= 20),
+    scale(html){
+      inner.innerHTML = html;
+      const scale = fitOnePortraitPage(page, inner);
+      const box = page.getBoundingClientRect();
+      const content = inner.getBoundingClientRect();
+      /* Leave a few pixels for the webfonts, which load after this measure and
+         sit a little taller than the fallback used here. */
+      const inside = content.bottom <= box.bottom - 16 && content.right <= box.right + 1;
+      return inside ? scale : 0;
+    },
+    destroy(){ try{ iframe.remove(); }catch(e){} }
+  };
+}
+
+/* Split the report list so each page still fits at a readable size. The first page
+   carries the totals; later pages carry the rest of the lines. The signature stays
+   on the last page. */
+function paginateRangeTotalSheets(rows, makeHtml){
+  const probe = createPortraitPageProbe();
+  try {
+    if (!probe.usable){
+      const firstCount = Math.min(rows.length, 8);
+      const chunks = [rows.slice(0, firstCount)];
+      for (let i = firstCount; i < rows.length; i += 22) chunks.push(rows.slice(i, i + 22));
+      const pageCount = chunks.length;
+      return chunks.map((slice, i) => makeHtml(slice, {
+        isFirst: i === 0, isLast: i === pageCount - 1, pageNo: i + 1, pageCount
+      }));
+    }
+    const chunks = [];
+    let offset = 0;
+    let isFirst = true;
+    const guard = Math.max(4, rows.length + 2);
+    while (chunks.length < guard){
+      const remaining = rows.length - offset;
+      if (!isFirst && remaining <= 0) break;
+      const allowEmpty = isFirst;
+      let best = allowEmpty ? 0 : Math.min(1, remaining);
+      let lo = best;
+      let hi = remaining;
+      const fits = (count)=>{
+        const finishes = offset + count >= rows.length;
+        const html = makeHtml(rows.slice(offset, offset + count), {
+          isFirst,
+          isLast: finishes,
+          pageNo: chunks.length + 1,
+          pageCount: finishes ? chunks.length + 1 : Math.max(chunks.length + 2, 2)
+        });
+        return probe.scale(html) + 1e-6 >= RANGE_PRINT_MIN_SCALE;
+      };
+      while (lo <= hi){
+        const mid = (lo + hi) >> 1;
+        if (fits(mid)){ best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      if (!isFirst && best < 1) best = 1;
+      chunks.push(rows.slice(offset, offset + best));
+      offset += best;
+      const started = isFirst;
+      isFirst = false;
+      if (started && remaining <= 0) break;
+    }
+    const pageCount = Math.max(1, chunks.length);
+    return chunks.map((slice, i) => makeHtml(slice, {
+      isFirst: i === 0, isLast: i === pageCount - 1, pageNo: i + 1, pageCount
+    }));
+  } finally {
+    probe.destroy();
+  }
+}
 
 function printRangeTotalsSheet(){
   const list = sortedEntries();
@@ -12047,7 +12134,6 @@ function printRangeTotalsSheet(){
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
   const when = (dt) => dt ? new Date(dt).toLocaleString(undefined,
     { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
-  const first = agg.rows[0], last = agg.rows[agg.rows.length - 1];
   /* The range is named by the reports the engineer picked, not by the periods, so the
      "from" report is the one in the dropdown even though its own period sits outside. */
   const fromPick = list.find(e => e.id === document.getElementById('rangeFrom')?.value) || list[0];
@@ -12133,16 +12219,24 @@ function printRangeTotalsSheet(){
     <div class="pr-note">Start: ${escPrint(robBook.startLabel)} · End: ${escPrint(robBook.endLabel)}</div>`;
 
   /* The meta grid above carries the full timestamps; in the table a compact date keeps
-     each report on one line, which is what lets a page hold a fortnight of them. */
+     each report on one line. */
   const shortWhen = (dt) => dt ? new Date(dt).toLocaleString(undefined,
     { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
-  const shown = agg.rows.slice(0, RANGE_PRINT_MAX_ROWS);
-  const hidden = agg.rows.length - shown.length;
-  const reportsTable = `
-    <table class="pr-table pr-table-wide">
-      <tr><th>Date / Time</th><th>Operation</th><th>Hrs</th><th>Dist</th><th>Speed</th><th>RPM</th><th>Revs</th>
-        ${FUEL_CONS_GROUPS.map(g => `<th>${escPrint(g.label)}</th>`).join('')}</tr>
-      ${shown.map(r => `<tr>
+  const metaCells = [
+    {label:'Vessel', value: escPrint(state.setup.vesselName || '—')},
+    {label:'Voyage No.', value: escPrint(state.setup.voyageNumber || '—')},
+    {label:'From Report', value: escPrint(when(fromPick?.datetime))},
+    {label:'To Report', value: escPrint(when(toPick?.datetime))}
+  ];
+  const kpi = printKpiRow([
+    {label:'Reports', value: String(agg.reports)},
+    {label:'Period Hrs', value: n(agg.hrs)},
+    {label:'Distance (nm)', value: n(agg.distShip)},
+    {label:'Avg Speed (kn)', value: n(agg.avgSpeed)},
+    {label:'All Fuel (MT)', value: n(agg.fuelTotal, FUEL_DECIMALS)}
+  ]);
+
+  const reportRow = (r) => `<tr>
         <td class="row-lbl">${escPrint(shortWhen(r.datetime))}</td>
         <td class="row-lbl">${escPrint(r.operation || '')}</td>
         <td>${n(r.hrs)}</td>
@@ -12151,45 +12245,57 @@ function printRangeTotalsSheet(){
         <td>${n(r.rpmEff)}</td>
         <td>${n(r.dailyRevs, 0)}</td>
         ${FUEL_CONS_GROUPS.map(g => `<td>${n(sumFuelGroup(r.consByType, g), FUEL_DECIMALS)}</td>`).join('')}
-      </tr>`).join('')}
-      <tr class="pr-total"><td class="row-lbl"><strong>Total / Avg</strong></td><td></td>
+      </tr>`;
+  const totalRow = `<tr class="pr-total"><td class="row-lbl"><strong>Total / Avg</strong></td><td></td>
         <td><strong>${n(agg.hrs)}</strong></td>
         <td><strong>${n(agg.distShip)}</strong></td>
         <td><strong>${n(agg.avgSpeed)}</strong></td>
         <td><strong>${n(agg.avgRpm)}</strong></td>
         <td><strong>${n(agg.revs, 0)}</strong></td>
         ${FUEL_CONS_GROUPS.map(g => `<td><strong>${n(agg.fuel[g.label], FUEL_DECIMALS)}</strong></td>`).join('')}
-      </tr>
-    </table>
-    ${hidden > 0 ? `<div class="pr-note">Listing the first ${shown.length} of ${agg.rows.length} reports; the totals and averages above cover all ${agg.rows.length}.</div>` : ''}`;
+      </tr>`;
 
-  const sheet = `<div class="pr-sheet">
-    ${printDocHeader({ title: 'Totals & Averages', subtitle: 'Report Range Summary', badge: state.setup.shipCondition || '' })}
-    ${printMetaGrid([
-      {label:'Vessel', value: escPrint(state.setup.vesselName || '—')},
-      {label:'Voyage No.', value: escPrint(state.setup.voyageNumber || '—')},
-      {label:'From Report', value: escPrint(when(fromPick?.datetime))},
-      {label:'To Report', value: escPrint(when(toPick?.datetime))}
-    ], 4)}
-    ${printKpiRow([
-      {label:'Reports', value: String(agg.reports)},
-      {label:'Period Hrs', value: n(agg.hrs)},
-      {label:'Distance (nm)', value: n(agg.distShip)},
-      {label:'Avg Speed (kn)', value: n(agg.avgSpeed)},
-      {label:'All Fuel (MT)', value: n(agg.fuelTotal, FUEL_DECIMALS)}
-    ])}
-    <div class="pr-grid">
-      <div>${printSection('Totals', totals)}</div>
-      <div>${printSection('Averages', averages)}</div>
-      <div class="pr-span2">${printSection('Fuel Consumption By Consumer', consumerTable)}</div>
-      <div class="pr-span2">${printSection('Remaining On Board — Start → End', robTable)}</div>
-      <div class="pr-span2">${printSection(
-        `Reports In Range — ${escPrint(when(first?.datetime))} to ${escPrint(when(last?.datetime))}`,
-        reportsTable)}</div>
-    </div>
-    ${printSignatory()}
-  </div>`;
-  printPortraitSinglePage(sheet);
+  const sheets = paginateRangeTotalSheets(agg.rows, (rows, opts) => {
+    const pageCount = opts.pageCount;
+    const pageNo = opts.pageNo;
+    const subtitle = pageCount > 1
+      ? `Report Range Summary · Page ${pageNo} of ${pageCount}`
+      : 'Report Range Summary';
+    let list = '';
+    if (rows.length){
+      const startAt = agg.rows.indexOf(rows[0]) + 1;
+      const endAt = startAt + rows.length - 1;
+      const span = `${escPrint(shortWhen(rows[0].datetime))} to ${escPrint(shortWhen(rows[rows.length - 1].datetime))}`;
+      const pos = pageCount > 1 ? ` (${startAt}–${endAt} of ${agg.rows.length})` : '';
+      const note = opts.isLast
+        ? (pageCount > 1 ? `<div class="pr-note">Total / Avg covers all ${agg.reports} reports in this range.</div>` : '')
+        : '<div class="pr-note">Continued on the next page.</div>';
+      const table = `<table class="pr-table pr-range-rows">
+        <tr><th>Date / Time</th><th>Operation</th><th>Hrs</th><th>Dist</th><th>Speed</th><th>RPM</th><th>Revs</th>
+          ${FUEL_CONS_GROUPS.map(g => `<th>${escPrint(g.label)}</th>`).join('')}</tr>
+        ${rows.map(reportRow).join('')}
+        ${opts.isLast ? totalRow : ''}
+      </table>${note}`;
+      list = `<div class="pr-span2">${printSection(`Reports In Range — ${span}${pos}`, table)}</div>`;
+    }
+    const grid = opts.isFirst
+      ? `<div class="pr-grid">
+          <div>${printSection('Totals', totals)}</div>
+          <div>${printSection('Averages', averages)}</div>
+          <div class="pr-span2">${printSection('Fuel Consumption By Consumer', consumerTable)}</div>
+          <div class="pr-span2">${printSection('Remaining On Board — Start → End', robTable)}</div>
+          ${list}
+        </div>`
+      : `<div class="pr-grid">${list}</div>`;
+    return `<div class="pr-sheet">
+      ${printDocHeader({ title: 'Totals & Averages', subtitle, badge: state.setup.shipCondition || '' })}
+      ${printMetaGrid(metaCells, 4)}
+      ${opts.isFirst ? kpi : ''}
+      ${grid}
+      ${opts.isLast ? printSignatory() : ''}
+    </div>`;
+  });
+  printPortraitPages(sheets);
 }
 
 ['rangeFrom', 'rangeTo'].forEach(id => {
@@ -16103,6 +16209,13 @@ function sizePrintTables(root){
     if (table.classList.contains('pr-bunker-entry-table')) return;
     /* Transposed ROB tables keep the larger intentional type */
     if (table.classList.contains('pr-table-rob')) return;
+    /* Range-list rows stay at the compact size so adding a row only makes the
+       table taller. A size jump mid-list would make pagination guess wrong. */
+    if (table.classList.contains('pr-range-rows')){
+      table.classList.remove('pr-table-wide');
+      table.classList.add('pr-table-xl');
+      return;
+    }
     const cols = table.querySelector('tr')?.children?.length || 0;
     const rows = table.querySelectorAll('tr').length;
     table.classList.remove('pr-table-wide', 'pr-table-xl');
@@ -16239,16 +16352,24 @@ function printSinglePage(sheetHtml){
   return fittedHtml;
 }
 
-function buildPrintDocumentHtmlPortrait(bodyInner){
+function buildPrintDocumentHtmlPortrait(bodyInner, multi){
   const css = printDocumentCss();
+  const sheetBox = multi
+    ? 'height:auto !important; max-height:none !important; overflow:visible !important;'
+    : 'height:297mm !important; max-height:297mm !important; overflow:hidden !important;';
+  const pageBreak = multi
+    ? 'page-break-after:always !important; break-after:page !important; page-break-inside:avoid !important; break-inside:avoid !important;'
+    : 'page-break-after:avoid !important; page-break-inside:avoid !important; break-inside:avoid !important;';
+  const lastPage = multi
+    ? '.pr-page-portrait:last-child{ page-break-after:auto !important; break-after:auto !important; }'
+    : '';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <style>
 @page{ size: A4 portrait; margin: 0; }
 html, body{
   margin:0 !important; padding:0 !important; background:#fff !important;
-  width:210mm !important; height:297mm !important;
-  max-height:297mm !important; overflow:hidden !important;
+  width:210mm !important; ${sheetBox}
   -webkit-print-color-adjust:exact; print-color-adjust:exact;
 }
 .pr-page-portrait{
@@ -16256,9 +16377,9 @@ html, body{
   width:210mm !important; height:297mm !important; max-height:297mm !important;
   overflow:hidden !important; box-sizing:border-box !important;
   padding:7mm 8mm !important; background:#fff !important;
-  page-break-after:avoid !important; page-break-inside:avoid !important;
-  break-inside:avoid !important;
+  ${pageBreak}
 }
+${lastPage}
 .pr-page-portrait:has(.pr-sheet-noon),
 .pr-page-portrait:has(.pr-sheet-report){
   padding:5mm 5.5mm !important;
@@ -16298,13 +16419,11 @@ ${css}
 </style></head><body>${bodyInner}</body></html>`;
 }
 
-function fitPrintPortraitRoot(doc){
-  const page = doc.querySelector('.pr-page-portrait');
-  const inner = doc.querySelector('.pr-page-portrait-inner');
+function fitOnePortraitPage(page, inner){
   if (!page || !inner) return 1;
   const isBunker = !!inner.querySelector('.pr-bunker-sheet');
 
-  sizePrintTables(doc);
+  sizePrintTables(page);
   inner.querySelector('.pr-sheet')?.classList.remove('pr-dense');
   inner.style.zoom = '1';
   inner.style.transform = 'none';
@@ -16320,7 +16439,6 @@ function fitPrintPortraitRoot(doc){
     return Math.max(0.6, Math.min(1, Math.min(availH / contentH, availW / contentW) * 0.98));
   };
 
-  const isStdPortrait = !!inner.querySelector('.pr-sheet-noon, .pr-sheet-report');
   let scale = measure();
   /* Densify before shrinking: tighter padding and table text costs less legibility
      than scaling the whole sheet down. The noon and report sheets used to be exempt
@@ -16334,8 +16452,9 @@ function fitPrintPortraitRoot(doc){
     scale = measure();
   }
   if (!isBunker && scale < 0.82){
-    doc.querySelectorAll('table.pr-table').forEach(t=>{
+    page.querySelectorAll('table.pr-table').forEach(t=>{
       if (t.classList.contains('pr-bunker-entry-table')) return;
+      if (t.classList.contains('pr-range-rows')) return;
       t.classList.remove('pr-table-wide');
       t.classList.add('pr-table-xl');
     });
@@ -16343,11 +16462,28 @@ function fitPrintPortraitRoot(doc){
   }
 
   inner.style.zoom = String(scale);
-  doc.documentElement.style.height = '297mm';
-  doc.documentElement.style.overflow = 'hidden';
-  doc.body.style.height = '297mm';
-  doc.body.style.overflow = 'hidden';
   return scale;
+}
+
+function fitPrintPortraitRoot(doc){
+  const pages = [...doc.querySelectorAll('.pr-page-portrait')];
+  if (!pages.length) return 1;
+  let minScale = 1;
+  pages.forEach(page=>{
+    const inner = page.querySelector('.pr-page-portrait-inner');
+    if (!inner) return;
+    minScale = Math.min(minScale, fitOnePortraitPage(page, inner));
+  });
+  const multi = pages.length > 1;
+  doc.documentElement.style.height = multi ? 'auto' : '297mm';
+  doc.documentElement.style.overflow = multi ? 'visible' : 'hidden';
+  doc.body.style.height = multi ? 'auto' : '297mm';
+  doc.body.style.overflow = multi ? 'visible' : 'hidden';
+  if (multi){
+    doc.documentElement.style.maxHeight = 'none';
+    doc.body.style.maxHeight = 'none';
+  }
+  return minScale;
 }
 
 function printPortraitSinglePage(sheetHtml){
@@ -16361,6 +16497,39 @@ function printPortraitSinglePage(sheetHtml){
   const doc = iframe.contentDocument;
   doc.open();
   doc.write(buildPrintDocumentHtmlPortrait(bodyInner));
+  doc.close();
+
+  fitPrintPortraitRoot(doc);
+  const fittedHtml = doc.body.innerHTML;
+  const win = iframe.contentWindow;
+
+  const cleanup = ()=>{ try{ iframe.remove(); }catch(e){} };
+  const doPrint = ()=> runSystemPrint(win, cleanup);
+
+  if (doc.fonts && doc.fonts.ready){
+    doc.fonts.ready.then(()=> setTimeout(doPrint, 40)).catch(()=> setTimeout(doPrint, 120));
+  } else {
+    setTimeout(doPrint, 120);
+  }
+  return fittedHtml;
+}
+
+/** Portrait sheets, one A4 page each. A single sheet keeps the one-page printer. */
+function printPortraitPages(sheetHtmlList){
+  const sheets = (Array.isArray(sheetHtmlList) ? sheetHtmlList : [sheetHtmlList]).filter(s => s != null);
+  const pages = sheets.length ? sheets : [''];
+  if (pages.length === 1) return printPortraitSinglePage(pages[0]);
+  const bodyInner = pages.map(html =>
+    `<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${html}</div></div>`).join('');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  const frameH = 297 * pages.length;
+  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:210mm;height:${frameH}mm;border:0;opacity:0;pointer-events:none;`;
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildPrintDocumentHtmlPortrait(bodyInner, true));
   doc.close();
 
   fitPrintPortraitRoot(doc);
@@ -23743,7 +23912,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v322';
+let androidInstallCacheName = 'noon-report-v323';
 
 /*
  * What the program is called.
