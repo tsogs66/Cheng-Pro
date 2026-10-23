@@ -403,7 +403,7 @@
   .stem-advice{margin-top:10px; font-size:14px; line-height:1.45;}
   .stem-advice b{font-weight:800;}
   tr.spare-short td, tr.req-follow td{background:rgba(201,154,83,0.12);}
-  #reqBody td.req-desc{white-space:normal; min-width:160px; max-width:320px;}
+  #reqBody td.req-desc, #reqReceivedBody td.req-desc{white-space:normal; min-width:160px; max-width:320px;}
   .req-file-chip{display:inline-flex; align-items:center; gap:6px; margin:4px 10px 4px 0;}
   #reqViewer embed, #reqViewer img{margin-top:8px;}
   #reqViewerImage[hidden], #reqViewerEmbed[hidden], #reqViewer[hidden]{display:none !important;}
@@ -5232,7 +5232,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
     <div class="panel">
       <h2 id="reqFormTitle">Requisition</h2>
-      <div class="hint">Spare requisitions and store requisitions for this ship. Keep the status, the sent date, the receive date, and a photo or PDF of the paper with the line. The file stays with this vessel on this device.</div>
+      <div class="hint">Spare requisitions and store requisitions for this ship. A line stays on the sent list while it is sent, for follow up, or for receiving. Mark it received and it moves to the received list. The photo or PDF stays with the line on this device.</div>
       <div class="stat-strip cols4" id="reqSummary"></div>
       <div class="form-grid cols3" style="margin-top:14px;">
         <div class="field"><label>Kind</label>
@@ -5264,13 +5264,26 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
     </div>
     <div class="panel">
-      <h2>Requisition log</h2>
+      <h2>Sent</h2>
+      <div class="hint">Still with the supplier: sent, for follow up, or for receiving.</div>
       <div class="table-scroll">
         <table>
           <thead><tr>
             <th>Kind</th><th>Description</th><th>Status</th><th>Sent</th><th>Received</th><th>Files</th><th></th>
           </tr></thead>
           <tbody id="reqBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Received</h2>
+      <div class="hint">Arrived on board. A spare or store requisition moves here when its status is Received.</div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Kind</th><th>Description</th><th>Status</th><th>Sent</th><th>Received</th><th>Files</th><th></th>
+          </tr></thead>
+          <tbody id="reqReceivedBody"></tbody>
         </table>
       </div>
       <div id="reqViewer" hidden style="margin-top:14px;">
@@ -14101,44 +14114,51 @@ function downloadReqFile(){
   link.click();
   link.remove();
 }
-function renderRequisitions(){
-  const rows = ensureRequisitions().slice().sort(function(a, b){
-    const as = a.sentDate || '';
-    const bs = b.sentDate || '';
+function reqSortByDate(rows, field){
+  return rows.slice().sort(function(a, b){
+    const as = a[field] || a.sentDate || '';
+    const bs = b[field] || b.sentDate || '';
     if (as !== bs) return bs < as ? -1 : 1;
     return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
   });
+}
+function reqRowHtml(row){
+  const files = Array.isArray(row.files) ? row.files : [];
+  const fileBtns = files.length
+    ? files.map(function(f){
+        return '<button type="button" class="ghost small" data-req-open="' + escAttr(row.id) + '" data-req-file="' + escAttr(f.id) + '">' + escHtml(f.filename || 'File') + '</button>';
+      }).join(' ')
+    : '—';
+  const cls = row.status === 'follow-up' ? ' class="req-follow"' : '';
+  return '<tr' + cls + '>'
+    + '<td>' + escHtml(reqKindLabel(row.kind)) + '</td>'
+    + '<td class="req-desc">' + escHtml(row.description || '') + '</td>'
+    + '<td>' + escHtml(reqStatusLabel(row.status)) + '</td>'
+    + '<td>' + escHtml(row.sentDate || '—') + '</td>'
+    + '<td>' + escHtml(row.receiveDate || '—') + '</td>'
+    + '<td>' + fileBtns + '</td>'
+    + '<td><button type="button" class="ghost small" data-req-edit="' + escAttr(row.id) + '">Edit</button> <button type="button" class="ghost small" data-req-del="' + escAttr(row.id) + '">Delete</button></td>'
+    + '</tr>';
+}
+function renderReqTable(body, rows, emptyText){
+  if (!body) return;
+  body.innerHTML = rows.length
+    ? rows.map(reqRowHtml).join('')
+    : '<tr class="empty-row"><td colspan="7">' + escHtml(emptyText) + '</td></tr>';
+}
+function renderRequisitions(){
+  const rows = ensureRequisitions();
   const summary = document.getElementById('reqSummary');
-  const body = document.getElementById('reqBody');
   if (summary){
     summary.innerHTML = REQ_STATUSES.map(function(s){
       const n = rows.filter(function(r){ return (r.status || 'sent') === s.id; }).length;
       return '<div class="stat"><div class="num"><b>' + n + '</b></div><div class="lbl">' + escHtml(s.label) + '</div></div>';
     }).join('');
   }
-  if (!body) return;
-  if (!rows.length){
-    body.innerHTML = '<tr class="empty-row"><td colspan="7">No requisitions yet.</td></tr>';
-    return;
-  }
-  body.innerHTML = rows.map(function(row){
-    const files = Array.isArray(row.files) ? row.files : [];
-    const fileBtns = files.length
-      ? files.map(function(f){
-          return '<button type="button" class="ghost small" data-req-open="' + escAttr(row.id) + '" data-req-file="' + escAttr(f.id) + '">' + escHtml(f.filename || 'File') + '</button>';
-        }).join(' ')
-      : '—';
-    const cls = row.status === 'follow-up' ? ' class="req-follow"' : '';
-    return '<tr' + cls + '>'
-      + '<td>' + escHtml(reqKindLabel(row.kind)) + '</td>'
-      + '<td class="req-desc">' + escHtml(row.description || '') + '</td>'
-      + '<td>' + escHtml(reqStatusLabel(row.status)) + '</td>'
-      + '<td>' + escHtml(row.sentDate || '—') + '</td>'
-      + '<td>' + escHtml(row.receiveDate || '—') + '</td>'
-      + '<td>' + fileBtns + '</td>'
-      + '<td><button type="button" class="ghost small" data-req-edit="' + escAttr(row.id) + '">Edit</button> <button type="button" class="ghost small" data-req-del="' + escAttr(row.id) + '">Delete</button></td>'
-      + '</tr>';
-  }).join('');
+  const sent = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') !== 'received'; }), 'sentDate');
+  const received = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') === 'received'; }), 'receiveDate');
+  renderReqTable(document.getElementById('reqBody'), sent, 'Nothing on the sent list.');
+  renderReqTable(document.getElementById('reqReceivedBody'), received, 'Nothing on the received list.');
 }
 function loadReqForEdit(id){
   const row = ensureRequisitions().find(function(r){ return r.id === id; });
@@ -14184,14 +14204,17 @@ async function saveRequisitionFromForm(){
     return;
   }
   const statusVal = document.getElementById('rq_status')?.value;
+  const status = REQ_STATUSES.some(function(s){ return s.id === statusVal; }) ? statusVal : 'sent';
+  let receiveDate = document.getElementById('rq_received')?.value || '';
+  if (status === 'received' && !receiveDate) receiveDate = localIsoDate();
   const existing = _reqEditId ? ensureRequisitions().find(function(r){ return r.id === _reqEditId; }) : null;
   const row = {
     id: _reqEditId || ('rq_' + Date.now().toString(36)),
     kind: document.getElementById('rq_kind')?.value === 'store' ? 'store' : 'spare',
     description: description,
-    status: REQ_STATUSES.some(function(s){ return s.id === statusVal; }) ? statusVal : 'sent',
+    status: status,
     sentDate: document.getElementById('rq_sent')?.value || '',
-    receiveDate: document.getElementById('rq_received')?.value || '',
+    receiveDate: receiveDate,
     files: _reqFiles.map(function(f){
       return { id:f.id, filename:f.filename, mime:f.mime, dataUrl:f.dataUrl };
     }),
