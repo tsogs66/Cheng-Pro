@@ -162,6 +162,31 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 2px solid var(--brass-dim);
 }
 html.bright .topbar { background: rgba(255,255,255,0.92); }
+.watch-strip {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+  padding: 6px 16px 8px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  font-family: var(--mono); font-size: 12px; line-height: 1.35;
+}
+html.bright .watch-strip { background: rgba(18, 34, 56, 0.04); }
+.ws-item { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.ws-k {
+  font-family: var(--display); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.ws-v b { font-weight: 800; }
+.ws-warn .ws-v { color: var(--danger); }
+.bunker-file-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+}
+.bunker-file-bar span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+@media (max-width: 720px) {
+  .watch-strip { font-size: 13px; padding: 8px 10px; }
+  .ws-item { flex: 1 1 100%; }
+}
+@media print { .watch-strip, .bunker-file-bar { display: none !important; } }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
 .brand:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 8px; }
 .brand-mark {

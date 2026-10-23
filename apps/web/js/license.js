@@ -372,12 +372,12 @@
   function modulesForSku(sku, addons) {
     const ads = resolveProgramAddons(sku, addons);
     if (sku === 'cheng-admin' || ads.includes('master')) {
-      return ['home', 'voyage', 'tanks', 'performance', 'eorb', 'bunkerplan', 'bunkeringplan',
+      return ['home', 'voyage', 'spares', 'tanks', 'performance', 'eorb', 'bunkerplan', 'bunkeringplan',
         'vessel', 'backup', 'license', 'about'];
     }
     if (sku === 'cheng-aio') {
       const mods = ['home', 'performance', 'vessel', 'backup', 'license', 'about'];
-      if (ads.includes('voyage-chief')) mods.push('voyage');
+      if (ads.includes('voyage-chief')) mods.push('voyage', 'spares');
       if (ads.includes('tank-chief')) mods.push('tanks');
       if (ads.includes('eorb')) mods.push('eorb');
       if (ads.includes('consumption-plan')) mods.push('bunkerplan');
@@ -385,7 +385,7 @@
       return mods;
     }
     if (sku === 'voyage-chief') {
-      const mods = ['home', 'voyage', 'performance', 'vessel', 'backup', 'license', 'about'];
+      const mods = ['home', 'voyage', 'spares', 'performance', 'vessel', 'backup', 'license', 'about'];
       if (ads.includes('eorb')) mods.push('eorb');
       if (ads.includes('consumption-plan')) mods.push('bunkerplan');
       return mods;

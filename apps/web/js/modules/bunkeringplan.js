@@ -50,6 +50,14 @@ window.ChengProModules.bunkeringplan = {
     }
     const src = ChengPro.tankEmbedUrl({ page: 'bunker-plan', bunkerEmbed: '1' });
     root.innerHTML = `
+      <div class="bunker-file-bar" id="bunkerFileBar">
+        <span>Bunker file</span>
+        <button type="button" class="btn" data-file-mod="bunkeringplan">Plan</button>
+        <button type="button" class="btn" data-file-mod="tanks" data-file-page="bunker-after">After survey</button>
+        <button type="button" class="btn" data-file-mod="tanks" data-file-page="bunker-summary">BDN summary</button>
+        <button type="button" class="btn" data-file-mod="voyage" data-file-page="receipts">Voyage receipt</button>
+        <button type="button" class="btn" data-file-mod="bunkerplan">Stem</button>
+      </div>
       <div class="aio-embed-wrap" id="bunkeringEmbedWrap">
         <iframe
           class="aio-embed-frame"
@@ -58,5 +66,24 @@ window.ChengProModules.bunkeringplan = {
           allow="clipboard-read; clipboard-write"
         ></iframe>
       </div>`;
+    bindBunkerFile(root);
   },
 };
+
+function bindBunkerFile(root) {
+  root.querySelectorAll('[data-file-mod]').forEach((btn) => {
+    btn.onclick = () => {
+      const module = btn.dataset.fileMod;
+      const page = btn.dataset.filePage || '';
+      if (page && module === 'tanks') {
+        try { sessionStorage.setItem('chengAioPendingTankPage', page); } catch { /* ignore */ }
+      }
+      if (page && module === 'voyage') {
+        try { sessionStorage.setItem('chengAioPendingVoyagePage', page); } catch { /* ignore */ }
+      }
+      window.dispatchEvent(new CustomEvent('chengpro:navigate', {
+        detail: { module: module, force: true },
+      }));
+    };
+  });
+}

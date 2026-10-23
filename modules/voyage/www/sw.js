@@ -24,6 +24,7 @@ const CRITICAL = [
 const PRECACHE = [
   './voyage_manager.html',
   './eorb.js',
+  './stem-advice.js',
   './ship_time.js',
   './theme.js',
   './license-config.js',

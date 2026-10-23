@@ -86,6 +86,7 @@
       /* Hide Voyage tabs before first paint — mobile CSS uses display:flex !important. */
       if (aioEmbed && /[?&]eorbEmbed=1\b/.test(qs)) document.documentElement.classList.add('eorb-embed');
       if (aioEmbed && /[?&]page=bunkerplan\b/.test(qs)) document.documentElement.classList.add('bunkerplan-embed');
+      if (aioEmbed && /[?&]page=spares\b/.test(qs)) document.documentElement.classList.add('spares-embed');
       if (aioEmbed && /[?&]page=data\b/.test(qs)) document.documentElement.classList.add('aio-data-embed');
     } catch (_e3) {}
   }catch(_e){}
@@ -393,6 +394,26 @@
   }
   .tab.active{color:var(--brass); border-bottom-color:var(--brass);}
   .tab:hover{color:var(--paper);}
+  .tab-group{display:flex; flex-wrap:wrap; align-items:stretch; gap:0; margin:0 10px 0 0; padding-left:10px; border-left:1px solid var(--line);}
+  .tab-group:first-child{border-left:none; padding-left:0; margin-left:0;}
+  .tab-group-label{
+    font-family:'Oswald',sans-serif; font-size:9px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--paper-dim); align-self:center; padding:0 8px 0 0; opacity:.75;
+  }
+  .stem-advice{margin-top:10px; font-size:14px; line-height:1.45;}
+  .stem-advice b{font-weight:800;}
+  tr.spare-short td{background:rgba(201,154,83,0.12);}
+  @media (orientation: portrait) and (max-width: 1100px) {
+    #page-entry .form-grid,
+    #page-entry .unit-group,
+    #page-spares .form-grid { grid-template-columns: 1fr; }
+    #page-entry .field input,
+    #page-entry .field select,
+    #page-entry .field textarea,
+    #page-spares .field input,
+    #page-spares .field select,
+    #page-spares .field textarea { min-height: 48px; font-size: 16px; }
+  }
   .page{display:none;}
   .page.active{display:block;}
 
@@ -1531,6 +1552,20 @@
       padding:7px 8px;
       border-radius:5px;
     }
+    /* Portrait watch card: one column, a target the thumb can hit at the flowmeter. */
+    #page-entry .form-grid,
+    #page-entry .unit-group,
+    #page-spares .form-grid{
+      grid-template-columns:1fr;
+    }
+    #page-entry .field input,
+    #page-entry .field select,
+    #page-entry .field textarea,
+    #page-spares .field input,
+    #page-spares .field select,
+    #page-spares .field textarea{
+      min-height:48px;
+    }
     .nv-leg-dialog .field input{
       min-height:48px !important; font-size:16px !important; padding:12px 14px !important;
     }
@@ -2269,6 +2304,18 @@
   html.eorb-embed #page-orb { display: block !important; }
   html.bunkerplan-embed .page:not(#page-bunkerplan) { display: none !important; }
   html.bunkerplan-embed #page-bunkerplan { display: block !important; }
+  html.spares-embed .masthead,
+  html.spares-embed #tabs,
+  html.spares-embed .bottom-nav,
+  html.spares-embed #bnMoreSheet,
+  html.spares-embed #bnMoreBackdrop,
+  html.spares-embed .footer-note,
+  html.spares-embed .theme-fab {
+    display: none !important;
+  }
+  html.spares-embed body { padding-bottom: 0 !important; }
+  html.spares-embed .page:not(#page-spares) { display: none !important; }
+  html.spares-embed #page-spares { display: block !important; }
   @media (max-width:1100px), (hover:none) and (pointer:coarse){
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
@@ -2834,20 +2881,33 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <button type="button" class="theme-toggle theme-fab" data-theme-toggle title="Day / bright mode for sunlight">Bright</button>
 
   <div class="tabs" id="tabs">
-    <div class="tab active" data-page="summary">Summary</div>
-    <div class="tab" data-page="entry">Log Entry</div>
-    <div class="tab" data-page="rob">ROB</div>
-    <div class="tab" data-page="bunkerplan">Consumption Plan</div>
-    <div class="tab" data-page="consumption">Consumption</div>
-    <div class="tab" data-page="voyageabstract">Voyage Abstract</div>
-    <div class="tab" data-page="rangetotals">Range Totals</div>
-    <div class="tab" data-page="receipts">Receipts</div>
-    <div class="tab" data-page="reports">Reports</div>
-    <div class="tab" data-page="reference">Reference</div>
-    <div class="tab" data-page="orb">e-ORB</div>
-    <div class="tab" data-page="data">Setup</div>
-    <div class="tab" data-page="voyagesetup">Voyage Setup</div>
-    <div class="tab" data-page="setup">Vessel Data</div>
+    <div class="tab-group">
+      <span class="tab-group-label">Watch</span>
+      <div class="tab active" data-page="summary">Summary</div>
+      <div class="tab" data-page="entry">Log Entry</div>
+      <div class="tab" data-page="rob">ROB</div>
+      <div class="tab" data-page="spares">Spares</div>
+    </div>
+    <div class="tab-group">
+      <span class="tab-group-label">Voyage</span>
+      <div class="tab" data-page="bunkerplan">Consumption Plan</div>
+      <div class="tab" data-page="consumption">Consumption</div>
+      <div class="tab" data-page="voyageabstract">Voyage Abstract</div>
+      <div class="tab" data-page="rangetotals">Range Totals</div>
+      <div class="tab" data-page="receipts">Receipts</div>
+      <div class="tab" data-page="reports">Reports</div>
+    </div>
+    <div class="tab-group">
+      <span class="tab-group-label">Books</span>
+      <div class="tab" data-page="reference">Reference</div>
+      <div class="tab" data-page="orb">e-ORB</div>
+    </div>
+    <div class="tab-group">
+      <span class="tab-group-label">Ship</span>
+      <div class="tab" data-page="data">Setup</div>
+      <div class="tab" data-page="voyagesetup">Voyage Setup</div>
+      <div class="tab" data-page="setup">Vessel Data</div>
+    </div>
   </div>
 
   <!-- VOYAGE SETUP -->
@@ -3991,6 +4051,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   </div>
 
   <div class="page" id="page-rob">
+    <div class="panel" id="robTankCompare" hidden>
+      <h2>Tank survey beside the log</h2>
+      <p class="hint" id="robTankCompareHint">Weight in air from Tank Chief, next to this log. Survey minus log. The log stays as it is.</p>
+      <div id="robTankCompareBody"></div>
+    </div>
     <div class="panel">
       <h2>Show R.O.B. As Of</h2>
       <div class="form-grid cols2">
@@ -4024,6 +4089,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   <div class="page" id="page-receipts">
     <div class="panel">
       <h2>Bunker / Lube / Fresh Water Receipts</h2>
+      <div class="btn-row" id="bunkerFileLinks" hidden>
+        <button type="button" class="ghost small" data-aio-mod="bunkeringplan">Bunkering plan</button>
+        <button type="button" class="ghost small" data-aio-mod="tanks" data-aio-page="bunker-after">After survey</button>
+        <button type="button" class="ghost small" data-aio-mod="tanks" data-aio-page="bunker-summary">BDN summary</button>
+      </div>
       <div class="receipts-list" id="receiptsList"></div>
       <div class="form-grid cols3">
         <div class="field"><label>Date</label><input type="date" id="rcpt_date"></div>
@@ -5120,6 +5190,44 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
   </div>
 
+  <div class="page" id="page-spares">
+    <div class="panel">
+      <h2>Spares on board</h2>
+      <div class="hint">Critical spares for this ship. A line joins the requisition when quantity on board is under the minimum, or when some are already on order. The list stays with this vessel.</div>
+      <div class="stat-strip cols3" id="sparesSummary"></div>
+    </div>
+    <div class="panel">
+      <h2 id="sparesFormTitle">Add a spare</h2>
+      <div class="form-grid cols3">
+        <div class="field"><label>Part</label><input id="sp_name" autocomplete="off"></div>
+        <div class="field"><label>Equipment</label><input id="sp_equipment" placeholder="M/E, A/E, purifier" autocomplete="off"></div>
+        <div class="field"><label>Location</label><input id="sp_location" autocomplete="off"></div>
+        <div class="field"><label>Unit</label><input id="sp_unit" value="pcs" autocomplete="off"></div>
+        <div class="field"><label>Minimum</label><input type="number" step="1" id="sp_min" inputmode="decimal"></div>
+        <div class="field"><label>On board</label><input type="number" step="1" id="sp_on" inputmode="decimal"></div>
+        <div class="field"><label>On order</label><input type="number" step="1" id="sp_order" inputmode="decimal"></div>
+        <div class="field span2"><label>Remarks</label><input id="sp_remarks" autocomplete="off"></div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="primary small" id="btnSpareSave">Save spare</button>
+        <button type="button" class="ghost small" id="btnSpareCancel" hidden>Cancel edit</button>
+        <button type="button" class="ghost small" id="btnSpareCopy">Copy requisition</button>
+      </div>
+      <div class="hint" id="sparesRequisition"></div>
+    </div>
+    <div class="panel">
+      <h2>List</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Part</th><th>Equipment</th><th>On board</th><th>Minimum</th><th>On order</th><th></th>
+          </tr></thead>
+          <tbody id="sparesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="footer-note">Voyage Chief — offline-capable PWA with local IndexedDB storage and optional self-hosted sync. Install on Android or PC from the Setup tab when served over HTTPS.</div>
 </div>
 
@@ -5159,6 +5267,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="bn-more-handle" aria-hidden="true"></div>
     <div class="bn-more-title">More</div>
     <div class="bn-more-grid">
+      <button type="button" class="bn-more-item" data-page="spares">
+        <span class="bn-ic" aria-hidden="true">🔩</span>
+        <span>Spares</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="bunkerplan">
         <span class="bn-ic" aria-hidden="true">📈</span>
         <span>Cons Plan</span>
@@ -5197,6 +5309,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 
 <div id="printArea"></div>
 
+<script src="stem-advice.js"></script>
 <script src="eorb.js"></script>
 <script src="save-file.js"></script>
 <script src="camera-capture.js"></script>
@@ -8632,6 +8745,16 @@ function setShipTzUi(offsetMin, clockChangeMin){
   if (hid) hid.value = String(clk);
   _shipTzFill = false;
   updateClockChangeNote();
+  publishShipClock();
+}
+function publishShipClock(){
+  try {
+    const tz = defaultShipTzOffsetMin();
+    localStorage.setItem('chengShipClock', JSON.stringify({
+      tzOffsetMin: tz,
+      publishedAt: new Date().toISOString()
+    }));
+  } catch (_) {}
 }
 function applyShipTzChange(toOffsetMin){
   if (!window.ShipTime) return;
@@ -12814,7 +12937,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -12946,10 +13069,24 @@ function summarizeBunkerSide(side){
   const receive = (side.qtyReceive!=null && side.qtyReceive!=='' && !isNaN(side.qtyReceive)) ? Number(side.qtyReceive) : 0;
   const arrivalRob = rob==null ? null : rob - required;
   const nextDepRob = arrivalRob==null ? null : arrivalRob + receive;
-  const stem = rob==null ? null : Math.max(0, required - rob - receive);
+  const stemAdvice = (typeof StemAdvice !== 'undefined' && StemAdvice.advise)
+    ? StemAdvice.advise(side, { required: required, rob: rob, receive: receive })
+    : null;
+  const stem = stemAdvice && stemAdvice.stemStill != null
+    ? stemAdvice.stemStill
+    : (rob==null ? null : Math.max(0, required - rob - receive));
   const delivery = (side.deliveryRob!=null && side.deliveryRob!=='' && !isNaN(side.deliveryRob)) ? Number(side.deliveryRob) : null;
   const shortageExcess = (delivery==null || nextDepRob==null) ? null : delivery - nextDepRob;
-  return { daysPort, daysSea, totalDist, totalCons, margin, required, arrivalRob, nextDepRob, stem, receive, delivery, shortageExcess };
+  return { daysPort, daysSea, totalDist, totalCons, margin, required, arrivalRob, nextDepRob, stem, stemAdvice, receive, delivery, shortageExcess };
+}
+function stemAdvicePlain(side, sum){
+  if (!sum || !sum.stemAdvice || typeof StemAdvice === 'undefined' || !StemAdvice.sentence) return '';
+  return StemAdvice.sentence(side && side.grade, sum.stemAdvice, fmtFuel);
+}
+function stemAdviceHtml(side, sum){
+  const text = stemAdvicePlain(side, sum);
+  if (!text) return '';
+  return text.replace(/(\d[\d,]*\.\d+)/g, '<b>$1</b>');
 }
 function bunkerResultCard(title, value, unit){
   const blank = value==null || value==='';
@@ -13070,12 +13207,15 @@ function renderBunkerPlan(){
       <div class="bunker-totals">
         <div class="field"><label>Current ROB (MT)</label><input type="number" step="0.001" data-side-f="currentRob" data-side="${meta.key}" value="${side.currentRob ?? ''}"></div>
         <div class="field"><label>Quantity to Receive (MT)</label><input type="number" step="0.001" data-side-f="qtyReceive" data-side="${meta.key}" value="${side.qtyReceive ?? ''}"></div>
+        <div class="field"><label>Unpumpable (MT)</label><input type="number" step="0.001" data-side-f="unpumpableMt" data-side="${meta.key}" value="${side.unpumpableMt ?? ''}" title="Oil that cannot be pumped" inputmode="decimal"></div>
+        <div class="field"><label>Weather reserve (MT)</label><input type="number" step="0.001" data-side-f="weatherMarginMt" data-side="${meta.key}" value="${side.weatherMarginMt ?? ''}" title="Extra tonnes to arrive with, beyond the line margins" inputmode="decimal"></div>
         <div class="field full"><label>Delivery / Redelivery ROB (MT)</label><input type="number" step="0.001" data-side-f="deliveryRob" data-side="${meta.key}" value="${side.deliveryRob ?? ''}"></div>
       </div>
       <div class="bunker-results">
         ${bunkerResultCardsHtml(sum)}
       </div>
-      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Line margin = Qty × Margin% · Required = Σ Qty + Σ margins · Arrival ROB = Current ROB − Required · Next Dep ROB = Arrival ROB + Qty to Receive</div>
+      <div class="stem-advice">${stemAdviceHtml(side, sum)}</div>
+      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Line margin = Qty × Margin% · Required = Σ Qty + Σ margins · Order = Required + unpumpable + weather − Current ROB · Arrival if that order is taken keeps the unpumpable and the weather reserve</div>
     </div>`;
   }).join('');
 }
@@ -13193,8 +13333,12 @@ function buildBunkerPlanPrintHtml(){
             {label:'Next Departure ROB', value: sum.nextDepRob==null ? '—' : fmtFuel(sum.nextDepRob)+' MT'},
             {label:'Delivery / Redelivery ROB', value: sum.delivery==null ? '—' : fmtFuel(sum.delivery)+' MT'},
             {label:'Shortage/Excess Quantity', value: sum.shortageExcess==null ? '—' : fmtFuel(sum.shortageExcess)+' MT'},
+            {label:'Unpumpable', value: sum.stemAdvice && sum.stemAdvice.unpumpable ? fmtFuel(sum.stemAdvice.unpumpable)+' MT' : '—'},
+            {label:'Weather reserve', value: sum.stemAdvice && sum.stemAdvice.weather ? fmtFuel(sum.stemAdvice.weather)+' MT' : '—'},
+            {label:'Order', value: sum.stemAdvice && sum.stemAdvice.orderMt!=null ? fmtFuel(sum.stemAdvice.orderMt)+' MT' : '—'},
             {label:'Stem still needed', value: sum.stem==null ? '—' : fmtFuel(sum.stem)+' MT'}
           ], 4)}
+          <div class="pr-remarks"><div class="pr-remarks-body">${escPrint(stemAdvicePlain(side, sum))}</div></div>
           ${meta.key==='distillate' ? `<div class="pr-remarks">
             <div class="pr-remarks-title">Remarks</div>
             <div class="pr-remarks-body">${escPrint(bp.remarks || '—')}</div>
@@ -13288,16 +13432,57 @@ function saveBunkerPlanOnly(){
   try{ showToast('Bunker plan saved'); }catch(_){}
 }
 
+let _tankRobIntent = '';
 function loadBunkerPlanFromTankRob(){
   if (!isChengAioEmbedded()) return;
+  _tankRobIntent = 'plan';
   try {
     window.parent.postMessage({ type: 'chengaio-request-tank-rob' }, '*');
   } catch (_) {}
+}
+function requestTankSurveyCompare(){
+  const panel = document.getElementById('robTankCompare');
+  if (!panel) return;
+  if (!isChengAioEmbedded()){
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  _tankRobIntent = 'compare';
+  const body = document.getElementById('robTankCompareBody');
+  if (body && !body.dataset.loaded){
+    body.innerHTML = '<div class="hint">Asking Tank Chief for the last sounding…</div>';
+  }
+  try {
+    window.parent.postMessage({ type: 'chengaio-request-tank-rob' }, '*');
+  } catch (_) {}
+}
+function paintRobTankCompare(rob){
+  const panel = document.getElementById('robTankCompare');
+  const body = document.getElementById('robTankCompareBody');
+  if (!panel || !body || !rob) return;
+  panel.hidden = false;
+  body.dataset.loaded = '1';
+  const grades = ['HFO','LSFO','MDO/MGO','LSMGO'];
+  const rows = grades.map(function(g){
+    const tank = rob[g] != null && !isNaN(Number(rob[g])) ? Number(rob[g]) : null;
+    let log = 0;
+    try { log = currentRobForGrade(g); } catch (_) { log = 0; }
+    if (tank == null && !(log > 0)) return '';
+    const diff = tank == null ? null : tank - log;
+    const sign = diff == null ? '—' : ((diff > 0 ? '+' : '') + fmtFuel(diff));
+    return '<tr><td>' + g + '</td><td><b>' + (tank == null ? '—' : fmtFuel(tank)) + '</b></td><td><b>' + fmtFuel(log) + '</b></td><td><b>' + sign + '</b></td></tr>';
+  }).filter(Boolean).join('');
+  body.innerHTML = rows
+    ? '<div class="table-scroll"><table><thead><tr><th>Grade</th><th>Tank survey MT</th><th>Log ROB MT</th><th>Survey − log</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+    : '<div class="hint">Tank Chief has no fuel weight for this ship yet. Sound the tanks, then open this page again.</div>';
 }
 
 window.addEventListener('message', (ev)=>{
   const msg = ev.data || {};
   if (msg.type === 'tank-rob-response' && msg.rob){
+    paintRobTankCompare(msg.rob);
+    if (_tankRobIntent !== 'plan') return;
     const bp = ensureBunkerPlan();
     const rob = msg.rob;
     BUNKER_PLAN_SIDES.forEach(meta=>{
@@ -13537,10 +13722,175 @@ function syncBottomNav(pageName){
   });
 }
 
+let _spareEditId = null;
+function ensureSpares(){
+  if (!Array.isArray(state.setup.spares)) state.setup.spares = [];
+  return state.setup.spares;
+}
+function spareNum(v){
+  const n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+function spareNeedsOrder(row){
+  return spareNum(row.onHand) < spareNum(row.minQty) || spareNum(row.onOrder) > 0;
+}
+function requisitionLines(){
+  return ensureSpares().filter(spareNeedsOrder).map(function(row){
+    const short = Math.max(0, spareNum(row.minQty) - spareNum(row.onHand));
+    const bits = [row.name || 'Spare'];
+    if (row.equipment) bits.push(row.equipment);
+    bits.push('on board ' + spareNum(row.onHand) + ' ' + (row.unit || 'pcs'));
+    bits.push('minimum ' + spareNum(row.minQty));
+    if (short > 0) bits.push('short ' + short);
+    if (spareNum(row.onOrder) > 0) bits.push('on order ' + spareNum(row.onOrder));
+    if (row.location) bits.push(row.location);
+    if (row.remarks) bits.push(row.remarks);
+    return bits.join(' — ');
+  });
+}
+function clearSpareForm(){
+  _spareEditId = null;
+  ['sp_name','sp_equipment','sp_location','sp_remarks'].forEach(function(id){
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const unit = document.getElementById('sp_unit');
+  if (unit) unit.value = 'pcs';
+  ['sp_min','sp_on','sp_order'].forEach(function(id){
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const title = document.getElementById('sparesFormTitle');
+  if (title) title.textContent = 'Add a spare';
+  const cancel = document.getElementById('btnSpareCancel');
+  if (cancel) cancel.hidden = true;
+}
+function renderSpares(){
+  const rows = ensureSpares();
+  const body = document.getElementById('sparesBody');
+  const summary = document.getElementById('sparesSummary');
+  const req = document.getElementById('sparesRequisition');
+  if (!body) return;
+  const shortN = rows.filter(function(r){ return spareNum(r.onHand) < spareNum(r.minQty); }).length;
+  const orderN = rows.filter(function(r){ return spareNum(r.onOrder) > 0; }).length;
+  if (summary){
+    summary.innerHTML = [
+      '<div class="stat"><div class="num"><b>' + rows.length + '</b></div><div class="lbl">Lines</div></div>',
+      '<div class="stat"><div class="num"><b>' + shortN + '</b></div><div class="lbl">Below minimum</div></div>',
+      '<div class="stat"><div class="num"><b>' + orderN + '</b></div><div class="lbl">On order</div></div>'
+    ].join('');
+  }
+  if (!rows.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="6">No spares yet.</td></tr>';
+  } else {
+    body.innerHTML = rows.map(function(row){
+      const cls = spareNum(row.onHand) < spareNum(row.minQty) ? ' class="spare-short"' : '';
+      return '<tr' + cls + ' data-spare="' + escAttr(row.id) + '"><td>' + escHtml(row.name || '') + '</td><td>' + escHtml(row.equipment || '') + '</td><td><b>' + spareNum(row.onHand) + '</b> ' + escHtml(row.unit || 'pcs') + '</td><td>' + spareNum(row.minQty) + '</td><td><b>' + spareNum(row.onOrder) + '</b></td><td><button type="button" class="ghost small" data-spare-edit="' + escAttr(row.id) + '">Edit</button> <button type="button" class="ghost small" data-spare-del="' + escAttr(row.id) + '">Delete</button></td></tr>';
+    }).join('');
+  }
+  const lines = requisitionLines();
+  if (req){
+    req.textContent = lines.length
+      ? lines.join('\n')
+      : 'Nothing to order. Every line is at or above its minimum.';
+  }
+}
+function saveSpareFromForm(){
+  const name = (document.getElementById('sp_name')?.value || '').trim();
+  if (!name){
+    try { showToast('Enter the part name'); } catch (_) {}
+    return;
+  }
+  const row = {
+    id: _spareEditId || ('sp_' + Date.now().toString(36)),
+    name: name,
+    equipment: (document.getElementById('sp_equipment')?.value || '').trim(),
+    location: (document.getElementById('sp_location')?.value || '').trim(),
+    unit: (document.getElementById('sp_unit')?.value || '').trim() || 'pcs',
+    minQty: spareNum(document.getElementById('sp_min')?.value),
+    onHand: spareNum(document.getElementById('sp_on')?.value),
+    onOrder: spareNum(document.getElementById('sp_order')?.value),
+    remarks: (document.getElementById('sp_remarks')?.value || '').trim()
+  };
+  const list = ensureSpares();
+  const idx = list.findIndex(function(r){ return r.id === row.id; });
+  if (idx >= 0) list[idx] = row;
+  else list.push(row);
+  clearSpareForm();
+  renderSpares();
+  try { saveSetup(); } catch (_) {}
+  try { showToast('Spare saved'); } catch (_) {}
+}
+function bindSparesUi(){
+  const page = document.getElementById('page-spares');
+  if (!page || page.dataset.bound) return;
+  page.dataset.bound = '1';
+  document.getElementById('btnSpareSave')?.addEventListener('click', saveSpareFromForm);
+  document.getElementById('btnSpareCancel')?.addEventListener('click', function(){
+    clearSpareForm();
+  });
+  document.getElementById('btnSpareCopy')?.addEventListener('click', async function(){
+    const lines = requisitionLines();
+    const text = lines.length
+      ? ('Requisition — ' + (state.setup.vesselName || 'vessel') + '\n' + lines.join('\n'))
+      : 'Nothing to order.';
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Requisition copied');
+    } catch (_) {
+      showToast('Could not copy. The requisition is on this page.');
+    }
+  });
+  page.addEventListener('click', function(e){
+    const edit = e.target.closest('[data-spare-edit]');
+    const del = e.target.closest('[data-spare-del]');
+    if (edit){
+      const row = ensureSpares().find(function(r){ return r.id === edit.dataset.spareEdit; });
+      if (!row) return;
+      _spareEditId = row.id;
+      document.getElementById('sp_name').value = row.name || '';
+      document.getElementById('sp_equipment').value = row.equipment || '';
+      document.getElementById('sp_location').value = row.location || '';
+      document.getElementById('sp_unit').value = row.unit || 'pcs';
+      document.getElementById('sp_min').value = row.minQty ?? '';
+      document.getElementById('sp_on').value = row.onHand ?? '';
+      document.getElementById('sp_order').value = row.onOrder ?? '';
+      document.getElementById('sp_remarks').value = row.remarks || '';
+      const title = document.getElementById('sparesFormTitle');
+      if (title) title.textContent = 'Edit spare';
+      const cancel = document.getElementById('btnSpareCancel');
+      if (cancel) cancel.hidden = false;
+    }
+    if (del){
+      const id = del.dataset.spareDel;
+      state.setup.spares = ensureSpares().filter(function(r){ return r.id !== id; });
+      if (_spareEditId === id) clearSpareForm();
+      renderSpares();
+      try { saveSetup(); } catch (_) {}
+    }
+  });
+}
+function bindBunkerFileLinks(){
+  const row = document.getElementById('bunkerFileLinks');
+  if (!row) return;
+  row.hidden = !isChengAioEmbedded();
+  row.querySelectorAll('[data-aio-mod]').forEach(function(btn){
+    btn.onclick = function(){
+      try {
+        window.parent.postMessage({
+          type: 'chengaio-navigate',
+          module: btn.dataset.aioMod,
+          page: btn.dataset.aioPage || ''
+        }, '*');
+      } catch (_) {}
+    };
+  });
+}
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
   if (isChengAioEmbedded() && /[?&]eorbEmbed=1\b/.test(location.search) && pageName !== 'orb') return;
   if (isChengAioEmbedded() && /[?&]page=bunkerplan\b/.test(location.search) && pageName !== 'bunkerplan') return;
+  if (isChengAioEmbedded() && /[?&]page=spares\b/.test(location.search) && pageName !== 'spares') return;
   if (pageName === 'orb' && !voyageEorbAllowed()){
     const aioOrb = isChengAioEmbedded() && /[?&]page=orb\b/.test(location.search);
     if (!aioOrb) {
@@ -13559,6 +13909,11 @@ function switchTab(pageName){
   if (pageName === 'rob' && prev !== 'rob'){
     resetRobGaugesToZero();
     requestAnimationFrame(()=> animateRobGauges());
+    requestTankSurveyCompare();
+  }
+  if (pageName === 'spares'){
+    bindSparesUi();
+    renderSpares();
   }
   if (pageName === 'summary' && prev !== 'summary'){
     renderVoyageProgress(true);
@@ -29103,6 +29458,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     try{ await initLoginGate(); }
     catch(gateErr){ console.error('Login gate failed to start', gateErr); showLoginGate(true); }
     _programReady = true;
+    try { publishShipClock(); } catch (_) {}
+    try { bindBunkerFileLinks(); } catch (_) {}
     endActivity('boot');
     if (typeof LoadingSplash !== 'undefined' && LoadingSplash) LoadingSplash.endBoot();
     document.getElementById('dbStatus').textContent = '● local database ready';
@@ -29118,6 +29475,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       if (wantOrb && (isChengAioEmbedded() || voyageEorbAllowed())) switchTab('orb');
       else if (qsPage === 'entry' || qsPage === 'log' || qsPage === 'logentry') switchTab('entry');
       else if (qsPage === 'rob') switchTab('rob');
+      else if (qsPage === 'spares') switchTab('spares');
       else if (qsPage === 'bunkerplan'){
         switchTab('bunkerplan');
         if (isChengAioEmbedded()){
