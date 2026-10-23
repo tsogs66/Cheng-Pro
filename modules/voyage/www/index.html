@@ -402,7 +402,11 @@
   }
   .stem-advice{margin-top:10px; font-size:14px; line-height:1.45;}
   .stem-advice b{font-weight:800;}
-  tr.spare-short td{background:rgba(201,154,83,0.12);}
+  tr.spare-short td, tr.req-follow td{background:rgba(201,154,83,0.12);}
+  #reqBody td.req-desc, #reqReceivedBody td.req-desc{white-space:normal; min-width:160px; max-width:320px;}
+  .req-file-chip{display:inline-flex; align-items:center; gap:6px; margin:4px 10px 4px 0;}
+  #reqViewer embed, #reqViewer img{margin-top:8px;}
+  #reqViewerImage[hidden], #reqViewerEmbed[hidden], #reqViewer[hidden]{display:none !important;}
   @media (orientation: portrait) and (max-width: 1100px) {
     #page-entry .form-grid,
     #page-entry .unit-group,
@@ -5224,6 +5228,72 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           </tr></thead>
           <tbody id="sparesBody"></tbody>
         </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2 id="reqFormTitle">Requisition</h2>
+      <div class="hint">Spare requisitions and store requisitions for this ship. A line stays on the sent list while it is sent, for follow up, or for receiving. Mark it received and it moves to the received list. The photo or PDF stays with the line on this device.</div>
+      <div class="stat-strip cols4" id="reqSummary"></div>
+      <div class="form-grid cols3" style="margin-top:14px;">
+        <div class="field"><label>Kind</label>
+          <select id="rq_kind">
+            <option value="spare">Spare requisition</option>
+            <option value="store">Store requisition</option>
+          </select>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="rq_status">
+            <option value="sent">Sent</option>
+            <option value="received">Received</option>
+            <option value="follow-up">For follow up</option>
+            <option value="receiving">For receiving</option>
+          </select>
+        </div>
+        <div class="field"><label>Sent date</label><input type="date" id="rq_sent"></div>
+        <div class="field"><label>Receive date</label><input type="date" id="rq_received"></div>
+        <div class="field span2"><label>Description</label><textarea id="rq_desc" rows="3" placeholder="What was requested"></textarea></div>
+      </div>
+      <div class="btn-row" style="align-items:center;">
+        <input type="file" id="rq_file" accept="application/pdf,.pdf,image/*" multiple style="max-width:280px;">
+        <button type="button" class="ghost small" id="btnReqPhoto">Take picture</button>
+      </div>
+      <div class="hint" id="rqPending"></div>
+      <div class="btn-row">
+        <button type="button" class="primary small" id="btnReqSave">Save requisition</button>
+        <button type="button" class="ghost small" id="btnReqCancel" hidden>Cancel edit</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Sent</h2>
+      <div class="hint">Still with the supplier: sent, for follow up, or for receiving.</div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Kind</th><th>Description</th><th>Status</th><th>Sent</th><th>Received</th><th>Files</th><th></th>
+          </tr></thead>
+          <tbody id="reqBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Received</h2>
+      <div class="hint">Arrived on board. A spare or store requisition moves here when its status is Received.</div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Kind</th><th>Description</th><th>Status</th><th>Sent</th><th>Received</th><th>Files</th><th></th>
+          </tr></thead>
+          <tbody id="reqReceivedBody"></tbody>
+        </table>
+      </div>
+      <div id="reqViewer" hidden style="margin-top:14px;">
+        <h3 class="sub" id="reqViewerTitle">File</h3>
+        <embed id="reqViewerEmbed" type="application/pdf" hidden style="width:100%; height:480px; border:1px solid var(--line-strong); border-radius:4px;">
+        <img id="reqViewerImage" alt="Requisition file" hidden style="width:100%; max-height:70vh; object-fit:contain; border:1px solid var(--line-strong); border-radius:4px; background:#000;">
+        <div class="btn-row">
+          <button type="button" class="ghost small" id="btnReqDownload">Download</button>
+          <button type="button" class="ghost small" id="btnReqViewerClose">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -13794,6 +13864,7 @@ function renderSpares(){
       ? lines.join('\n')
       : 'Nothing to order. Every line is at or above its minimum.';
   }
+  renderRequisitions();
 }
 function saveSpareFromForm(){
   const name = (document.getElementById('sp_name')?.value || '').trim();
@@ -13841,9 +13912,26 @@ function bindSparesUi(){
       showToast('Could not copy. The requisition is on this page.');
     }
   });
+  document.getElementById('rq_file')?.addEventListener('change', onReqFilePicked);
+  document.getElementById('btnReqSave')?.addEventListener('click', function(){ saveRequisitionFromForm(); });
+  document.getElementById('btnReqCancel')?.addEventListener('click', clearReqForm);
+  document.getElementById('btnReqViewerClose')?.addEventListener('click', closeReqViewer);
+  document.getElementById('btnReqDownload')?.addEventListener('click', downloadReqFile);
+  if (typeof ChengCamera !== 'undefined') {
+    ChengCamera.wireTakePictureButton(document.getElementById('btnReqPhoto'), {
+      fileInput: document.getElementById('rq_file'),
+      title: 'Photograph requisition',
+      basename: 'requisition'
+    });
+  }
+  clearReqForm();
   page.addEventListener('click', function(e){
     const edit = e.target.closest('[data-spare-edit]');
     const del = e.target.closest('[data-spare-del]');
+    const reqEdit = e.target.closest('[data-req-edit]');
+    const reqDel = e.target.closest('[data-req-del]');
+    const reqOpen = e.target.closest('[data-req-open]');
+    const reqDrop = e.target.closest('[data-req-drop]');
     if (edit){
       const row = ensureSpares().find(function(r){ return r.id === edit.dataset.spareEdit; });
       if (!row) return;
@@ -13868,7 +13956,285 @@ function bindSparesUi(){
       renderSpares();
       try { saveSetup(); } catch (_) {}
     }
+    if (reqDrop){
+      _reqFiles = _reqFiles.filter(function(f){ return f.id !== reqDrop.dataset.reqDrop; });
+      renderReqPending();
+    }
+    if (reqOpen) openReqFile(reqOpen.dataset.reqOpen, reqOpen.dataset.reqFile);
+    if (reqEdit) loadReqForEdit(reqEdit.dataset.reqEdit);
+    if (reqDel) deleteRequisition(reqDel.dataset.reqDel);
   });
+}
+const REQ_STATUSES = [
+  { id:'sent', label:'Sent' },
+  { id:'received', label:'Received' },
+  { id:'follow-up', label:'For follow up' },
+  { id:'receiving', label:'For receiving' }
+];
+let _reqEditId = null;
+let _reqFiles = [];
+let _reqViewFile = null;
+function ensureRequisitions(){
+  if (!Array.isArray(state.setup.requisitions)) state.setup.requisitions = [];
+  return state.setup.requisitions;
+}
+function reqStatusLabel(id){
+  const hit = REQ_STATUSES.find(function(s){ return s.id === id; });
+  return hit ? hit.label : 'Sent';
+}
+function reqKindLabel(id){ return id === 'store' ? 'Store' : 'Spare'; }
+function localIsoDate(){
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function reqFileAllowed(file){
+  const name = file && file.name || '';
+  const pdf = file.type === 'application/pdf' || /\.pdf$/i.test(name);
+  const image = (file.type && file.type.indexOf('image/') === 0) || /\.(jpe?g|png|webp|gif|heic|bmp)$/i.test(name);
+  return pdf ? 'pdf' : (image ? 'image' : '');
+}
+function readReqFile(file){
+  return new Promise(function(resolve, reject){
+    const kind = reqFileAllowed(file);
+    if (!kind){ reject(new Error('Only a photo or a PDF can be stored.')); return; }
+    if (file.size > 12 * 1024 * 1024){
+      reject(new Error('That file is over 12 MB. Use a smaller photo or PDF.'));
+      return;
+    }
+    const finish = function(dataUrl, mime, filename){
+      resolve({
+        id: 'rf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        filename: filename,
+        mime: mime,
+        dataUrl: dataUrl
+      });
+    };
+    if (kind === 'image' && typeof compressImageFileToDataUrl === 'function'){
+      compressImageFileToDataUrl(file, 1600, 0.82).then(function(url){
+        const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+        finish(url, 'image/jpeg', base + '.jpg');
+      }).catch(function(){ reject(new Error('Could not read that photo.')); });
+      return;
+    }
+    if (typeof readFileAsDataUrl !== 'function'){
+      reject(new Error('Could not read that file.'));
+      return;
+    }
+    readFileAsDataUrl(file).then(function(url){
+      finish(url, file.type || (kind === 'pdf' ? 'application/pdf' : 'image/jpeg'), file.name || (kind === 'pdf' ? 'requisition.pdf' : 'photo.jpg'));
+    }).catch(function(){ reject(new Error('Could not read that file.')); });
+  });
+}
+async function onReqFilePicked(){
+  const input = document.getElementById('rq_file');
+  const files = input && input.files ? Array.from(input.files) : [];
+  if (input) input.value = '';
+  for (let i = 0; i < files.length; i++){
+    try { _reqFiles.push(await readReqFile(files[i])); }
+    catch (err) { alert(err && err.message ? err.message : 'Could not read that file.'); }
+  }
+  renderReqPending();
+}
+function renderReqPending(){
+  const el = document.getElementById('rqPending');
+  if (!el) return;
+  if (!_reqFiles.length){
+    el.textContent = 'No file attached yet. Add a photo or PDF of the requisition or the store papers.';
+    return;
+  }
+  el.innerHTML = _reqFiles.map(function(f){
+    return '<span class="req-file-chip">' + escHtml(f.filename || 'File') + ' <button type="button" class="ghost small" data-req-drop="' + escAttr(f.id) + '">Remove</button></span>';
+  }).join('');
+}
+function clearReqForm(){
+  _reqEditId = null;
+  _reqFiles = [];
+  const kind = document.getElementById('rq_kind');
+  const status = document.getElementById('rq_status');
+  const sent = document.getElementById('rq_sent');
+  const received = document.getElementById('rq_received');
+  const desc = document.getElementById('rq_desc');
+  const file = document.getElementById('rq_file');
+  if (kind) kind.value = 'spare';
+  if (status) status.value = 'sent';
+  if (sent) sent.value = localIsoDate();
+  if (received) received.value = '';
+  if (desc) desc.value = '';
+  if (file) file.value = '';
+  const title = document.getElementById('reqFormTitle');
+  if (title) title.textContent = 'Requisition';
+  const cancel = document.getElementById('btnReqCancel');
+  if (cancel) cancel.hidden = true;
+  renderReqPending();
+}
+function closeReqViewer(){
+  _reqViewFile = null;
+  const panel = document.getElementById('reqViewer');
+  const embed = document.getElementById('reqViewerEmbed');
+  const img = document.getElementById('reqViewerImage');
+  if (embed){ embed.removeAttribute('src'); embed.hidden = true; }
+  if (img){ img.removeAttribute('src'); img.hidden = true; img.style.display = ''; }
+  if (panel) panel.hidden = true;
+}
+function reqFileIsImage(file){
+  if (!file) return false;
+  if (file.mime && /^image\//i.test(file.mime)) return true;
+  if (file.dataUrl && /^data:image\//i.test(file.dataUrl)) return true;
+  return /\.(jpe?g|png|webp|gif|heic|bmp)$/i.test(file.filename || '');
+}
+function openReqFile(reqId, fileId){
+  const req = ensureRequisitions().find(function(r){ return r.id === reqId; });
+  const file = req && (req.files || []).find(function(f){ return f.id === fileId; });
+  if (!file || !file.dataUrl) return;
+  _reqViewFile = file;
+  const panel = document.getElementById('reqViewer');
+  const embed = document.getElementById('reqViewerEmbed');
+  const img = document.getElementById('reqViewerImage');
+  const title = document.getElementById('reqViewerTitle');
+  if (title) title.textContent = file.filename || 'File';
+  if (reqFileIsImage(file)){
+    if (embed){ embed.removeAttribute('src'); embed.hidden = true; }
+    if (img){ img.hidden = false; img.style.display = 'block'; img.src = file.dataUrl; img.alt = file.filename || 'Requisition photo'; }
+  } else if (embed){
+    if (img){ img.removeAttribute('src'); img.hidden = true; img.style.display = ''; }
+    embed.hidden = false;
+    embed.setAttribute('src', file.dataUrl);
+  }
+  if (panel){
+    panel.hidden = false;
+    try { panel.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch (_) {}
+  }
+}
+function downloadReqFile(){
+  if (!_reqViewFile || !_reqViewFile.dataUrl) return;
+  const link = document.createElement('a');
+  link.href = _reqViewFile.dataUrl;
+  link.download = _reqViewFile.filename || 'requisition';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+function reqSortByDate(rows, field){
+  return rows.slice().sort(function(a, b){
+    const as = a[field] || a.sentDate || '';
+    const bs = b[field] || b.sentDate || '';
+    if (as !== bs) return bs < as ? -1 : 1;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
+}
+function reqRowHtml(row){
+  const files = Array.isArray(row.files) ? row.files : [];
+  const fileBtns = files.length
+    ? files.map(function(f){
+        return '<button type="button" class="ghost small" data-req-open="' + escAttr(row.id) + '" data-req-file="' + escAttr(f.id) + '">' + escHtml(f.filename || 'File') + '</button>';
+      }).join(' ')
+    : '—';
+  const cls = row.status === 'follow-up' ? ' class="req-follow"' : '';
+  return '<tr' + cls + '>'
+    + '<td>' + escHtml(reqKindLabel(row.kind)) + '</td>'
+    + '<td class="req-desc">' + escHtml(row.description || '') + '</td>'
+    + '<td>' + escHtml(reqStatusLabel(row.status)) + '</td>'
+    + '<td>' + escHtml(row.sentDate || '—') + '</td>'
+    + '<td>' + escHtml(row.receiveDate || '—') + '</td>'
+    + '<td>' + fileBtns + '</td>'
+    + '<td><button type="button" class="ghost small" data-req-edit="' + escAttr(row.id) + '">Edit</button> <button type="button" class="ghost small" data-req-del="' + escAttr(row.id) + '">Delete</button></td>'
+    + '</tr>';
+}
+function renderReqTable(body, rows, emptyText){
+  if (!body) return;
+  body.innerHTML = rows.length
+    ? rows.map(reqRowHtml).join('')
+    : '<tr class="empty-row"><td colspan="7">' + escHtml(emptyText) + '</td></tr>';
+}
+function renderRequisitions(){
+  const rows = ensureRequisitions();
+  const summary = document.getElementById('reqSummary');
+  if (summary){
+    summary.innerHTML = REQ_STATUSES.map(function(s){
+      const n = rows.filter(function(r){ return (r.status || 'sent') === s.id; }).length;
+      return '<div class="stat"><div class="num"><b>' + n + '</b></div><div class="lbl">' + escHtml(s.label) + '</div></div>';
+    }).join('');
+  }
+  const sent = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') !== 'received'; }), 'sentDate');
+  const received = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') === 'received'; }), 'receiveDate');
+  renderReqTable(document.getElementById('reqBody'), sent, 'Nothing on the sent list.');
+  renderReqTable(document.getElementById('reqReceivedBody'), received, 'Nothing on the received list.');
+}
+function loadReqForEdit(id){
+  const row = ensureRequisitions().find(function(r){ return r.id === id; });
+  if (!row) return;
+  _reqEditId = row.id;
+  _reqFiles = (row.files || []).map(function(f){
+    return { id:f.id, filename:f.filename, mime:f.mime, dataUrl:f.dataUrl };
+  });
+  const kind = document.getElementById('rq_kind');
+  const status = document.getElementById('rq_status');
+  if (kind) kind.value = row.kind === 'store' ? 'store' : 'spare';
+  if (status) status.value = REQ_STATUSES.some(function(s){ return s.id === row.status; }) ? row.status : 'sent';
+  const sent = document.getElementById('rq_sent');
+  const received = document.getElementById('rq_received');
+  const desc = document.getElementById('rq_desc');
+  if (sent) sent.value = row.sentDate || '';
+  if (received) received.value = row.receiveDate || '';
+  if (desc) desc.value = row.description || '';
+  const title = document.getElementById('reqFormTitle');
+  if (title) title.textContent = 'Edit requisition';
+  const cancel = document.getElementById('btnReqCancel');
+  if (cancel) cancel.hidden = false;
+  renderReqPending();
+  const form = document.getElementById('reqFormTitle');
+  if (form){ try { form.scrollIntoView({ behavior:'smooth', block:'start' }); } catch (_) {} }
+}
+async function deleteRequisition(id){
+  if (!id) return;
+  if (!confirm('Delete this requisition and its files?')) return;
+  const viewing = _reqViewFile && ensureRequisitions().some(function(r){
+    return r.id === id && (r.files || []).some(function(f){ return f.id === _reqViewFile.id; });
+  });
+  state.setup.requisitions = ensureRequisitions().filter(function(r){ return r.id !== id; });
+  if (_reqEditId === id) clearReqForm();
+  if (viewing) closeReqViewer();
+  renderRequisitions();
+  try { await saveSetup(); } catch (_) { alert('The requisition log could not be stored on this device.'); }
+}
+async function saveRequisitionFromForm(){
+  const description = (document.getElementById('rq_desc')?.value || '').trim();
+  if (!description){
+    alert('Enter a description of the requisition.');
+    return;
+  }
+  const statusVal = document.getElementById('rq_status')?.value;
+  const status = REQ_STATUSES.some(function(s){ return s.id === statusVal; }) ? statusVal : 'sent';
+  let receiveDate = document.getElementById('rq_received')?.value || '';
+  if (status === 'received' && !receiveDate) receiveDate = localIsoDate();
+  const existing = _reqEditId ? ensureRequisitions().find(function(r){ return r.id === _reqEditId; }) : null;
+  const row = {
+    id: _reqEditId || ('rq_' + Date.now().toString(36)),
+    kind: document.getElementById('rq_kind')?.value === 'store' ? 'store' : 'spare',
+    description: description,
+    status: status,
+    sentDate: document.getElementById('rq_sent')?.value || '',
+    receiveDate: receiveDate,
+    files: _reqFiles.map(function(f){
+      return { id:f.id, filename:f.filename, mime:f.mime, dataUrl:f.dataUrl };
+    }),
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString()
+  };
+  const list = ensureRequisitions();
+  const snapshot = list.map(function(r){ return r; });
+  const idx = list.findIndex(function(r){ return r.id === row.id; });
+  if (idx >= 0) list[idx] = row;
+  else list.push(row);
+  try {
+    await saveSetup();
+  } catch (_) {
+    state.setup.requisitions = snapshot;
+    alert('The requisition could not be stored. If a PDF is very large, remove it and try a smaller file.');
+    renderRequisitions();
+    return;
+  }
+  clearReqForm();
+  renderRequisitions();
 }
 function bindBunkerFileLinks(){
   const row = document.getElementById('bunkerFileLinks');
