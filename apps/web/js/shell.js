@@ -81,7 +81,7 @@
   }
 
   function isSoftEmbedModule(id) {
-    return id === 'voyage' || id === 'tanks' || id === 'eorb' || id === 'bunkerplan' || id === 'bunkeringplan';
+    return id === 'voyage' || id === 'tanks' || id === 'eorb' || id === 'bunkerplan' || id === 'bunkeringplan' || id === 'spares';
   }
 
   async function navigate(module, opts) {
@@ -440,6 +440,7 @@
        hidden while a module is open — so it has to hear about the change
        from here rather than from the select. */
     fillEmbedBar();
+    if (window.ChengWatchStrip) ChengWatchStrip.refresh();
   });
 
   window.addEventListener('chengpro:navigate', (e) => {
@@ -457,7 +458,58 @@
     if (d.type === 'chengpro-navigate' && d.module) {
       navigate(String(d.module));
     }
+    if (d.type === 'chengaio-navigate' && d.module) {
+      const page = d.page ? String(d.page) : '';
+      if (page && d.module === 'tanks') {
+        try { sessionStorage.setItem('chengAioPendingTankPage', page); } catch { /* ignore */ }
+      }
+      if (page && (d.module === 'voyage' || d.module === 'spares')) {
+        try { sessionStorage.setItem('chengAioPendingVoyagePage', page); } catch { /* ignore */ }
+      }
+      const mod = d.module === 'spares' ? 'spares' : String(d.module);
+      navigate(mod, { force: true });
+    }
+    if (d.type === 'chengaio-request-tank-rob') {
+      answerTankRob(e.source);
+    }
   });
+
+  let _tankRobFrame = null;
+  function answerTankRob(source) {
+    const deliver = (rob) => {
+      try {
+        if (source && source.postMessage) source.postMessage({ type: 'tank-rob-response', rob: rob }, '*');
+      } catch { /* ignore */ }
+    };
+    if (_tankRobFrame && _tankRobFrame.contentWindow) {
+      const onMsg = (ev) => {
+        const msg = ev.data || {};
+        if (msg.type !== 'tank-rob-response' || !msg.rob) return;
+        window.removeEventListener('message', onMsg);
+        deliver(msg.rob);
+      };
+      window.addEventListener('message', onMsg);
+      try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-rob' }, '*'); } catch { /* ignore */ }
+      return;
+    }
+    _tankRobFrame = document.createElement('iframe');
+    _tankRobFrame.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+    _tankRobFrame.title = 'Tank ROB bridge';
+    _tankRobFrame.src = ChengPro.tankEmbedUrl({ robOnly: '1' });
+    document.body.appendChild(_tankRobFrame);
+    const onMsg = (ev) => {
+      const msg = ev.data || {};
+      if (msg.type !== 'tank-rob-response' || !msg.rob) return;
+      window.removeEventListener('message', onMsg);
+      deliver(msg.rob);
+    };
+    window.addEventListener('message', onMsg);
+    _tankRobFrame.onload = () => {
+      setTimeout(() => {
+        try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-rob' }, '*'); } catch { /* ignore */ }
+      }, 800);
+    };
+  }
   window.addEventListener('chengpro:toast', (e) => showToast(e.detail));
   window.addEventListener('chengpro:license-changed', async () => {
     applyLicenseNav();
@@ -537,6 +589,7 @@
     }
 
     await fillVesselSelect();
+    if (window.ChengWatchStrip) ChengWatchStrip.start();
 
     /* License gate — hard lock when server reports enforce (default on). */
     if (window.ChengLicense) {

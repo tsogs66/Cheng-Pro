@@ -42,6 +42,14 @@ window.ChengProModules.bunkerplan = {
     }
     const src = ChengPro.voyageEmbedUrl({ page: 'bunkerplan' });
     root.innerHTML = `
+      <div class="bunker-file-bar">
+        <span>Bunker file</span>
+        <button type="button" class="btn" data-file-mod="bunkerplan">Stem</button>
+        <button type="button" class="btn" data-file-mod="bunkeringplan">Plan</button>
+        <button type="button" class="btn" data-file-mod="tanks" data-file-page="bunker-after">After survey</button>
+        <button type="button" class="btn" data-file-mod="tanks" data-file-page="bunker-summary">BDN summary</button>
+        <button type="button" class="btn" data-file-mod="voyage" data-file-page="receipts">Voyage receipt</button>
+      </div>
       <div class="aio-embed-wrap" id="bpEmbedWrap">
         <iframe
           class="aio-embed-frame"
@@ -60,6 +68,7 @@ window.ChengProModules.bunkerplan = {
     };
     window.addEventListener('message', handler);
     root.dataset.bpHandler = 'bound';
+    if (typeof bindBunkerFile === 'function') bindBunkerFile(root);
   },
 };
 

@@ -1382,6 +1382,11 @@
         lastMcrPct,
         shipStatus,
         entryCount: entries.length,
+        lastDatetime: lastEntry && lastEntry.datetime ? lastEntry.datetime : null,
+        lastTzOffsetMin: (lastEntry && lastEntry.tzOffsetMin != null && Number.isFinite(Number(lastEntry.tzOffsetMin)))
+          ? Number(lastEntry.tzOffsetMin)
+          : (setup.tzOffsetMin != null && Number.isFinite(Number(setup.tzOffsetMin)) ? Number(setup.tzOffsetMin) : null),
+        voyageNumber: setup.voyageNumber || '',
       };
     } finally {
       try { db.close(); } catch { /* ignore */ }
