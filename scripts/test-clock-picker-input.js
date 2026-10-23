@@ -45,6 +45,8 @@ for (const [label, file] of COPIES) {
     `${label}: clock must relayout when the monitor resolution changes`);
   assert(!/height:400px/.test(src) && !/height:340px/.test(src),
     `${label}: the dial must not be a fixed pixel square`);
+  assert(/state\.step === 'minute' \? \(state\.m \/ 60\) \* 30 : 0/.test(src),
+    `${label}: the hour hand must sit on the hour numeral, not drift with the minutes`);
   console.log('ok —', label);
 }
 
