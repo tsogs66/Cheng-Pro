@@ -4010,6 +4010,37 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly. Start with one destination or stay, set a <strong>Margin %</strong> on that line if you want a reserve for it, then <strong>Add destination / stay</strong> for the next leg — each line can carry its own margin (e.g. different % to a bunkering port vs an anchorage).</div>
     </div>
+    <div class="panel" id="changeoverPanel">
+      <h2>Fuel Changeover Calculator — ECA / sulphur limit</h2>
+      <p class="hint">How long before the ECA boundary the changeover has to start, so the sulphur at engine inlet is under the limit by the time the ship crosses it. Built the way the FOBAS change-over calculator is: separate high- and low-sulphur service tanks, the low-sulphur fuel blending into whatever is still in the service system after the suction is shifted.</p>
+      <div class="form-grid cols3">
+        <div class="field"><label>Sulphur now in service (% m/m)</label><input type="number" step="0.001" min="0" id="co_sHigh" placeholder="e.g. 0.48"></div>
+        <div class="field"><label>Sulphur of fuel changing to (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLow" placeholder="e.g. 0.07"></div>
+        <div class="field"><label>Limit at engine inlet (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLimit" value="0.10"></div>
+        <div class="field"><label>Service system volume (m³)</label><input type="number" step="0.01" min="0" id="co_volume" placeholder="service tank + mixing tank + pipework"></div>
+        <div class="field"><label>Consumption at planned load (MT/day)</label><input type="number" step="0.01" min="0" id="co_consMtDay" placeholder="e.g. 24.5"></div>
+        <div class="field"><label>Density of new fuel @15 °C (kg/m³)</label><input type="number" step="0.1" min="0" id="co_density" value="890"></div>
+        <div class="field"><label>ECA boundary — planned crossing</label><input type="datetime-local" id="co_ecaAt"></div>
+        <div class="field"><label>Safety margin (hours)</label><input type="number" step="0.25" min="0" id="co_margin" value="1"></div>
+        <div class="field" style="align-self:end;"><button type="button" class="primary small" id="btnCoCalc" style="width:100%;">Calculate</button></div>
+      </div>
+      <div class="stat-strip cols4" id="coResults"></div>
+      <div class="hint" id="coVerdict" role="status" aria-live="polite">Fill in the figures above and press Calculate.</div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="coCurveTable">
+          <thead><tr><th>Elapsed</th><th>Sulphur at engine inlet (% m/m)</th><th>Low-S fuel used (MT)</th><th></th></tr></thead>
+          <tbody id="coCurveBody"><tr class="empty-row"><td colspan="4">No calculation yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="ghost small" id="btnCoToSetup">Copy window to Voyage Setup</button>
+        <button type="button" class="ghost small" id="btnCoPrint">Print changeover plan</button>
+      </div>
+      <div class="hint" style="margin-top:8px;"><strong>Method.</strong> The service system is taken as one well-mixed volume <em>V</em> being fed low-sulphur fuel while the engine draws from it at <em>Q</em>, so the sulphur at the inlet falls away exponentially rather than in a straight line:<br>
+        <code>S(t) = S_low + (S_high − S_low) · e^(−Qt/V)</code>, so <code>t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)]</code>.<br>
+        Put the whole blending volume into <em>V</em> — service tank, mixing/deaeration tank, supply and circulating pipes and the engine itself — because anything left out makes the answer shorter than the truth. Under MARPOL Annex VI Reg. 14.3 the limit inside an ECA is 0.10&nbsp;% m/m. The figure is an estimate for planning: the completion time that goes in the record is the one actually observed, and Reg. 14.6 wants it with the position and the volume of low-sulphur fuel on board.</div>
+      <div class="hint" id="coThermalHint"></div>
+    </div>
     <div class="panel" id="bunkerPlanHistory" style="display:none;">
       <h2>Saved Calculations</h2>
       <div class="table-scroll">
@@ -12241,6 +12272,290 @@ function rangeRobBookends(){
   };
 }
 
+/* ---- Fuel changeover to a sulphur limit -----------------------------------
+   Built the way the FOBAS change-over calculator is: separate high- and
+   low-sulphur service tanks, with the low-sulphur fuel blending into whatever
+   is still in the service system once the suction is shifted.
+
+   The service system is one well-mixed volume V being fed low-sulphur fuel
+   while the engine draws from it at Q, so the inlet sulphur decays:
+
+       S(t) = S_low + (S_high - S_low) * exp(-Q t / V)
+
+   which inverts to the time to reach a limit:
+
+       t = (V / Q) * ln[(S_high - S_low) / (S_limit - S_low)]
+
+   Two things make a changeover late rather than early, and both are the
+   engineer's to get right, so the calculator is explicit about them:
+   V must be the WHOLE blending volume (service tank, mixing and deaeration
+   tank, supply and circulating pipes, the engine itself) because anything
+   left out shortens the answer; and the decay is asymptotic, so a limit at or
+   below the new fuel's own sulphur is never reached at all. */
+const CHANGEOVER_ECA_LIMIT = 0.10;      /* MARPOL Annex VI Reg. 14.3, % m/m */
+const CHANGEOVER_GLOBAL_LIMIT = 0.50;   /* Reg. 14.1 outside an ECA */
+/* Thermal shock: makers put the safe rate of change of fuel temperature at
+   about 2 degC/min. Below that a changeover from heated residual to cold
+   distillate cracks liners in the fuel pumps and seizes injectors. */
+const CHANGEOVER_MAX_RAMP_C_PER_MIN = 2;
+
+/**
+ * Work a changeover.
+ *
+ * Returns { ok, reason, hours, startBy, sulphurAt(t), lowSulphurUsedMt, curve }
+ * — reason is filled in whenever the figures cannot give an answer, so the
+ * caller can say why rather than printing a dash.
+ */
+function computeFuelChangeover(input){
+  /* Number('') and Number(null) are both 0, which would turn an empty box into
+     a real figure of zero and answer "the volume must be more than nothing"
+     when what is wrong is that it was never filled in. */
+  const num = (v) => {
+    if (v == null) return NaN;
+    if (typeof v === 'string' && v.trim() === '') return NaN;
+    return Number(v);
+  };
+  const sHigh = num(input.sHigh);
+  const sLow = num(input.sLow);
+  const sLimit = num(input.sLimit);
+  const volumeM3 = num(input.volumeM3);
+  const consMtDay = num(input.consMtDay);
+  const density = num(input.density);
+  const marginHrs = isFinite(num(input.marginHrs)) ? num(input.marginHrs) : 0;
+
+  const bad = (reason) => ({ ok: false, reason });
+  if (![sHigh, sLow, sLimit, volumeM3, consMtDay, density].every(v => isFinite(v))){
+    return bad('Fill in every figure above — sulphur contents, the service system volume, the consumption rate and the density.');
+  }
+  if (volumeM3 <= 0) return bad('The service system volume has to be more than nothing.');
+  if (consMtDay <= 0) return bad('The consumption rate has to be more than nothing — with the engine stopped nothing is displaced and the changeover never completes.');
+  if (density <= 0) return bad('The density has to be more than nothing.');
+  if (sLow >= sHigh){
+    return bad(`The fuel being changed to (${fmt(sLow, 3)} %) is not lower in sulphur than what is in service (${fmt(sHigh, 3)} %). Nothing to change over.`);
+  }
+  if (sHigh <= sLimit){
+    return { ok: true, alreadyCompliant: true, hours: 0,
+      reason: `Already under the limit — what is in service is ${fmt(sHigh, 3)} % against a limit of ${fmt(sLimit, 3)} %.` };
+  }
+  if (sLow >= sLimit){
+    return bad(`The fuel being changed to is ${fmt(sLow, 3)} % sulphur, which is not under the ${fmt(sLimit, 3)} % limit. The blend approaches the new fuel's own figure and never reaches the limit — a compliant fuel is needed, not a longer changeover.`);
+  }
+
+  /* Volumetric displacement rate. The consumption is booked in mass, so it goes
+     through the density of the fuel actually being burned. */
+  const m3PerHour = (consMtDay * 1000 / density) / 24;
+  const tau = volumeM3 / m3PerHour;                   /* hours for one system volume */
+  const hours = tau * Math.log((sHigh - sLow) / (sLimit - sLow));
+
+  const sulphurAt = (t) => sLow + (sHigh - sLow) * Math.exp(-t / tau);
+  /* Every litre displaced is new fuel, so the quantity used is simply the rate
+     times the time — useful as a check that the LS tank actually holds it. */
+  const lowSulphurUsedMt = (consMtDay / 24) * hours;
+
+  /* A curve the engineer can read against the clock, ending at the answer. */
+  const steps = 10;
+  const curve = [];
+  for (let i = 0; i <= steps; i++){
+    const t = (hours * i) / steps;
+    curve.push({ hours: t, sulphur: sulphurAt(t), usedMt: (consMtDay / 24) * t });
+  }
+
+  let startBy = null, latestStart = null;
+  if (input.ecaAt){
+    const eca = new Date(input.ecaAt).getTime();
+    if (isFinite(eca)){
+      latestStart = new Date(eca - (hours + marginHrs) * 3600000);
+      startBy = latestStart.toISOString();
+    }
+  }
+
+  return {
+    ok: true,
+    tauHours: tau,
+    hours,
+    marginHrs,
+    totalHours: hours + marginHrs,
+    m3PerHour,
+    lowSulphurUsedMt,
+    lowSulphurUsedM3: m3PerHour * hours,
+    startBy,
+    latestStart,
+    sulphurAt,
+    curve
+  };
+}
+
+/** How long a safe temperature ramp needs, so the thermal limit is not the
+    thing that makes the changeover late. */
+function changeoverThermalMinutes(fromC, toC){
+  /* Same trap as above: a missing temperature must not read as 0 degC. */
+  const num = (v) => (v == null || (typeof v === 'string' && v.trim() === '')) ? NaN : Number(v);
+  const a = num(fromC), b = num(toC);
+  if (!isFinite(a) || !isFinite(b)) return null;
+  return Math.abs(a - b) / CHANGEOVER_MAX_RAMP_C_PER_MIN;
+}
+
+/**
+ * A sheet for the changeover: the figures it was worked from, the plan, and the
+ * blank the engineer fills in with what actually happened. The calculated time
+ * is an estimate; Annex VI Reg. 14.6 wants the observed completion with its
+ * position and the volume of low-sulphur fuel on board, so the sheet asks for
+ * both and keeps them apart.
+ */
+function printChangeoverPlan(res){
+  const i = res.input || {};
+  const hm = (h) => {
+    const total = Math.round(h * 60);
+    return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, '0')} min`;
+  };
+  const when = (d) => d ? d.toLocaleString(undefined,
+    { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+  const completeAt = res.latestStart
+    ? new Date(res.latestStart.getTime() + res.hours * 3600000) : null;
+
+  const givens = `
+    <table class="pr-table">
+      <tr><th>Figure</th><th>Value</th></tr>
+      <tr><td class="row-lbl">Sulphur in service</td><td>${escPrint(fmt(Number(i.sHigh), 3))} % m/m</td></tr>
+      <tr><td class="row-lbl">Sulphur of fuel changing to</td><td>${escPrint(fmt(Number(i.sLow), 3))} % m/m</td></tr>
+      <tr><td class="row-lbl">Limit at engine inlet</td><td>${escPrint(fmt(Number(i.sLimit), 3))} % m/m</td></tr>
+      <tr><td class="row-lbl">Service system volume</td><td>${escPrint(fmt(Number(i.volumeM3), 2))} m³</td></tr>
+      <tr><td class="row-lbl">Consumption at planned load</td><td>${escPrint(fmt(Number(i.consMtDay), 2))} MT/day</td></tr>
+      <tr><td class="row-lbl">Density of new fuel @15 °C</td><td>${escPrint(fmt(Number(i.density), 1))} kg/m³</td></tr>
+      <tr><td class="row-lbl">Displacement rate</td><td>${escPrint(fmt(res.m3PerHour, 3))} m³/h</td></tr>
+      <tr><td class="row-lbl">One system volume</td><td>${escPrint(hm(res.tauHours))}</td></tr>
+    </table>`;
+
+  const plan = `
+    <table class="pr-table">
+      <tr><th>Planned</th><th>Time</th></tr>
+      <tr><td class="row-lbl">Start changeover no later than</td><td>${escPrint(when(res.latestStart))}</td></tr>
+      <tr><td class="row-lbl">Under the limit by</td><td>${escPrint(when(completeAt))}</td></tr>
+      <tr><td class="row-lbl">ECA boundary crossing</td><td>${escPrint(i.ecaAt ? new Date(i.ecaAt).toLocaleString() : '—')}</td></tr>
+      <tr><td class="row-lbl">Changeover duration</td><td>${escPrint(hm(res.hours))}</td></tr>
+      <tr><td class="row-lbl">Safety margin</td><td>${escPrint(String(res.marginHrs))} h</td></tr>
+      <tr><td class="row-lbl">Low-S fuel displaced</td><td>${escPrint(fmt(res.lowSulphurUsedMt, 2))} MT (${escPrint(fmt(res.lowSulphurUsedM3, 2))} m³)</td></tr>
+    </table>`;
+
+  const curve = `
+    <table class="pr-table">
+      <tr><th>Elapsed</th><th>Sulphur at inlet (% m/m)</th><th>Low-S used (MT)</th></tr>
+      ${res.curve.map(pt => `<tr>
+        <td class="row-lbl">${escPrint(hm(pt.hours))}</td>
+        <td>${escPrint(fmt(pt.sulphur, 4))}</td>
+        <td>${escPrint(fmt(pt.usedMt, 2))}</td>
+      </tr>`).join('')}
+    </table>`;
+
+  /* Deliberately blank. These are the figures that go in the record, and they
+     are observations, not predictions. */
+  const observed = `
+    <table class="pr-table">
+      <tr><th>As carried out</th><th>To be entered</th></tr>
+      <tr><td class="row-lbl">Changeover commenced — time</td><td></td></tr>
+      <tr><td class="row-lbl">Changeover commenced — position</td><td></td></tr>
+      <tr><td class="row-lbl">Changeover completed — time</td><td></td></tr>
+      <tr><td class="row-lbl">Changeover completed — position</td><td></td></tr>
+      <tr><td class="row-lbl">Tank(s) in service</td><td></td></tr>
+      <tr><td class="row-lbl">Volume of low-sulphur fuel on board (m³)</td><td></td></tr>
+      <tr><td class="row-lbl">BDN reference of fuel in service</td><td></td></tr>
+    </table>`;
+
+  const sheetHtml = `<div class="pr-sheet">
+    ${printDocHeader({ title: 'Fuel Changeover Plan', subtitle: 'MARPOL Annex VI Reg. 14 — sulphur limit at engine inlet' })}
+    ${printSection('Worked from', givens)}
+    ${printSection('Plan', plan)}
+    ${printSection('Sulphur at the engine inlet', curve)}
+    ${printSection('To be recorded (Annex VI Reg. 14.6)', observed)}
+    <div class="pr-note">S(t) = S_low + (S_high − S_low) · e^(−Qt/V); t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)].
+      The service system is taken as one well-mixed volume. The times above are an estimate for planning only —
+      the entry in the record is the completion actually observed, with its position and the volume of
+      low-sulphur fuel on board. Bring fuel temperature down no faster than about
+      ${CHANGEOVER_MAX_RAMP_C_PER_MIN} °C/min and keep viscosity at the injectors inside the maker's range.</div>
+  </div>`;
+  printPortraitPages([sheetHtml]);
+}
+
+function readChangeoverForm(){
+  const val = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+  };
+  return {
+    sHigh: val('co_sHigh'),
+    sLow: val('co_sLow'),
+    sLimit: val('co_sLimit'),
+    volumeM3: val('co_volume'),
+    consMtDay: val('co_consMtDay'),
+    density: val('co_density'),
+    ecaAt: val('co_ecaAt'),
+    marginHrs: val('co_margin')
+  };
+}
+
+let _lastChangeover = null;
+
+function renderChangeover(){
+  const box = document.getElementById('coResults');
+  const verdict = document.getElementById('coVerdict');
+  const body = document.getElementById('coCurveBody');
+  const thermal = document.getElementById('coThermalHint');
+  if (!box || !verdict || !body) return;
+
+  const input = readChangeoverForm();
+  const res = computeFuelChangeover(input);
+  _lastChangeover = res.ok ? Object.assign({ input }, res) : null;
+
+  if (!res.ok || res.alreadyCompliant){
+    box.innerHTML = '';
+    verdict.textContent = res.reason;
+    verdict.className = res.ok ? 'hint good-text' : 'hint alert-text';
+    body.innerHTML = `<tr class="empty-row"><td colspan="4">${escHtml(res.ok ? 'Nothing to change over.' : 'No calculation.')}</td></tr>`;
+    if (thermal) thermal.textContent = '';
+    return;
+  }
+
+  const hm = (h) => {
+    const total = Math.round(h * 60);
+    const hh = Math.floor(total / 60), mm = total % 60;
+    return `${hh} h ${String(mm).padStart(2, '0')} min`;
+  };
+  const stat = (v, l) => `<div class="stat"><div class="num">${v}</div><div class="lbl">${escHtml(l)}</div></div>`;
+  box.innerHTML = [
+    stat(hm(res.hours), 'Changeover time to limit'),
+    stat(hm(res.tauHours), 'One system volume'),
+    stat(fmt(res.lowSulphurUsedMt, 2) + ' MT', 'Low-S fuel displaced'),
+    res.latestStart
+      ? stat(res.latestStart.toLocaleString(undefined, { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }), 'Start no later than')
+      : stat('—', 'Start no later than (set the crossing)')
+  ].join('');
+
+  if (res.latestStart){
+    const late = res.latestStart.getTime() < Date.now();
+    verdict.innerHTML = late
+      ? `<strong>Start now.</strong> To be under ${escHtml(fmt(Number(input.sLimit), 3))} % at the boundary the changeover needed to begin at ${escHtml(res.latestStart.toLocaleString())} — ${escHtml(hm((Date.now() - res.latestStart.getTime()) / 3600000))} ago, including the ${escHtml(String(res.marginHrs))} h margin.`
+      : `Begin by <strong>${escHtml(res.latestStart.toLocaleString())}</strong> — ${escHtml(hm(res.hours))} of changeover plus a ${escHtml(String(res.marginHrs))} h margin before the crossing. Sulphur at the inlet reaches ${escHtml(fmt(Number(input.sLimit), 3))} % after ${escHtml(hm(res.hours))}.`;
+    verdict.className = late ? 'hint alert-text' : 'hint';
+  } else {
+    verdict.textContent = `The changeover takes ${hm(res.hours)} at this load. Set the planned crossing above to get the latest start time.`;
+    verdict.className = 'hint';
+  }
+
+  body.innerHTML = res.curve.map((pt, i) => `<tr>
+    <td>${escHtml(hm(pt.hours))}</td>
+    <td>${escHtml(fmt(pt.sulphur, 4))}</td>
+    <td>${escHtml(fmt(pt.usedMt, 2))}</td>
+    <td>${i === res.curve.length - 1 ? 'limit reached' : ''}</td>
+  </tr>`).join('');
+
+  if (thermal){
+    /* Heated residual to cold distillate: the ramp can be the binding constraint
+       on a short changeover, and it is the one that breaks fuel pumps. */
+    const mins = changeoverThermalMinutes(120, 40);
+    thermal.innerHTML = `<strong>Temperature.</strong> Coming off heated residual, bring the fuel temperature down no faster than about ${CHANGEOVER_MAX_RAMP_C_PER_MIN} °C/min — roughly ${Math.round(mins)} minutes from 120 °C to 40 °C. On a changeover shorter than that, the ramp sets the pace, not the dilution. Keep the viscosity inside the engine maker's range at the injectors throughout.`;
+  }
+}
+
 /* ---- Where the stock actually went ----------------------------------------
    The R.O.B. table shows a start figure, an end figure and the difference. That
    difference silently contains three quite different things: what was burned,
@@ -13331,6 +13646,49 @@ document.getElementById('btnRangeAll')?.addEventListener('click', ()=>{
   document.getElementById('rangeFrom').value = list[0].id;
   document.getElementById('rangeTo').value = list[list.length - 1].id;
   renderRangeTotals();
+});
+
+['co_sHigh','co_sLow','co_sLimit','co_volume','co_consMtDay','co_density','co_ecaAt','co_margin']
+  .forEach(id => document.getElementById(id)?.addEventListener('input', renderChangeover));
+document.getElementById('btnCoCalc')?.addEventListener('click', renderChangeover);
+
+/* The window the calculator worked out belongs in Voyage Setup, which is what
+   the noon and ECA sheets print from — retyping it is how the two end up
+   disagreeing. Only the times are copied; the grade and ROB stay the
+   engineer's to fill from the BDN and the tanks. */
+document.getElementById('btnCoToSetup')?.addEventListener('click', ()=>{
+  if (!_lastChangeover || !_lastChangeover.latestStart){
+    alert('Calculate first, with the planned crossing filled in — there is no window to copy yet.');
+    return;
+  }
+  const startEl = document.getElementById('vs_ecaStart');
+  const endEl = document.getElementById('vs_ecaEnd');
+  if (!startEl || !endEl){
+    alert('The Voyage Setup changeover fields are not on this page.');
+    return;
+  }
+  /* datetime-local wants local wall-clock with no zone suffix. */
+  const localIso = (d) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const start = _lastChangeover.latestStart;
+  const end = new Date(start.getTime() + _lastChangeover.hours * 3600000);
+  startEl.value = localIso(start);
+  endEl.value = localIso(end);
+  startEl.dispatchEvent(new Event('change', { bubbles: true }));
+  endEl.dispatchEvent(new Event('change', { bubbles: true }));
+  alert('Changeover window copied to Voyage Setup.\n\nStart: ' + start.toLocaleString() +
+        '\nComplete: ' + end.toLocaleString() +
+        '\n\nThese are the planned times. Record the times actually observed — Annex VI Reg. 14.6 wants the completion time with the position and the volume of low-sulphur fuel on board, and the e-ORB has the entry for it.');
+});
+
+document.getElementById('btnCoPrint')?.addEventListener('click', ()=>{
+  if (!_lastChangeover){
+    alert('Calculate first — there is nothing to print yet.');
+    return;
+  }
+  printChangeoverPlan(_lastChangeover);
 });
 
 document.getElementById('rangeIncludeArchived')?.addEventListener('change', async (ev)=>{
