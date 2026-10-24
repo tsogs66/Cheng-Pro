@@ -6160,6 +6160,43 @@ async function withActivity(id, label, fn, opts){
     endActivity(id);
   }
 }
+const BACKUP_ACTIVITY_IDS = {
+  'db-backup': true,
+  'db-restore': true,
+  'db-merge': true,
+  'vessel-export': true,
+  'vessel-import': true
+};
+let _lastBackupActivityId = null;
+/** The AIO backup page cannot see this frame, so backup jobs are posted up. */
+function postBackupActivity(top){
+  if (typeof window === 'undefined' || !window.parent || window.parent === window) return;
+  try {
+    if (!top || !BACKUP_ACTIVITY_IDS[top.id]){
+      if (!_lastBackupActivityId) return;
+      const ended = _lastBackupActivityId;
+      _lastBackupActivityId = null;
+      window.parent.postMessage({
+        type: 'chengaio-voyage-backup-progress',
+        active: false,
+        id: ended
+      }, '*');
+      return;
+    }
+    _lastBackupActivityId = top.id;
+    const pct = activityItemPct(top);
+    const countBit = (top.total > 0 && top.current != null) ? ` (${top.current}/${top.total})` : '';
+    window.parent.postMessage({
+      type: 'chengaio-voyage-backup-progress',
+      active: true,
+      id: top.id,
+      label: (top.label || 'Working…') + countBit,
+      pct: pct,
+      current: top.current == null ? null : Number(top.current),
+      total: top.total == null ? null : Number(top.total)
+    }, '*');
+  } catch (_) {}
+}
 function setActivityButtonsBusy(busy){
   if (typeof document === 'undefined') return;
   ACTIVITY_BUSY_BUTTONS.forEach(btnId => {
@@ -6188,6 +6225,7 @@ function paintActivity(force){
   }
 
   if (!top){
+    postBackupActivity(null);
     const hide = ()=>{
       if (_activityStack.length) return;
       if (typeof LoadingSplash !== 'undefined' && LoadingSplash) LoadingSplash.hide('activity');
@@ -6256,6 +6294,7 @@ function paintActivity(force){
   if (serverItem && typeof setSyncSaveStatus === 'function'){
     try{ setSyncSaveStatus(label, 'saving'); }catch(_){}
   }
+  postBackupActivity(top);
 }
 /* ACTIVITY_PROGRESS_END */
 
@@ -25292,8 +25331,10 @@ async function buildFullDatabaseBackup(){
   update({ label: 'Reading the local database…' });
   const meta = await dbGetAll('meta');
   const stores = {};
-  for (const name of DB_BACKUP_STORES){
-    update({ label: `Reading ${name}…` });
+  for (let i = 0; i < DB_BACKUP_STORES.length; i++){
+    const name = DB_BACKUP_STORES[i];
+    update({ label: `Reading ${name}…`, current: i + 1, total: DB_BACKUP_STORES.length });
+    await new Promise((r) => setTimeout(r, 0));
     try{ stores[name] = await dbGetAll(name); }
     catch(_){ stores[name] = []; }
   }
@@ -25359,17 +25400,23 @@ async function writeMetaRows(rows){
   }
 }
 
-async function writeStoreRows(storeName, rows){
+async function writeStoreRows(storeName, rows, progress){
   const list = rows || [];
+  const base = progress && progress.base != null ? Number(progress.base) : null;
+  const span = progress && progress.span != null ? Number(progress.span) : null;
   for (let i = 0; i < list.length; i++){
     const row = list[i];
     if (!row || row.id == null) continue;
-    updateActivity(null, {
+    const patch = {
       label: `Writing ${storeName} on this device…`,
       current: i + 1,
       total: list.length,
       source: 'program'
-    });
+    };
+    if (base != null && span != null && list.length){
+      patch.pct = Math.round(base + span * ((i + 1) / list.length));
+    }
+    updateActivity(null, patch);
     await dbPut(storeName, row);
   }
 }
@@ -25390,11 +25437,14 @@ async function restoreFullDatabase(payload){
   if (payload.activeVesselId){
     await dbPut('meta', { key:'activeVesselId', value: payload.activeVesselId });
   }
-  for (const name of DB_BACKUP_STORES){
-    update({ label: `Writing ${name}…` });
-    await writeStoreRows(name, (payload.stores && payload.stores[name]) || []);
+  for (let s = 0; s < DB_BACKUP_STORES.length; s++){
+    const name = DB_BACKUP_STORES[s];
+    const span = 100 / DB_BACKUP_STORES.length;
+    const base = span * s;
+    update({ label: `Writing ${name}…`, pct: Math.round(base) });
+    await writeStoreRows(name, (payload.stores && payload.stores[name]) || [], { base, span });
   }
-  update({ label: 'Loading the restored vessel…' });
+  update({ label: 'Loading the restored vessel…', pct: 100 });
   const metaAll = await dbGetAll('meta');
   await migrateToMultiVessel(metaAll);
   const vid = state.activeVesselId || payload.activeVesselId || (state.vessels[0] && state.vessels[0].id) || LEGACY_VESSEL_ID;
@@ -25432,13 +25482,16 @@ async function mergeFullDatabase(payload){
     await dbPut('meta', row);
   }
 
-  for (const name of DB_BACKUP_STORES){
-    update({ label: `Merging ${name}…` });
+  for (let s = 0; s < DB_BACKUP_STORES.length; s++){
+    const name = DB_BACKUP_STORES[s];
+    const span = 100 / DB_BACKUP_STORES.length;
+    const base = span * s;
+    update({ label: `Merging ${name}…`, pct: Math.round(base) });
     const localRows = await dbGetAll(name);
     const incoming = (payload.stores && payload.stores[name]) || [];
     const merged = mergeListsById(localRows, incoming);
     /* Upsert merged rows (do not delete local-only ids) */
-    await writeStoreRows(name, merged);
+    await writeStoreRows(name, merged, { base, span });
   }
 
   update({ label: 'Loading the merged vessel…' });
@@ -25500,17 +25553,22 @@ function setupForVesselExport(setup){
 }
 
 async function buildVesselExport(vesselId){
+  return withActivity('vessel-export', 'Exporting the vessel…', async ({ update }) => {
   await ensureDB();
   const vessel = vesselRecord(vesselId);
   if (!vessel) throw new Error('Vessel not found in the fleet registry.');
   /* Flush the active vessel so the file matches what is on screen. */
+  update({ label: 'Saving the active vessel first…' });
   if (vessel.id === state.activeVesselId) await saveCurrentVesselState();
 
   const metaAll = await dbGetAll('meta');
   const setupRow = metaAll.find(m => m.key === `setup:${vessel.id}`);
 
   const stores = {};
-  for (const name of VESSEL_EXPORT_STORES){
+  for (let i = 0; i < VESSEL_EXPORT_STORES.length; i++){
+    const name = VESSEL_EXPORT_STORES[i];
+    update({ label: `Reading ${name}…`, current: i + 1, total: VESSEL_EXPORT_STORES.length });
+    await new Promise((r) => setTimeout(r, 0));
     try{
       const all = await dbGetAll(name);
       stores[name] = (all || []).filter(r => recordBelongsToVessel(name, r, vessel.id));
@@ -25529,6 +25587,7 @@ async function buildVesselExport(vesselId){
     stores,
     counts: Object.fromEntries(Object.entries(stores).map(([k,v])=>[k, (v||[]).length]))
   };
+  }, { source: 'program' });
 }
 
 function isVesselExport(payload){
@@ -25553,6 +25612,8 @@ async function importVesselExport(payload, options = {}){
     throw new Error('Not a vessel export (expected format ' + VESSEL_EXPORT_FORMAT + ').');
   }
   const mode = options.mode === 'merge' ? 'merge' : 'replace';
+  beginActivity('vessel-import', 'Importing the vessel on this device…', { source: 'program' });
+  try {
   await ensureDB();
   await saveCurrentVesselState();
 
@@ -25598,7 +25659,14 @@ async function importVesselExport(payload, options = {}){
   }
 
   let written = 0;
-  for (const name of VESSEL_EXPORT_STORES){
+  for (let si = 0; si < VESSEL_EXPORT_STORES.length; si++){
+    const name = VESSEL_EXPORT_STORES[si];
+    updateActivity('vessel-import', {
+      label: `Writing ${name}…`,
+      current: si + 1,
+      total: VESSEL_EXPORT_STORES.length
+    });
+    await new Promise((r) => setTimeout(r, 0));
     const rows = (payload.stores && payload.stores[name]) || [];
     if (mode === 'merge' && replacing && name === 'voyageLegs'){
       const existingLegs = await listVoyageLegsForVessel(target.id);
@@ -25690,6 +25758,9 @@ async function importVesselExport(payload, options = {}){
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
   return { vessel: target, replacing, written, mode };
+  } finally {
+    endActivity('vessel-import');
+  }
 }
 
 function vesselExportCountSummary(counts){
@@ -25747,7 +25818,12 @@ async function runVesselBackupExport(vesselId, statusFn){
   const payload = await buildVesselExport(vesselId);
   const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
   const name = `voyage-chief-vessel_${payload.vessel.slug || 'vessel'}_${stamp}.json`;
-  const saved = await downloadJsonFile(name, payload);
+  setStatus('Saving the vessel file…');
+  const saved = await withActivity('vessel-export', 'Saving the vessel file…', async ({ update }) => {
+    update({ label: 'Writing the vessel file…', pct: 90 });
+    await new Promise((r) => setTimeout(r, 0));
+    return downloadJsonFile(name, payload);
+  }, { source: 'program' });
   const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
   const summary = vesselExportCountSummary(payload.counts);
   const where = downloadWhereLabel(saved);
@@ -26070,7 +26146,12 @@ document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
     const payload = await buildFullDatabaseBackup();
     const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     const name = `voyage-chief-db-backup_${stamp}.json`;
-    const saved = await downloadJsonFile(name, payload);
+    setDbBackupStatus('Saving the backup file…');
+    const saved = await withActivity('db-backup', 'Saving the backup file…', async ({ update }) => {
+      update({ label: 'Writing the backup file…', pct: 90 });
+      await new Promise((r) => setTimeout(r, 0));
+      return downloadJsonFile(name, payload);
+    }, { source: 'program' });
     const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
     const where = downloadWhereLabel(saved);
     setDbBackupStatus(`Backup ${where}: ${saved.filename} — ${payload.vessels.length} vessel(s), ${total} store record(s).`);
