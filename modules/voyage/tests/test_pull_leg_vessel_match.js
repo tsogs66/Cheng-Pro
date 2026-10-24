@@ -44,8 +44,11 @@ function extractFunction(name) {
 }
 
 const ensureSrc = extractFunction('ensureLocalVesselForSyncSlug');
+const findSrc = extractFunction('findLocalVesselForSyncSlug');
 check('ensure does not call vesselOwnSyncSlug', /vesselOwnSyncSlug\s*\(/.test(ensureSrc), false);
-check('ensure uses registry-only slug helper', ensureSrc.includes('vesselRegistrySyncSlug'), true);
+check('ensure resolves through the registry matcher', ensureSrc.includes('findLocalVesselForSyncSlug'), true);
+check('matcher uses registry-only slug helper', findSrc.includes('vesselRegistrySyncSlug'), true);
+check('matcher does not call vesselOwnSyncSlug', /vesselOwnSyncSlug\s*\(/.test(findSrc), false);
 check('ensure strips IMO from name cores', ensureSrc.includes('syncSlugCoreWithoutImo'), true);
 
 const helpers = [
