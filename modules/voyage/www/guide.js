@@ -38,6 +38,7 @@
         'Reports — supplementary reports.',
         'Reference — weather, NOx, fuel, and SFOC tables.',
         'Guide — this page.',
+        'Notes — a note or reminder for this ship, with a deadline. Tick Show at open and it appears when the program opens.',
         'e-ORB — the oil record book, when the license includes it. A wrong line is voided, not deleted.',
         'Setup — sync, database backup, and the deleted-entry list.',
         'Voyage Setup — voyage number, ballast or laden, ports, distance, opening ROB.',
@@ -49,6 +50,30 @@
       ],
       undo: [
         'Changing tabs does not delete a watch. Typing is kept only after Add Entry or that page’s Save.'
+      ]
+    },
+    {
+      group: 'Start',
+      q: 'How do I keep a note or a reminder?',
+      purpose: 'Notes holds something you must not forget for this ship. A ticked line appears when Voyage Chief opens, with its deadline. Inside ChEng AIO the same job is the Notes page on the suite menu, and this tab is hidden.',
+      steps: [
+        'Open Notes on the tab bar, or under More on a phone.',
+        'Type the title and the note. Set the deadline date and time.',
+        'Leave Show when the program opens ticked if it should appear at startup.',
+        'Press Save note.',
+        'The next open lists the ticked lines. Close leaves them set. Stop reminding unticks that line.'
+      ],
+      buttons: [
+        'Show when the program opens — the checkbox on the form and at the start of each line',
+        'Save note — stores the line on this device for the active ship',
+        'Edit — puts that line back in the form',
+        'Delete — removes the line after you confirm',
+        'Stop reminding — unticks that line without deleting it'
+      ],
+      undo: [
+        'Untick Show at open to stop the startup list and keep the note.',
+        'A wrong deadline: press Edit, set the date and time, and Save changes.',
+        'Delete asks you to confirm. After that the line is gone from this device.'
       ]
     },
     {

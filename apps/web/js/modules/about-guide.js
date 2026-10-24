@@ -3,6 +3,7 @@
 window.ChengProAboutGuide = (function () {
   const GROUPS = [
     'Start',
+    'Notes',
     'License',
     'Vessel',
     'Voyage Chief',
@@ -22,7 +23,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Where do I start the first time I open ChEng AIO?',
       purpose: 'ChEng AIO is the menu for the whole suite. One license and one active ship are shared by Voyage Chief, Tank Chief, the bunker plans, e-ORB, Spares, and Performance.',
       steps: [
-        'Open the app. On a phone the menu is along the bottom. More holds Home, Spares, Setup, Backup, License, and About. On a wide desktop the same items are in the left sidebar.',
+        'Open the app. On a phone the menu is along the bottom. More holds Home, Notes, Spares, Setup, Backup, License, and About. On a wide desktop the same items are in the left sidebar.',
         'Open License. If the Android app asks for a server, enter the ship ChEng AIO address (usually http://the-server:8080), then Save server URL and Test connection.',
         'Enter the email and the key from the office, then Activate this device.',
         'Open Vessel Setup. Type the ship name and IMO, then Create vessel. That ship becomes the active vessel in the top bar.',
@@ -80,6 +81,31 @@ window.ChengProAboutGuide = (function () {
       ],
       undo: [
         'Keep pressing the theme button until the screen is comfortable. Nothing in the log or the tanks changes.'
+      ]
+    },
+    {
+      group: 'Notes',
+      q: 'How do I keep a note or a reminder?',
+      purpose: 'Notes holds something you must not forget: a survey, a certificate, a spare, a call to the office. Each line belongs to the active ship. A ticked line appears when the program opens, with its deadline.',
+      steps: [
+        'Open Notes in the sidebar, or under More on a phone.',
+        'Type the title and the note. Set the deadline date and time.',
+        'Leave Show when the program opens ticked if it should appear at startup. Untick it for a note you only want on this page.',
+        'Press Save note.',
+        'The next time the program opens, the ticked lines are listed. An overdue deadline is marked. Close leaves them set for the following open. Stop reminding unticks that line. Open notes goes to the page.'
+      ],
+      buttons: [
+        'Show when the program opens — the checkbox on the form and at the start of each line',
+        'Save note — stores the line on this device for the active ship',
+        'Edit — puts that line back in the form',
+        'Delete — removes the line after you confirm',
+        'Close — leaves the startup list until the next open',
+        'Stop reminding — unticks that line without deleting it'
+      ],
+      undo: [
+        'Untick Show at open to stop the startup list and keep the note.',
+        'A wrong deadline: press Edit, set the date and time, and Save changes.',
+        'Delete asks you to confirm. After that the line is gone from this device.'
       ]
     },
     {

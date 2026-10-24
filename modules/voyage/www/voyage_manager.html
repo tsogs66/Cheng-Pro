@@ -316,6 +316,8 @@
   /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
   html.chengaio-embed #vesselSelectionPanel,
   html.chengaio-embed #vesselIdentityPanel{display:none !important;}
+  html.chengaio-embed .tab[data-page="notes"],
+  html.chengaio-embed .bn-more-item[data-page="notes"]{display:none !important;}
 
   /* AIO Backup bridge (?page=data): only Server Sync — chrome and other Setup panels go away. */
   html.chengaio-embed.aio-data-embed .masthead,
@@ -2905,6 +2907,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <span class="tab-group-label">Books</span>
       <div class="tab" data-page="reference">Reference</div>
       <div class="tab" data-page="guide">Guide</div>
+      <div class="tab" data-page="notes">Notes</div>
       <div class="tab" data-page="orb">e-ORB</div>
     </div>
     <div class="tab-group">
@@ -4791,6 +4794,14 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
   </div>
 
+  <!-- NOTES -->
+  <div class="page" id="page-notes">
+    <div class="panel">
+      <h2>Notes</h2>
+      <div id="voyageNotesHost"></div>
+    </div>
+  </div>
+
   <!-- GUIDE -->
   <div class="page" id="page-guide">
     <div class="panel">
@@ -5372,6 +5383,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <span class="bn-ic" aria-hidden="true">?</span>
         <span>Guide</span>
       </button>
+      <button type="button" class="bn-more-item" data-page="notes">
+        <span class="bn-ic" aria-hidden="true">📝</span>
+        <span>Notes</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="orb">
         <span class="bn-ic" aria-hidden="true">📕</span>
         <span>e-ORB</span>
@@ -5399,6 +5414,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 <script src="save-file.js"></script>
 <script src="camera-capture.js"></script>
 <script src="guide.js"></script>
+<script src="notes.js"></script>
 <script>
 /* ---------------- constants ---------------- */
 const FUEL_TYPES = ["HFO","LSFO","MDO/MGO","LSMGO"];
@@ -13180,7 +13196,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'guide', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -14459,6 +14475,9 @@ function switchTab(pageName){
   }
   if (pageName === 'data'){
     renderDeletedBackupList();
+  }
+  if (pageName === 'notes' && window.VoyageNotes){
+    VoyageNotes.render();
   }
   if (pageName === 'reference'){
     updateRefNoxCalc();
@@ -25169,6 +25188,7 @@ let androidInstallAssets = [
   './save-file.js',
   './camera-capture.js',
   './guide.js',
+  './notes.js',
   './clock-picker.js',
   './signed-numeric-input.js',
   './loading-splash.css',
@@ -30527,6 +30547,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     /* Last, so a stored session can switch the active vessel over a loaded app. */
     try{ await initLoginGate(); }
     catch(gateErr){ console.error('Login gate failed to start', gateErr); showLoginGate(true); }
+    try { if (!isChengAioEmbedded() && window.VoyageNotes) VoyageNotes.promptOnOpen(); } catch (_) {}
     _programReady = true;
     try { publishShipClock(); } catch (_) {}
     try { bindBunkerFileLinks(); } catch (_) {}
