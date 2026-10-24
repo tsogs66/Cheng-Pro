@@ -3081,6 +3081,9 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>Company</label><input id="s_company" placeholder="e.g. Pacific Ocean Shipping"></div>
         <div class="field"><label>Chief Engineer</label><input id="s_chEng"></div>
         <div class="field"><label>DWT (tonnes) — for CII</label><input type="number" step="1" id="s_dwt" placeholder="e.g. 60000"></div>
+        <div class="field"><label>Gross tonnage (GT)</label><input type="number" step="1" id="s_grossTonnage" placeholder="e.g. 35000"></div>
+        <div class="field"><label>Net tonnage (NT)</label><input type="number" step="1" id="s_netTonnage" placeholder="e.g. 20000"></div>
+        <div class="field"><label>Aux engine rated power (kW, total)</label><input type="number" step="1" id="s_auxPowerKw" placeholder="e.g. 2400"></div>
         <div class="field"><label>IMO No.</label><input id="s_imoNo" placeholder="IMO 1234567"></div>
         <div class="field"><label>Call sign</label><input id="s_callSign" placeholder="e.g. 3EXX9"></div>
         <div class="field"><label>Flag registry</label><select id="s_flag"></select></div>
@@ -4910,6 +4913,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" id="btnImportJSON">Replace Active Leg from Backup</button>
         <button class="ghost small" id="btnExportCSVLog">Export Voyage Log (CSV)</button>
         <button class="ghost small" id="btnExportCSVCons">Export Consumption (CSV)</button>
+        <button class="ghost small" id="btnExportDcs">Compile IMO DCS / EU MRV year…</button>
         <button class="primary small" id="btnRecalculateAllData" type="button">Recalculate All Data</button>
         <input type="file" id="fileImport" accept="application/json" style="display:none;">
         <input type="file" id="fileImportSetup" accept="application/json" style="display:none;">
@@ -12317,6 +12321,160 @@ function numOrNull(v){
   return isFinite(n) ? n : null;
 }
 
+/* ---- IMO DCS and EU MRV compilation ---------------------------------------
+   The figures a verifier asks for in January are already in the log; what was
+   missing is the arithmetic over a CALENDAR year, which is not how this
+   program stores anything. Voyages and legs do not line up with years, so this
+   walks every saved leg plus the open one, takes the reports whose period falls
+   in the year, and derives each leg's figures inside that leg's own state --
+   the same machinery the cross-leg range totals use.
+
+   It compiles; it does not submit. IMO DCS goes to the flag or an RO through a
+   verified SEEMP Part II process, and EU MRV through an accredited verifier.
+   What this produces is the data to hand them, with the gaps named, which is
+   the week of transcription that currently happens by hand.
+
+   Two honesty rules the compilation follows:
+
+   Hours under way means hours the ship was under way, not the length of the
+   reporting period: the DCS data item is "hours under way", and counting port
+   and anchor time in it overstates the figure.
+
+   A year the program only partly covers is reported as partial, with the dates
+   it actually holds. A verifier told "this is the year" about ten months of
+   data has been misled; one told "this is 1 Mar to 31 Dec" can go and find
+   the rest. */
+
+/** Reports whose period ends inside the calendar year, per leg. */
+function dcsYearWindow(year){
+  const y = Number(year);
+  return {
+    from: new Date(Date.UTC(y, 0, 1, 0, 0, 0)).toISOString(),
+    to: new Date(Date.UTC(y + 1, 0, 1, 0, 0, 0)).toISOString()
+  };
+}
+
+/**
+ * Compile a calendar year across every leg this device holds.
+ * Returns the DCS/MRV data items plus what it could not fill in.
+ */
+async function buildDcsReport(year){
+  const { from, to } = dcsYearWindow(year);
+  const pool = await loadRangeLegPool();
+  const parts = [];
+  const legsUsed = [];
+  let earliest = null, latest = null;
+
+  (pool.legs || []).forEach(leg => {
+    const ids = (leg.entries || [])
+      .filter(e => {
+        const t = String(e.datetime || '');
+        return t >= from && t < to;
+      })
+      .map(e => e.id);
+    if (!ids.length) return;
+    legsUsed.push({ key: leg.key, label: leg.label, reports: ids.length });
+    const run = () => rangeAggregateParts(ids);
+    parts.push(leg.active ? run() : withLegState(leg.pack, run));
+    (leg.entries || []).forEach(e => {
+      const t = String(e.datetime || '');
+      if (t < from || t >= to) return;
+      if (!earliest || t < earliest) earliest = t;
+      if (!latest || t > latest) latest = t;
+    });
+  });
+
+  const agg = finalizeAggregate(mergeAggregateParts(parts));
+
+  /* Hours under way, not period hours: a report with the engine stopped in
+     port contributes its fuel but not its time to this data item. */
+  const hoursUnderWay = (agg.rows || []).reduce((a, r) => {
+    const underWay = (Number(r.distanceShip) > 0) || (Number(r.distEngine) > 0) || (Number(r.dailyRevs) > 0);
+    return a + (underWay ? (Number(r.hrs) || 0) : 0);
+  }, 0);
+
+  const setup = state.setup || {};
+  const gaps = [];
+  if (!setup.imoNo) gaps.push('IMO number (Setup › Vessel)');
+  if (!setup.dwt) gaps.push('DWT (Setup › Vessel)');
+  if (!setup.grossTonnage) gaps.push('Gross tonnage (Setup › Vessel) — a DCS data item');
+  if (!setup.netTonnage) gaps.push('Net tonnage (Setup › Vessel) — a DCS data item');
+  if (!setup.mcrKw) gaps.push('Main engine rated power (Setup › Machinery)');
+  if (!setup.ciiShipType) gaps.push('Ship type (Setup › CII)');
+  if (!agg.reports) gaps.push('No reports at all fall in this year on this device');
+
+  /* Does the program actually cover the whole year? */
+  const yearStart = from.slice(0, 10);
+  const yearEnd = new Date(new Date(to).getTime() - 86400000).toISOString().slice(0, 10);
+  const covEarliest = earliest ? earliest.slice(0, 10) : null;
+  const covLatest = latest ? latest.slice(0, 10) : null;
+  const partial = !covEarliest || covEarliest > yearStart || !covLatest || covLatest < yearEnd;
+
+  return {
+    year: Number(year),
+    periodFrom: covEarliest,
+    periodTo: covLatest,
+    yearStart, yearEnd,
+    partial,
+    reports: agg.reports,
+    legsUsed,
+    particulars: {
+      shipName: setup.shipName || '',
+      imo: setup.imoNo || '',
+      flag: setup.flag || '',
+      shipType: setup.ciiShipType || '',
+      dwt: numOrNull(setup.dwt),
+      grossTonnage: numOrNull(setup.grossTonnage),
+      netTonnage: numOrNull(setup.netTonnage),
+      mainEnginePowerKw: numOrNull(setup.mcrKw),
+      auxEnginePowerKw: numOrNull(setup.auxPowerKw)
+    },
+    fuelByType: FUEL_TYPES.reduce((acc, t) => {
+      acc[t] = Number(agg.rows.reduce((a, r) => a + (r.consByType?.[t] || 0), 0).toFixed(FUEL_DECIMALS));
+      return acc;
+    }, {}),
+    fuelTotalMt: Number(Object.values(agg.fuel).reduce((a, v) => a + v, 0).toFixed(FUEL_DECIMALS)),
+    co2Tonnes: agg.co2 == null ? null : Number(agg.co2.toFixed(2)),
+    distanceNm: Number((agg.distShip || 0).toFixed(2)),
+    hoursUnderWay: Number(hoursUnderWay.toFixed(1)),
+    periodHours: Number((agg.hrs || 0).toFixed(1)),
+    gaps
+  };
+}
+
+/** The compilation as rows, for a CSV a verifier can open. */
+function dcsReportCsvRows(rep){
+  const rows = [
+    ['Data item', 'Value', 'Unit', 'Source / note'],
+    ['Reporting year', rep.year, '', 'Calendar year, MARPOL Annex VI Reg. 27'],
+    ['Period covered — from', rep.periodFrom || '', '', rep.partial ? 'PARTIAL: this device does not hold the whole year' : 'Full calendar year'],
+    ['Period covered — to', rep.periodTo || '', '', ''],
+    ['Ship name', rep.particulars.shipName, '', ''],
+    ['IMO number', rep.particulars.imo, '', ''],
+    ['Flag', rep.particulars.flag, '', ''],
+    ['Ship type', rep.particulars.shipType, '', 'As used for CII'],
+    ['Gross tonnage', rep.particulars.grossTonnage ?? '', 'GT', rep.particulars.grossTonnage == null ? 'NOT RECORDED' : ''],
+    ['Net tonnage', rep.particulars.netTonnage ?? '', 'NT', rep.particulars.netTonnage == null ? 'NOT RECORDED' : ''],
+    ['Deadweight', rep.particulars.dwt ?? '', 't', rep.particulars.dwt == null ? 'NOT RECORDED' : ''],
+    ['Main engine rated power', rep.particulars.mainEnginePowerKw ?? '', 'kW', rep.particulars.mainEnginePowerKw == null ? 'NOT RECORDED' : ''],
+    ['Auxiliary engine rated power', rep.particulars.auxEnginePowerKw ?? '', 'kW', rep.particulars.auxEnginePowerKw == null ? 'NOT RECORDED' : ''],
+    ['Distance travelled', rep.distanceNm, 'nm', 'Sum of distance by ship over reports in the year'],
+    ['Hours under way', rep.hoursUnderWay, 'hrs', 'Periods with way on; port and anchor time excluded'],
+    ['Total period hours', rep.periodHours, 'hrs', 'For reference — not the DCS "hours under way" item'],
+    ['Total fuel consumed', rep.fuelTotalMt, 'MT', '']
+  ];
+  Object.keys(rep.fuelByType).forEach(t => {
+    rows.push([`Fuel consumed — ${t}`, rep.fuelByType[t], 'MT', 'By fuel oil type, as DCS requires']);
+  });
+  rows.push(['CO2 emitted', rep.co2Tonnes ?? '', 't', 'From fuel consumed and IMO carbon factors']);
+  rows.push(['Reports included', rep.reports, '', '']);
+  rep.legsUsed.forEach(l => rows.push(['Voyage leg included', l.label, '', `${l.reports} reports`]));
+  rep.gaps.forEach(g => rows.push(['GAP', g, '', 'Fill this in before handing the compilation over']));
+  rows.push(['', '', '', '']);
+  rows.push(['NOTE', 'This is a compilation, not a submission.', '', 'IMO DCS is reported to the flag or an RO under a verified SEEMP Part II; EU MRV through an accredited verifier.']);
+  return rows;
+}
+
 /* ---- Running hours and maintenance ----------------------------------------
    The thing every Chief keeps in a separate notebook. Hours per unit against
    the intervals the maker set, and what that means for next week.
@@ -14121,6 +14279,12 @@ function render(){
   setChEngInputs(state.setup.chEng ?? '');
   const dwtEl = document.getElementById('s_dwt');
   if (dwtEl) dwtEl.value = state.setup.dwt ?? '';
+  /* Tonnages and aux power are IMO DCS data items; they live beside DWT. */
+  [['s_grossTonnage', 'grossTonnage'], ['s_netTonnage', 'netTonnage'], ['s_auxPowerKw', 'auxPowerKw']]
+    .forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if (el && document.activeElement !== el) el.value = state.setup[key] ?? '';
+    });
   const imoEl = document.getElementById('s_imoNo');
   if (imoEl) imoEl.value = state.setup.imoNo || '';
   const companyEl = document.getElementById('s_company');
@@ -19078,6 +19242,9 @@ async function saveVoyageDetails(){
   state.setup.vesselName = document.getElementById('s_vesselName').value;
   state.setup.chEng = document.getElementById('s_chEng').value;
   state.setup.dwt = parseFloat(document.getElementById('s_dwt')?.value)||null;
+  state.setup.grossTonnage = parseFloat(document.getElementById('s_grossTonnage')?.value) || null;
+  state.setup.netTonnage = parseFloat(document.getElementById('s_netTonnage')?.value) || null;
+  state.setup.auxPowerKw = parseFloat(document.getElementById('s_auxPowerKw')?.value) || null;
   state.setup.imoNo = document.getElementById('s_imoNo')?.value || '';
   state.setup.company = document.getElementById('s_company')?.value || '';
   state.setup.flag = document.getElementById('s_flag')?.value || state.setup.flag || '';
@@ -19196,6 +19363,9 @@ async function saveVesselIdentity(){
   state.setup.vesselName = document.getElementById('s_vesselName').value;
   state.setup.chEng = document.getElementById('s_chEng').value;
   state.setup.dwt = parseFloat(document.getElementById('s_dwt')?.value) || null;
+  state.setup.grossTonnage = parseFloat(document.getElementById('s_grossTonnage')?.value) || null;
+  state.setup.netTonnage = parseFloat(document.getElementById('s_netTonnage')?.value) || null;
+  state.setup.auxPowerKw = parseFloat(document.getElementById('s_auxPowerKw')?.value) || null;
   state.setup.imoNo = document.getElementById('s_imoNo')?.value || '';
   state.setup.callSign = document.getElementById('s_callSign')?.value || '';
   state.setup.company = document.getElementById('s_company')?.value || '';
@@ -19486,6 +19656,9 @@ async function saveSetupFromForm(opts){
   state.setup.vesselName = document.getElementById('s_vesselName').value;
   state.setup.chEng = document.getElementById('s_chEng').value;
   state.setup.dwt = parseFloat(document.getElementById('s_dwt')?.value)||null;
+  state.setup.grossTonnage = parseFloat(document.getElementById('s_grossTonnage')?.value) || null;
+  state.setup.netTonnage = parseFloat(document.getElementById('s_netTonnage')?.value) || null;
+  state.setup.auxPowerKw = parseFloat(document.getElementById('s_auxPowerKw')?.value) || null;
   state.setup.imoNo = document.getElementById('s_imoNo')?.value || '';
   state.setup.company = document.getElementById('s_company')?.value || '';
   state.setup.flag = document.getElementById('s_flag')?.value || state.setup.flag || '';
@@ -28840,6 +29013,51 @@ function downloadCSV(filename, header, lines){
   a.download = filename;
   a.click();
 }
+document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
+  const suggested = new Date().getUTCFullYear() - 1;   /* the year a verifier asks about */
+  const answer = prompt(
+    'Compile IMO DCS / EU MRV figures for a calendar year.\n\n'
+    + 'Every saved voyage leg on this device is walked, plus the one open, and the reports '
+    + 'falling in that year are totalled. Each leg is worked from its own setup.\n\n'
+    + 'Year:', String(suggested));
+  if (answer == null) return;
+  const year = parseInt(String(answer).trim(), 10);
+  if (!Number.isFinite(year) || year < 2000 || year > 2100){
+    alert('Enter a four-digit year.');
+    return;
+  }
+  try{
+    const rep = await withActivity('dcs', `Compiling ${year} across saved voyage legs…`,
+      async () => buildDcsReport(year));
+    if (!rep.reports){
+      alert(`No reports on this device fall in ${year}.\n\n`
+        + 'If the year is on another device or in a backup, merge that first — '
+        + 'Data › Merge Database Backup keeps local records.');
+      return;
+    }
+    const rows = dcsReportCsvRows(rep);
+    downloadCSV(`dcs-mrv-${rep.particulars.imo || 'vessel'}-${year}.csv`,
+      rows[0].map(csvEscape), rows.slice(1).map(r => r.map(csvEscape)));
+
+    const lines = [
+      `${year}: ${rep.reports} reports across ${rep.legsUsed.length} voyage leg(s).`,
+      `Distance ${fmt(rep.distanceNm, 2)} nm · under way ${fmt(rep.hoursUnderWay, 1)} hrs · fuel ${fmt(rep.fuelTotalMt, FUEL_DECIMALS)} MT · CO₂ ${rep.co2Tonnes == null ? '—' : fmt(rep.co2Tonnes, 2)} t`
+    ];
+    if (rep.partial){
+      lines.push('', `⚠ PARTIAL YEAR. This device holds ${rep.periodFrom} to ${rep.periodTo}, not ${rep.yearStart} to ${rep.yearEnd}.`,
+        'The CSV says so too. Merge the missing legs from the other device before handing this over.');
+    }
+    if (rep.gaps.length){
+      lines.push('', 'Still to fill in:', ...rep.gaps.map(g => '  • ' + g));
+    }
+    lines.push('', 'This is a compilation, not a submission: IMO DCS goes to the flag or an RO under a verified SEEMP Part II, EU MRV through an accredited verifier.');
+    alert(lines.join('\n'));
+  }catch(e){
+    console.error(e);
+    alert('Could not compile the year: ' + e.message);
+  }
+});
+
 document.getElementById('btnExportCSVLog').addEventListener('click', ()=>{
   const {rows} = computeDerived();
   const header = ["DateTime","Operation","Condition","Hours","DistShip","RPM","RevCounter","DailyRevs","MECons","GECons","BlrCons",
