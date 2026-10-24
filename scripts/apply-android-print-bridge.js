@@ -98,55 +98,135 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
-  /** Writes a text file into the public Downloads folder. */
+  /**
+   * Writes a text file into the public Downloads folder.
+   *
+   * A backup is handed across the JavascriptInterface one piece at a time.
+   * One saveText of the whole suite file is larger than Android's Binder
+   * limit, and the WebView process dies — the app closes on "Export".
+   * beginSave / appendSaveChunk / finishSave is the same split the print
+   * bridge already uses. saveText remains for a short file from an older page.
+   */
   private class FileBridge {
+    private OutputStream pendingOut;
+    private Uri pendingUri;
+    private File pendingLegacyFile;
+    private String pendingName = "cheng-aio-backup.json";
+    private String pendingError = "";
+
+    @JavascriptInterface
+    public String beginSave(final String fileName, final String mimeType, final int expectedLength) {
+      synchronized (this) {
+        abandonPending();
+        pendingError = "";
+        if (expectedLength < 0) return "";
+        pendingName = safeName(fileName);
+        final String mime = (mimeType == null || mimeType.trim().isEmpty())
+            ? "application/json" : mimeType.trim();
+        try {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, pendingName);
+            values.put(MediaStore.Downloads.MIME_TYPE, mime);
+            values.put(MediaStore.Downloads.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/ChEngAIO");
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) return "";
+            OutputStream out = resolver.openOutputStream(uri);
+            if (out == null) {
+              try { resolver.delete(uri, null, null); } catch (Exception ignored) {}
+              return "";
+            }
+            pendingUri = uri;
+            pendingOut = out;
+            return "ok";
+          }
+          File dir = new File(
+              Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+              "ChEngAIO");
+          if (!dir.isDirectory() && !dir.mkdirs()) return "";
+          File target = new File(dir, pendingName);
+          pendingLegacyFile = target;
+          pendingOut = new FileOutputStream(target);
+          return "ok";
+        } catch (Exception e) {
+          pendingError = e.getMessage() == null ? "open failed" : e.getMessage();
+          abandonPending();
+          return "";
+        }
+      }
+    }
+
+    @JavascriptInterface
+    public void appendSaveChunk(final String chunk) {
+      if (chunk == null || chunk.isEmpty()) return;
+      synchronized (this) {
+        if (pendingOut == null || (pendingError != null && !pendingError.isEmpty())) return;
+        try {
+          pendingOut.write(chunk.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+          pendingError = e.getMessage() == null ? "write failed" : e.getMessage();
+        }
+      }
+    }
+
+    @JavascriptInterface
+    public String finishSave() {
+      synchronized (this) {
+        try {
+          if (pendingOut == null && pendingUri == null && pendingLegacyFile == null) return "";
+          if (pendingError != null && !pendingError.isEmpty()) {
+            abandonPending();
+            return "";
+          }
+          if (pendingOut != null) {
+            pendingOut.flush();
+            pendingOut.close();
+            pendingOut = null;
+          }
+          if (pendingUri != null) {
+            ContentValues done = new ContentValues();
+            done.put(MediaStore.Downloads.IS_PENDING, 0);
+            getContentResolver().update(pendingUri, done, null, null);
+            pendingUri = null;
+            return "Downloads/ChEngAIO/" + pendingName;
+          }
+          if (pendingLegacyFile != null) {
+            String where = pendingLegacyFile.getAbsolutePath();
+            pendingLegacyFile = null;
+            return where;
+          }
+          return "";
+        } catch (Exception e) {
+          abandonPending();
+          return "";
+        }
+      }
+    }
+
     @JavascriptInterface
     public String saveText(final String fileName, final String text, final String mimeType) {
-      final String name = safeName(fileName);
-      final String mime = (mimeType == null || mimeType.trim().isEmpty())
-          ? "application/json" : mimeType.trim();
-      final byte[] bytes = (text == null ? "" : text).getBytes(StandardCharsets.UTF_8);
+      final String opened = beginSave(fileName, mimeType, text == null ? 0 : text.length());
+      if (opened == null || opened.isEmpty()) return "";
+      appendSaveChunk(text);
+      return finishSave();
+    }
+
+    private void abandonPending() {
       try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-          ContentResolver resolver = getContentResolver();
-          ContentValues values = new ContentValues();
-          values.put(MediaStore.Downloads.DISPLAY_NAME, name);
-          values.put(MediaStore.Downloads.MIME_TYPE, mime);
-          values.put(MediaStore.Downloads.RELATIVE_PATH,
-              Environment.DIRECTORY_DOWNLOADS + "/ChEngAIO");
-          values.put(MediaStore.Downloads.IS_PENDING, 1);
-          Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-          if (uri == null) return "";
-          OutputStream out = resolver.openOutputStream(uri);
-          if (out == null) return "";
-          try {
-            out.write(bytes);
-            out.flush();
-          } finally {
-            out.close();
-          }
-          values.clear();
-          values.put(MediaStore.Downloads.IS_PENDING, 0);
-          resolver.update(uri, values, null, null);
-          return "Downloads/ChEngAIO/" + name;
-        }
-        File dir = new File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "ChEngAIO");
-        if (!dir.isDirectory() && !dir.mkdirs()) return "";
-        File target = new File(dir, name);
-        FileOutputStream out = new FileOutputStream(target);
-        try {
-          out.write(bytes);
-          out.flush();
-        } finally {
-          out.close();
-        }
-        return target.getAbsolutePath();
-      } catch (Exception e) {
-        /* Empty string means "I could not write it" — the page then falls
-           through to the share sheet rather than claiming a saved backup. */
-        return "";
+        if (pendingOut != null) pendingOut.close();
+      } catch (Exception ignored) {}
+      pendingOut = null;
+      if (pendingUri != null) {
+        try { getContentResolver().delete(pendingUri, null, null); } catch (Exception ignored) {}
+        pendingUri = null;
+      }
+      if (pendingLegacyFile != null) {
+        try { if (!pendingLegacyFile.delete()) pendingLegacyFile.deleteOnExit(); }
+        catch (Exception ignored) {}
+        pendingLegacyFile = null;
       }
     }
 

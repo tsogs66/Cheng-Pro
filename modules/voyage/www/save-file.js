@@ -8,7 +8,10 @@
  *   native      the Android application's own bridge. The Capacitor WebView
  *               has no download manager at all, so a blob anchor there is a
  *               no-op that reports success — this is the only path that
- *               actually writes a file on the phone.
+ *               actually writes a file on the phone. The whole backup is
+ *               sent in pieces: one JavascriptInterface string bigger than
+ *               Android's Binder limit kills the WebView, which is the app
+ *               closing itself on Export.
  *   desktop     Electron preload IPC → native Save dialog + fs.writeFile.
  *               File System Access (showSaveFilePicker) crashes Electron's
  *               renderer on write, so desktop never uses the picker.
@@ -53,7 +56,11 @@
   function nativeBridge() {
     try {
       const b = root.ChengAndroidFiles;
-      if (b && typeof b.saveText === 'function') return b;
+      if (!b) return null;
+      if (typeof b.beginSave === 'function'
+          && typeof b.appendSaveChunk === 'function'
+          && typeof b.finishSave === 'function') return b;
+      if (typeof b.saveText === 'function') return b;
     } catch (_) { /* ignore */ }
     return null;
   }
@@ -78,10 +85,51 @@
     return false;
   }
 
+  /* Same size the print bridge uses. A larger piece trips the Binder limit. */
+  const NATIVE_CHUNK = 200000;
+
+  function chunkEnd(text, start, size) {
+    let end = Math.min(text.length, start + size);
+    if (end > start && end < text.length) {
+      const tail = text.charCodeAt(end - 1);
+      if (tail >= 0xD800 && tail <= 0xDBFF) end -= 1;
+    }
+    if (end <= start) end = Math.min(text.length, start + size);
+    return end;
+  }
+
   function saveViaNative(bridge, filename, text, mime) {
+    const body = text == null ? '' : String(text);
+    const type = mime || 'application/json';
+    let opened = false;
+    try {
+      if (typeof bridge.beginSave === 'function'
+          && typeof bridge.appendSaveChunk === 'function'
+          && typeof bridge.finishSave === 'function') {
+        opened = !!bridge.beginSave(filename, type, body.length);
+        if (!opened) return null;
+        for (let i = 0; i < body.length;) {
+          const end = chunkEnd(body, i, NATIVE_CHUNK);
+          bridge.appendSaveChunk(body.slice(i, end));
+          i = end;
+        }
+        const where = String(bridge.finishSave() || '');
+        opened = false;
+        if (!where) throw new Error('Could not write the backup on this device');
+        return { method: 'native', filename, where };
+      }
+    } catch (err) {
+      if (opened) {
+        try { bridge.finishSave(); } catch (_) { /* drop the half-written file */ }
+      }
+      if (err && err.message === 'Could not write the backup on this device') throw err;
+      console.warn('Android file bridge failed', err);
+      return null;
+    }
     let where = '';
     try {
-      where = String(bridge.saveText(filename, text, mime || 'application/json') || '');
+      if (typeof bridge.saveText !== 'function') return null;
+      where = String(bridge.saveText(filename, body, type) || '');
     } catch (err) {
       console.warn('Android file bridge failed', err);
       return null;

@@ -36,16 +36,119 @@
     return { method: 'anchor', filename: safeName };
   }
 
-  function readFileJson(file) {
+  function readFileJson(file, onProgress) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
+      reader.onprogress = (e) => {
+        if (typeof onProgress !== 'function') return;
+        if (e.lengthComputable && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+        else onProgress(null);
+      };
       reader.onload = () => {
-        try { resolve(JSON.parse(String(reader.result || ''))); }
-        catch (e) { reject(new Error('Invalid JSON file')); }
+        try {
+          if (typeof onProgress === 'function') onProgress(100);
+          resolve(JSON.parse(String(reader.result || '')));
+        } catch (e) { reject(new Error('Invalid JSON file')); }
       };
       reader.onerror = () => reject(new Error('Could not read file'));
       reader.readAsText(file);
     });
+  }
+
+  /* The status line under each card stays as the record of what finished.
+     This bar is what moves while the work is still going, including the
+     Voyage half that runs inside a hidden frame. */
+  const BK_JOB_BUTTONS = [
+    'bk-suite-all', 'bk-suite-restore', 'bk-suite-merge',
+    'bk-tank-full', 'bk-tank-import', 'bk-tank-vessel', 'bk-tank-vessel-import',
+    'bk-voyage-db', 'bk-voyage-restore', 'bk-voyage-merge',
+    'bk-voyage-vessel', 'bk-voyage-vessel-import',
+  ];
+  let progressJob = null;
+
+  function progressHost() {
+    return document.getElementById('bk-progress-host')
+      || document.querySelector('.backup-page')
+      || document.body;
+  }
+
+  function setBackupBusy(on) {
+    BK_JOB_BUTTONS.forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      if (on) {
+        if (btn.dataset.bkWasDisabled == null) btn.dataset.bkWasDisabled = btn.disabled ? '1' : '0';
+        btn.disabled = true;
+      } else if (btn.dataset.bkWasDisabled != null) {
+        btn.disabled = btn.dataset.bkWasDisabled === '1';
+        delete btn.dataset.bkWasDisabled;
+      }
+    });
+  }
+
+  function progressStart(title, message) {
+    progressJob = { title, voyage: null };
+    setBackupBusy(true);
+    if (!window.Progress) return;
+    const box = Progress.start(progressHost(), title, message);
+    if (box && box.scrollIntoView) {
+      try { box.scrollIntoView({ block: 'nearest' }); } catch (_) { /* ignore */ }
+    }
+  }
+
+  function progressSet(pct, message) {
+    if (window.Progress) Progress.set(pct, message);
+  }
+
+  function progressYield() {
+    if (window.Progress && Progress.yieldToPaint) return Progress.yieldToPaint();
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function progressDone(message) {
+    progressJob = null;
+    if (window.Progress) Progress.done(message);
+    setBackupBusy(false);
+  }
+
+  function progressFail() {
+    progressJob = null;
+    if (window.Progress) Progress.done();
+    setBackupBusy(false);
+  }
+
+  /** Map Voyage's own 0–100 into a slice of this job's bar. */
+  function watchVoyage(from, to) {
+    if (progressJob) progressJob.voyage = { from, to };
+  }
+
+  function applyVoyageProgress(msg) {
+    if (!progressJob || !progressJob.voyage) return;
+    const slice = progressJob.voyage;
+    const label = msg.label || 'Voyage Chief…';
+    if (!msg.active) {
+      progressSet(slice.to, label);
+      return;
+    }
+    if (msg.pct == null || !isFinite(Number(msg.pct))) {
+      progressSet(slice.from, label);
+      return;
+    }
+    const pct = slice.from + (slice.to - slice.from) * (Number(msg.pct) / 100);
+    progressSet(Math.max(slice.from, Math.min(slice.to, Math.round(pct))), label);
+  }
+
+  async function withProgress(title, startMsg, fn) {
+    progressStart(title, startMsg);
+    try {
+      const endMsg = await fn();
+      if (endMsg === false) progressFail();
+      else progressDone(typeof endMsg === 'string' ? endMsg : undefined);
+      return endMsg;
+    } catch (e) {
+      progressFail();
+      throw e;
+    }
   }
 
   /* ------------------------------------------------------------ Tank Chief --
@@ -85,6 +188,62 @@
   /** Where this screen's Tank data is coming from, for the status line. */
   function tankSourceLabel() {
     return usingLocalTank() ? 'this device' : 'the server';
+  }
+
+  function tankAuthHeaders() {
+    const headers = {};
+    try {
+      if (typeof ChengLicense !== 'undefined' && ChengLicense.authHeaders) {
+        Object.assign(headers, ChengLicense.authHeaders());
+      }
+    } catch (_) { /* ignore */ }
+    try {
+      if (window.ChengProApi && ChengProApi.getToken) {
+        const token = ChengProApi.getToken();
+        if (token) {
+          headers['X-Session-Token'] = token;
+          headers.Authorization = 'Bearer ' + token;
+        }
+      }
+    } catch (_) { /* ignore */ }
+    return headers;
+  }
+
+  /** GET a Tank backup and report bytes when the server sends a length. */
+  function tankBackupGet(path, onProgress) {
+    if (usingLocalTank()) {
+      if (typeof onProgress === 'function') onProgress(null);
+      return tankRequest(path).then((body) => {
+        if (typeof onProgress === 'function') onProgress(100);
+        return body;
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', '/tanks' + path);
+      const headers = tankAuthHeaders();
+      Object.keys(headers).forEach((key) => {
+        try { xhr.setRequestHeader(key, headers[key]); } catch (_) { /* ignore */ }
+      });
+      xhr.onprogress = (e) => {
+        if (typeof onProgress !== 'function') return;
+        if (e.lengthComputable && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+        else onProgress(null);
+      };
+      xhr.onload = () => {
+        let data = null;
+        try { data = xhr.responseText ? JSON.parse(xhr.responseText) : null; }
+        catch (e) { reject(new Error('Invalid backup from Tank Chief')); return; }
+        if (xhr.status >= 400) {
+          reject(new Error((data && (data.error || data.message)) || xhr.statusText || 'Request failed'));
+          return;
+        }
+        if (typeof onProgress === 'function') onProgress(100);
+        resolve(data);
+      };
+      xhr.onerror = () => reject(new Error('Could not read Tank Chief'));
+      xhr.send();
+    });
   }
 
   async function tankRequest(path, options = {}) {
@@ -166,6 +325,9 @@
       const msg = ev.data || {};
       if (msg.type === 'chengaio-voyage-ready') {
         if (!voyageFrame || ev.source === voyageFrame.contentWindow) voyageReady = true;
+      }
+      if (msg.type === 'chengaio-voyage-backup-progress') {
+        applyVoyageProgress(msg);
       }
       if (msg.type === 'chengaio-voyage-backup-result' && msg.requestId && pendingVoyage[msg.requestId]) {
         const { resolve, reject } = pendingVoyage[msg.requestId];
@@ -290,6 +452,7 @@
           <h1>Backup &amp; Restore</h1>
           <p class="hint">Everything that moves a vessel's data — to a file, to a server, or from another engineer's account — in the order you do it. On the phone a file goes to <strong>Downloads/ChEngAIO</strong>; on desktop you pick the folder. Suite files restore in standalone Tank or Voyage too — each app takes its own half.</p>
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'} Active vessel: <strong>${esc(activeLabel)}</strong></p>
+          <div id="bk-progress-host"></div>
 
           <h2 class="backup-step"><span class="backup-step-no">1</span> Connect to your servers</h2>
           <p class="hint backup-step-hint">Set each address once. Saving one connects and pulls straight away, and the vessel list in step 2 fills itself from whichever servers answer. Step 3 needs no network at all.</p>
@@ -499,45 +662,60 @@
         }
       }
 
+      function slicePct(from, to, pct) {
+        if (pct == null || !isFinite(Number(pct))) return null;
+        return Math.max(from, Math.min(to, Math.round(from + (to - from) * (Number(pct) / 100))));
+      }
+
       root.querySelector('#bk-suite-all').onclick = async () => {
-        setSuite('Collecting Tank + Voyage databases…');
         try {
-          let tankBackup = null;
-          let tankError = null;
-          try {
-            tankBackup = await tankRequest('/api/backup');
-          } catch (e) {
-            tankError = e.message || 'Tank backup failed';
-          }
+          await withProgress('Exporting the entire program…', 'Reading Tank Chief…', async () => {
+            setSuite('Collecting Tank + Voyage databases…');
+            let tankBackup = null;
+            let tankError = null;
+            try {
+              tankBackup = await tankBackupGet('/api/backup', (pct) => {
+                progressSet(slicePct(8, 34, pct), `Reading Tank Chief from ${tankSourceLabel()}…`);
+              });
+            } catch (e) {
+              tankError = e.message || 'Tank backup failed';
+            }
 
-          let voyageMsg = null;
-          let voyageError = null;
-          try {
-            voyageMsg = await voyagePost('export-db', {}, root);
-          } catch (e) {
-            voyageError = e.message || 'Voyage backup failed';
-          }
+            progressSet(36, 'Reading Voyage Chief…');
+            watchVoyage(36, 84);
+            let voyageMsg = null;
+            let voyageError = null;
+            try {
+              voyageMsg = await voyagePost('export-db', {}, root);
+            } catch (e) {
+              voyageError = e.message || 'Voyage backup failed';
+            }
 
-          if (!tankBackup && !(voyageMsg && voyageMsg.payload)) {
-            throw new Error([tankError, voyageError].filter(Boolean).join(' · ') || 'Nothing to export');
-          }
+            if (!tankBackup && !(voyageMsg && voyageMsg.payload)) {
+              throw new Error([tankError, voyageError].filter(Boolean).join(' · ') || 'Nothing to export');
+            }
 
-          const suite = {
-            format: SUITE_FORMAT,
-            exportedAt: new Date().toISOString(),
-            tankSource: tankSourceLabel(),
-            tank: tankBackup,
-            tankError: tankError || null,
-            voyage: (voyageMsg && voyageMsg.payload) || null,
-            voyageFilename: (voyageMsg && voyageMsg.filename) || null,
-            voyageError: voyageError || null,
-          };
-          const saved = await downloadJson(`cheng-aio-suite-${Date.now()}.json`, suite);
-          const partial = [tankError && 'Tank', voyageError && 'Voyage'].filter(Boolean).join(' + ');
-          setSuite(partial
-            ? `Entire program ${downloadWhereLabel(saved)} — ${partial} could not be read (${[tankError, voyageError].filter(Boolean).join(' · ')}).`
-            : `Entire program ${downloadWhereLabel(saved)}.`);
-          toast(`Entire program ${downloadWhereLabel(saved)}`);
+            const suite = {
+              format: SUITE_FORMAT,
+              exportedAt: new Date().toISOString(),
+              tankSource: tankSourceLabel(),
+              tank: tankBackup,
+              tankError: tankError || null,
+              voyage: (voyageMsg && voyageMsg.payload) || null,
+              voyageFilename: (voyageMsg && voyageMsg.filename) || null,
+              voyageError: voyageError || null,
+            };
+            progressSet(90, 'Saving the file…');
+            await progressYield();
+            const saved = await downloadJson(`cheng-aio-suite-${Date.now()}.json`, suite);
+            const partial = [tankError && 'Tank', voyageError && 'Voyage'].filter(Boolean).join(' + ');
+            const line = partial
+              ? `Entire program ${downloadWhereLabel(saved)} — ${partial} could not be read (${[tankError, voyageError].filter(Boolean).join(' · ')}).`
+              : `Entire program ${downloadWhereLabel(saved)}.`;
+            setSuite(line);
+            toast(`Entire program ${downloadWhereLabel(saved)}`);
+            return line;
+          });
         } catch (e) {
           setSuite(e.message || 'Export failed');
           toast(e.message || 'Export failed');
@@ -549,53 +727,64 @@
          the same bridge call. Either half may be absent from the file, and a
          half that fails is reported rather than silently skipped. */
       const suiteImport = async (file, merge) => {
-        const payload = await readFileJson(file);
-        if (!isSuiteBundle(payload)) {
-          throw new Error(`This is not an entire-program file (expected format ${SUITE_FORMAT}). Use the Tank or Voyage card for a single-program backup.`);
-        }
-        if (!payload.tank && !payload.voyage) {
-          throw new Error('This entire-program file holds neither a Tank nor a Voyage database.');
-        }
-        const verb = merge ? 'Merge into' : 'REPLACE';
-        if (!confirm(`${verb} this device from the entire-program file?\n\n${suiteSummary(payload)}\n\n${
-          merge
-            ? 'Records with the same id are overwritten by the file; nothing else is removed.'
-            : 'Voyage Chief data in this browser is erased first. Export a backup before you continue.'
-        }`)) {
-          setSuite('Restore cancelled — nothing was changed.');
-          return;
-        }
-
-        const done = [];
-        const failed = [];
-
-        if (payload.tank) {
-          setSuite('Restoring Tank Chief…');
-          try {
-            const res = await importTankBackup(payload.tank, merge);
-            const n = res && res.imported != null ? res.imported : (res && res.vesselCount) || 0;
-            done.push(`Tank Chief (${n} vessel${n === 1 ? '' : 's'})`);
-          } catch (e) {
-            failed.push('Tank Chief: ' + (e.message || 'import failed'));
+        const verbTitle = merge ? 'Merging the entire program…' : 'Restoring the entire program…';
+        return withProgress(verbTitle, `Reading ${file.name}…`, async () => {
+          const payload = await readFileJson(file, (pct) => {
+            progressSet(slicePct(0, 12, pct), `Reading ${file.name}…`);
+          });
+          if (!isSuiteBundle(payload)) {
+            throw new Error(`This is not an entire-program file (expected format ${SUITE_FORMAT}). Use the Tank or Voyage card for a single-program backup.`);
           }
-        }
-
-        if (payload.voyage) {
-          setSuite('Restoring Voyage Chief…');
-          try {
-            const msg = await voyagePost(merge ? 'merge-db' : 'restore-db', { payload: payload.voyage }, root);
-            done.push(msg.message || 'Voyage Chief');
-          } catch (e) {
-            failed.push('Voyage Chief: ' + (e.message || 'import failed'));
+          if (!payload.tank && !payload.voyage) {
+            throw new Error('This entire-program file holds neither a Tank nor a Voyage database.');
           }
-        }
+          const verb = merge ? 'Merge into' : 'REPLACE';
+          if (!confirm(`${verb} this device from the entire-program file?\n\n${suiteSummary(payload)}\n\n${
+            merge
+              ? 'Records with the same id are overwritten by the file; nothing else is removed.'
+              : 'Voyage Chief data in this browser is erased first. Export a backup before you continue.'
+          }`)) {
+            setSuite('Restore cancelled — nothing was changed.');
+            return false;
+          }
 
-        try { await ChengPro.vessel.refresh(); } catch { /* ignore */ }
+          const done = [];
+          const failed = [];
 
-        if (!done.length) throw new Error(failed.join(' · ') || 'Nothing was restored');
-        const summary = `Restored ${done.join(' · ')}${failed.length ? ` — but ${failed.join(' · ')}` : ''}`;
-        setSuite(summary);
-        toast(failed.length ? 'Restored with errors — see status' : 'Entire program restored');
+          if (payload.tank) {
+            progressSet(16, 'Restoring Tank Chief…');
+            setSuite('Restoring Tank Chief…');
+            await progressYield();
+            try {
+              const res = await importTankBackup(payload.tank, merge);
+              const n = res && res.imported != null ? res.imported : (res && res.vesselCount) || 0;
+              done.push(`Tank Chief (${n} vessel${n === 1 ? '' : 's'})`);
+            } catch (e) {
+              failed.push('Tank Chief: ' + (e.message || 'import failed'));
+            }
+          }
+
+          if (payload.voyage) {
+            progressSet(42, 'Restoring Voyage Chief…');
+            watchVoyage(42, 90);
+            setSuite('Restoring Voyage Chief…');
+            try {
+              const msg = await voyagePost(merge ? 'merge-db' : 'restore-db', { payload: payload.voyage }, root);
+              done.push(msg.message || 'Voyage Chief');
+            } catch (e) {
+              failed.push('Voyage Chief: ' + (e.message || 'import failed'));
+            }
+          }
+
+          progressSet(94, 'Refreshing the vessel list…');
+          try { await ChengPro.vessel.refresh(); } catch { /* ignore */ }
+
+          if (!done.length) throw new Error(failed.join(' · ') || 'Nothing was restored');
+          const summary = `Restored ${done.join(' · ')}${failed.length ? ` — but ${failed.join(' · ')}` : ''}`;
+          setSuite(summary);
+          toast(failed.length ? 'Restored with errors — see status' : 'Entire program restored');
+          return summary;
+        });
       };
 
       root.querySelector('#bk-suite-restore').onclick = () => {
@@ -622,13 +811,21 @@
       };
 
       root.querySelector('#bk-tank-full').onclick = async () => {
-        setTank(`Preparing Tank backup from ${tankSourceLabel()}…`);
         try {
-          const backup = await tankRequest('/api/backup');
-          const saved = await downloadJson(`tank-chief-backup-${Date.now()}.json`, backup);
-          const n = backup && backup.vessels ? Object.keys(backup.vessels).length : 0;
-          setTank(`Full backup ${downloadWhereLabel(saved)} (${n} vessel${n === 1 ? '' : 's'}).`);
-          toast(`Tank backup ${downloadWhereLabel(saved)}`);
+          await withProgress('Downloading Tank Chief…', `Reading tanks from ${tankSourceLabel()}…`, async () => {
+            setTank(`Preparing Tank backup from ${tankSourceLabel()}…`);
+            const backup = await tankBackupGet('/api/backup', (pct) => {
+              progressSet(slicePct(6, 82, pct), `Reading Tank Chief from ${tankSourceLabel()}…`);
+            });
+            progressSet(90, 'Saving the file…');
+            await progressYield();
+            const saved = await downloadJson(`tank-chief-backup-${Date.now()}.json`, backup);
+            const n = backup && backup.vessels ? Object.keys(backup.vessels).length : 0;
+            const line = `Full backup ${downloadWhereLabel(saved)} (${n} vessel${n === 1 ? '' : 's'}).`;
+            setTank(line);
+            toast(`Tank backup ${downloadWhereLabel(saved)}`);
+            return line;
+          });
         } catch (e) {
           setTank(e.message || 'Backup failed');
           toast(e.message || 'Backup failed');
@@ -641,14 +838,23 @@
         ev.target.value = '';
         if (!file) return;
         if (!confirm(`Import this Tank backup into ${tankSourceLabel()}? Vessels already there are merged, not removed.`)) return;
-        setTank('Importing Tank backup…');
         try {
-          const backup = await readFileJson(file);
-          const res = await importTankBackup(backup, true);
-          await ChengPro.vessel.refresh();
-          const n = res && res.imported != null ? res.imported : (res && res.vesselCount) || 0;
-          setTank(`Tank backup imported into ${tankSourceLabel()} — ${n} vessel${n === 1 ? '' : 's'}.`);
-          toast('Tank backup imported');
+          await withProgress('Restoring Tank Chief…', `Reading ${file.name}…`, async () => {
+            setTank('Importing Tank backup…');
+            const backup = await readFileJson(file, (pct) => {
+              progressSet(slicePct(0, 40, pct), `Reading ${file.name}…`);
+            });
+            progressSet(48, 'Applying vessels, tanks and settings…');
+            await progressYield();
+            const res = await importTankBackup(backup, true);
+            progressSet(88, 'Refreshing the vessel list…');
+            await ChengPro.vessel.refresh();
+            const n = res && res.imported != null ? res.imported : (res && res.vesselCount) || 0;
+            const line = `Tank backup imported into ${tankSourceLabel()} — ${n} vessel${n === 1 ? '' : 's'}.`;
+            setTank(line);
+            toast('Tank backup imported');
+            return line;
+          });
         } catch (e) {
           setTank(e.message || 'Import failed');
           toast(e.message || 'Import failed');
@@ -657,12 +863,20 @@
 
       root.querySelector('#bk-tank-vessel').onclick = async () => {
         if (!active) { toast('Select a vessel in the header first'); return; }
-        setTank('Exporting active vessel…');
         try {
-          const backup = await tankRequest('/api/vessels/' + encodeURIComponent(active.id) + '/backup');
-          const saved = await downloadJson(`tank-chief-vessel-${active.id}-${Date.now()}.json`, backup);
-          setTank(`Vessel ${active.name} ${downloadWhereLabel(saved)}.`);
-          toast(`Vessel backup ${downloadWhereLabel(saved)}`);
+          await withProgress('Exporting the active tank vessel…', `Reading ${active.name}…`, async () => {
+            setTank('Exporting active vessel…');
+            const backup = await tankBackupGet('/api/vessels/' + encodeURIComponent(active.id) + '/backup', (pct) => {
+              progressSet(slicePct(6, 82, pct), `Reading ${active.name}…`);
+            });
+            progressSet(90, 'Saving the file…');
+            await progressYield();
+            const saved = await downloadJson(`tank-chief-vessel-${active.id}-${Date.now()}.json`, backup);
+            const line = `Vessel ${active.name} ${downloadWhereLabel(saved)}.`;
+            setTank(line);
+            toast(`Vessel backup ${downloadWhereLabel(saved)}`);
+            return line;
+          });
         } catch (e) {
           setTank(e.message || 'Export failed');
           toast(e.message || 'Export failed');
@@ -674,13 +888,22 @@
         const file = ev.target.files && ev.target.files[0];
         ev.target.value = '';
         if (!file) return;
-        setTank('Importing vessel JSON…');
         try {
-          const backup = await readFileJson(file);
-          await importTankBackup(backup, true);
-          await ChengPro.vessel.refresh();
-          setTank(`Vessel JSON imported into ${tankSourceLabel()}.`);
-          toast('Vessel imported');
+          await withProgress('Importing a tank vessel…', `Reading ${file.name}…`, async () => {
+            setTank('Importing vessel JSON…');
+            const backup = await readFileJson(file, (pct) => {
+              progressSet(slicePct(0, 40, pct), `Reading ${file.name}…`);
+            });
+            progressSet(48, 'Applying the vessel…');
+            await progressYield();
+            await importTankBackup(backup, true);
+            progressSet(88, 'Refreshing the vessel list…');
+            await ChengPro.vessel.refresh();
+            const line = `Vessel JSON imported into ${tankSourceLabel()}.`;
+            setTank(line);
+            toast('Vessel imported');
+            return line;
+          });
         } catch (e) {
           setTank(e.message || 'Import failed');
           toast(e.message || 'Import failed');
@@ -688,14 +911,20 @@
       };
 
       root.querySelector('#bk-voyage-db').onclick = async () => {
-        setVoyage('Building voyage database backup…');
         try {
-          const msg = await voyagePost('export-db', {}, root);
-          if (msg.payload) {
+          await withProgress('Backing up Voyage Chief…', 'Reading the voyage database…', async () => {
+            setVoyage('Building voyage database backup…');
+            watchVoyage(8, 84);
+            const msg = await voyagePost('export-db', {}, root);
+            if (!msg.payload) throw new Error('Voyage Chief returned an empty backup');
+            progressSet(90, 'Saving the file…');
+            await progressYield();
             const saved = await downloadJson(msg.filename || `voyage-chief-db-${Date.now()}.json`, msg.payload);
-            setVoyage(`Voyage database ${downloadWhereLabel(saved)}.`);
+            const line = `Voyage database ${downloadWhereLabel(saved)}.`;
+            setVoyage(line);
             toast(`Voyage database ${downloadWhereLabel(saved)}`);
-          }
+            return line;
+          });
         } catch (e) {
           setVoyage(e.message || 'Backup failed');
           toast(e.message || 'Backup failed');
@@ -703,11 +932,20 @@
       };
 
       const voyageDbImport = async (file, merge) => {
-        const payload = await readFileJson(file);
-        setVoyage(merge ? 'Merging voyage database…' : 'Restoring voyage database…');
-        const msg = await voyagePost(merge ? 'merge-db' : 'restore-db', { payload }, root);
-        setVoyage(msg.message || 'Voyage database updated.');
-        toast(msg.message || 'Voyage database updated');
+        const title = merge ? 'Merging Voyage Chief…' : 'Restoring Voyage Chief…';
+        return withProgress(title, `Reading ${file.name}…`, async () => {
+          const payload = await readFileJson(file, (pct) => {
+            progressSet(slicePct(0, 18, pct), `Reading ${file.name}…`);
+          });
+          progressSet(22, merge ? 'Merging voyage database…' : 'Restoring voyage database…');
+          watchVoyage(22, 94);
+          setVoyage(merge ? 'Merging voyage database…' : 'Restoring voyage database…');
+          const msg = await voyagePost(merge ? 'merge-db' : 'restore-db', { payload }, root);
+          const line = msg.message || 'Voyage database updated.';
+          setVoyage(line);
+          toast(line);
+          return line;
+        });
       };
 
       root.querySelector('#bk-voyage-restore').onclick = () => {
@@ -733,14 +971,20 @@
       };
 
       root.querySelector('#bk-voyage-vessel').onclick = async () => {
-        setVoyage('Exporting voyage vessel…');
         try {
-          const msg = await voyagePost('export-vessel', { vesselId: active && active.voyageSlug }, root);
-          if (msg.payload) {
+          await withProgress('Exporting the voyage vessel…', 'Reading the vessel…', async () => {
+            setVoyage('Exporting voyage vessel…');
+            watchVoyage(8, 84);
+            const msg = await voyagePost('export-vessel', { vesselId: active && active.voyageSlug }, root);
+            if (!msg.payload) throw new Error('Voyage Chief returned an empty vessel export');
+            progressSet(90, 'Saving the file…');
+            await progressYield();
             const saved = await downloadJson(msg.filename || `voyage-vessel-${Date.now()}.json`, msg.payload);
-            setVoyage(`Voyage vessel ${downloadWhereLabel(saved)}.`);
+            const line = `Voyage vessel ${downloadWhereLabel(saved)}.`;
+            setVoyage(line);
             toast(`Voyage vessel ${downloadWhereLabel(saved)}`);
-          }
+            return line;
+          });
         } catch (e) {
           setVoyage(e.message || 'Export failed');
           toast(e.message || 'Export failed');
@@ -753,12 +997,23 @@
         ev.target.value = '';
         if (!file) return;
         try {
-          const payload = await readFileJson(file);
-          if (!confirm('Import this voyage vessel JSON? Existing vessel data with the same id will be replaced.')) return;
-          setVoyage('Importing voyage vessel…');
-          const msg = await voyagePost('import-vessel', { payload }, root);
-          setVoyage(msg.message || 'Voyage vessel imported.');
-          toast(msg.message || 'Voyage vessel imported');
+          await withProgress('Importing a voyage vessel…', `Reading ${file.name}…`, async () => {
+            const payload = await readFileJson(file, (pct) => {
+              progressSet(slicePct(0, 20, pct), `Reading ${file.name}…`);
+            });
+            if (!confirm('Import this voyage vessel JSON? Existing vessel data with the same id will be replaced.')) {
+              setVoyage('Vessel import cancelled — nothing was changed.');
+              return false;
+            }
+            progressSet(28, 'Importing voyage vessel…');
+            watchVoyage(28, 94);
+            setVoyage('Importing voyage vessel…');
+            const msg = await voyagePost('import-vessel', { payload }, root);
+            const line = msg.message || 'Voyage vessel imported.';
+            setVoyage(line);
+            toast(line);
+            return line;
+          });
         } catch (e) {
           setVoyage(e.message || 'Import failed');
           toast(e.message || 'Import failed');
