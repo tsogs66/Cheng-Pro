@@ -31,6 +31,7 @@ const PRECACHE = [
   './license.js',
   './save-file.js',
   './camera-capture.js',
+  './guide.js',
   './clock-picker.js',
   './signed-numeric-input.js',
   './loading-splash.css',

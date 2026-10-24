@@ -2904,6 +2904,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="tab-group">
       <span class="tab-group-label">Books</span>
       <div class="tab" data-page="reference">Reference</div>
+      <div class="tab" data-page="guide">Guide</div>
       <div class="tab" data-page="orb">e-ORB</div>
     </div>
     <div class="tab-group">
@@ -4790,6 +4791,15 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
   </div>
 
+  <!-- GUIDE -->
+  <div class="page" id="page-guide">
+    <div class="panel">
+      <h2>Guide</h2>
+      <p class="hint">Search a question. Each answer says what the job is for, the steps, what the buttons do, and how to undo a mistake.</p>
+      <div id="voyageGuideHost"></div>
+    </div>
+  </div>
+
   <!-- REFERENCE -->
   <div class="page" id="page-reference">
     <div class="panel">
@@ -5358,6 +5368,10 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <span class="bn-ic" aria-hidden="true">📖</span>
         <span>Reference</span>
       </button>
+      <button type="button" class="bn-more-item" data-page="guide">
+        <span class="bn-ic" aria-hidden="true">?</span>
+        <span>Guide</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="orb">
         <span class="bn-ic" aria-hidden="true">📕</span>
         <span>e-ORB</span>
@@ -5384,6 +5398,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 <script src="eorb.js"></script>
 <script src="save-file.js"></script>
 <script src="camera-capture.js"></script>
+<script src="guide.js"></script>
 <script>
 /* ---------------- constants ---------------- */
 const FUEL_TYPES = ["HFO","LSFO","MDO/MGO","LSMGO"];
@@ -13165,7 +13180,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'guide', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -25153,6 +25168,7 @@ let androidInstallAssets = [
   './license.js',
   './save-file.js',
   './camera-capture.js',
+  './guide.js',
   './clock-picker.js',
   './signed-numeric-input.js',
   './loading-splash.css',
