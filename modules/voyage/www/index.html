@@ -402,7 +402,7 @@
   }
   .stem-advice{margin-top:10px; font-size:14px; line-height:1.45;}
   .stem-advice b{font-weight:800;}
-  tr.spare-short td, tr.req-follow td{background:rgba(201,154,83,0.12);}
+  tr.req-follow td{background:rgba(201,154,83,0.12);}
   #reqBody td.req-desc, #reqReceivedBody td.req-desc{white-space:normal; min-width:160px; max-width:320px;}
   .req-file-chip{display:inline-flex; align-items:center; gap:6px; margin:4px 10px 4px 0;}
   #reqViewer embed, #reqViewer img{margin-top:8px;}
@@ -5196,41 +5196,6 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
   </div>
 
   <div class="page" id="page-spares">
-    <div class="panel">
-      <h2>Spares on board</h2>
-      <div class="hint">Critical spares for this ship. A line joins the requisition when quantity on board is under the minimum, or when some are already on order. The list stays with this vessel.</div>
-      <div class="stat-strip cols3" id="sparesSummary"></div>
-    </div>
-    <div class="panel">
-      <h2 id="sparesFormTitle">Add a spare</h2>
-      <div class="form-grid cols3">
-        <div class="field"><label>Part</label><input id="sp_name" autocomplete="off"></div>
-        <div class="field"><label>Equipment</label><input id="sp_equipment" placeholder="M/E, A/E, purifier" autocomplete="off"></div>
-        <div class="field"><label>Location</label><input id="sp_location" autocomplete="off"></div>
-        <div class="field"><label>Unit</label><input id="sp_unit" value="pcs" autocomplete="off"></div>
-        <div class="field"><label>Minimum</label><input type="number" step="1" id="sp_min" inputmode="decimal"></div>
-        <div class="field"><label>On board</label><input type="number" step="1" id="sp_on" inputmode="decimal"></div>
-        <div class="field"><label>On order</label><input type="number" step="1" id="sp_order" inputmode="decimal"></div>
-        <div class="field span2"><label>Remarks</label><input id="sp_remarks" autocomplete="off"></div>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="primary small" id="btnSpareSave">Save spare</button>
-        <button type="button" class="ghost small" id="btnSpareCancel" hidden>Cancel edit</button>
-        <button type="button" class="ghost small" id="btnSpareCopy">Copy requisition</button>
-      </div>
-      <div class="hint" id="sparesRequisition"></div>
-    </div>
-    <div class="panel">
-      <h2>List</h2>
-      <div class="table-scroll">
-        <table>
-          <thead><tr>
-            <th>Part</th><th>Equipment</th><th>On board</th><th>Minimum</th><th>On order</th><th></th>
-          </tr></thead>
-          <tbody id="sparesBody"></tbody>
-        </table>
-      </div>
-    </div>
     <div class="panel">
       <h2 id="reqFormTitle">Requisition</h2>
       <div class="hint">Spare requisitions and store requisitions for this ship. A line stays on the sent list while it is sent, for follow up, or for receiving. Mark it received and it moves to the received list. The photo or PDF stays with the line on this device.</div>
@@ -13950,126 +13915,10 @@ function syncBottomNav(pageName){
   });
 }
 
-let _spareEditId = null;
-function ensureSpares(){
-  if (!Array.isArray(state.setup.spares)) state.setup.spares = [];
-  return state.setup.spares;
-}
-function spareNum(v){
-  const n = parseFloat(v);
-  return isNaN(n) ? 0 : n;
-}
-function spareNeedsOrder(row){
-  return spareNum(row.onHand) < spareNum(row.minQty) || spareNum(row.onOrder) > 0;
-}
-function requisitionLines(){
-  return ensureSpares().filter(spareNeedsOrder).map(function(row){
-    const short = Math.max(0, spareNum(row.minQty) - spareNum(row.onHand));
-    const bits = [row.name || 'Spare'];
-    if (row.equipment) bits.push(row.equipment);
-    bits.push('on board ' + spareNum(row.onHand) + ' ' + (row.unit || 'pcs'));
-    bits.push('minimum ' + spareNum(row.minQty));
-    if (short > 0) bits.push('short ' + short);
-    if (spareNum(row.onOrder) > 0) bits.push('on order ' + spareNum(row.onOrder));
-    if (row.location) bits.push(row.location);
-    if (row.remarks) bits.push(row.remarks);
-    return bits.join(' — ');
-  });
-}
-function clearSpareForm(){
-  _spareEditId = null;
-  ['sp_name','sp_equipment','sp_location','sp_remarks'].forEach(function(id){
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  const unit = document.getElementById('sp_unit');
-  if (unit) unit.value = 'pcs';
-  ['sp_min','sp_on','sp_order'].forEach(function(id){
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  const title = document.getElementById('sparesFormTitle');
-  if (title) title.textContent = 'Add a spare';
-  const cancel = document.getElementById('btnSpareCancel');
-  if (cancel) cancel.hidden = true;
-}
-function renderSpares(){
-  const rows = ensureSpares();
-  const body = document.getElementById('sparesBody');
-  const summary = document.getElementById('sparesSummary');
-  const req = document.getElementById('sparesRequisition');
-  if (!body) return;
-  const shortN = rows.filter(function(r){ return spareNum(r.onHand) < spareNum(r.minQty); }).length;
-  const orderN = rows.filter(function(r){ return spareNum(r.onOrder) > 0; }).length;
-  if (summary){
-    summary.innerHTML = [
-      '<div class="stat"><div class="num"><b>' + rows.length + '</b></div><div class="lbl">Lines</div></div>',
-      '<div class="stat"><div class="num"><b>' + shortN + '</b></div><div class="lbl">Below minimum</div></div>',
-      '<div class="stat"><div class="num"><b>' + orderN + '</b></div><div class="lbl">On order</div></div>'
-    ].join('');
-  }
-  if (!rows.length){
-    body.innerHTML = '<tr class="empty-row"><td colspan="6">No spares yet.</td></tr>';
-  } else {
-    body.innerHTML = rows.map(function(row){
-      const cls = spareNum(row.onHand) < spareNum(row.minQty) ? ' class="spare-short"' : '';
-      return '<tr' + cls + ' data-spare="' + escAttr(row.id) + '"><td>' + escHtml(row.name || '') + '</td><td>' + escHtml(row.equipment || '') + '</td><td><b>' + spareNum(row.onHand) + '</b> ' + escHtml(row.unit || 'pcs') + '</td><td>' + spareNum(row.minQty) + '</td><td><b>' + spareNum(row.onOrder) + '</b></td><td><button type="button" class="ghost small" data-spare-edit="' + escAttr(row.id) + '">Edit</button> <button type="button" class="ghost small" data-spare-del="' + escAttr(row.id) + '">Delete</button></td></tr>';
-    }).join('');
-  }
-  const lines = requisitionLines();
-  if (req){
-    req.textContent = lines.length
-      ? lines.join('\n')
-      : 'Nothing to order. Every line is at or above its minimum.';
-  }
-  renderRequisitions();
-}
-function saveSpareFromForm(){
-  const name = (document.getElementById('sp_name')?.value || '').trim();
-  if (!name){
-    try { showToast('Enter the part name'); } catch (_) {}
-    return;
-  }
-  const row = {
-    id: _spareEditId || ('sp_' + Date.now().toString(36)),
-    name: name,
-    equipment: (document.getElementById('sp_equipment')?.value || '').trim(),
-    location: (document.getElementById('sp_location')?.value || '').trim(),
-    unit: (document.getElementById('sp_unit')?.value || '').trim() || 'pcs',
-    minQty: spareNum(document.getElementById('sp_min')?.value),
-    onHand: spareNum(document.getElementById('sp_on')?.value),
-    onOrder: spareNum(document.getElementById('sp_order')?.value),
-    remarks: (document.getElementById('sp_remarks')?.value || '').trim()
-  };
-  const list = ensureSpares();
-  const idx = list.findIndex(function(r){ return r.id === row.id; });
-  if (idx >= 0) list[idx] = row;
-  else list.push(row);
-  clearSpareForm();
-  renderSpares();
-  try { saveSetup(); } catch (_) {}
-  try { showToast('Spare saved'); } catch (_) {}
-}
 function bindSparesUi(){
   const page = document.getElementById('page-spares');
   if (!page || page.dataset.bound) return;
   page.dataset.bound = '1';
-  document.getElementById('btnSpareSave')?.addEventListener('click', saveSpareFromForm);
-  document.getElementById('btnSpareCancel')?.addEventListener('click', function(){
-    clearSpareForm();
-  });
-  document.getElementById('btnSpareCopy')?.addEventListener('click', async function(){
-    const lines = requisitionLines();
-    const text = lines.length
-      ? ('Requisition — ' + (state.setup.vesselName || 'vessel') + '\n' + lines.join('\n'))
-      : 'Nothing to order.';
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Requisition copied');
-    } catch (_) {
-      showToast('Could not copy. The requisition is on this page.');
-    }
-  });
   document.getElementById('rq_file')?.addEventListener('change', onReqFilePicked);
   document.getElementById('btnReqSave')?.addEventListener('click', function(){ saveRequisitionFromForm(); });
   document.getElementById('btnReqCancel')?.addEventListener('click', clearReqForm);
@@ -14084,36 +13933,10 @@ function bindSparesUi(){
   }
   clearReqForm();
   page.addEventListener('click', function(e){
-    const edit = e.target.closest('[data-spare-edit]');
-    const del = e.target.closest('[data-spare-del]');
     const reqEdit = e.target.closest('[data-req-edit]');
     const reqDel = e.target.closest('[data-req-del]');
     const reqOpen = e.target.closest('[data-req-open]');
     const reqDrop = e.target.closest('[data-req-drop]');
-    if (edit){
-      const row = ensureSpares().find(function(r){ return r.id === edit.dataset.spareEdit; });
-      if (!row) return;
-      _spareEditId = row.id;
-      document.getElementById('sp_name').value = row.name || '';
-      document.getElementById('sp_equipment').value = row.equipment || '';
-      document.getElementById('sp_location').value = row.location || '';
-      document.getElementById('sp_unit').value = row.unit || 'pcs';
-      document.getElementById('sp_min').value = row.minQty ?? '';
-      document.getElementById('sp_on').value = row.onHand ?? '';
-      document.getElementById('sp_order').value = row.onOrder ?? '';
-      document.getElementById('sp_remarks').value = row.remarks || '';
-      const title = document.getElementById('sparesFormTitle');
-      if (title) title.textContent = 'Edit spare';
-      const cancel = document.getElementById('btnSpareCancel');
-      if (cancel) cancel.hidden = false;
-    }
-    if (del){
-      const id = del.dataset.spareDel;
-      state.setup.spares = ensureSpares().filter(function(r){ return r.id !== id; });
-      if (_spareEditId === id) clearSpareForm();
-      renderSpares();
-      try { saveSetup(); } catch (_) {}
-    }
     if (reqDrop){
       _reqFiles = _reqFiles.filter(function(f){ return f.id !== reqDrop.dataset.reqDrop; });
       renderReqPending();
@@ -14437,7 +14260,7 @@ function switchTab(pageName){
   }
   if (pageName === 'spares'){
     bindSparesUi();
-    renderSpares();
+    renderRequisitions();
   }
   if (pageName === 'summary' && prev !== 'summary'){
     renderVoyageProgress(true);
