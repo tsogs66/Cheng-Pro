@@ -30,7 +30,7 @@
   'use strict';
   if (root.ChengSaveFile) return;
 
-  const PARENT_TIMEOUT_MS = 20000;
+  const PARENT_TIMEOUT_MS = 120000;
 
   function appLabel() {
     try {
@@ -159,6 +159,7 @@
   function saveViaParent(filename, text, mime) {
     return new Promise((resolve) => {
       const requestId = 'sv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      const body = text == null ? '' : String(text);
       let settled = false;
       const finish = (value) => {
         if (settled) return;
@@ -175,12 +176,27 @@
       root.addEventListener('message', onMsg);
       const timer = setTimeout(() => finish(null), PARENT_TIMEOUT_MS);
       try {
+        /* One postMessage of the whole file crosses Android's Binder limit
+           when Voyage is inside the ChEng AIO WebView, and the view dies. */
         root.parent.postMessage({
-          type: 'chengaio-save-file',
+          type: 'chengaio-save-file-begin',
           requestId,
           filename,
-          text,
           mime: mime || 'application/json',
+          length: body.length,
+        }, '*');
+        for (let i = 0; i < body.length;) {
+          const end = chunkEnd(body, i, NATIVE_CHUNK);
+          root.parent.postMessage({
+            type: 'chengaio-save-file-chunk',
+            requestId,
+            chunk: body.slice(i, end),
+          }, '*');
+          i = end;
+        }
+        root.parent.postMessage({
+          type: 'chengaio-save-file-end',
+          requestId,
         }, '*');
       } catch (_) {
         finish(null);
@@ -294,39 +310,73 @@
     return `started — check Downloads for ${saved.filename}`;
   }
 
-  /* Shell side: an embedded program asks this window to do the saving. */
-  root.addEventListener('message', async (ev) => {
-    const msg = ev.data || {};
-    if (msg.type !== 'chengaio-save-file' || !msg.requestId) return;
-    const reply = (saved) => {
-      try {
-        ev.source.postMessage({
-          type: 'chengaio-save-file-result',
-          requestId: msg.requestId,
-          saved: saved || null,
-        }, ev.origin || '*');
-      } catch (_) { /* ignore */ }
-    };
+  /* Shell side: an embedded program asks this window to do the saving.
+     The file arrives in pieces so a voyage leg never crosses in one message. */
+  const pendingParentSaves = new Map();
+
+  function replyParentSave(source, origin, requestId, saved) {
+    try {
+      source.postMessage({
+        type: 'chengaio-save-file-result',
+        requestId,
+        saved: saved || null,
+      }, origin || '*');
+    } catch (_) { /* ignore */ }
+  }
+
+  async function finishParentSave(job) {
     const desk = desktopBridge();
     const native = nativeBridge();
-    /* Decline at once when this window can do no better than the embed could
-       on its own — waiting out the timeout would only delay its own picker. */
-    if (!desk && !native) { reply(null); return; }
-    try {
-      if (desk) {
-        reply(await saveViaDesktop(desk, safeFileName(msg.filename),
-          String(msg.text || ''), msg.mime));
-        return;
-      }
-      reply(saveViaNative(native, safeFileName(msg.filename),
-        String(msg.text || ''), msg.mime));
-    } catch (err) {
-      if (err && err.name === 'AbortError') {
-        reply(null);
-        return;
-      }
-      reply(null);
+    if (!desk && !native) {
+      replyParentSave(job.source, job.origin, job.requestId, null);
+      return;
     }
+    try {
+      const text = job.parts.join('');
+      if (desk) {
+        replyParentSave(job.source, job.origin, job.requestId,
+          await saveViaDesktop(desk, safeFileName(job.filename), text, job.mime));
+        return;
+      }
+      replyParentSave(job.source, job.origin, job.requestId,
+        saveViaNative(native, safeFileName(job.filename), text, job.mime));
+    } catch (err) {
+      replyParentSave(job.source, job.origin, job.requestId, null);
+    }
+  }
+
+  root.addEventListener('message', async (ev) => {
+    const msg = ev.data || {};
+    if (msg.type === 'chengaio-save-file-begin' && msg.requestId) {
+      pendingParentSaves.set(msg.requestId, {
+        requestId: msg.requestId,
+        filename: msg.filename,
+        mime: msg.mime,
+        parts: [],
+        source: ev.source,
+        origin: ev.origin,
+      });
+      return;
+    }
+    if (msg.type === 'chengaio-save-file-chunk' && msg.requestId && pendingParentSaves.has(msg.requestId)) {
+      pendingParentSaves.get(msg.requestId).parts.push(String(msg.chunk || ''));
+      return;
+    }
+    if (msg.type === 'chengaio-save-file-end' && msg.requestId && pendingParentSaves.has(msg.requestId)) {
+      const job = pendingParentSaves.get(msg.requestId);
+      pendingParentSaves.delete(msg.requestId);
+      await finishParentSave(job);
+      return;
+    }
+    if (msg.type !== 'chengaio-save-file' || !msg.requestId) return;
+    await finishParentSave({
+      requestId: msg.requestId,
+      filename: msg.filename,
+      mime: msg.mime,
+      parts: [String(msg.text || '')],
+      source: ev.source,
+      origin: ev.origin,
+    });
   });
 
   root.ChengSaveFile = { saveJson, whereLabel, safeFileName };

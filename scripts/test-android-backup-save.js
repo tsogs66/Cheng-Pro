@@ -103,6 +103,53 @@ function loadSaver(bridge) {
   );
   assert.strictEqual(finished, 1);
 
+  const parentMessages = [];
+  const childListeners = [];
+  const parent = {
+    ChengPro: {},
+    messages: parentMessages,
+    postMessage(data) {
+      parentMessages.push(data);
+      if (data && data.type === 'chengaio-save-file-end') {
+        for (const fn of childListeners) {
+          fn({
+            data: {
+              type: 'chengaio-save-file-result',
+              requestId: data.requestId,
+              saved: { method: 'native', filename: 'leg.json', where: 'Downloads/ChEngAIO/leg.json' },
+            },
+          });
+        }
+      }
+    },
+  };
+  const child = {
+    parent,
+    navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile' },
+    addEventListener(type, fn) { if (type === 'message') childListeners.push(fn); },
+    removeEventListener() {},
+  };
+  child.window = child;
+  vm.runInNewContext(first, {
+    window: child,
+    globalThis: child,
+    console,
+    Blob: globalThis.Blob,
+    setTimeout,
+    clearTimeout,
+  });
+  const big = 'Z'.repeat(250000) + '\uD83D\uDE00' + 'Y'.repeat(1000);
+  const viaParent = await child.ChengSaveFile.saveJson('leg.json', big);
+  assert.strictEqual(viaParent.method, 'native');
+  const chunksOut = parentMessages.filter((m) => m.type === 'chengaio-save-file-chunk').map((m) => m.chunk);
+  assert.ok(chunksOut.length >= 2, 'a leg handed to the shell must be split');
+  assert.strictEqual(chunksOut.join(''), big);
+  for (const part of chunksOut) {
+    assert.ok(part.length <= 200000, 'parent message longer than 200000');
+  }
+  assert.ok(!parentMessages.some((m) => m.text && String(m.text).length > 200000),
+    'the whole leg must not travel in one postMessage');
+
   console.log('ok — Android backup is written in pieces under the Binder limit');
 })().catch((err) => {
   console.error(err);
