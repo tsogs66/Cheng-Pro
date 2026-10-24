@@ -80,6 +80,13 @@
       if (on) {
         if (btn.dataset.bkWasDisabled == null) btn.dataset.bkWasDisabled = btn.disabled ? '1' : '0';
         btn.disabled = true;
+      } else if (id === 'bk-consistency-apply') {
+        /* The check enables this only after it has rows. Restoring the
+           disabled flag from before the check would leave a finished
+           comparison with nothing to press. */
+        const any = document.querySelector('#bk-consistency-list input[data-consistency-row]:checked');
+        btn.disabled = !any;
+        delete btn.dataset.bkWasDisabled;
       } else if (btn.dataset.bkWasDisabled != null) {
         btn.disabled = btn.dataset.bkWasDisabled === '1';
         delete btn.dataset.bkWasDisabled;
