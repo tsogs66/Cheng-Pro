@@ -17874,13 +17874,21 @@ function escPrint(s){
 let _printHoldSync = 0;
 function beginPrintHold(){
   _printHoldSync += 1;
-  try{ clearTimeout(syncTimer); }catch(_e){}
-  syncTimer = null;
+  /* Drop any queued background push for the duration: it would tear down the
+     print iframe under the dialog. runBackgroundSync also refuses to start
+     while the hold is up, so this only saves a pointless wake. */
+  try{ clearTimeout(_bgSyncTimer); _bgSyncTimer = null; }catch(_e){}
 }
 function endPrintHold(){
   _printHoldSync = Math.max(0, _printHoldSync - 1);
   if (_printHoldSync > 0) return;
-  /* Manual sync only — print hold release does not start a sync. */
+  /* Printing marks pending changes, so pick the queue back up once the dialog
+     has gone — still a background push, still nothing on screen. */
+  try{
+    if (backgroundSyncEnabled() && ensureSyncConfig().pendingChanges){
+      scheduleBackgroundSync('printing finished');
+    }
+  }catch(_e){}
 }
 function printHoldActive(){ return _printHoldSync > 0; }
 
@@ -25610,11 +25618,11 @@ async function syncNow(options = {}){
   return syncInFlight;
 }
 
-let syncTimer = null;
+/* Kept as the name the rest of the program already used for "a background sync
+   is wanted soon". It used to be a stub that cleared a timer and did nothing,
+   from when background sync was disabled; it now defers to the real scheduler. */
 function queueBackgroundSync(){
-  /* Manual sync only — background auto-push/pull is permanently disabled. */
-  clearTimeout(syncTimer);
-  syncTimer = null;
+  scheduleBackgroundSync('a background sync was requested');
 }
 
 (function bindSaveSyncSettingsButton(){
