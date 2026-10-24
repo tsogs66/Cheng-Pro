@@ -52,7 +52,7 @@ window.ChengProAboutGuide = (function () {
         'Bnk Plan — the bunkering sequence: which tanks, how much, and the surveys around delivery.',
         'e-ORB — Oil Record Book Part I. Lines are coded, signed, and kept. A wrong line is voided, not deleted.',
         'Perf — performance between two times: slip, consumption, run hours.',
-        'Spares (under More on a phone) — parts on board and the requisition log.',
+        'Spares (under More on a phone) — spare and store requisitions: sent and received.',
         'Setup — Vessel Setup for the suite.',
         'Backup — files and the server: export, restore, merge, and the comparison of voyage legs and tank reports.',
         'License — activate, pair the PC, or move a lost seat.',
@@ -273,7 +273,7 @@ window.ChengProAboutGuide = (function () {
         'Summary — the voyage picture and the noon / departure / arrival sheet for the open entry.',
         'Log Entry — the watch: date, operation, flowmeters, and Add Entry.',
         'ROB — remaining on board from the log, and Print ROB Sheet.',
-        'Spares — parts on board and requisitions. The same page opens from the AIO Spares menu.',
+        'Spares — spare and store requisitions, sent and received. The same page opens from the AIO Spares menu.',
         'Consumption Plan — the stem view inside Voyage. The AIO menu opens the same job as Cons Plan.',
         'Consumption, Voyage Abstract, Range Totals — figures and printouts from the entries already saved.',
         'Receipts — bunker and lube receipts that feed the ROB.',
@@ -604,27 +604,25 @@ window.ChengProAboutGuide = (function () {
     },
     {
       group: 'Spares',
-      q: 'How do I keep the spare list and a requisition?',
-      purpose: 'Spares on board is the critical list for this ship. A line is worth ordering when quantity on board is under the minimum, or when some are already on order. The requisition log is the paper trail: sent, for follow up, for receiving, and received. A photo or PDF stays with that line on this device.',
+      q: 'How do I keep a requisition?',
+      purpose: 'Spares is the requisition log for the active ship. A line is a spare requisition or a store requisition. It stays on Sent while the status is Sent, For follow up, or For receiving. Mark it Received and it moves to the Received list. The photo or PDF stays with the line on this device.',
       steps: [
-        'Open Spares from More, or the Spares tab inside Voyage. It is the same list for the active ship.',
-        'Add a spare: part, equipment, location, unit, minimum, on board, on order, remarks. Press Save spare.',
-        'Copy requisition builds request text from the lines that are short or already on order.',
+        'Open Spares from More, or the Spares tab inside Voyage. It is the same page for the active ship.',
         'Under Requisition, choose Spare requisition or Store requisition. Set the status, the sent date, and the description.',
+        'Set the receive date when the status is Received.',
         'Attach a PDF or photo with the file field, or Take picture.',
         'Press Save requisition. Sent, For follow up, and For receiving stay on the Sent list. Received moves the line to the Received list.'
       ],
       buttons: [
-        'Save spare — adds or updates the part line',
-        'Cancel edit — appears while you are editing and drops the edit',
-        'Copy requisition — text you can send, from the short lines',
         'Save requisition — stores the request and its files',
+        'Cancel edit — appears while you are editing and drops the edit',
         'Take picture — a photo of the requisition or the store papers',
+        'Edit — opens that line in the form',
+        'Delete — removes the line and its files after you confirm',
         'Download / Close — on an open PDF or photo'
       ],
       undo: [
-        'A wrong spare still in the form: press Cancel edit if you were editing, or clear the fields before Save spare.',
-        'A saved spare: open it from the list, correct it, and Save spare again. Use the delete control on that row to remove a part entered by mistake.',
+        'A wrong description still in the form: press Cancel edit if you were editing, or change the text before Save requisition.',
         'A requisition marked Received too early: open it, set the status back to Sent, For follow up, or For receiving, and save. It returns to the Sent list.',
         'A requisition that should not exist: delete it from its row. The program asks you to confirm. Delete removes the line and its files from this device.'
       ]

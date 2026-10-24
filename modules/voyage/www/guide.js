@@ -31,7 +31,7 @@
         'Summary — the noon, departure, or arrival sheet for one log entry.',
         'Log Entry — the watch. Add Entry stores it.',
         'ROB — remaining on board from the log, and Print ROB Sheet.',
-        'Spares — parts on board and the requisition log.',
+        'Spares — spare and store requisitions: the form, what was sent, and what was received.',
         'Cons Plan — whether the bunkers last, and whether to stem.',
         'Consumption, Voyage Abstract, Range Totals — printouts of entries already saved.',
         'Receipts — bunker and lube deliveries that feed the ROB.',
@@ -274,25 +274,24 @@
     },
     {
       group: 'Spares',
-      q: 'How do I keep spares and a requisition?',
-      purpose: 'Spares on board is the critical list for this ship. Order a line when quantity on board is under the minimum, or when some are already on order. The requisition log is sent, for follow up, for receiving, and received. A photo or PDF stays with that line on this device.',
+      q: 'How do I keep a requisition?',
+      purpose: 'Spares is the requisition log for this ship. A line is a spare requisition or a store requisition. It stays on Sent while the status is Sent, For follow up, or For receiving. Mark it Received and it moves to the Received list. The photo or PDF stays with the line on this device.',
       steps: [
         'Open Spares.',
-        'Add the part, equipment, location, unit, minimum, on board, on order, and remarks. Press Save spare.',
-        'Copy requisition builds text from the lines that are short or on order.',
         'Under Requisition, choose Spare requisition or Store requisition, the status, the sent date, and the description.',
+        'Set the receive date when the status is Received.',
         'Attach a PDF or photo, or Take picture. Press Save requisition.',
         'Sent, For follow up, and For receiving stay on the Sent list. Received moves the line to the Received list.'
       ],
       buttons: [
-        'Save spare — adds or updates the part',
-        'Cancel edit — drops an edit in progress',
-        'Copy requisition — text from the short lines',
         'Save requisition — stores the request and its files',
-        'Take picture — a photo of the papers'
+        'Cancel edit — drops an edit in progress',
+        'Take picture — a photo of the papers',
+        'Edit — opens that line in the form',
+        'Delete — removes the line and its files after you confirm'
       ],
       undo: [
-        'A wrong spare: open it, correct it, and Save spare. Delete the row to remove a part entered by mistake.',
+        'A wrong description still in the form: press Cancel edit, or change the text before Save requisition.',
         'Marked Received too early: open it, set Sent, For follow up, or For receiving, and save. It returns to the Sent list.',
         'A requisition that should not exist: delete it. The program asks you to confirm. The line and its files leave this device.'
       ]
