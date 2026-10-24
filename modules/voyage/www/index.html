@@ -4031,6 +4031,13 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>To report</label><select id="rangeTo"></select></div>
         <div class="field" style="align-self:end;"><button class="ghost small" id="btnRangeAll" type="button">Whole voyage</button></div>
       </div>
+      <div class="field" style="margin-top:4px;">
+        <label class="ge-on-label" for="rangeIncludeArchived">
+          <input type="checkbox" id="rangeIncludeArchived">
+          <span>Include earlier voyage legs from the library</span>
+        </label>
+        <div class="hint">Off, the lists hold this voyage only. On, they also hold every saved leg of this vessel, so a range can cover a previous voyage or run across a leg change. Each leg's figures are worked from that leg's own setup and opening stock, then added together.</div>
+      </div>
       <div class="hint" id="rangeSummaryHint">Pick the first and last report of the stretch you want. Every figure below is totalled or averaged over the reports from the one after "From" up to and including "To" — the same periods the reports themselves cover.</div>
       <div class="btn-row">
         <button class="ghost small" type="button" id="btnPrintRangeTotals">Print Totals &amp; Averages</button>
@@ -4058,6 +4065,24 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
             </tr>
           </thead>
           <tbody id="rangeRobBody"><tr class="empty-row"><td colspan="4">Select a report range.</td></tr></tbody>
+        </table>
+      </div>
+      <h2 style="margin-top:16px;">Where the stock went</h2>
+      <div class="hint">The change above contains three different things. This separates them, per grade, in the order the stock moved: what was on board, what was delivered, what a bunker survey corrected, and what was burned. <strong>Unaccounted</strong> is what those four cannot explain — normally zero.</div>
+      <div class="table-scroll">
+        <table id="rangeRobReconTable">
+          <thead>
+            <tr>
+              <th>Grade</th>
+              <th>Opening</th>
+              <th>+ Bunkered</th>
+              <th>± Survey</th>
+              <th>− Consumed</th>
+              <th>= Closing</th>
+              <th>Unaccounted</th>
+            </tr>
+          </thead>
+          <tbody id="rangeRobReconBody"><tr class="empty-row"><td colspan="7">Select a report range.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -6131,6 +6156,7 @@ async function dbIndexKeys(store, indexName, value){
 }
 async function deleteStoredVoyageLeg(legId){
   if (!legId) return;
+  try{ invalidateRangeLegPool(); }catch(_){}
   let keys = [];
   try{ keys = await dbIndexKeys('voyageLegParts', 'legId', legId); }
   catch(_){ keys = []; }
@@ -6165,6 +6191,8 @@ async function inflateVoyageLeg(row){
  */
 async function putVoyageLeg(leg){
   if (!leg || !leg.id) return leg;
+  /* Totals & Averages caches the inflated legs; writing one makes it stale. */
+  try{ invalidateRangeLegPool(); }catch(_){}
   const json = JSON.stringify(leg);
   if (json.length <= VOYAGE_LEG_PART_CHARS){
     await deleteStoredVoyageLeg(leg.id);
@@ -8315,6 +8343,14 @@ async function saveVesselPack(vesselId, pack){
 }
 
 async function loadVesselFromDb(vesselId){
+  /* A different ship has different legs: drop the cached pool and fall back to
+     this-voyage-only rather than leaving another vessel's legs on offer. */
+  try{
+    invalidateRangeLegPool();
+    _rangeIncludeArchived = false;
+    const box = document.getElementById('rangeIncludeArchived');
+    if (box) box.checked = false;
+  }catch(_){}
   const own = !activityIsActive();
   if (own) beginActivity('load-vessel', 'Loading vessel data on this device…', { source: 'program' });
   try{
@@ -12193,6 +12229,9 @@ function rangeRobBookends(){
   return {
     start: summarizeRobSnapshot(startRaw),
     end: summarizeRobSnapshot(endRaw),
+    /* The reconciliation needs the instants, not just their labels. */
+    startIso: startEntry ? startEntry.datetime : null,
+    endIso: endEntry ? endEntry.datetime : null,
     startLabel: startEntry
       ? new Date(startEntry.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })
       : 'Voyage opening',
@@ -12202,7 +12241,400 @@ function rangeRobBookends(){
   };
 }
 
-function rangeAggregate(ids){
+/* ---- Where the stock actually went ----------------------------------------
+   The R.O.B. table shows a start figure, an end figure and the difference. That
+   difference silently contains three quite different things: what was burned,
+   what was bunkered, and any correction a bunker survey made when the book and
+   the sounding disagreed. A range with a 500 MT delivery in it shows a stock
+   that went UP, which tells a reader nothing about the burn, and a range with a
+   survey in it shows a change nobody can tie to a figure on the sheet.
+
+   This reconciles it per grade, in the order the stock moved:
+
+       opening + bunkered ± survey correction − consumed = closing
+
+   and the residual, which is what the four cannot account for. A residual of
+   zero is the normal case and says the report is self-consistent; a non-zero one
+   is worth knowing about rather than hiding inside "Change". */
+
+/** Fuel delivered per grade between two instants (by day, as receipts carry dates). */
+function bunkeredByGradeBetween(afterIso, throughIso){
+  const out = {};
+  FUEL_TYPES.forEach(t => { out[t] = 0; });
+  const afterDay = afterIso ? String(afterIso).slice(0, 10) : '';
+  const throughDay = throughIso ? String(throughIso).slice(0, 10) : '9999-12-31';
+  (state.receipts || []).forEach(r => {
+    if (!r || r.category !== 'fuel') return;
+    /* rob-survey mirrors are the same delivery booked twice; the stamped
+       Received on the entry is the one the ROB chain already counts. */
+    if (r.source === 'rob-survey') return;
+    const day = String(r.date || '').slice(0, 10);
+    if (!day) return;
+    /* The opening figure is the stock AS OF the start report, so a delivery on
+       that same day is already inside it. */
+    if (afterDay && day <= afterDay) return;
+    if (day > throughDay) return;
+    const grade = r.type || FUEL_TYPES[0];
+    out[grade] = (out[grade] || 0) + (Number(r.qty) || 0);
+  });
+  return out;
+}
+
+/**
+ * The correction a bunker survey applied, per grade: measured less the book
+ * figure it replaced. Positive means the tanks held more than the book said.
+ * Only surveys inside the window count — one before the range has already been
+ * absorbed into the opening figure.
+ */
+function surveyCorrectionByGradeBetween(afterIso, throughIso){
+  const out = {};
+  FUEL_TYPES.forEach(t => { out[t] = 0; });
+  const after = afterIso ? new Date(afterIso).getTime() : -Infinity;
+  const through = throughIso ? new Date(throughIso).getTime() : Infinity;
+  (state.entries || []).forEach(e => {
+    if (!e || !e.robSurvey) return;
+    const t = new Date(e.datetime).getTime();
+    if (!isFinite(t) || t <= after || t > through) return;
+    const sv = e.robSurvey;
+    fuelTankList().forEach(tank => {
+      const measured = sv.measured && sv.measured[tank.id];
+      if (measured == null) return;             /* a tank the surveyor did not sound */
+      const book = sv.calculated && sv.calculated[tank.id];
+      if (book == null) return;                 /* nothing to compare it against */
+      const grade = tank.grade || FUEL_TYPES[0];
+      out[grade] = (out[grade] || 0) + (Number(measured) - Number(book));
+    });
+  });
+  return out;
+}
+
+/**
+ * Per-grade reconciliation for one leg's slice of a range. `consumed` comes from
+ * the aggregate, so the burn shown here is the same number shown as "burned"
+ * in the totals above it — the two must never disagree on one sheet.
+ */
+function robReconciliationParts(startIso, endIso, consumedByGrade){
+  const bunkered = bunkeredByGradeBetween(startIso, endIso);
+  const survey = surveyCorrectionByGradeBetween(startIso, endIso);
+  const out = {};
+  FUEL_TYPES.forEach(t => {
+    out[t] = {
+      bunkered: Number(bunkered[t]) || 0,
+      survey: Number(survey[t]) || 0,
+      consumed: Number((consumedByGrade || {})[t]) || 0
+    };
+  });
+  return out;
+}
+
+function mergeReconciliationParts(list){
+  const out = {};
+  FUEL_TYPES.forEach(t => { out[t] = { bunkered: 0, survey: 0, consumed: 0 }; });
+  (list || []).forEach(p => {
+    Object.keys(p || {}).forEach(t => {
+      if (!out[t]) out[t] = { bunkered: 0, survey: 0, consumed: 0 };
+      out[t].bunkered += Number(p[t].bunkered) || 0;
+      out[t].survey += Number(p[t].survey) || 0;
+      out[t].consumed += Number(p[t].consumed) || 0;
+    });
+  });
+  return out;
+}
+
+/** Close the books: opening and closing come from the R.O.B. bookends. */
+function finalizeReconciliation(parts, startByGrade, endByGrade){
+  const rows = [];
+  FUEL_TYPES.forEach(t => {
+    const p = parts[t] || { bunkered: 0, survey: 0, consumed: 0 };
+    const opening = Number((startByGrade || {})[t]);
+    const closing = Number((endByGrade || {})[t]);
+    const known = (isFinite(opening) ? opening : 0) + p.bunkered + p.survey - p.consumed;
+    rows.push({
+      grade: t,
+      opening: isFinite(opening) ? opening : null,
+      bunkered: p.bunkered,
+      survey: p.survey,
+      consumed: p.consumed,
+      closing: isFinite(closing) ? closing : null,
+      /* What the four movements cannot account for. Transfers between tanks of
+         the same grade net to nothing here, so a residual means a figure on this
+         sheet disagrees with the stock — worth showing, not worth hiding. */
+      residual: (isFinite(opening) && isFinite(closing)) ? (closing - known) : null
+    });
+  });
+  return rows;
+}
+
+/* ---- Ranges that reach back into archived voyage legs ---------------------
+   state.entries only ever holds the active leg, so Totals & Averages could only
+   ever cover the voyage currently open. A Chief asked for the figures over a
+   previous voyage, or across the pair of legs either side of a drydock, had to
+   load each leg in turn and add them up by hand.
+
+   An archived leg carries its own entries AND its own setup — its own tank
+   table and its own opening stock — so its rows must be derived in that
+   context, never under the active leg's. withLegState does exactly that swap,
+   and the parts/merge split above lets the results be added up exactly. */
+
+/** Run fn with state swapped to a saved leg pack, then put state back. */
+function withLegState(pack, fn){
+  const saved = {
+    entries: state.entries,
+    receipts: state.receipts,
+    setup: state.setup,
+    abstracts: state.abstracts,
+    documents: state.documents,
+    printHistory: state.printHistory
+  };
+  try{
+    state.setup = migrateSetup(cloneEntry(pack.setup || {}));
+    ensureTankStores();
+    state.entries = (pack.entries || []).map(e => normalizeEntry(cloneEntry(e)));
+    state.receipts = pack.receipts || [];
+    state.documents = pack.documents || [];
+    state.abstracts = pack.abstracts || [];
+    state.printHistory = pack.printHistory || [];
+    return fn();
+  } finally {
+    state.entries = saved.entries;
+    state.receipts = saved.receipts;
+    state.setup = saved.setup;
+    state.abstracts = saved.abstracts;
+    state.documents = saved.documents;
+    state.printHistory = saved.printHistory;
+  }
+}
+
+/* Archived legs are read from IndexedDB and inflated, which is slow enough that
+   it must not happen on every repaint of the panel. Cached until the vessel
+   changes or a leg is written. */
+let _rangeLegPool = null;        /* {vesselId, legs:[{key,label,voyageNumber,condition,pack,entries}]} */
+let _rangeIncludeArchived = false;
+
+function invalidateRangeLegPool(){ _rangeLegPool = null; }
+
+function legRangeLabel(leg){
+  const vn = String(leg.voyageNumber || '').trim() || '—';
+  const cond = normalizeCondition(leg.condition) === 'L' ? 'Laden' : 'Ballast';
+  return `Voyage ${vn} · ${cond}`;
+}
+
+/**
+ * Every entry available to the range selector, across the active leg and — when
+ * asked for — every archived leg of this vessel, oldest first.
+ */
+async function loadRangeLegPool(){
+  const vid = vesselRegistryId(state.activeVesselId || LEGACY_VESSEL_ID);
+  if (_rangeLegPool && _rangeLegPool.vesselId === vid) return _rangeLegPool;
+
+  const activeLeg = {
+    key: 'active',
+    label: legRangeLabel({ voyageNumber: state.setup.voyageNumber, condition: state.setup.shipCondition }) + ' · open',
+    voyageNumber: String(state.setup.voyageNumber || '').trim(),
+    condition: normalizeCondition(state.setup.shipCondition),
+    active: true,
+    pack: null,                               /* the active leg is already in state */
+    entries: sortedEntries().slice()
+  };
+
+  const legs = [activeLeg];
+  try{
+    const rows = await listVoyageLegsForVessel(vid);
+    for (const row of rows){
+      /* The leg the device has open is already the active one above; an archived
+         copy of the same voyage+condition would double every figure. */
+      if (row.voyageNumber === activeLeg.voyageNumber &&
+          normalizeCondition(row.condition) === activeLeg.condition) continue;
+      let pack = null;
+      try{ pack = await inflateVoyageLeg(row); }
+      catch(_){ continue; }                   /* a leg saved in pieces that are not all here */
+      const entries = (pack.entries || [])
+        .map(e => normalizeEntry(cloneEntry(e)))
+        .sort((a, b) => String(a.datetime).localeCompare(String(b.datetime)));
+      if (!entries.length) continue;
+      legs.push({
+        key: row.id,
+        label: legRangeLabel(row),
+        voyageNumber: String(row.voyageNumber || '').trim(),
+        condition: normalizeCondition(row.condition),
+        active: false,
+        pack,
+        entries
+      });
+    }
+  }catch(_){}
+
+  /* Oldest leg first, by its first entry, so the From/To lists read forwards. */
+  legs.sort((a, b) => String(a.entries[0]?.datetime || '').localeCompare(String(b.entries[0]?.datetime || '')));
+  _rangeLegPool = { vesselId: vid, legs };
+  return _rangeLegPool;
+}
+
+/** Flat, chronological list of {legKey, legLabel, entry} over the chosen scope. */
+function rangePoolEntries(pool, includeArchived){
+  const legs = (pool?.legs || []).filter(l => includeArchived || l.active);
+  const out = [];
+  legs.forEach(l => l.entries.forEach(e => out.push({ legKey: l.key, legLabel: l.label, entry: e })));
+  out.sort((a, b) => String(a.entry.datetime).localeCompare(String(b.entry.datetime)));
+  return out;
+}
+
+/**
+ * Totals and averages over a selection that may span legs.
+ *
+ * A report covers the period since the one before it, so the From report's own
+ * period belongs to what came before the range — the same rule as the
+ * single-leg case. Crossing a leg boundary, the first report of the next leg
+ * does count: its period is work done, and no earlier report in that leg
+ * accounts for it.
+ */
+function aggregateAcrossLegs(pool, fromKeyed, toKeyed, includeArchived){
+  const flat = rangePoolEntries(pool, includeArchived);
+  let fi = flat.findIndex(x => x.entry.id === fromKeyed);
+  let ti = flat.findIndex(x => x.entry.id === toKeyed);
+  if (fi < 0) fi = 0;
+  if (ti < 0) ti = flat.length - 1;
+  if (ti < fi) [fi, ti] = [ti, fi];
+  const slice = flat.slice(fi === ti ? fi : fi + 1, ti + 1);
+
+  /* Group the selected reports by the leg they belong to, then derive each
+     group inside its own leg's state. */
+  const byLeg = new Map();
+  slice.forEach(x => {
+    if (!byLeg.has(x.legKey)) byLeg.set(x.legKey, []);
+    byLeg.get(x.legKey).push(x.entry.id);
+  });
+
+  const parts = [];
+  const legsUsed = [];
+  (pool?.legs || []).forEach(leg => {
+    const ids = byLeg.get(leg.key);
+    if (!ids || !ids.length) return;
+    legsUsed.push(leg);
+    if (leg.active){
+      parts.push(rangeAggregateParts(ids));
+    } else {
+      parts.push(withLegState(leg.pack, () => rangeAggregateParts(ids)));
+    }
+  });
+
+  const agg = finalizeAggregate(mergeAggregateParts(parts));
+  agg.legsUsed = legsUsed.map(l => ({ key: l.key, label: l.label, active: !!l.active }));
+  agg.spansLegs = legsUsed.length > 1;
+  return agg;
+}
+
+/**
+ * R.O.B. at the two ends of a selection that may span legs. Each end is read
+ * inside its own leg's state: an archived leg has its own tank table and its own
+ * opening stock, and reading its closing figure under the active leg's setup
+ * would silently use the wrong tanks.
+ *
+ * Crossing a leg boundary, the two ends are stocks measured on the same ship at
+ * two moments, so the pair is still meaningful — but the stock between them was
+ * carried over by whatever archiving the ship did, which the reconciliation
+ * below shows as Unaccounted rather than pretending to explain.
+ */
+function robBookendsAcrossLegs(pool, fromKeyed, toKeyed){
+  const flat = rangePoolEntries(pool, true);
+  let fi = flat.findIndex(x => x.entry.id === fromKeyed);
+  let ti = flat.findIndex(x => x.entry.id === toKeyed);
+  if (fi < 0) fi = 0;
+  if (ti < 0) ti = flat.length - 1;
+  if (ti < fi) [fi, ti] = [ti, fi];
+
+  const legOf = (key) => (pool.legs || []).find(l => l.key === key) || null;
+  const readIn = (item, fn) => {
+    const leg = legOf(item.legKey);
+    if (!leg) return null;
+    return leg.active ? fn() : withLegState(leg.pack, fn);
+  };
+  const fmtWhen = (iso) => new Date(iso).toLocaleString(undefined,
+    { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+
+  /* Same rule as one leg: a multi-report range opens at the From report's own
+     closing stock; a single-report range opens at the report before it. */
+  const endItem = flat[ti];
+  const startItem = (fi === ti) ? (fi > 0 ? flat[fi - 1] : null) : flat[fi];
+
+  const start = startItem
+    ? readIn(startItem, () => summarizeRobSnapshot(robAsOfEntry(startItem.entry.id)))
+    : (() => {
+        const leg = legOf(flat[0]?.legKey);
+        const opening = () => summarizeRobSnapshot({
+          rob: Object.assign({}, state.setup.rob || {}),
+          robLube: Object.assign({}, state.setup.robLube || {})
+        });
+        if (!leg) return null;
+        return leg.active ? opening() : withLegState(leg.pack, opening);
+      })();
+  const end = endItem
+    ? readIn(endItem, () => summarizeRobSnapshot(robAsOfEntry(endItem.entry.id)))
+    : null;
+
+  return {
+    start, end,
+    startLabel: startItem ? `${fmtWhen(startItem.entry.datetime)} · ${startItem.legLabel}` : 'Voyage opening',
+    endLabel: endItem ? `${fmtWhen(endItem.entry.datetime)} · ${endItem.legLabel}` : '—',
+    startIso: startItem ? startItem.entry.datetime : null,
+    endIso: endItem ? endItem.entry.datetime : null,
+    startItem, endItem
+  };
+}
+
+/**
+ * The reconciliation for a selection, single-leg or across legs. Deliveries and
+ * survey corrections are read inside the leg that holds them, then added up.
+ */
+function rangeReconciliation(pool, scoped, fromValue, toValue, robBook, agg){
+  const consumedByGrade = (agg.rows || []).reduce((acc, r) => {
+    FUEL_TYPES.forEach(t => { acc[t] = (acc[t] || 0) + (r.consByType?.[t] || 0); });
+    return acc;
+  }, {});
+
+  let parts;
+  if (scoped && pool){
+    const flat = rangePoolEntries(pool, true);
+    let fi = flat.findIndex(x => x.entry.id === fromValue);
+    let ti = flat.findIndex(x => x.entry.id === toValue);
+    if (fi < 0) fi = 0;
+    if (ti < 0) ti = flat.length - 1;
+    if (ti < fi) [fi, ti] = [ti, fi];
+    const slice = flat.slice(fi === ti ? fi : fi + 1, ti + 1);
+    const byLeg = new Map();
+    slice.forEach(x => {
+      if (!byLeg.has(x.legKey)) byLeg.set(x.legKey, []);
+      byLeg.get(x.legKey).push(x);
+    });
+    const list = [];
+    (pool.legs || []).forEach(leg => {
+      const items = byLeg.get(leg.key);
+      if (!items || !items.length) return;
+      /* Within this leg, the window runs from the report before its first
+         selected one up to its last. */
+      const legFlat = leg.entries;
+      const firstIdx = legFlat.findIndex(e => e.id === items[0].entry.id);
+      const afterIso = firstIdx > 0 ? legFlat[firstIdx - 1].datetime : null;
+      const throughIso = items[items.length - 1].entry.datetime;
+      const legConsumed = items.reduce((acc, it) => {
+        const row = (agg.rows || []).find(r => r.id === it.entry.id);
+        FUEL_TYPES.forEach(t => { acc[t] = (acc[t] || 0) + (row?.consByType?.[t] || 0); });
+        return acc;
+      }, {});
+      const run = () => robReconciliationParts(afterIso, throughIso, legConsumed);
+      list.push(leg.active ? run() : withLegState(leg.pack, run));
+    });
+    parts = mergeReconciliationParts(list);
+  } else {
+    parts = robReconciliationParts(robBook.startIso || null, robBook.endIso || null, consumedByGrade);
+  }
+  return finalizeReconciliation(parts, robBook.start?.byType || {}, robBook.end?.byType || {});
+}
+
+/* One leg's contribution to a range, in extensive quantities plus the
+   numerator/denominator of every weighted average, so that two legs can be
+   added up exactly — an average of averages is not the average. */
+function rangeAggregateParts(ids){
   const { rows } = computeDerived();
   const inRange = rows.filter(r => ids.includes(r.id));
   const sum = (f) => inRange.reduce((a, r) => a + (Number(f(r)) || 0), 0);
@@ -12212,14 +12644,23 @@ function rangeAggregate(ids){
      fast the engine turned, this says how much it turned, and an environmental return
      is worked from the count. A period with the engine stopped contributes nothing. */
   const revs = sum(r => r.dailyRevs);
-  const wAvg = (val, weight) => {
-    let num = 0, den = 0;
+  /* Weighted averages are carried as num/den so two legs can be combined. */
+  const w = {};
+  const wAdd = (key, val, weight) => {
+    const acc = w[key] || (w[key] = { num: 0, den: 0 });
     inRange.forEach(r => {
-      const v = Number(val(r)), w = Number(weight(r));
-      if (isFinite(v) && isFinite(w) && w > 0){ num += v * w; den += w; }
+      const v = Number(val(r)), ww = Number(weight(r));
+      if (isFinite(v) && isFinite(ww) && ww > 0){ acc.num += v * ww; acc.den += ww; }
     });
-    return den > 0 ? num / den : null;
   };
+  const meWeight = (r) => (r.meHrs != null ? r.meHrs : r.hrs);
+  wAdd('avgRpm', r => r.rpmEff, meWeight);
+  wAdd('avgMcr', r => r.mcrPct, meWeight);
+  wAdd('avgKw', r => r.kwEst, meWeight);
+  wAdd('avgSlip', r => r.slip, r => r.hrs);
+  wAdd('avgSfoc', r => r.sfocActual, meWeight);
+  wAdd('avgSfocRef', r => r.sfocRef, meWeight);
+
   const fuel = {};
   FUEL_CONS_GROUPS.forEach(g => { fuel[g.label] = sum(r => sumFuelGroup(r.consByType, g)); });
   /* Fuel split by what burned it, not by grade. An environmental return and any
@@ -12262,50 +12703,123 @@ function rangeAggregate(ids){
     const blrH = entryBlrRunHours(e, prev);
     if (blrH != null && blrH > 0) blrRunHrs += blrH;
   });
-  const perDayOn = (v, runHrs) => (runHrs > 0 ? (v / runHrs) * 24 : null);
-  const byConsumerPerDay = {
-    'Main Engine': perDayOn(byConsumer['Main Engine'], meHrs),
-    'Generator':   perDayOn(byConsumer['Generator'], geRunHrs),
-    'Boiler':      perDayOn(byConsumer['Boiler'], blrRunHrs),
-    'Other':       perDayOn(byConsumer['Other'], hrs)
-  };
+
+  /* Mean-per-report samples: carried as a count and a sum so the mean over two
+     legs is the mean over every report, not the mean of two means. */
+  const distShipSamples = inRange.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
+  const distEngineSamples = inRange.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
+
   return {
     reports: inRange.length,
-    hrs, meHrs, revs,
+    hrs, meHrs, revs, geRunHrs, blrRunHrs,
     byConsumer,
-    byConsumerPerDay,
-    consumerTotal: Object.values(byConsumer).reduce((a, v) => a + v, 0),
+    fuel,
     distShip: sum(r => r.distanceShip),
     distEngine: sum(r => r.distEngine),
-    fuel,
-    fuelTotal: Object.values(fuel).reduce((a, v) => a + v, 0),
     fwProd: sum(r => r.fwProdD),
     fwCons: sum(r => r.fwConsD),
     cylCons: sum(r => r.cylCons),
-    co2: totalCO2Tonnes(inRange.reduce((acc, r) => {
+    /* Consumption by grade, kept raw so CO2 is worked once over the whole range. */
+    consByType: inRange.reduce((acc, r) => {
       FUEL_TYPES.forEach(t => { acc[t] = (acc[t] || 0) + (r.consByType?.[t] || 0); });
       return acc;
-    }, {})),
-    avgSpeed: hrs > 0 ? sum(r => r.distanceShip) / hrs : null,
-    avgRpm: wAvg(r => r.rpmEff, r => (r.meHrs != null ? r.meHrs : r.hrs)),
-    avgMcr: wAvg(r => r.mcrPct, r => (r.meHrs != null ? r.meHrs : r.hrs)),
-    avgKw: wAvg(r => r.kwEst, r => (r.meHrs != null ? r.meHrs : r.hrs)),
-    avgSlip: wAvg(r => r.slip, r => r.hrs),
-    avgSfoc: wAvg(r => r.sfocActual, r => (r.meHrs != null ? r.meHrs : r.hrs)),
-    avgSfocRef: wAvg(r => r.sfocRef, r => (r.meHrs != null ? r.meHrs : r.hrs)),
-    /* Mean distance per report in range (same idea as the classic Average panel). */
-    avgDistShip: (() => {
-      const samples = inRange.filter(r => r.distanceShip != null && !isNaN(r.distanceShip) && r.hrs > 0);
-      return samples.length ? samples.reduce((s, r) => s + r.distanceShip, 0) / samples.length : null;
-    })(),
-    avgDistEngine: (() => {
-      const samples = inRange.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
-      return samples.length ? samples.reduce((s, r) => s + r.distEngine, 0) / samples.length : null;
-    })(),
-    avgSpeedEngine: hrs > 0 && sum(r => r.distEngine) > 0 ? sum(r => r.distEngine) / hrs : null,
-    fuelPerDay: hrs > 0 ? (Object.values(fuel).reduce((a, v) => a + v, 0) / hrs) * 24 : null,
+    }, {}),
+    w,
+    distShipSampleCount: distShipSamples.length,
+    distShipSampleSum: distShipSamples.reduce((a, r) => a + r.distanceShip, 0),
+    distEngineSampleCount: distEngineSamples.length,
+    distEngineSampleSum: distEngineSamples.reduce((a, r) => a + r.distEngine, 0),
     rows: inRange
   };
+}
+
+function emptyAggregateParts(){
+  const fuel = {};
+  FUEL_CONS_GROUPS.forEach(g => { fuel[g.label] = 0; });
+  return {
+    reports: 0, hrs: 0, meHrs: 0, revs: 0, geRunHrs: 0, blrRunHrs: 0,
+    byConsumer: { 'Main Engine': 0, 'Generator': 0, 'Boiler': 0, 'Other': 0 },
+    fuel,
+    distShip: 0, distEngine: 0, fwProd: 0, fwCons: 0, cylCons: 0,
+    consByType: {}, w: {},
+    distShipSampleCount: 0, distShipSampleSum: 0,
+    distEngineSampleCount: 0, distEngineSampleSum: 0,
+    rows: []
+  };
+}
+
+function mergeAggregateParts(list){
+  const out = emptyAggregateParts();
+  (list || []).forEach(p => {
+    if (!p) return;
+    ['reports','hrs','meHrs','revs','geRunHrs','blrRunHrs','distShip','distEngine',
+     'fwProd','fwCons','cylCons','distShipSampleCount','distShipSampleSum',
+     'distEngineSampleCount','distEngineSampleSum'].forEach(k => {
+      out[k] += Number(p[k]) || 0;
+    });
+    Object.keys(p.byConsumer || {}).forEach(k => {
+      out.byConsumer[k] = (out.byConsumer[k] || 0) + (Number(p.byConsumer[k]) || 0);
+    });
+    Object.keys(p.fuel || {}).forEach(k => {
+      out.fuel[k] = (out.fuel[k] || 0) + (Number(p.fuel[k]) || 0);
+    });
+    Object.keys(p.consByType || {}).forEach(k => {
+      out.consByType[k] = (out.consByType[k] || 0) + (Number(p.consByType[k]) || 0);
+    });
+    Object.keys(p.w || {}).forEach(k => {
+      const acc = out.w[k] || (out.w[k] = { num: 0, den: 0 });
+      acc.num += Number(p.w[k].num) || 0;
+      acc.den += Number(p.w[k].den) || 0;
+    });
+    out.rows = out.rows.concat(p.rows || []);
+  });
+  out.rows.sort((a, b) => String(a.datetime).localeCompare(String(b.datetime)));
+  return out;
+}
+
+/** Turn accumulated parts into the figures the panel and the print sheet show. */
+function finalizeAggregate(p){
+  const hrs = p.hrs;
+  const wv = (k) => (p.w[k] && p.w[k].den > 0 ? p.w[k].num / p.w[k].den : null);
+  const perDayOn = (v, runHrs) => (runHrs > 0 ? (v / runHrs) * 24 : null);
+  const fuelTotal = Object.values(p.fuel).reduce((a, v) => a + v, 0);
+  return {
+    reports: p.reports,
+    hrs, meHrs: p.meHrs, revs: p.revs,
+    byConsumer: p.byConsumer,
+    byConsumerPerDay: {
+      'Main Engine': perDayOn(p.byConsumer['Main Engine'], p.meHrs),
+      'Generator':   perDayOn(p.byConsumer['Generator'], p.geRunHrs),
+      'Boiler':      perDayOn(p.byConsumer['Boiler'], p.blrRunHrs),
+      'Other':       perDayOn(p.byConsumer['Other'], hrs)
+    },
+    consumerTotal: Object.values(p.byConsumer).reduce((a, v) => a + v, 0),
+    distShip: p.distShip,
+    distEngine: p.distEngine,
+    fuel: p.fuel,
+    fuelTotal,
+    fwProd: p.fwProd,
+    fwCons: p.fwCons,
+    cylCons: p.cylCons,
+    co2: totalCO2Tonnes(p.consByType),
+    avgSpeed: hrs > 0 ? p.distShip / hrs : null,
+    avgRpm: wv('avgRpm'),
+    avgMcr: wv('avgMcr'),
+    avgKw: wv('avgKw'),
+    avgSlip: wv('avgSlip'),
+    avgSfoc: wv('avgSfoc'),
+    avgSfocRef: wv('avgSfocRef'),
+    /* Mean distance per report in range (same idea as the classic Average panel). */
+    avgDistShip: p.distShipSampleCount ? p.distShipSampleSum / p.distShipSampleCount : null,
+    avgDistEngine: p.distEngineSampleCount ? p.distEngineSampleSum / p.distEngineSampleCount : null,
+    avgSpeedEngine: hrs > 0 && p.distEngine > 0 ? p.distEngine / hrs : null,
+    fuelPerDay: hrs > 0 ? (fuelTotal / hrs) * 24 : null,
+    rows: p.rows
+  };
+}
+
+function rangeAggregate(ids){
+  return finalizeAggregate(rangeAggregateParts(ids));
 }
 
 function renderRangeTotals(){
@@ -12315,12 +12829,33 @@ function renderRangeTotals(){
   const avgBox = document.getElementById('rangeAverages');
   if (!fromEl || !toEl || !totalsBox || !avgBox) return;
 
-  const list = sortedEntries();
-  const opts = list.map(e => {
+  /* With the library included the lists are grouped by leg, so a reader can see
+     which voyage a report belongs to; without it they are the flat list of this
+     voyage, exactly as before. */
+  const pool = _rangeLegPool;
+  const scoped = (_rangeIncludeArchived && pool) ? rangePoolEntries(pool, true) : null;
+  const list = scoped ? scoped.map(x => x.entry) : sortedEntries();
+  const optLabel = (e) => {
     const dt = new Date(e.datetime).toLocaleString(undefined,
       { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-    return `<option value="${e.id}">${escHtml(dt)} — ${escHtml(e.operation || '')}</option>`;
-  }).join('');
+    return `${escHtml(dt)} — ${escHtml(e.operation || '')}`;
+  };
+  let opts;
+  if (scoped){
+    const groups = [];
+    scoped.forEach(x => {
+      const last = groups[groups.length - 1];
+      if (last && last.label === x.legLabel) last.items.push(x.entry);
+      else groups.push({ label: x.legLabel, items: [x.entry] });
+    });
+    opts = groups.map(g =>
+      `<optgroup label="${escHtml(g.label)}">` +
+      g.items.map(e => `<option value="${e.id}">${optLabel(e)}</option>`).join('') +
+      '</optgroup>'
+    ).join('');
+  } else {
+    opts = list.map(e => `<option value="${e.id}">${optLabel(e)}</option>`).join('');
+  }
   const keep = (el, fallback) => {
     const had = el.value;
     el.innerHTML = opts;
@@ -12337,8 +12872,14 @@ function renderRangeTotals(){
     return;
   }
 
-  const agg = rangeAggregate(rangeEntryIds());
-  const robBook = rangeRobBookends();
+  /* One leg: the original path, untouched. Several: each leg derived in its own
+     state and the parts added together. */
+  const agg = (scoped && pool)
+    ? aggregateAcrossLegs(pool, fromEl.value, toEl.value, true)
+    : rangeAggregate(rangeEntryIds());
+  const robBook = (scoped && pool)
+    ? robBookendsAcrossLegs(pool, fromEl.value, toEl.value)
+    : rangeRobBookends();
   const stat = (v, l, unit) => `<div class="stat"><div class="num">${withUnit(v, unit)}</div><div class="lbl">${escHtml(l)}</div></div>`;
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
 
@@ -12378,6 +12919,50 @@ function renderRangeTotals(){
   const robHint = document.getElementById('rangeRobHint');
   if (robHint){
     robHint.textContent = `Start R.O.B. as of ${robBook.startLabel} → End R.O.B. as of ${robBook.endLabel}. Change = End − Start (negative means consumed / transferred out of stock).`;
+  }
+
+  /* Say plainly when a selection spans legs, and which ones it used: a reader
+     has to know these figures came from more than the voyage now open. */
+  const scopeHint = document.getElementById('rangeSummaryHint');
+  if (scopeHint && agg.legsUsed && agg.legsUsed.length > 1){
+    scopeHint.textContent =
+      `This range spans ${agg.legsUsed.length} voyage legs — ${agg.legsUsed.map(l => l.label).join(', ')}. ` +
+      'Each leg was worked from its own setup and opening stock, then added together. ' +
+      'Totals add; averages are weighted over every report in the range, not averaged per leg.';
+  } else if (scopeHint && _rangeIncludeArchived){
+    scopeHint.textContent =
+      'The lists hold every saved leg of this vessel. Pick the first and last report of the stretch you want — '
+      + 'figures cover the reports from the one after "From" up to and including "To".';
+  }
+
+  const reconBody = document.getElementById('rangeRobReconBody');
+  if (reconBody){
+    const recon = rangeReconciliation(pool, scoped, fromEl.value, toEl.value, robBook, agg);
+    const show = (v, signed) => {
+      if (v == null || !isFinite(v)) return '—';
+      const n = Number(v);
+      /* A movement of nothing is noise on a reconciliation; show the dash. */
+      if (signed && Math.abs(n) < 0.0005) return '—';
+      return (signed && n > 0 ? '+' : '') + fmt(n, FUEL_DECIMALS) + ' MT';
+    };
+    const anyMovement = recon.some(r => r.bunkered || r.survey || r.consumed
+      || (r.opening != null) || (r.closing != null));
+    reconBody.innerHTML = anyMovement
+      ? recon.map(r => {
+          /* Flag a residual only when it is larger than rounding on the figures
+             it came from; a few grams is the print precision, not a discrepancy. */
+          const off = r.residual != null && Math.abs(r.residual) >= 0.05;
+          return `<tr>
+            <td>${escHtml(r.grade)}</td>
+            <td>${show(r.opening)}</td>
+            <td>${show(r.bunkered, true)}</td>
+            <td>${show(r.survey, true)}</td>
+            <td>${show(r.consumed ? -r.consumed : 0, true)}</td>
+            <td>${show(r.closing)}</td>
+            <td class="${off ? 'alert-text' : ''}">${show(r.residual, true)}</td>
+          </tr>`;
+        }).join('')
+      : '<tr class="empty-row"><td colspan="7">No stock movement in this range.</td></tr>';
   }
   const robBody = document.getElementById('rangeRobBody');
   if (robBody){
@@ -12523,19 +13108,26 @@ function paginateRangeTotalSheets(rows, makeHtml){
 }
 
 function printRangeTotalsSheet(){
-  const list = sortedEntries();
+  /* The sheet has to print what the panel shows, library legs included —
+     printing a different range from the one on screen is worse than not
+     printing at all, since the sheet gets signed. */
+  const pool = _rangeLegPool;
+  const scoped = (_rangeIncludeArchived && pool) ? rangePoolEntries(pool, true) : null;
+  const list = scoped ? scoped.map(x => x.entry) : sortedEntries();
   if (!list.length){ alert('No entries to total yet.'); return; }
-  const ids = rangeEntryIds();
-  if (!ids.length){ alert('No reports in the selected range.'); return; }
-
-  const agg = rangeAggregate(ids);
+  const fromValue = document.getElementById('rangeFrom')?.value || '';
+  const toValue = document.getElementById('rangeTo')?.value || '';
+  const agg = (scoped && pool)
+    ? aggregateAcrossLegs(pool, fromValue, toValue, true)
+    : rangeAggregate(rangeEntryIds());
+  if (!agg.rows.length){ alert('No reports in the selected range.'); return; }
   const n = (v, d = 2) => v == null || isNaN(v) ? '—' : fmt(v, d);
   const when = (dt) => dt ? new Date(dt).toLocaleString(undefined,
     { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
   /* The range is named by the reports the engineer picked, not by the periods, so the
      "from" report is the one in the dropdown even though its own period sits outside. */
-  const fromPick = list.find(e => e.id === document.getElementById('rangeFrom')?.value) || list[0];
-  const toPick = list.find(e => e.id === document.getElementById('rangeTo')?.value) || list[list.length - 1];
+  const fromPick = list.find(e => e.id === fromValue) || list[0];
+  const toPick = list.find(e => e.id === toValue) || list[list.length - 1];
 
   const totals = [
     printRow('Reports in range', String(agg.reports)),
@@ -12592,7 +13184,9 @@ function printRangeTotalsSheet(){
       </tr>
     </table>`;
 
-  const robBook = rangeRobBookends();
+  const robBook = (scoped && pool)
+    ? robBookendsAcrossLegs(pool, fromValue, toValue)
+    : rangeRobBookends();
   const robPrintRow = (label, startV, endV, unit, dec) => {
     const s = startV == null || isNaN(startV) ? null : Number(startV);
     const e = endV == null || isNaN(endV) ? null : Number(endV);
@@ -12615,6 +13209,33 @@ function printRangeTotalsSheet(){
       ${robPrintRow('Fresh water', litresToM3(st.fwTotal), litresToM3(en.fwTotal), 'm³', 2)}
     </table>
     <div class="pr-note">Start: ${escPrint(robBook.startLabel)} · End: ${escPrint(robBook.endLabel)}</div>`;
+
+  /* The Change column above is the sum of three unlike things. On a sheet that
+     gets signed, each one is named. */
+  const recon = rangeReconciliation(pool, scoped, fromValue, toValue, robBook, agg);
+  const rc = (v, signed) => {
+    if (v == null || !isFinite(v)) return '—';
+    const x = Number(v);
+    if (signed && Math.abs(x) < 0.0005) return '—';
+    return (signed && x > 0 ? '+' : '') + fmt(x, FUEL_DECIMALS);
+  };
+  const reconTable = `
+    <table class="pr-table">
+      <tr><th>Grade</th><th>Opening</th><th>+ Bunkered</th><th>± Survey</th><th>− Consumed</th><th>= Closing</th><th>Unaccounted</th></tr>
+      ${recon.map(r => `<tr>
+        <td class="row-lbl">${escPrint(r.grade)}</td>
+        <td>${rc(r.opening)}</td>
+        <td>${rc(r.bunkered, true)}</td>
+        <td>${rc(r.survey, true)}</td>
+        <td>${rc(r.consumed ? -r.consumed : 0, true)}</td>
+        <td>${rc(r.closing)}</td>
+        <td>${rc(r.residual, true)}</td>
+      </tr>`).join('')}
+    </table>
+    <div class="pr-note">All figures MT. Opening plus deliveries, plus or minus any bunker-survey correction, less the burn, equals closing. Unaccounted is the remainder — normally nil.${
+      agg.legsUsed && agg.legsUsed.length > 1
+        ? ' This range spans ' + agg.legsUsed.length + ' voyage legs: ' + escPrint(agg.legsUsed.map(l => l.label).join(', ')) + '.'
+        : ''}</div>`;
 
   /* The meta grid above carries the full timestamps; in the table a compact date keeps
      each report on one line. */
@@ -12682,6 +13303,7 @@ function printRangeTotalsSheet(){
           <div>${printSection('Averages', averages)}</div>
           <div class="pr-span2">${printSection('Fuel Consumption By Consumer', consumerTable)}</div>
           <div class="pr-span2">${printSection('Remaining On Board — Start → End', robTable)}</div>
+          <div class="pr-span2">${printSection('Where the stock went', reconTable)}</div>
           ${list}
         </div>`
       : `<div class="pr-grid">${list}</div>`;
@@ -12700,10 +13322,37 @@ function printRangeTotalsSheet(){
   document.getElementById(id)?.addEventListener('change', renderRangeTotals);
 });
 document.getElementById('btnRangeAll')?.addEventListener('click', ()=>{
-  const list = sortedEntries();
+  /* "Whole voyage" means the whole of whatever is in scope: this leg, or every
+     leg in the library when the box is ticked. */
+  const list = (_rangeIncludeArchived && _rangeLegPool)
+    ? rangePoolEntries(_rangeLegPool, true).map(x => x.entry)
+    : sortedEntries();
   if (!list.length) return;
   document.getElementById('rangeFrom').value = list[0].id;
   document.getElementById('rangeTo').value = list[list.length - 1].id;
+  renderRangeTotals();
+});
+
+document.getElementById('rangeIncludeArchived')?.addEventListener('change', async (ev)=>{
+  _rangeIncludeArchived = !!ev.target.checked;
+  if (_rangeIncludeArchived){
+    /* Inflating saved legs reads them back out of IndexedDB, which is slow
+       enough to be worth a progress line — but only the first time per vessel. */
+    const box = ev.target;
+    box.disabled = true;
+    try{
+      await withActivity('range-legs', 'Reading saved voyage legs…', async ()=>{
+        await loadRangeLegPool();
+      });
+    }catch(e){
+      console.error(e);
+      _rangeIncludeArchived = false;
+      box.checked = false;
+      alert('Could not read the saved voyage legs: ' + e.message);
+    }finally{
+      box.disabled = false;
+    }
+  }
   renderRangeTotals();
 });
 
