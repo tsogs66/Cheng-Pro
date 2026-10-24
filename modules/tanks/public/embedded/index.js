@@ -405,6 +405,92 @@ app.put('/api/vessels/:id/fuel-report', (req, res) => {
   }
 });
 
+function savedReportStamp(item) {
+  if (!item || typeof item !== 'object') return '';
+  return String(item.savedAt || item.updatedAt || item.printedAt || item.createdAt || '');
+}
+
+function savedReportBrief(item) {
+  if (!item || typeof item !== 'object' || item.id == null) return null;
+  const header = item.header || (item.form && item.form.header) || {};
+  const label = [item.title, item.name, header.voyageNo, header.port, header.reportType, header.date, item.voyageNo, item.port]
+    .filter((v) => v != null && String(v).trim())
+    .slice(0, 4)
+    .join(' · ');
+  return { id: String(item.id), savedAt: savedReportStamp(item), label };
+}
+
+function briefSavedList(list) {
+  return (Array.isArray(list) ? list : []).map(savedReportBrief).filter(Boolean);
+}
+
+function savedReportsOf(bundle) {
+  const bunker = (bundle && bundle.bunkerHistory) || {};
+  return {
+    reportHistory: bundle.reportHistory || [],
+    voyageHistory: bundle.voyageHistory || [],
+    tankSummaryHistory: bundle.tankSummaryHistory || [],
+    bunkerHistory: {
+      plans: bunker.plans || [],
+      after: bunker.after || [],
+      summaries: bunker.summaries || [],
+    },
+  };
+}
+
+/** Fuel-oil, voyage-print, tank-summary and bunker reports for one vessel. */
+app.get('/api/vessels/:id/saved-reports', (req, res) => {
+  try {
+    const bundle = store.getVesselBundle(req.params.id);
+    const reports = savedReportsOf(bundle);
+    res.json({
+      vesselId: req.params.id,
+      name: (bundle.vessel && bundle.vessel.name) || req.params.id,
+      ...reports,
+      brief: {
+        reportHistory: briefSavedList(reports.reportHistory),
+        voyageHistory: briefSavedList(reports.voyageHistory),
+        tankSummaryHistory: briefSavedList(reports.tankSummaryHistory),
+        bunkerPlans: briefSavedList(reports.bunkerHistory.plans),
+        bunkerAfter: briefSavedList(reports.bunkerHistory.after),
+        bunkerSummaries: briefSavedList(reports.bunkerHistory.summaries),
+      },
+    });
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+/**
+ * Union saved reports into this vessel. A report id that exists on both sides
+ * keeps the newer savedAt. Reports that exist on only one side are kept.
+ * This does not replace tanks, calibrations or the rest of the vessel.
+ */
+app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
+  try {
+    const id = req.params.id;
+    const body = req.body || {};
+    const counts = {};
+    for (const part of ['reportHistory', 'voyageHistory', 'tankSummaryHistory']) {
+      if (!Array.isArray(body[part])) continue;
+      const merged = store.saveVesselPart(id, part, body[part]);
+      counts[part] = Array.isArray(merged) ? merged.length : 0;
+    }
+    if (body.bunkerHistory && typeof body.bunkerHistory === 'object') {
+      const merged = store.saveVesselPart(id, 'bunkerHistory', {
+        plans: body.bunkerHistory.plans || [],
+        after: body.bunkerHistory.after || [],
+        summaries: body.bunkerHistory.summaries || [],
+      });
+      counts.bunkerHistory = ['plans', 'after', 'summaries']
+        .reduce((n, key) => n + ((merged && merged[key] && merged[key].length) || 0), 0);
+    }
+    res.json({ ok: true, counts });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /** Saved report snapshots, newest first. */
 app.get('/api/vessels/:id/fuel-report/history', (req, res) => {
   try {
@@ -1324,6 +1410,132 @@ app.post('/api/sync/probe', asyncHandler(async (req, res) => {
       url
     ),
   });
+}));
+
+function reportRowsForVessel(localBundle, peerBundle) {
+  const local = savedReportsOf(localBundle || {});
+  const peer = savedReportsOf(peerBundle || {});
+  const groups = [
+    ['Fuel oil reports', local.reportHistory, peer.reportHistory],
+    ['Voyage tank prints', local.voyageHistory, peer.voyageHistory],
+    ['Tank summary reports', local.tankSummaryHistory, peer.tankSummaryHistory],
+    ['Bunker plans', local.bunkerHistory.plans, peer.bunkerHistory.plans],
+    ['Bunker delivery reports', local.bunkerHistory.after, peer.bunkerHistory.after],
+    ['Bunker summaries', local.bunkerHistory.summaries, peer.bunkerHistory.summaries],
+  ];
+  return groups.map(([title, here, there]) => {
+    const a = new Map(briefSavedList(here).map((row) => [row.id, row]));
+    const b = new Map(briefSavedList(there).map((row) => [row.id, row]));
+    const ids = new Set([...a.keys(), ...b.keys()]);
+    let push = 0;
+    let pull = 0;
+    let newerHere = 0;
+    let newerThere = 0;
+    ids.forEach((id) => {
+      const left = a.get(id);
+      const right = b.get(id);
+      if (left && !right) push += 1;
+      else if (!left && right) pull += 1;
+      else if ((left.savedAt || '') > (right.savedAt || '')) newerHere += 1;
+      else if ((right.savedAt || '') > (left.savedAt || '')) newerThere += 1;
+    });
+    const differ = push + pull + newerHere + newerThere;
+    return {
+      title,
+      localCount: a.size,
+      peerCount: b.size,
+      onlyHere: push,
+      onlyPeer: pull,
+      newerHere,
+      newerPeer: newerThere,
+      differ,
+    };
+  });
+}
+
+app.post('/api/sync/saved-reports/compare', asyncHandler(async (req, res) => {
+  const settings = store.getSettings();
+  const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
+  if (!url) return res.status(400).json({ error: 'No peer sync URL configured' });
+  const authBody = {
+    syncApiToken: req.body?.syncApiToken || settings.syncApiToken || '',
+    ...peerScopeFromRequest(req),
+  };
+  const resp = await fetchPeerSync(url, '/api/sync/export', { authBody });
+  const payload = await readPeerSyncJson(resp, url);
+  if (!payload || payload.format !== 'vessel-fuel-tms-sync') {
+    throw new Error('Peer did not return a Tank sync bundle');
+  }
+  const local = store.syncPushBundle();
+  const ids = new Set([
+    ...Object.keys(local.vessels || {}),
+    ...Object.keys(payload.vessels || {}),
+  ]);
+  const rows = [];
+  ids.forEach((id) => {
+    const here = local.vessels[id];
+    const there = payload.vessels[id];
+    const name = (here && here.vessel && here.vessel.name)
+      || (there && there.vessel && there.vessel.name)
+      || id;
+    rows.push({
+      vesselId: id,
+      name,
+      onDevice: !!here,
+      onPeer: !!there,
+      groups: here && there ? reportRowsForVessel(here, there) : [],
+    });
+  });
+  res.json({ ok: true, peer: url, rows });
+}));
+
+app.post('/api/sync/saved-reports/merge', asyncHandler(async (req, res) => {
+  const settings = store.getSettings();
+  const url = normalizePeerUrl(req.body?.syncUrl || settings.syncUrl || '');
+  if (!url) return res.status(400).json({ error: 'No peer sync URL configured' });
+  const authBody = {
+    syncApiToken: req.body?.syncApiToken || settings.syncApiToken || '',
+    ...peerScopeFromRequest(req),
+  };
+  const resp = await fetchPeerSync(url, '/api/sync/export', { authBody });
+  const payload = await readPeerSyncJson(resp, url);
+  if (!payload || payload.format !== 'vessel-fuel-tms-sync') {
+    throw new Error('Peer did not return a Tank sync bundle');
+  }
+  const wanted = Array.isArray(req.body?.vesselIds) ? new Set(req.body.vesselIds.map(String)) : null;
+  const local = store.syncPushBundle();
+  const results = [];
+  for (const id of Object.keys(payload.vessels || {})) {
+    if (wanted && !wanted.has(id)) continue;
+    if (!local.vessels[id]) {
+      results.push({ id, action: 'skipped', reason: 'Vessel is not on this device' });
+      continue;
+    }
+    const peerReports = savedReportsOf(payload.vessels[id]);
+    store.saveVesselPart(id, 'reportHistory', peerReports.reportHistory);
+    store.saveVesselPart(id, 'voyageHistory', peerReports.voyageHistory);
+    store.saveVesselPart(id, 'tankSummaryHistory', peerReports.tankSummaryHistory);
+    store.saveVesselPart(id, 'bunkerHistory', peerReports.bunkerHistory);
+    let peerUpdated = false;
+    let peerNote = '';
+    try {
+      const back = store.getVesselBundle(id);
+      const mine = savedReportsOf(back);
+      const put = await fetchPeerSync(url, '/api/vessels/' + encodeURIComponent(id) + '/saved-reports/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mine),
+        authBody,
+      });
+      if (put.status === 404) peerNote = 'Peer has no saved-report merge yet — this device was updated only';
+      else if (!put.ok) peerNote = 'Peer did not accept the return copy (HTTP ' + put.status + ')';
+      else peerUpdated = true;
+    } catch (err) {
+      peerNote = err.message || 'Could not write the reports back to the peer';
+    }
+    results.push({ id, action: 'merged', peerUpdated, peerNote });
+  }
+  res.json({ ok: true, results });
 }));
 
 app.post('/api/sync/pull', asyncHandler(async (req, res) => {

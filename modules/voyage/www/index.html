@@ -6165,7 +6165,9 @@ const BACKUP_ACTIVITY_IDS = {
   'db-restore': true,
   'db-merge': true,
   'vessel-export': true,
-  'vessel-import': true
+  'vessel-import': true,
+  'reconcile-legs': true,
+  'sync': true
 };
 let _lastBackupActivityId = null;
 /** The AIO backup page cannot see this frame, so backup jobs are posted up. */
@@ -8437,13 +8439,13 @@ function syncSlugCoreWithoutImo(raw){
  * just typed in AIO Backup), so Harbour Key would "match" mv-flag-evi and
  * receive Flag Evi's pulled leg.
  */
-async function ensureLocalVesselForSyncSlug(asked){
+function findLocalVesselForSyncSlug(asked){
   const raw = String(asked || '').trim();
   if (!raw) return null;
   const slug = sanitizeSyncSlug(raw);
   const core = syncSlugCore(raw);
   const coreLoose = syncSlugCoreWithoutImo(raw);
-  let vessel = (state.vessels || []).find((v) => {
+  return (state.vessels || []).find((v) => {
     if (!v) return false;
     if (v.id === raw || v.id === slug) return true;
     const reg = vesselRegistrySyncSlug(v);
@@ -8454,6 +8456,13 @@ async function ensureLocalVesselForSyncSlug(asked){
     if (syncSlugCoreWithoutImo(nameCore) === coreLoose) return true;
     return false;
   }) || null;
+}
+
+async function ensureLocalVesselForSyncSlug(asked){
+  const raw = String(asked || '').trim();
+  if (!raw) return null;
+  const slug = sanitizeSyncSlug(raw);
+  let vessel = findLocalVesselForSyncSlug(raw);
   if (vessel) return vessel;
   const pretty = syncSlugCoreWithoutImo(raw).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
     || raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
@@ -25896,6 +25905,109 @@ document.getElementById('btnImportVesselBackup')?.addEventListener('click', ()=>
   document.getElementById('fileImportVesselBackup')?.click();
 });
 
+/** Newest log-entry stamp on a leg — not the moment the leg file was last opened. */
+function legContentStamp(leg){
+  let best = '';
+  for (const item of (leg && leg.entries) || []){
+    const t = String((item && (item.updatedAt || item.datetime)) || '');
+    if (t > best) best = t;
+  }
+  return best;
+}
+
+function summarizeStoredLeg(leg){
+  return {
+    voyageNumber: String(leg.voyageNumber || '').trim(),
+    condition: normalizeCondition(leg.condition),
+    entryCount: leg.entryCount != null ? Number(leg.entryCount) : ((leg.entries || []).length),
+    savedAt: leg.updatedAt || '',
+    contentAt: legContentStamp(leg) || leg.updatedAt || '',
+  };
+}
+
+/** Local voyage library, including the leg open on screen, without restamping it. */
+async function listLocalLegSummaries(){
+  const vid = state.activeVesselId;
+  const stored = await listVoyageLegsForVessel(vid);
+  const byKey = new Map();
+  for (const leg of stored){
+    const row = summarizeStoredLeg(leg);
+    if (!row.voyageNumber) continue;
+    byKey.set(row.voyageNumber + '|' + row.condition, row);
+  }
+  const vn = (state.setup.voyageNumber || '').trim();
+  if (vn && vid){
+    const cond = normalizeCondition(state.setup.shipCondition);
+    const key = vn + '|' + cond;
+    const prev = byKey.get(key);
+    const live = {
+      voyageNumber: vn,
+      condition: cond,
+      entryCount: (state.entries || []).length,
+      savedAt: (prev && prev.savedAt) || '',
+      contentAt: legContentStamp({ entries: state.entries }) || (prev && prev.contentAt) || '',
+    };
+    byKey.set(key, live);
+  }
+  return [...byKey.values()];
+}
+
+/** Load one leg, or an empty working copy when it exists only on the server. */
+async function openLegForReconcile(voyage, condition){
+  const vid = state.activeVesselId;
+  const vn = String(voyage || '').trim();
+  const cond = normalizeCondition(condition);
+  try {
+    await activateVoyageLeg(vid, vn, cond, { persistCurrent: false });
+    return;
+  } catch (e) {
+    if (!/No .* records for voyage/i.test(String(e && e.message || ''))) throw e;
+  }
+  await clearActiveVesselWorkingData(vid);
+  state.setup = migrateSetup(state.setup || {});
+  state.setup.voyageNumber = vn;
+  state.setup.shipCondition = cond;
+  state.entries = [];
+  state.receipts = [];
+  state.documents = [];
+  state.abstracts = [];
+  state.printHistory = [];
+  await saveSetup();
+}
+
+/**
+ * Merge each named leg with the same leg on the server.
+ * The server keeps the newer copy of a watch and does not drop records that
+ * exist on only one side. The leg that was open is restored afterwards.
+ */
+async function reconcileVoyageLegs(legs){
+  const list = (legs || []).filter((leg) => leg && String(leg.voyage || leg.voyageNumber || '').trim());
+  const prevVn = (state.setup.voyageNumber || '').trim();
+  const prevCond = normalizeCondition(state.setup.shipCondition);
+  const results = [];
+  try {
+    for (let i = 0; i < list.length; i++){
+      const vn = String(list[i].voyage || list[i].voyageNumber || '').trim();
+      const cond = normalizeCondition(list[i].condition);
+      updateActivity('reconcile-legs', {
+        label: `Updating voyage ${vn} ${cond} with the server…`,
+        current: i + 1,
+        total: list.length,
+      });
+      await openLegForReconcile(vn, cond);
+      await syncNow({ policy: 'merge' });
+      await archiveActiveVoyageLeg();
+      results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
+    }
+  } finally {
+    if (prevVn){
+      try { await activateVoyageLeg(state.activeVesselId, prevVn, prevCond, { persistCurrent: false }); }
+      catch (_) {}
+    }
+  }
+  return results;
+}
+
 window.addEventListener('message', async (ev)=>{
   const msg = ev.data || {};
   if (msg.type !== 'chengaio-voyage-backup') return;
@@ -26048,6 +26160,58 @@ window.addEventListener('message', async (ev)=>{
         _syncSlugOverride = prevListOverride;
       }
       reply({ vessel, voyages, message: voyages.length ? `${voyages.length} remote voyage(s) for ${vessel}` : `No remote voyages for "${vessel}".` });
+    } else if (msg.action === 'list-local-legs') {
+      const asked = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
+      if (asked) {
+        const vessel = findLocalVesselForSyncSlug(asked);
+        if (!vessel) {
+          throw new Error('No vessel on this device matches "' + asked + '". Set Vessel ID to this ship\'s slug, or leave it blank to use the ship that is open.');
+        }
+        if (vessel.id !== state.activeVesselId) await switchVessel(vessel.id);
+      }
+      const legs = await listLocalLegSummaries();
+      reply({
+        vessel: vesselSyncSlug(),
+        vesselName: state.setup.vesselName || '',
+        legs,
+      });
+    } else if (msg.action === 'reconcile-legs') {
+      const asked = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
+      if (msg.settings) {
+        const incoming = msg.settings;
+        const sync = ensureSyncConfig();
+        const url = typeof normalizeSyncServerUrl === 'function'
+          ? normalizeSyncServerUrl(incoming.serverUrl || '')
+          : String(incoming.serverUrl || '').trim();
+        if (url) sync.serverUrl = url;
+        const tok = String(incoming.apiToken || '').trim();
+        if (tok) sync.apiToken = tok;
+        if (incoming.vesselId != null) sync.vesselId = String(incoming.vesselId || '').trim();
+        applySyncFieldsToLiveConfig(sync);
+        writeSyncCredentialsToLocalStorage(sync);
+      }
+      const prevOverride = _syncSlugOverride;
+      try {
+        if (asked) {
+          const vessel = findLocalVesselForSyncSlug(asked);
+          if (!vessel) {
+            throw new Error('No vessel on this device matches "' + asked + '".');
+          }
+          if (vessel.id !== state.activeVesselId) await switchVessel(vessel.id);
+          _syncSlugOverride = sanitizeSyncSlug(asked) || vesselOwnSyncSlug(vessel.id);
+        }
+        const results = await withActivity('reconcile-legs', 'Updating voyage legs with the server…', async () => {
+          return reconcileVoyageLegs(Array.isArray(msg.legs) ? msg.legs : []);
+        }, { source: 'server' });
+        reply({
+          message: results.length
+            ? `Updated ${results.length} voyage leg${results.length === 1 ? '' : 's'}. The leg you had open is restored.`
+            : 'No voyage legs were selected.',
+          results,
+        });
+      } finally {
+        _syncSlugOverride = prevOverride;
+      }
     } else if (msg.action === 'pull-voyage-leg') {
       const voyage = String(msg.voyage || '').trim();
       const condition = normalizeCondition(msg.condition);

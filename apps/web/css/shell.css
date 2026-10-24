@@ -1305,6 +1305,21 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   font-size: 0.95rem;
 }
 .backup-page #bk-progress-host .pdf-progress.active { margin-top: 0; }
+.bk-consistency-list { margin-top: 12px; }
+.bk-consistency-row {
+  display: grid;
+  grid-template-columns: auto minmax(7rem, 1.1fr) 1.3fr 1.3fr minmax(10rem, 1.6fr);
+  gap: 8px 12px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line, rgba(255,255,255,0.08));
+  font-size: 13px;
+}
+.bk-consistency-head { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+@media (max-width: 800px) {
+  .bk-consistency-row { grid-template-columns: auto 1fr; }
+  .bk-consistency-head { display: none; }
+}
 .backup-page .hint { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .backup-page .btn-row { margin-top: 10px; }
 .backup-page .field.span2 { grid-column: 1 / -1; }
