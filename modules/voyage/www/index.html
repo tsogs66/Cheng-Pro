@@ -2172,6 +2172,10 @@
   #dataHealthStrip .dh-bad{color:var(--alert);}
   .good-text{color:var(--good);}
   .alert-text{color:var(--alert);}
+  .warn-text{color:var(--brass);}
+  /* A task sits under the unit it belongs to, indented and a shade quieter. */
+  #pmsUnitTable tr.pms-task-row td{background:rgba(0,0,0,.08); font-size:12px;}
+  #pmsUnitTable tr.pms-task-row input{font-size:12px;}
   .cii-strip{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
   .cii-card{flex:1; min-width:120px; border:1px solid var(--line); border-radius:4px; padding:10px 12px; background:rgba(0,0,0,0.15);}
   .cii-card .val{font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:800; color:var(--brass);}
@@ -4271,6 +4275,29 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Machinery Running Hours (voyage)</h2>
       <div class="stat-strip cols5" id="runningHoursStrip"></div>
       <div class="hint">Period totals from log / report hour-meters — useful for PMS planning. M/E hours = steaming periods with engine distance. Each A/E shows only that generator's own running hours (A/E #1, A/E #2, A/E #3) — not a combined total. Boiler / incinerator from supplementary / voyage-summary runtime.</div>
+    </div>
+    <div class="panel" id="pmsPanel">
+      <h2>Running Hours &amp; Maintenance</h2>
+      <p class="hint">Counter readings per unit and what falls due against them. The counter on the machine is the authority — this records what it read and when, and offers the hours the log has accumulated since, so a reading is confirmed rather than guessed. The hours above are this voyage; these are the unit's life.</p>
+      <div class="btn-row">
+        <button type="button" class="ghost small" id="btnPmsAddUnit">Add unit</button>
+        <button type="button" class="ghost small" id="btnPmsAdvance">Offer hours since last reading</button>
+        <button type="button" class="ghost small" id="btnPmsPrint">Print due list</button>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="pmsUnitTable">
+          <thead><tr><th>Unit</th><th>Counter (hrs)</th><th>Read on</th><th>Tasks</th><th></th></tr></thead>
+          <tbody id="pmsUnitBody"><tr class="empty-row"><td colspan="5">No units yet — press Add unit.</td></tr></tbody>
+        </table>
+      </div>
+      <h3 class="sub" style="margin-top:14px;">Falling due</h3>
+      <div class="table-scroll">
+        <table id="pmsDueTable">
+          <thead><tr><th>Unit</th><th>Task</th><th>Every</th><th>Last done</th><th>Due at</th><th>Hours to go</th><th>Status</th></tr></thead>
+          <tbody id="pmsDueBody"><tr class="empty-row"><td colspan="7">Nothing scheduled yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" id="pmsStatus" role="status" aria-live="polite">Ready.</div>
     </div>
     <div class="panel">
       <h2>Departure / Arrival ROB Comparison</h2>
@@ -12275,6 +12302,215 @@ function rangeRobBookends(){
   };
 }
 
+/**
+ * A number, or null when there is no figure at all.
+ *
+ * Number(null) and Number('') are both 0, and 0 is a real reading: a new unit
+ * genuinely at zero hours, a task genuinely done at hour zero. Letting a
+ * missing value arrive as 0 made every task that had never been recorded as
+ * done read "overdue", which is the one failure that makes a due list useless.
+ */
+function numOrNull(v){
+  if (v == null) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return isFinite(n) ? n : null;
+}
+
+/* ---- Running hours and maintenance ----------------------------------------
+   The thing every Chief keeps in a separate notebook. Hours per unit against
+   the intervals the maker set, and what that means for next week.
+
+   One decision shapes the rest: the counter on the machine is the authority,
+   not this program. A tablet that joined the ship in year nine knows nothing
+   about the first eight, and a derived lifetime figure would be wrong in a way
+   nobody could see. So a reading is recorded with the date it was taken, and
+   the hours the log has accumulated since are OFFERED, never applied silently
+   -- the engineer confirms against the machine. */
+const PMS_DUE_SOON_HRS = 250;     /* close enough to plan the job and the spares */
+
+function pmsUnits(){
+  if (!Array.isArray(state.setup.pmsUnits)) state.setup.pmsUnits = [];
+  return state.setup.pmsUnits;
+}
+
+function pmsNewUnit(name){
+  return {
+    id: 'pms_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: name || 'New unit',
+    counterHrs: null,
+    counterAt: null,          /* ISO date the reading was taken */
+    tasks: []
+  };
+}
+
+function pmsNewTask(name, intervalHrs){
+  return {
+    id: 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: name || 'New task',
+    intervalHrs: Number(intervalHrs) || 0,
+    lastDoneHrs: null,
+    lastDoneAt: null
+  };
+}
+
+/**
+ * Hours this unit has run since its counter was read, from the log.
+ *
+ * Matched by name against what the log actually measures, because that is the
+ * only honest mapping available: the log knows "A/E #2", not an asset number.
+ * A unit it cannot match returns null rather than 0 -- nothing is not the same
+ * as unknown, and treating it as nothing is how a task silently never falls due.
+ */
+function pmsLoggedHoursSince(unit, sinceIso){
+  if (!unit || !sinceIso) return null;
+  const since = new Date(sinceIso).getTime();
+  if (!isFinite(since)) return null;
+  const name = String(unit.name || '').toLowerCase();
+  const { rows } = computeDerived();
+  const inWindow = rows.filter(r => {
+    const t = new Date(r.datetime).getTime();
+    return isFinite(t) && t > since;
+  });
+  if (!inWindow.length) return 0;
+
+  /* Main engine: steaming periods. */
+  if (/\b(m\/e|main engine|me)\b/.test(name)){
+    return inWindow.reduce((a, r) => {
+      const steaming = (r.distEngine > 0) || (r.meCons > 0) || (r.dailyRevs > 0);
+      return a + (steaming ? (Number(r.meHrs != null ? r.meHrs : r.hrs) || 0) : 0);
+    }, 0);
+  }
+  /* A generator, by its number. */
+  const ge = name.match(/(?:a\/e|ae|d\/g|dg|gen(?:erator)?)\s*#?\s*(\d+)/);
+  if (ge){
+    const n = Number(ge[1]);
+    let total = 0;
+    inWindow.forEach((r, i) => {
+      const e = state.entries.find(x => x.id === r.id) || r;
+      const prev = i > 0
+        ? (state.entries.find(x => x.id === inWindow[i - 1].id) || inWindow[i - 1])
+        : effectiveCarryover();
+      if (Array.isArray(r.gePeriod) && r.gePeriod[n - 1] && r.gePeriod[n - 1].hrs > 0){
+        total += Number(r.gePeriod[n - 1].hrs) || 0;
+        return;
+      }
+      const gh = entryGeRunHours(e, n, prev);
+      if (gh != null && gh > 0) total += gh;
+    });
+    return total;
+  }
+  /* Boiler. */
+  if (/boiler|blr/.test(name)){
+    let total = 0;
+    inWindow.forEach((r, i) => {
+      const e = state.entries.find(x => x.id === r.id) || r;
+      const prev = i > 0 ? (state.entries.find(x => x.id === inWindow[i - 1].id) || inWindow[i - 1]) : null;
+      const h = entryBlrRunHours(e, prev);
+      if (h != null && h > 0) total += h;
+    });
+    return total;
+  }
+  /* Anything else: the log has no hour source for it. */
+  return null;
+}
+
+/** What a task's state is against a counter reading. */
+function pmsTaskStatus(unit, task){
+  const counter = numOrNull(unit && unit.counterHrs);
+  const interval = numOrNull(task && task.intervalHrs);
+  const lastDone = numOrNull(task && task.lastDoneHrs);
+  if (interval == null || interval <= 0){
+    return { state: 'no-interval', label: 'no interval set', dueAt: null, toGo: null };
+  }
+  if (counter == null){
+    return { state: 'no-counter', label: 'no counter reading', dueAt: null, toGo: null };
+  }
+  /* Never done: the interval runs from whenever the unit started, which this
+     program does not know. Say so rather than inventing a due figure from zero. */
+  if (lastDone == null){
+    return { state: 'never-done', label: 'never recorded as done', dueAt: null, toGo: null };
+  }
+  const dueAt = lastDone + interval;
+  const toGo = dueAt - counter;
+  if (toGo <= 0) return { state: 'overdue', label: `overdue by ${fmt(-toGo, 0)} hrs`, dueAt, toGo };
+  if (toGo <= PMS_DUE_SOON_HRS) return { state: 'soon', label: `due in ${fmt(toGo, 0)} hrs`, dueAt, toGo };
+  return { state: 'ok', label: `${fmt(toGo, 0)} hrs to go`, dueAt, toGo };
+}
+
+/** Every task across every unit, worst first — the order a Chief wants it. */
+function pmsDueList(){
+  const out = [];
+  pmsUnits().forEach(unit => {
+    (unit.tasks || []).forEach(task => {
+      out.push({ unit, task, status: pmsTaskStatus(unit, task) });
+    });
+  });
+  const rank = { overdue: 0, soon: 1, ok: 2, 'never-done': 3, 'no-counter': 4, 'no-interval': 5 };
+  out.sort((a, b) => {
+    const d = (rank[a.status.state] ?? 9) - (rank[b.status.state] ?? 9);
+    if (d) return d;
+    if (a.status.toGo != null && b.status.toGo != null) return a.status.toGo - b.status.toGo;
+    return String(a.unit.name).localeCompare(String(b.unit.name));
+  });
+  return out;
+}
+
+function setPmsStatus(msg){
+  const el = document.getElementById('pmsStatus');
+  if (el) el.textContent = msg;
+}
+
+function renderPmsUnits(){
+  const body = document.getElementById('pmsUnitBody');
+  if (!body) return;
+  const units = pmsUnits();
+  if (!units.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">No units yet — press Add unit.</td></tr>';
+    return;
+  }
+  body.innerHTML = units.map(u => `<tr>
+    <td><input type="text" value="${escHtml(u.name || '')}" data-pms-unit="${escHtml(u.id)}" data-pms-field="name" style="min-width:140px;"></td>
+    <td><input type="number" step="1" min="0" value="${u.counterHrs == null ? '' : escHtml(String(u.counterHrs))}" data-pms-unit="${escHtml(u.id)}" data-pms-field="counterHrs" style="width:110px;"></td>
+    <td><input type="date" value="${escHtml(String(u.counterAt || '').slice(0, 10))}" data-pms-unit="${escHtml(u.id)}" data-pms-field="counterAt"></td>
+    <td>${(u.tasks || []).length}
+      <button type="button" class="ghost small" data-pms-addtask="${escHtml(u.id)}">+ task</button></td>
+    <td><button type="button" class="ghost small" data-pms-delunit="${escHtml(u.id)}">Remove</button></td>
+  </tr>` + (u.tasks || []).map(t => `<tr class="pms-task-row">
+    <td style="padding-left:18px;" colspan="2"><input type="text" value="${escHtml(t.name || '')}" data-pms-unit="${escHtml(u.id)}" data-pms-task="${escHtml(t.id)}" data-pms-field="name" style="min-width:180px;"></td>
+    <td>every <input type="number" step="1" min="0" value="${t.intervalHrs || ''}" data-pms-unit="${escHtml(u.id)}" data-pms-task="${escHtml(t.id)}" data-pms-field="intervalHrs" style="width:90px;"> hrs</td>
+    <td>last done at <input type="number" step="1" min="0" value="${t.lastDoneHrs == null ? '' : escHtml(String(t.lastDoneHrs))}" data-pms-unit="${escHtml(u.id)}" data-pms-task="${escHtml(t.id)}" data-pms-field="lastDoneHrs" style="width:100px;"> hrs
+      <input type="date" value="${escHtml(String(t.lastDoneAt || '').slice(0, 10))}" data-pms-unit="${escHtml(u.id)}" data-pms-task="${escHtml(t.id)}" data-pms-field="lastDoneAt"></td>
+    <td><button type="button" class="ghost small" data-pms-deltask="${escHtml(u.id)}|${escHtml(t.id)}">Remove</button></td>
+  </tr>`).join('')).join('');
+}
+
+function renderPmsDue(){
+  const body = document.getElementById('pmsDueBody');
+  if (!body) return;
+  const list = pmsDueList();
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">Nothing scheduled yet.</td></tr>';
+    return;
+  }
+  const cls = (st) => st === 'overdue' ? 'alert-text' : st === 'soon' ? 'warn-text' : '';
+  body.innerHTML = list.map(({ unit, task, status }) => `<tr>
+    <td>${escHtml(unit.name || '')}</td>
+    <td>${escHtml(task.name || '')}</td>
+    <td>${task.intervalHrs ? escHtml(fmt(task.intervalHrs, 0)) + ' hrs' : '—'}</td>
+    <td>${task.lastDoneHrs == null ? '—' : escHtml(fmt(task.lastDoneHrs, 0)) + ' hrs'}${
+      task.lastDoneAt ? '<div class="hint">' + escHtml(String(task.lastDoneAt).slice(0, 10)) + '</div>' : ''}</td>
+    <td>${status.dueAt == null ? '—' : escHtml(fmt(status.dueAt, 0)) + ' hrs'}</td>
+    <td class="${cls(status.state)}">${status.toGo == null ? '—' : escHtml(fmt(status.toGo, 0))}</td>
+    <td class="${cls(status.state)}">${escHtml(status.label)}</td>
+  </tr>`).join('');
+}
+
+function renderPms(){
+  renderPmsUnits();
+  renderPmsDue();
+}
+
 /* ---- Fuel changeover to a sulphur limit -----------------------------------
    Built the way the FOBAS change-over calculator is: separate high- and
    low-sulphur service tanks, with the low-sulphur fuel blending into whatever
@@ -12310,14 +12546,10 @@ const CHANGEOVER_MAX_RAMP_C_PER_MIN = 2;
  * caller can say why rather than printing a dash.
  */
 function computeFuelChangeover(input){
-  /* Number('') and Number(null) are both 0, which would turn an empty box into
-     a real figure of zero and answer "the volume must be more than nothing"
-     when what is wrong is that it was never filled in. */
-  const num = (v) => {
-    if (v == null) return NaN;
-    if (typeof v === 'string' && v.trim() === '') return NaN;
-    return Number(v);
-  };
+  /* Same trap as the due list: an empty box must not become a figure of zero
+     and answer "the volume must be more than nothing" when what is wrong is
+     that it was never filled in. */
+  const num = (v) => { const n = numOrNull(v); return n == null ? NaN : n; };
   const sHigh = num(input.sHigh);
   const sLow = num(input.sLow);
   const sLimit = num(input.sLimit);
@@ -12391,10 +12623,9 @@ function computeFuelChangeover(input){
 /** How long a safe temperature ramp needs, so the thermal limit is not the
     thing that makes the changeover late. */
 function changeoverThermalMinutes(fromC, toC){
-  /* Same trap as above: a missing temperature must not read as 0 degC. */
-  const num = (v) => (v == null || (typeof v === 'string' && v.trim() === '')) ? NaN : Number(v);
-  const a = num(fromC), b = num(toC);
-  if (!isFinite(a) || !isFinite(b)) return null;
+  /* Same trap: a missing temperature must not read as 0 degC. */
+  const a = numOrNull(fromC), b = numOrNull(toC);
+  if (a == null || b == null) return null;
   return Math.abs(a - b) / CHANGEOVER_MAX_RAMP_C_PER_MIN;
 }
 
@@ -13651,6 +13882,147 @@ document.getElementById('btnRangeAll')?.addEventListener('click', ()=>{
   renderRangeTotals();
 });
 
+/* ---- Running hours & maintenance handlers --------------------------------- */
+async function savePmsAndRender(){
+  await saveSetup();
+  markPendingSync();
+  renderPms();
+}
+
+document.getElementById('btnPmsAddUnit')?.addEventListener('click', async ()=>{
+  const name = prompt('Unit name.\n\nName a generator "A/E #1" (or "D/G 1") and the main engine "M/E" — the log can then offer the hours it has run since the last reading. Anything else is kept by hand.');
+  if (name == null) return;
+  const trimmed = String(name).trim();
+  if (!trimmed) return;
+  pmsUnits().push(pmsNewUnit(trimmed));
+  await savePmsAndRender();
+  setPmsStatus(`Added ${trimmed}. Enter the counter reading and the date it was taken.`);
+});
+
+document.getElementById('pmsUnitBody')?.addEventListener('click', async (ev)=>{
+  const t = ev.target;
+  const addTask = t?.closest?.('[data-pms-addtask]')?.getAttribute('data-pms-addtask');
+  if (addTask){
+    const unit = pmsUnits().find(u => u.id === addTask);
+    if (!unit) return;
+    const name = prompt('Task, e.g. "Fuel injector overhaul" or "Lube oil change".');
+    if (name == null) return;
+    const every = prompt('Interval in running hours, e.g. 2000.');
+    if (every == null) return;
+    unit.tasks = unit.tasks || [];
+    unit.tasks.push(pmsNewTask(String(name).trim(), Number(every)));
+    await savePmsAndRender();
+    return;
+  }
+  const delUnit = t?.closest?.('[data-pms-delunit]')?.getAttribute('data-pms-delunit');
+  if (delUnit){
+    const unit = pmsUnits().find(u => u.id === delUnit);
+    if (!unit) return;
+    if (!confirm(`Remove ${unit.name} and its ${(unit.tasks || []).length} task(s)?\n\nThe counter reading and the maintenance history on it go with it.`)) return;
+    state.setup.pmsUnits = pmsUnits().filter(u => u.id !== delUnit);
+    await savePmsAndRender();
+    return;
+  }
+  const delTask = t?.closest?.('[data-pms-deltask]')?.getAttribute('data-pms-deltask');
+  if (delTask){
+    const [uid, tid] = delTask.split('|');
+    const unit = pmsUnits().find(u => u.id === uid);
+    if (!unit) return;
+    const task = (unit.tasks || []).find(x => x.id === tid);
+    if (task && !confirm(`Remove "${task.name}" from ${unit.name}?`)) return;
+    unit.tasks = (unit.tasks || []).filter(x => x.id !== tid);
+    await savePmsAndRender();
+  }
+});
+
+document.getElementById('pmsUnitBody')?.addEventListener('change', async (ev)=>{
+  const el = ev.target;
+  const uid = el?.getAttribute?.('data-pms-unit');
+  const field = el?.getAttribute?.('data-pms-field');
+  if (!uid || !field) return;
+  const unit = pmsUnits().find(u => u.id === uid);
+  if (!unit) return;
+  const tid = el.getAttribute('data-pms-task');
+  const target = tid ? (unit.tasks || []).find(x => x.id === tid) : unit;
+  if (!target) return;
+  const raw = el.value;
+  if (field === 'counterHrs' || field === 'intervalHrs' || field === 'lastDoneHrs'){
+    /* An empty box means "not known", which is not the same as zero: zero is a
+       brand-new unit and would make everything read as overdue. */
+    target[field] = String(raw).trim() === '' ? null : Number(raw);
+  } else {
+    target[field] = raw;
+  }
+  await savePmsAndRender();
+});
+
+/* The log knows how many hours have gone by; the machine knows what its counter
+   says. This offers the first so the engineer can confirm the second — it never
+   writes a counter reading on its own. */
+document.getElementById('btnPmsAdvance')?.addEventListener('click', async ()=>{
+  const units = pmsUnits();
+  if (!units.length){ alert('Add a unit first.'); return; }
+  const lines = [];
+  const offers = [];
+  units.forEach(u => {
+    if (!u.counterAt || u.counterHrs == null){
+      lines.push(`${u.name}: no reading recorded yet — enter the counter and the date it was read.`);
+      return;
+    }
+    const since = pmsLoggedHoursSince(u, u.counterAt);
+    if (since == null){
+      lines.push(`${u.name}: the log has no hour source for this unit — keep it by hand.`);
+      return;
+    }
+    if (since <= 0){
+      lines.push(`${u.name}: no logged hours since ${String(u.counterAt).slice(0, 10)}.`);
+      return;
+    }
+    const proposed = Number(u.counterHrs) + since;
+    lines.push(`${u.name}: ${fmt(u.counterHrs, 0)} + ${fmt(since, 1)} logged = ${fmt(proposed, 0)} hrs`);
+    offers.push({ unit: u, proposed });
+  });
+  if (!offers.length){
+    alert('Nothing to offer.\n\n' + lines.join('\n'));
+    return;
+  }
+  const ok = confirm('HOURS SINCE THE LAST READING\n\n' + lines.join('\n') +
+    '\n\nThese are the hours the log accumulated, added to the reading you recorded. ' +
+    'They are an estimate — the counter on the machine is what counts. ' +
+    '\n\nApply them as the current readings, dated today?');
+  if (!ok) return;
+  const today = new Date().toISOString().slice(0, 10);
+  offers.forEach(({ unit, proposed }) => {
+    unit.counterHrs = Math.round(proposed);
+    unit.counterAt = today;
+  });
+  await savePmsAndRender();
+  setPmsStatus(`Updated ${offers.length} counter reading(s) to ${today}. Check them against the machines.`);
+});
+
+document.getElementById('btnPmsPrint')?.addEventListener('click', ()=>{
+  const list = pmsDueList();
+  if (!list.length){ alert('Nothing scheduled to print.'); return; }
+  const rows = list.map(({ unit, task, status }) => `<tr>
+    <td class="row-lbl">${escPrint(unit.name || '')}</td>
+    <td>${escPrint(task.name || '')}</td>
+    <td>${task.intervalHrs ? escPrint(fmt(task.intervalHrs, 0)) : '—'}</td>
+    <td>${task.lastDoneHrs == null ? '—' : escPrint(fmt(task.lastDoneHrs, 0))}</td>
+    <td>${escPrint(String(task.lastDoneAt || '').slice(0, 10) || '—')}</td>
+    <td>${unit.counterHrs == null ? '—' : escPrint(fmt(unit.counterHrs, 0))}</td>
+    <td>${status.dueAt == null ? '—' : escPrint(fmt(status.dueAt, 0))}</td>
+    <td>${escPrint(status.label)}</td>
+  </tr>`).join('');
+  const sheetHtml = `<div class="pr-sheet">
+    ${printDocHeader({ title: 'Running Hours & Maintenance', subtitle: 'Falling due against counter readings' })}
+    ${printSection('Due list', `<table class="pr-table">
+      <tr><th>Unit</th><th>Task</th><th>Every (hrs)</th><th>Last done (hrs)</th><th>Date</th><th>Counter (hrs)</th><th>Due at (hrs)</th><th>Status</th></tr>
+      ${rows}</table>`)}
+    <div class="pr-note">Counter readings are as recorded on this device, with the date each was taken; hours accumulated since are an estimate from the log. The counter on the machine governs. "Never recorded as done" means this program was not told when the task was last carried out, so no due figure is claimed for it.</div>
+  </div>`;
+  printPortraitPages([sheetHtml]);
+});
+
 ['co_sHigh','co_sLow','co_sLimit','co_volume','co_consMtDay','co_density','co_ecaAt','co_margin']
   .forEach(id => document.getElementById(id)?.addEventListener('input', renderChangeover));
 document.getElementById('btnCoCalc')?.addEventListener('click', renderChangeover);
@@ -14135,6 +14507,8 @@ function render(){
 
   renderCiiStrip(consByFuel, perf);
   renderRunningHoursStrip(rows, perf);
+  /* Counters and the due list sit under the voyage hours on the same page. */
+  try{ renderPms(); }catch(_){}
   renderDepArrRobTable(consByFuel, consByLube);
 
   const geCells = machineryGeHourCells(perf.geTotals?.hrs, geUnitCount());
@@ -28692,6 +29066,9 @@ document.getElementById('btnCloseVoyageSummaryTop')?.addEventListener('click', (
 
 function migrateSetup(setup){
   if (!setup || typeof setup !== 'object') setup = {};
+  /* Running-hours units live in setup so they ride the vessel, the backup and
+     the sync like every other piece of ship configuration. */
+  if (!Array.isArray(setup.pmsUnits)) setup.pmsUnits = [];
   if (!setup.flowArr){
     setup.flowArr = (setup.genMode === 'PARALLEL') ? 'DUAL_GE' : 'SINGLE';
   }
