@@ -406,7 +406,7 @@
   }
 
   function moduleAllowed(moduleId, ent) {
-    if (moduleId === 'license' || moduleId === 'home' || moduleId === 'about') return true;
+    if (moduleId === 'license' || moduleId === 'home' || moduleId === 'about' || moduleId === 'notes') return true;
     return modulesAllowed(ent).includes(moduleId);
   }
 

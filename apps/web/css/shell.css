@@ -1209,6 +1209,66 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   color: var(--muted);
   line-height: 1.5;
 }
+.guide-tools {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: 8px;
+  background: var(--panel, #102033);
+}
+.guide-search-label {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#aboutGuideSearch {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, rgba(255,255,255,0.16));
+  background: var(--bg, #0a1420);
+  color: inherit;
+  font: inherit;
+}
+.guide-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guide-chip {
+  border: 1px solid var(--line, rgba(255,255,255,0.16));
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.guide-chip.is-on {
+  background: var(--teal, #1f8a8a);
+  color: #041618;
+  border-color: transparent;
+  font-weight: 700;
+}
+.guide-item {
+  border-top: 1px solid var(--line, rgba(255,255,255,0.12));
+  padding: 8px 0 4px;
+}
+.guide-item summary {
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.guide-purpose {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
 
 .backup-page .backup-grid {
   display: grid;

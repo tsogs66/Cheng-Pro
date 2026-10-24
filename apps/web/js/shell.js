@@ -302,7 +302,7 @@
       }
       const allowed = ChengLicense.modulesAllowed(ent);
       const soft = mod === 'voyage' || mod === 'tanks' || mod === 'eorb' || mod === 'bunkerplan' || mod === 'bunkeringplan';
-      if (mod === 'about' || mod === 'home' || mod === 'license') {
+      if (mod === 'about' || mod === 'home' || mod === 'license' || mod === 'notes') {
         el.hidden = false;
         el.classList.remove('nav-warn');
         el.removeAttribute('title');
@@ -599,6 +599,7 @@
         if (!gate.ok && gate.enforced) {
           showToast('Activation required — enter your license key');
           await navigate('license');
+          if (window.ChengNotes) ChengNotes.promptOnOpen();
           return;
         } else if (!gate.ok) {
           showToast('License not active — open License to activate (60-day offline grace after check)');
@@ -619,6 +620,7 @@
     } else {
       await navigate('home');
     }
+    if (window.ChengNotes) ChengNotes.promptOnOpen();
   }
 
   boot().catch((e) => {

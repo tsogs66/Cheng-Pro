@@ -316,6 +316,8 @@
   /* ChEng AIO: vessel identity + selection live only in AIO Vessel Setup. */
   html.chengaio-embed #vesselSelectionPanel,
   html.chengaio-embed #vesselIdentityPanel{display:none !important;}
+  html.chengaio-embed .tab[data-page="notes"],
+  html.chengaio-embed .bn-more-item[data-page="notes"]{display:none !important;}
 
   /* AIO Backup bridge (?page=data): only Server Sync — chrome and other Setup panels go away. */
   html.chengaio-embed.aio-data-embed .masthead,
@@ -2904,6 +2906,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <div class="tab-group">
       <span class="tab-group-label">Books</span>
       <div class="tab" data-page="reference">Reference</div>
+      <div class="tab" data-page="guide">Guide</div>
+      <div class="tab" data-page="notes">Notes</div>
       <div class="tab" data-page="orb">e-ORB</div>
     </div>
     <div class="tab-group">
@@ -4790,6 +4794,23 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     </div>
   </div>
 
+  <!-- NOTES -->
+  <div class="page" id="page-notes">
+    <div class="panel">
+      <h2>Notes</h2>
+      <div id="voyageNotesHost"></div>
+    </div>
+  </div>
+
+  <!-- GUIDE -->
+  <div class="page" id="page-guide">
+    <div class="panel">
+      <h2>Guide</h2>
+      <p class="hint">Search a question. Each answer says what the job is for, the steps, what the buttons do, and how to undo a mistake.</p>
+      <div id="voyageGuideHost"></div>
+    </div>
+  </div>
+
   <!-- REFERENCE -->
   <div class="page" id="page-reference">
     <div class="panel">
@@ -5323,6 +5344,14 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <span class="bn-ic" aria-hidden="true">📖</span>
         <span>Reference</span>
       </button>
+      <button type="button" class="bn-more-item" data-page="guide">
+        <span class="bn-ic" aria-hidden="true">?</span>
+        <span>Guide</span>
+      </button>
+      <button type="button" class="bn-more-item" data-page="notes">
+        <span class="bn-ic" aria-hidden="true">📝</span>
+        <span>Notes</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="orb">
         <span class="bn-ic" aria-hidden="true">📕</span>
         <span>e-ORB</span>
@@ -5349,6 +5378,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 <script src="eorb.js"></script>
 <script src="save-file.js"></script>
 <script src="camera-capture.js"></script>
+<script src="guide.js"></script>
+<script src="notes.js"></script>
 <script>
 /* ---------------- constants ---------------- */
 const FUEL_TYPES = ["HFO","LSFO","MDO/MGO","LSMGO"];
@@ -13130,7 +13161,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -14267,6 +14298,9 @@ function switchTab(pageName){
   }
   if (pageName === 'data'){
     renderDeletedBackupList();
+  }
+  if (pageName === 'notes' && window.VoyageNotes){
+    VoyageNotes.render();
   }
   if (pageName === 'reference'){
     updateRefNoxCalc();
@@ -23360,6 +23394,52 @@ function syncCredentialsMirrorValue(sync){
   };
 }
 
+/* Electron / ChEng AIO loopback disk mirror. Chromium keys localStorage to the
+   origin, so when the desktop shell comes up on a different loopback port the
+   whole origin -- sync server URL and token with it -- reads as empty and
+   Backup > Server Sync silently stops working. The gateway keeps a copy on
+   disk at /api/shell/local-sync-creds, outside any origin, and these three put
+   it back. Off the desktop there is no such route: the URL resolves to '' and
+   every one of them is a no-op, which is why this also lives in the standalone
+   build: the AIO copy is mirrored from this file, and keeping only one side
+   means the next mirror drops it again, as it has twice before. */
+function localSyncCredsMirrorUrl(){
+  try{
+    if (typeof location === 'undefined') return '';
+    if (!/^https?:$/i.test(location.protocol || '')) return '';
+    const host = location.hostname || '';
+    if (host !== '127.0.0.1' && host !== 'localhost') return '';
+    return '/api/shell/local-sync-creds';
+  }catch(_){ return ''; }
+}
+
+function mirrorSyncCredentialsToDisk(creds){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return;
+  try{
+    const has = creds && (creds.serverUrl || creds.apiToken);
+    fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentials: has ? syncCredentialsMirrorValue(creds) : null }),
+      credentials: 'same-origin',
+      keepalive: true
+    }).catch(()=>{});
+  }catch(_){}
+}
+
+async function hydrateSyncCredentialsFromDisk(){
+  const url = localSyncCredsMirrorUrl();
+  if (!url || typeof fetch !== 'function') return null;
+  try{
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const creds = data && data.credentials;
+    return (creds && typeof creds === 'object') ? creds : null;
+  }catch(_){ return null; }
+}
+
 function readSyncCredentialsFromLocalStorage(){
   try{
     const raw = localStorage.getItem(SYNC_CREDS_LS_KEY);
@@ -23373,13 +23453,14 @@ function writeSyncCredentialsToLocalStorage(creds){
   const value = syncCredentialsMirrorValue(creds || {});
   localStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value));
   try{ sessionStorage.setItem(SYNC_CREDS_LS_KEY, JSON.stringify(value)); }catch(_){}
+  mirrorSyncCredentialsToDisk(value);
   return value;
 }
 
 async function persistSyncCredentialsMirror(sync){
   /*
    * localStorage first — synchronous, works on fresh tablets even while IndexedDB
-   * is busy seeding the demo fleet. IndexedDB mirror is best-effort afterward.
+   * is busy seeding the demo fleet. IndexedDB + disk mirrors are best-effort afterward.
    */
   const value = writeSyncCredentialsToLocalStorage(sync);
   try{
@@ -23555,6 +23636,16 @@ async function applyMirroredSyncCredentials(){
         const row = await dbGet('meta', 'syncCredentials');
         creds = row && row.value;
         if (creds) writeSyncCredentialsToLocalStorage(creds);
+      }catch(_){}
+    }
+    /* Nothing in this origin: the desktop shell may have moved port. */
+    if (!creds || !(creds.apiToken || creds.serverUrl)){
+      try{
+        const fromDisk = await hydrateSyncCredentialsFromDisk();
+        if (fromDisk && (fromDisk.apiToken || fromDisk.serverUrl)){
+          creds = Object.assign({}, creds || {}, fromDisk);
+          writeSyncCredentialsToLocalStorage(creds);
+        }
       }catch(_){}
     }
     if (creds && typeof creds !== 'object') creds = null;
@@ -24681,7 +24772,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v328';
+let androidInstallCacheName = 'noon-report-v330';
 
 /*
  * What the program is called.
@@ -24976,6 +25067,8 @@ let androidInstallAssets = [
   './license.js',
   './save-file.js',
   './camera-capture.js',
+  './guide.js',
+  './notes.js',
   './clock-picker.js',
   './signed-numeric-input.js',
   './loading-splash.css',
@@ -30334,6 +30427,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     /* Last, so a stored session can switch the active vessel over a loaded app. */
     try{ await initLoginGate(); }
     catch(gateErr){ console.error('Login gate failed to start', gateErr); showLoginGate(true); }
+    try { if (!isChengAioEmbedded() && window.VoyageNotes) VoyageNotes.promptOnOpen(); } catch (_) {}
     _programReady = true;
     try { publishShipClock(); } catch (_) {}
     try { bindBunkerFileLinks(); } catch (_) {}
