@@ -491,6 +491,68 @@ app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
   }
 });
 
+/**
+ * Make the working tank sheet the newest saved sounding report, and write
+ * its soundings as the current tank readings. A reading taken after that
+ * report is left as it is.
+ */
+app.post('/api/vessels/:id/sounding-report/load-latest', (req, res) => {
+  try {
+    const id = req.params.id;
+    const bundle = store.getVesselBundle(id);
+    const history = Array.isArray(bundle.reportHistory) ? bundle.reportHistory : [];
+    let snap = null;
+    for (const item of history) {
+      if (!item || !item.form || typeof item.form !== 'object') continue;
+      if (!snap || savedReportStamp(item) > savedReportStamp(snap)) snap = item;
+    }
+    if (!snap) {
+      return res.json({ ok: true, loaded: false, reason: 'No saved sounding report on this vessel' });
+    }
+    const stamp = savedReportStamp(snap);
+    const { computed } = buildFuelReport(id, snap.form);
+    const form = { ...computed.form, updatedAt: stamp || new Date().toISOString() };
+    store.saveVesselPart(id, 'fuelReport', form);
+    const fromReport = fuelReport.readingsFromReport(bundle, computed);
+    const current = (bundle && bundle.readings) || {};
+    const readings = { ...fromReport };
+    let keptNewer = 0;
+    Object.entries(current).forEach(([tankId, reading]) => {
+      if (!reading || typeof reading !== 'object') return;
+      const readingAt = String(reading.savedAt || '');
+      if (readingAt && stamp && readingAt > stamp) {
+        readings[tankId] = reading;
+        keptNewer += 1;
+      }
+    });
+    store.saveVesselPart(id, 'readings', readings);
+    const header = form.header || {};
+    store.saveVesselPart(id, 'voyage', {
+      ...(bundle.voyage || {}),
+      voyageNo: header.voyageNo,
+      port: header.port,
+      reportType: header.reportType,
+      date: header.date,
+      time: header.time,
+      draftFwd: computed.header && computed.header.draftFwd,
+      draftAft: computed.header && computed.header.draftAft,
+      trim: computed.header && computed.header.trim,
+      heel: computed.header && computed.header.heel,
+    });
+    res.json({
+      ok: true,
+      loaded: true,
+      savedAt: stamp,
+      reportType: snap.reportType || header.reportType || '',
+      voyageNo: snap.voyageNo || header.voyageNo || '',
+      readingCount: Object.keys(readings).length,
+      keptNewer,
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /** Saved report snapshots, newest first. */
 app.get('/api/vessels/:id/fuel-report/history', (req, res) => {
   try {

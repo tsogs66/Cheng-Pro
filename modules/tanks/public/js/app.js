@@ -5547,6 +5547,22 @@ function startSyncLoop() {
   timer = window.setTimeout(tick, IDLE_MS);
 }
 
+/* After Backup merges databases, reopen the newest sounding sheet and readings. */
+window.addEventListener('message', async (ev) => {
+  const msg = ev.data || {};
+  if (msg.type !== 'chengaio-reload-sounding') return;
+  try {
+    await reloadBundle();
+    if (window.FuelReport && FuelReport.view) FuelReport.view.pendingForm = null;
+    render();
+    const history = (STATE.bundle && STATE.bundle.reportHistory) || [];
+    const latest = history.filter((item) => item && item.form).sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0];
+    showToast(latest
+      ? `Latest sounding report loaded${latest.voyageNo ? ' — voyage ' + latest.voyageNo : ''}`
+      : 'Tank readings reloaded');
+  } catch (_) { /* the page will read the saved sheet the next time it opens */ }
+});
+
 /* Tank ROB bridge: respond to parent/AIO requests for current fuel ROB by grade. */
 window.addEventListener('message', (ev) => {
   const msg = ev.data || {};

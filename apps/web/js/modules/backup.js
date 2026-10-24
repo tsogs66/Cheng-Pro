@@ -517,6 +517,7 @@
               <button type="button" class="btn" id="bk-voy-sync-pull">Pull active leg</button>
               <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
             </div>
+            <p class="hint">Keep data persistent compares every voyage leg. Tick the ones both databases should hold, then press it again. A leg on only one side is copied across. A leg on both sides keeps the newer watch. The latest leg opens afterwards, and Tank Chief loads the latest sounding report and tank readings.</p>
             <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
 
             <div class="backup-subsection">
@@ -1071,63 +1072,6 @@
         });
       }
 
-      function remoteLegRows(voyages) {
-        const rows = [];
-        for (const voyage of voyages || []) {
-          const conds = Array.isArray(voyage.conditions)
-            ? voyage.conditions
-            : Object.entries(voyage.conditions || {}).map(([condition, meta]) => ({
-              condition,
-              ...(meta && typeof meta === 'object' ? meta : {}),
-            }));
-          for (const meta of conds) {
-            const condition = legCondition((meta && meta.condition) || '');
-            const voyageNumber = String((meta && meta.voyageNumber) || voyage.voyageNumber || '').trim();
-            if (!voyageNumber) continue;
-            rows.push({
-              voyageNumber,
-              condition,
-              entryCount: Number(meta && meta.entryCount) || 0,
-              updatedAt: (meta && (meta.updatedAt || meta.serverUpdatedAt)) || '',
-            });
-          }
-        }
-        return rows;
-      }
-
-      function adviseLeg(local, remote) {
-        if (local && !remote) return { action: 'push', reason: 'Only on this device', checked: true };
-        if (!local && remote) return { action: 'pull', reason: 'Only on the server', checked: true };
-        const lc = Number(local.entryCount) || 0;
-        const rc = Number(remote.entryCount) || 0;
-        const content = local.contentAt || '';
-        const saved = local.savedAt || '';
-        const remoteAt = remote.updatedAt || '';
-        if (lc !== rc) {
-          const extra = Math.abs(lc - rc);
-          const noun = extra === 1 ? 'entry' : 'entries';
-          return {
-            action: 'merge',
-            reason: lc > rc
-              ? `This device has ${extra} more ${noun}`
-              : `The server has ${extra} more ${noun}`,
-            checked: true,
-          };
-        }
-        if (content && remoteAt && content > remoteAt) {
-          return { action: 'merge', reason: 'A log entry on this device is newer than the server copy', checked: true };
-        }
-        const remoteMs = Date.parse(remoteAt);
-        const savedMs = Date.parse(saved);
-        if (Number.isFinite(remoteMs) && Number.isFinite(savedMs) && remoteMs - savedMs > 60000) {
-          return { action: 'merge', reason: 'The server copy is newer', checked: true };
-        }
-        if (Number.isFinite(savedMs) && Number.isFinite(remoteMs) && savedMs - remoteMs > 60000 && !(content && remoteAt && content <= remoteAt)) {
-          return { action: 'merge', reason: 'This device copy is newer', checked: true };
-        }
-        return { action: 'same', reason: 'Same entry count', checked: false };
-      }
-
       function adviseReport(local, remote) {
         if (local && !remote) return { action: 'push', reason: 'Only on this device', checked: true };
         if (!local && remote) return { action: 'pull', reason: 'Only on the server', checked: true };
@@ -1184,60 +1128,104 @@
         });
       }
 
+      function voyageNumbers(rows, side) {
+        const key = side === 'local' ? 'localText' : 'serverText';
+        const seen = [];
+        for (const row of rows || []) {
+          if (!row || row[key] === '—') continue;
+          const no = String(row.voyage || '').trim();
+          if (no && !seen.includes(no)) seen.push(no);
+        }
+        return seen;
+      }
+
+      function reloadOpenVoyageFrame() {
+        document.querySelectorAll('iframe.aio-embed-frame').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('voyage') < 0) return;
+            frame.contentWindow.postMessage({
+              type: 'chengaio-voyage-backup',
+              action: 'show-open-leg',
+              requestId: 'show-' + Date.now(),
+            }, '*');
+          } catch (_) { /* the voyage page is not open */ }
+        });
+      }
+
+      function reloadOpenTankFrames() {
+        document.querySelectorAll('iframe').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0) return;
+            frame.contentWindow.postMessage({ type: 'chengaio-reload-sounding' }, '*');
+          } catch (_) { /* tank page is not open */ }
+        });
+      }
+
+      async function loadLatestSounding(vesselIds, bothSides) {
+        const ids = [...new Set((vesselIds || []).filter(Boolean))];
+        const active = ChengPro.vessel.getActive();
+        if (active && active.id && !ids.includes(active.id)) ids.push(active.id);
+        const notes = [];
+        for (const id of ids) {
+          const path = '/api/vessels/' + encodeURIComponent(id) + '/sounding-report/load-latest';
+          const opts = { method: 'POST', body: '{}' };
+          if (usingLocalTank() || bothSides) {
+            try {
+              if (canUseLocalTank()) notes.push(await tankRequest(path, opts));
+            } catch (e) {
+              notes.push({ id, error: e.message });
+            }
+          }
+          if (!usingLocalTank() || bothSides) {
+            try { notes.push(await gatewayTankApi(path, opts)); }
+            catch (e) { notes.push({ id, error: e.message }); }
+          }
+        }
+        reloadOpenTankFrames();
+        return notes.filter((note) => note && note.loaded);
+      }
+
+      async function refreshVoyageConsistency() {
+        const settings = readVoyageSyncForm(root);
+        if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
+        progressSet(20, 'Comparing voyage legs on this device and the server…');
+        watchVoyage(20, 90);
+        const compared = await voyagePost('compare-legs', {
+          vessel: settings.vesselId,
+          settings,
+        }, root);
+        const rows = (compared.rows || []).map((row) => ({
+          kind: 'voyage-leg',
+          voyage: row.voyage,
+          condition: legCondition(row.condition),
+          action: row.action,
+          reason: row.reason,
+          checked: !!row.checked,
+          title: `Voyage ${row.voyage} · ${legConditionLabel(row.condition)}`,
+          localText: row.localEntryCount == null ? '—' : sideText(row.localEntryCount, row.localAt),
+          serverText: row.remoteEntryCount == null ? '—' : sideText(row.remoteEntryCount, row.remoteAt),
+        })).sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }));
+        const differ = rows.filter((row) => row.action !== 'same').length;
+        const ship = compared.vesselName || compared.vessel || settings.vesselId || 'this ship';
+        const plan = {
+          kind: 'voyage',
+          settings,
+          vessel: settings.vesselId || compared.vessel,
+          rows,
+          summary: differ ? `${differ} leg${differ === 1 ? '' : 's'} differ` : 'legs match',
+          status: `${rows.length} leg${rows.length === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
+        };
+        renderConsistency(plan);
+        return plan;
+      }
+
       root.querySelector('#bk-check-voyage').onclick = async () => {
         try {
           await withProgress('Comparing voyage legs…', 'Reading this device…', async () => {
-            const settings = readVoyageSyncForm(root);
-            if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
-            progressSet(12, 'Reading voyage legs on this device…');
-            const localMsg = await voyagePost('list-local-legs', {
-              vessel: settings.vesselId,
-              settings,
-            }, root);
-            progressSet(40, 'Reading voyage legs on the server…');
-            watchVoyage(40, 90);
-            const remoteMsg = await voyagePost('list-remote', {
-              vessel: settings.vesselId || localMsg.vessel,
-              settings: { ...settings, vesselId: settings.vesselId || localMsg.vessel },
-            }, root);
-            const localLegs = localMsg.legs || [];
-            const remoteLegs = remoteLegRows(remoteMsg.voyages || []);
-            const keys = new Map();
-            for (const leg of localLegs) keys.set(`${leg.voyageNumber}|${legCondition(leg.condition)}`, { local: leg });
-            for (const leg of remoteLegs) {
-              const key = `${leg.voyageNumber}|${legCondition(leg.condition)}`;
-              const slot = keys.get(key) || {};
-              slot.remote = leg;
-              keys.set(key, slot);
-            }
-            const rows = [...keys.values()].map((slot) => {
-              const local = slot.local;
-              const remote = slot.remote;
-              const advice = adviseLeg(local, remote);
-              const voyageNumber = (local && local.voyageNumber) || remote.voyageNumber;
-              const condition = legCondition((local && local.condition) || remote.condition);
-              return {
-                kind: 'voyage-leg',
-                voyage: voyageNumber,
-                condition,
-                action: advice.action,
-                reason: advice.reason,
-                checked: advice.checked,
-                title: `Voyage ${voyageNumber} · ${legConditionLabel(condition)}`,
-                localText: local ? sideText(local.entryCount, local.contentAt || local.savedAt) : '—',
-                serverText: remote ? sideText(remote.entryCount, remote.updatedAt) : '—',
-              };
-            }).sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }));
-            const differ = rows.filter((row) => row.action !== 'same').length;
-            const ship = localMsg.vesselName || localMsg.vessel || settings.vesselId || 'this ship';
-            renderConsistency({
-              kind: 'voyage',
-              settings,
-              vessel: settings.vesselId || localMsg.vessel,
-              rows,
-              summary: differ ? `${differ} leg${differ === 1 ? '' : 's'} differ` : 'legs match',
-              status: `${rows.length} leg${rows.length === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update.` : 'Nothing is ahead on either side.'}`,
-            });
+            const plan = await refreshVoyageConsistency();
+            const differ = (plan.rows || []).filter((row) => row.action !== 'same').length;
             return differ
               ? `${differ} voyage leg${differ === 1 ? '' : 's'} differ`
               : 'Voyage legs match';
@@ -1457,9 +1445,15 @@
               const msg = await voyagePost('reconcile-legs', {
                 vessel: consistencyPlan.vessel,
                 settings,
+                openLatest: true,
                 legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
               }, root, 600000);
-              const line = msg.message || 'Voyage legs updated.';
+              reloadOpenVoyageFrame();
+              const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
+              const soundNote = sounded[0] && sounded[0].loaded
+                ? ` Latest sounding report loaded${sounded[0].voyageNo ? ' (voyage ' + sounded[0].voyageNo + ')' : ''}.`
+                : '';
+              const line = (msg.message || 'Voyage legs updated.') + soundNote;
               setConsistency(line);
               setConsistencySummary('updated');
               toast(line);
@@ -1477,7 +1471,8 @@
                 }),
               });
               const notes = (result.results || []).map((row) => row.peerNote).filter(Boolean);
-              const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${notes.length ? ' ' + notes[0] : ''}`;
+              const sounded = await loadLatestSounding(vesselIds, false);
+              const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${notes.length ? ' ' + notes[0] : ''}${sounded.length ? ' Latest sounding report loaded.' : ''}`;
               setConsistency(line);
               setConsistencySummary('updated');
               toast('Saved reports merged');
@@ -1495,7 +1490,8 @@
               await tankRequest(path, { method: 'POST', body: JSON.stringify(serverBundle) });
               await gatewayTankApi(path, { method: 'POST', body: JSON.stringify(localBundle) });
             }
-            const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.`;
+            const sounded = await loadLatestSounding(vesselIds, true);
+            const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}`;
             setConsistency(line);
             setConsistencySummary('updated');
             toast('Saved reports merged');
@@ -2362,13 +2358,83 @@
       });
 
       root.querySelector('#bk-voy-sync-persist')?.addEventListener('click', async () => {
-        if (!confirm('KEEP DATA PERSISTENT — merge local and server chronologically both ways, then save on both sides. Continue?')) return;
-        setVoySync('Merging local ↔ server…');
+        const settings = readVoyageSyncForm(root);
+        if (!settings.serverUrl) {
+          setVoySync('Set the Voyage Chief sync server URL, then press Keep data persistent.');
+          toast('Set the sync server URL first');
+          return;
+        }
+        const planMatches = consistencyPlan
+          && consistencyPlan.kind === 'voyage'
+          && (consistencyPlan.settings || {}).serverUrl === settings.serverUrl
+          && String((consistencyPlan.settings || {}).vesselId || '') === String(settings.vesselId || '');
+        if (!planMatches) {
+          setVoySync('Comparing every voyage leg…');
+          try {
+            await voyagePost('save-sync-settings', { settings }, root);
+            const plan = await withProgress('Comparing voyage legs…', 'Reading this device and the server…', () => refreshVoyageConsistency());
+            const rows = plan.rows || [];
+            const differ = rows.filter((row) => row.action !== 'same');
+            const box = root.querySelector('#bk-consistency');
+            if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+            if (!differ.length) {
+              const opened = await voyagePost('open-latest-leg', { vessel: plan.vessel, settings }, root);
+              reloadOpenVoyageFrame();
+              const sounded = await loadLatestSounding([plan.vessel], false);
+              const line = (opened.message || 'Voyage legs already match.')
+                + (sounded[0] && sounded[0].loaded ? ' Latest sounding report loaded.' : '');
+              setVoySync(line);
+              setConsistency(line);
+              toast(line);
+              return;
+            }
+            const here = voyageNumbers(rows, 'local');
+            const there = voyageNumbers(rows, 'server');
+            const line = `This device has voyage ${here.join(', ') || 'none'}. The server has voyage ${there.join(', ') || 'none'}. Tick the legs both databases should hold, then press Keep data persistent again.`;
+            setVoySync(line);
+            setConsistency(line);
+            toast('Select the legs, then press Keep data persistent again');
+          } catch (e) {
+            setVoySync(e.message || 'Compare failed');
+            toast(e.message || 'Compare failed');
+          }
+          return;
+        }
+        const picked = selectedConsistencyRows();
+        if (!picked.length) {
+          setVoySync('No legs are ticked. Tick the ones both databases should share, then press Keep data persistent again.');
+          toast('Tick at least one leg');
+          return;
+        }
+        const lines = picked.map((row) => `• ${row.title} — ${row.reason}`).join('\n');
+        if (!confirm(
+          'KEEP DATA PERSISTENT\n\n'
+          + 'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n'
+          + lines
+          + '\n\nThe latest leg opens when this finishes. Continue?'
+        )) return;
+        setVoySync('Copying the selected voyage legs…');
         try {
-          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
-          const msg = await voyagePost('persist-merge', {}, root);
-          setVoySync(msg.message || 'Merge completed');
-          toast(msg.message || 'Merge completed');
+          await withProgress('Updating voyage legs…', 'Starting…', async () => {
+            watchVoyage(8, 90);
+            const msg = await voyagePost('reconcile-legs', {
+              vessel: consistencyPlan.vessel,
+              settings,
+              openLatest: true,
+              legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
+            }, root, 600000);
+            reloadOpenVoyageFrame();
+            progressSet(94, 'Loading the latest sounding report…');
+            const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
+            const line = (msg.message || 'Voyage legs updated.')
+              + (sounded[0] && sounded[0].loaded ? ' Latest sounding report and tank readings loaded.' : '');
+            setVoySync(line);
+            setConsistency(line);
+            setConsistencySummary('updated');
+            toast(line);
+            return line;
+          });
+          if (consistencyApply) consistencyApply.disabled = true;
         } catch (e) {
           setVoySync(e.message || 'Merge failed');
           toast(e.message || 'Merge failed');
