@@ -9,6 +9,8 @@
  */
 const Progress = (() => {
   let timer = null;
+  let hideTimer = null;
+  let jobGen = 0;
   let startedAt = 0;
 
   function elapsedLabel(ms) {
@@ -37,6 +39,8 @@ const Progress = (() => {
 
   /** Open the bar. Returns the element so a caller can scroll it into view. */
   function start(mountEl, title, message) {
+    jobGen += 1;
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
     const box = ensure(mountEl);
     box.style.display = '';
     box.classList.add('active');
@@ -77,14 +81,20 @@ const Progress = (() => {
   }
 
   function done(message) {
+    const gen = jobGen;
     if (message) set(100, message);
     if (timer) { clearInterval(timer); timer = null; }
     if (window.LoadingSplash) LoadingSplash.hide('task-progress');
     const box = document.getElementById('task-progress');
     if (!box) return;
-    window.setTimeout(() => {
-      box.classList.remove('active');
-      box.style.display = 'none';
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = window.setTimeout(() => {
+      hideTimer = null;
+      if (gen !== jobGen) return;
+      const live = document.getElementById('task-progress');
+      if (!live) return;
+      live.classList.remove('active');
+      live.style.display = 'none';
     }, message ? 600 : 0);
   }
 

@@ -25444,7 +25444,7 @@ async function restoreFullDatabase(payload){
     update({ label: `Writing ${name}…`, pct: Math.round(base) });
     await writeStoreRows(name, (payload.stores && payload.stores[name]) || [], { base, span });
   }
-  update({ label: 'Loading the restored vessel…', pct: 100 });
+  update({ label: 'Loading the restored vessel…', pct: 100, current: null, total: null });
   const metaAll = await dbGetAll('meta');
   await migrateToMultiVessel(metaAll);
   const vid = state.activeVesselId || payload.activeVesselId || (state.vessels[0] && state.vessels[0].id) || LEGACY_VESSEL_ID;
@@ -25494,7 +25494,7 @@ async function mergeFullDatabase(payload){
     await writeStoreRows(name, merged, { base, span });
   }
 
-  update({ label: 'Loading the merged vessel…' });
+  update({ label: 'Loading the merged vessel…', pct: 100, current: null, total: null });
   const metaAll = await dbGetAll('meta');
   await migrateToMultiVessel(metaAll);
   await loadVesselFromDb(state.activeVesselId);
