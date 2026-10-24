@@ -6090,7 +6090,7 @@ let dbOpenPromise = null;
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 9);
+    const req = indexedDB.open('noonReportDB', 10);
     req.onupgradeneeded = (e)=>{
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
@@ -6115,6 +6115,14 @@ function openDB(){
          Device-local and deliberately outside DB_BACKUP_STORES: a restore must not
          be able to replace the very snapshots that undo it. */
       if (!d.objectStoreNames.contains('dbSnapshots')) d.createObjectStore('dbSnapshots', {keyPath:'id'});
+      /* A snapshot is the whole database, so it is written in pieces for the
+         same reason a large voyage leg is: one IndexedDB value that big closes
+         the Android WebView. Measured at 123 MB for a modest ship-year, which
+         is 800x the size a single value is allowed to reach here. */
+      if (!d.objectStoreNames.contains('dbSnapshotParts')){
+        const snapParts = d.createObjectStore('dbSnapshotParts', {keyPath:'id'});
+        snapParts.createIndex('snapId', 'snapId', {unique:false});
+      }
       /* What this device pushed, pulled and merged, and what each one changed.
          Also local-only: it is this device's account of its own syncs, which a
          restore from another device has no business overwriting. */
@@ -26207,6 +26215,9 @@ function applyRemoteSnapshot(remote, policy){
     state.abstracts = (remoteData.abstracts || []).map(a=> tagVesselId({...a}));
     state.printHistory = (remoteData.printHistory || []).map(p=> tagVesselId({...p}));
     state.orbEntries = (remoteData.orbEntries || []).map(o=> tagVesselId({...o}));
+    /* Entries from the server are in the server's order; book order here will
+       differ, so the chain is rebuilt after this returns (see the caller). */
+    _orbNeedsReseal = 'the active leg was pulled from the server';
     const live = ensureSyncConfig();
     live.deletedIds = remoteData.deletedIds || localSync.deletedIds || live.deletedIds || {};
     if (typeof entryMatchesActiveLeg === 'function'){
@@ -26237,6 +26248,9 @@ function applyRemoteSnapshot(remote, policy){
   state.abstracts = filterDeleted(mergeListsById(remoteData.abstracts, state.abstracts), deleted.abstracts);
   state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), deleted.printHistory);
   state.orbEntries = mergeListsById(remoteData.orbEntries, state.orbEntries).map(o => tagVesselId({...o}));
+  /* A merge interleaves two devices' entries by date, so every line after the
+     first incoming one follows a different predecessor. */
+  _orbNeedsReseal = 'entries were merged from the server';
   const live = ensureSyncConfig();
   live.deletedIds = deleted;
   live.pendingChanges = true;
@@ -26564,6 +26578,16 @@ async function syncNow(options = {}){
     sync.lastSyncError = null;
     await saveSetup();
     await persistSyncCredentialsMirror(sync);
+    /* Entries that arrived from the server sit in a different book order than
+       the one this device sealed, so the chain is rebuilt now that every write
+       is done -- otherwise the next look at the e-ORB reports a book nobody
+       touched as tampered with. */
+    if (_orbNeedsReseal){
+      const why = _orbNeedsReseal;
+      _orbNeedsReseal = null;
+      update({ label: 'Resealing the record book…', source: 'program' });
+      try{ await resealOrbChainAfterSync(why); }catch(e){ console.error(e); }
+    }
     renderSyncUi();
     await renderVoyageLibrary();
     render();
@@ -26632,10 +26656,28 @@ document.getElementById('btnPullRemote').addEventListener('click', async ()=>{
   )) return;
   try {
     /* A pull overwrites this device, so it is snapshotted first like a restore. */
-    try{ await snapshotDatabase('before pulling the active leg from the server'); }catch(_){}
+    let snap = { ok: false, reason: 'the snapshot could not be taken' };
+    try{ snap = await snapshotDatabase('before pulling the active leg from the server'); }
+    catch(e){ snap = { ok: false, reason: e.message }; }
+    if (!snap.ok){
+      const go = confirm(
+        'NO UNDO POINT CAN BE TAKEN\n\n'
+        + `A snapshot of this device could not be kept because ${snap.reason}.\n\n`
+        + 'A pull OVERWRITES the local active leg. Without a snapshot this cannot be undone '
+        + 'from inside the program.\n\nContinue the pull anyway?');
+      if (!go){
+        await logSyncEvent({ kind: 'pull (overwrite device)', direction: 'pull', result: 'cancelled',
+          message: 'no undo point could be taken: ' + snap.reason });
+        alert('Pull cancelled. Nothing on this device has been changed.');
+        return;
+      }
+    }
     await syncNow({ pullOnly: true, policy: 'remote' });
     await logSyncEvent({ kind: 'pull (overwrite device)', direction: 'pull', result: 'ok' });
-    alert('Pull completed. Local active leg was overwritten with server data.\n\nA snapshot of this device was taken first — Data › Undo a restore, pull or merge puts it back.');
+    alert('Pull completed. Local active leg was overwritten with server data.'
+      + (snap.ok
+        ? '\n\nA snapshot of this device was taken first — Data › Undo a restore, pull or merge puts it back.'
+        : '\n\nNo snapshot was taken, so this cannot be undone from inside the program.'));
   } catch (e){
     await logSyncEvent({ kind: 'pull (overwrite device)', direction: 'pull', result: 'failed', message: e.message });
     alert('Pull failed: ' + e.message);
@@ -27527,9 +27569,20 @@ const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHis
 /* Snapshots and the sync log are device-local history, never part of a backup:
    restoring a file must not be able to overwrite the record of what it replaced. */
 const DB_SNAPSHOT_STORE = 'dbSnapshots';
+const DB_SNAPSHOT_PARTS_STORE = 'dbSnapshotParts';
 const SYNC_LOG_STORE = 'syncLog';
-/* Five is enough to walk back a bad afternoon without filling the tablet. */
+/* Five is enough to walk back a bad afternoon, but five copies of a database
+   with scanned requisitions in it is hundreds of megabytes, so size governs
+   and the count is only a ceiling. */
 const DB_SNAPSHOT_KEEP = 5;
+/* Same proven piece size as a voyage leg: bigger single values kill the WebView. */
+const DB_SNAPSHOT_PART_CHARS = VOYAGE_LEG_PART_CHARS;
+/* One snapshot bigger than this is not written at all. A tablet cannot afford
+   it, and silently filling the device is worse than having no undo point --
+   the caller is told so it can ask rather than guess. */
+const DB_SNAPSHOT_MAX_CHARS = 24 * 1024 * 1024;
+/* Total across every snapshot held. Oldest go first until this is met. */
+const DB_SNAPSHOT_BUDGET_CHARS = 64 * 1024 * 1024;
 const SYNC_LOG_KEEP = 300;
 
 /* ---- Backup integrity ------------------------------------------------------
@@ -27543,14 +27596,31 @@ const BACKUP_INTEGRITY_VERSION = 1;
    digest is taken over a canonical form: object keys sorted, nothing else
    changed. Without this the same data hashes differently on two tablets. */
 function canonicalJsonString(value){
-  const seen = new WeakSet();
+  /* The guard tracks the objects on the CURRENT PATH, not every object ever
+     seen, and drops each one on the way back out.
+     
+     Tracking every object confuses an alias with a cycle. The same record is
+     referenced from two places all over this database -- a receipt held both
+     in a leg and in the live store, one setup object shared between legs --
+     and nulling the second sighting dropped real data from the digest. Worse,
+     it dropped it only while the objects were still shared: a backup written
+     to disk and read back has two separate copies, which hash differently, so
+     a perfectly intact file came back as "damaged" and the restore refused it.
+     A true cycle is still caught, because a cycle is by definition a reference
+     back into the path being walked. */
+  const path = new WeakSet();
   const walk = (v) => {
     if (v === null || typeof v !== 'object') return v;
-    if (seen.has(v)) return null;           /* a cycle cannot be hashed; drop it */
-    seen.add(v);
-    if (Array.isArray(v)) return v.map(walk);
-    const out = {};
-    Object.keys(v).sort().forEach(k => { out[k] = walk(v[k]); });
+    if (path.has(v)) return null;           /* a real cycle cannot be hashed */
+    path.add(v);
+    let out;
+    if (Array.isArray(v)){
+      out = v.map(walk);
+    } else {
+      out = {};
+      Object.keys(v).sort().forEach(k => { out[k] = walk(v[k]); });
+    }
+    path.delete(v);
     return out;
   };
   return JSON.stringify(walk(value));
@@ -27599,16 +27669,80 @@ function backupIntegrityBody(payload){
   return { meta: payload.meta || [], stores: payload.stores || {}, vessels: payload.vessels || [] };
 }
 
-async function buildBackupIntegrity(payload){
-  const { algo, hex } = await digestText(canonicalJsonString(backupIntegrityBody(payload)));
-  return {
-    version: BACKUP_INTEGRITY_VERSION,
-    algo,
-    digest: hex,
-    recordCount: countBackupRecords(payload),
-    appVersion: (typeof currentAppVersionLabel === 'function' ? currentAppVersionLabel() : ''),
-    schema: DB_BACKUP_FORMAT
+/**
+ * Digest the body one RECORD at a time, then digest the list of those digests.
+ *
+ * Canonicalising the whole body at once builds a parallel copy of the entire
+ * database and then a string of it, on top of the database already in memory:
+ * about 100 MB of extra heap for a modest ship-year with scanned requisitions
+ * in it. On a tablet that is how taking a backup turns into a reload.
+ *
+ * Per store is not enough -- voyageLegs holds the legs and the legs hold the
+ * scans, so the largest store is very nearly the whole database (measured: no
+ * better than doing it in one go). Per record, the peak is one leg.
+ *
+ * Every byte is still covered, and the digest still changes if any of it
+ * changes. Record ids and store names go into the rolled-up list, so moving a
+ * record between stores, renaming one, or reordering them cannot slip past.
+ */
+async function digestBackupBody(body){
+  const lines = [];
+  let algo = null;
+  const addOne = async (label, value) => {
+    const d = await digestText(canonicalJsonString(value));
+    algo = algo || d.algo;
+    lines.push(label + '=' + d.hex);
   };
+  /* meta rows are keyed, not id'd, and are small. */
+  const meta = (body.meta || []).slice().sort((a, b) => String(a && a.key).localeCompare(String(b && b.key)));
+  for (const row of meta) await addOne('meta:' + (row && row.key), row);
+  await addOne('vessels', body.vessels || []);
+
+  const stores = body.stores || {};
+  for (const name of Object.keys(stores).sort()){
+    const rows = stores[name] || [];
+    /* Sorted by id so two devices holding the same records in a different
+       order produce the same digest. */
+    const sorted = rows.slice().sort((a, b) =>
+      String(a && (a.id != null ? a.id : a.trashId)).localeCompare(String(b && (b.id != null ? b.id : b.trashId))));
+    lines.push('store:' + name + ':count=' + sorted.length);
+    for (let i = 0; i < sorted.length; i++){
+      const row = sorted[i];
+      const rid = row && (row.id != null ? row.id : row.trashId);
+      await addOne(name + '/' + rid, row);
+      /* Give the main thread a turn every so often on a long store. */
+      if ((i & 31) === 31) await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+  const rolled = await digestText(lines.join('\n'));
+  return { algo: rolled.algo, hex: rolled.hex };
+}
+
+async function buildBackupIntegrity(payload){
+  /* A backup must still be written if this cannot be computed. A file with no
+     header restores as unverified; no file at all is a lost backup. */
+  try{
+    const { algo, hex } = await digestBackupBody(backupIntegrityBody(payload));
+    return {
+      version: BACKUP_INTEGRITY_VERSION,
+      algo,
+      digest: hex,
+      recordCount: countBackupRecords(payload),
+      appVersion: (typeof currentAppVersionLabel === 'function' ? currentAppVersionLabel() : ''),
+      schema: DB_BACKUP_FORMAT
+    };
+  }catch(e){
+    console.warn('Backup checksum could not be computed; the backup is still being written.', e);
+    return {
+      version: BACKUP_INTEGRITY_VERSION,
+      algo: 'none',
+      digest: '',
+      recordCount: countBackupRecords(payload),
+      appVersion: (typeof currentAppVersionLabel === 'function' ? currentAppVersionLabel() : ''),
+      schema: DB_BACKUP_FORMAT,
+      note: 'checksum unavailable on the device that wrote this file'
+    };
+  }
 }
 
 /**
@@ -27620,6 +27754,12 @@ async function buildBackupIntegrity(payload){
 async function verifyBackupIntegrity(payload){
   const stated = payload && payload.integrity;
   const actualCount = countBackupRecords(payload);
+  /* A header that says outright it carries no checksum (written on a device
+     that could not compute one) is unverifiable, not damaged. */
+  if (stated && stated.algo === 'none'){
+    return { checked: false, ok: true, actualCount,
+      note: 'The device that wrote this backup could not compute a checksum, so its contents cannot be verified.' };
+  }
   if (!stated || !stated.digest){
     return { checked: false, ok: true, actualCount,
       note: 'This backup predates integrity checking, so its contents could not be verified.' };
@@ -27631,12 +27771,25 @@ async function verifyBackupIntegrity(payload){
   /* Recompute with the algorithm the file was signed with, not whichever this
      device prefers: a tablet on plain http has no crypto.subtle and would
      otherwise read every SHA-256 backup as corrupt. */
-  const canonical = canonicalJsonString(backupIntegrityBody(payload));
   let mine = null;
+  let computed = null;
+  try{
+    computed = await digestBackupBody(backupIntegrityBody(payload));
+  }catch(e){
+    /* The record count above already caught truncation, which is the threat
+       this guards against. Report unchecked rather than refusing a file we
+       simply could not hash. */
+    return { checked: false, ok: true, actualCount,
+      note: 'Its ' + actualCount + ' records are all present, but the checksum could not be recomputed on this device.' };
+  }
   if (stated.algo === 'fnv1a64'){
-    mine = fnv1a64Hex(canonical);
+    mine = computed.algo === 'fnv1a64' ? computed.hex : null;
+    if (mine == null){
+      return { checked: false, ok: true, actualCount,
+        note: 'Its ' + actualCount + ' records are all present, but this device cannot reproduce the digest algorithm the file was written with.' };
+    }
   } else if (stated.algo === 'sha256' || !stated.algo){
-    const d = await digestText(canonical);
+    const d = computed;
     /* No SHA-256 here, so the digest cannot be checked either way. */
     if (d.algo !== 'sha256'){
       return { checked: false, ok: true, actualCount,
@@ -27658,25 +27811,177 @@ async function verifyBackupIntegrity(payload){
    overwrites the active leg. Both are one tap away and neither could be undone.
    A snapshot is taken first, so there is always a way back to the last known
    good state. */
+function dbSnapshotPartId(snapId, index){
+  return String(snapId) + '::part::' + index;
+}
+
+/** Drop a snapshot and every piece of it. */
+async function deleteStoredSnapshot(snapId){
+  if (!snapId) return;
+  let keys = [];
+  try{ keys = await dbIndexKeys(DB_SNAPSHOT_PARTS_STORE, 'snapId', snapId); }
+  catch(_){ keys = []; }
+  for (const key of keys) await dbDelete(DB_SNAPSHOT_PARTS_STORE, key);
+  await dbDelete(DB_SNAPSHOT_STORE, snapId);
+}
+
+/** Reassemble a snapshot's payload from its pieces. */
+async function inflateSnapshot(row){
+  if (!row) return null;
+  if (!row.chunked) return row.payload || null;
+  let text = '';
+  for (let i = 0; i < (Number(row.partCount) || 0); i++){
+    const part = await dbGet(DB_SNAPSHOT_PARTS_STORE, dbSnapshotPartId(row.id, i));
+    if (!part || typeof part.text !== 'string'){
+      throw new Error('That snapshot is incomplete on this device — some of its pieces are missing.');
+    }
+    text += part.text;
+  }
+  return JSON.parse(text);
+}
+
+/** Make room, oldest first, until the stored snapshots fit the budget. */
+async function pruneSnapshots(incomingChars){
+  let rows;
+  try{ rows = await dbGetAll(DB_SNAPSHOT_STORE); }
+  catch(_){ return; }
+  const sorted = (rows || []).slice()
+    .sort((a, b) => String(b.takenAt).localeCompare(String(a.takenAt)));
+  /* Anything past the count ceiling goes regardless of size. */
+  for (const row of sorted.slice(DB_SNAPSHOT_KEEP - 1)) await deleteStoredSnapshot(row.id);
+  const kept = sorted.slice(0, Math.max(0, DB_SNAPSHOT_KEEP - 1));
+  let total = kept.reduce((a, r) => a + (Number(r.chars) || 0), 0) + (Number(incomingChars) || 0);
+  /* Then oldest-first until the incoming one fits too. */
+  for (let i = kept.length - 1; i >= 0 && total > DB_SNAPSHOT_BUDGET_CHARS; i--){
+    await deleteStoredSnapshot(kept[i].id);
+    total -= Number(kept[i].chars) || 0;
+  }
+}
+
+/**
+ * Keep the database as it stands, before something overwrites it.
+ *
+ * Returns { ok, row } when one was written, or { ok:false, reason, chars } when
+ * it was not -- the caller must then ask rather than assume there is a way
+ * back. It never throws for being too big, and never writes one value large
+ * enough to take the WebView down with it.
+ */
+/**
+ * How many characters a snapshot of this database would take, measured a row
+ * at a time and abandoned as soon as it is clearly too big.
+ *
+ * The point is not to be exact, it is not to build the thing in order to find
+ * out it cannot be kept. Stringifying a 96 MB database produces a 96 MB string
+ * on top of the 96 MB of objects, and doing that on a tablet only to then
+ * refuse the snapshot is the very crash being avoided. Row at a time, the peak
+ * is one row.
+ */
+async function estimateSnapshotChars(limit){
+  let total = 200;                              /* the wrapper itself */
+  try{
+    const meta = await dbGetAll('meta');
+    for (const row of (meta || [])){
+      total += JSON.stringify(row).length + 1;
+      if (total > limit) return { chars: total, over: true };
+    }
+  }catch(_){}
+  for (const name of DB_BACKUP_STORES){
+    let rows;
+    try{ rows = await dbGetAll(name); }
+    catch(_){ continue; }
+    for (const row of (rows || [])){
+      total += JSON.stringify(row).length + 1;
+      if (total > limit) return { chars: total, over: true };
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return { chars: total, over: false };
+}
+
 async function snapshotDatabase(reason){
   await ensureDB();
+
+  /* A database with scanned requisitions in it runs to a hundred megabytes and
+     more. Writing that to a tablet, five deep, is not a safety net -- it is the
+     next failure. Find out BEFORE building a copy of it. */
+  const sized = await estimateSnapshotChars(DB_SNAPSHOT_MAX_CHARS);
+  if (sized.over){
+    return {
+      ok: false,
+      chars: sized.chars,
+      reason: `this database is over ${fmt(DB_SNAPSHOT_MAX_CHARS / 1048576, 0)} MB, which is more than a snapshot is allowed to take on this device`
+    };
+  }
+
   const payload = await collectFullDatabasePayload();
-  const row = {
-    id: 'snap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const json = JSON.stringify(payload);
+  const chars = json.length;
+
+  /* The estimate counts rows, not the assembled file, so it can come in a
+     little under. Check the real figure too rather than trusting it. */
+  if (chars > DB_SNAPSHOT_MAX_CHARS){
+    return {
+      ok: false,
+      chars,
+      reason: `this database is ${fmt(chars / 1048576, 0)} MB, over the ${fmt(DB_SNAPSHOT_MAX_CHARS / 1048576, 0)} MB a snapshot is allowed to take on this device`
+    };
+  }
+
+  /* Don't fill the device. Where the browser will tell us what is left, leave
+     it room: an IndexedDB write that runs out of space part-way is exactly the
+     state this feature exists to avoid being in. */
+  try{
+    if (navigator.storage && navigator.storage.estimate){
+      const est = await navigator.storage.estimate();
+      if (est && est.quota && est.usage != null){
+        const free = est.quota - est.usage;
+        /* Two bytes per char, and leave as much again spare. */
+        if (free < chars * 4){
+          return {
+            ok: false,
+            chars,
+            reason: `this device has about ${fmt(free / 1048576, 0)} MB of storage left, which is not enough to hold a ${fmt(chars / 1048576, 0)} MB snapshot safely`
+          };
+        }
+      }
+    }
+  }catch(_){}
+
+  await pruneSnapshots(chars);
+
+  const id = 'snap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const header = {
+    id,
     takenAt: new Date().toISOString(),
     reason: reason || 'before an overwrite',
     counts: payload.counts || {},
     recordCount: countBackupRecords(payload),
-    payload
+    chars
   };
-  await dbPut(DB_SNAPSHOT_STORE, row);
-  /* Keep the newest few; a tablet has no room for a snapshot per pull. */
-  try{
-    const all = await dbGetAll(DB_SNAPSHOT_STORE);
-    const sorted = (all || []).slice().sort((a, b) => String(b.takenAt).localeCompare(String(a.takenAt)));
-    for (const old of sorted.slice(DB_SNAPSHOT_KEEP)) await dbDelete(DB_SNAPSHOT_STORE, old.id);
-  }catch(_){}
-  return row;
+
+  if (chars <= DB_SNAPSHOT_PART_CHARS){
+    const row = Object.assign({ chunked: false, payload }, header);
+    await dbPut(DB_SNAPSHOT_STORE, row);
+    /* Return the row as stored, minus the payload: a caller that reads
+       row.chunked must see the same answer the database would give it. */
+    return { ok: true, row: Object.assign({ chunked: false }, header) };
+  }
+
+  /* Pieces first, header last: a header written before its pieces would
+     advertise a snapshot that cannot be read back if the write is cut short. */
+  let partCount = 0;
+  for (let i = 0; i < chars; i += DB_SNAPSHOT_PART_CHARS){
+    await dbPut(DB_SNAPSHOT_PARTS_STORE, {
+      id: dbSnapshotPartId(id, partCount),
+      snapId: id,
+      text: json.slice(i, i + DB_SNAPSHOT_PART_CHARS)
+    });
+    partCount += 1;
+    /* Let the WebView breathe between pieces, as writeStoreRows does. */
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  await dbPut(DB_SNAPSHOT_STORE, Object.assign({ chunked: true, partCount }, header));
+  return { ok: true, row: Object.assign({ chunked: true, partCount }, header) };
 }
 
 async function listDatabaseSnapshots(){
@@ -27915,7 +28220,21 @@ async function guardBeforeOverwrite(payload, reason){
       `This backup is damaged and was not restored — ${verdict.reason}. ` +
       'Nothing on this device has been changed. Take a fresh backup from the device that made this file.');
   }
-  await snapshotDatabase(reason);
+  const snap = await snapshotDatabase(reason);
+  if (!snap.ok){
+    /* No undo point. That is the user's call, not this function's: carrying on
+       quietly would leave them believing there is a way back when there is
+       none, and refusing outright would make a large database impossible to
+       restore onto at all. */
+    const go = confirm(
+      'NO UNDO POINT CAN BE TAKEN\n\n'
+      + `A snapshot of this device could not be kept because ${snap.reason}.\n\n`
+      + 'If you continue, this cannot be undone from inside the program — the only way back '
+      + 'would be a backup file.\n\n'
+      + 'Recommended: cancel, take a full backup to a file or USB first, then come back.\n\n'
+      + 'Continue anyway, with no undo point?');
+    if (!go) throw new Error('Cancelled — nothing on this device has been changed. Take a backup to a file first, then try again.');
+  }
   return verdict;
 }
 
@@ -27961,6 +28280,9 @@ async function restoreFullDatabase(payload){
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
   try{ renderDataHealth(); }catch(_){}
+  /* The restored entries are authentic but they are not the ones this device
+     sealed, so the chain is rebuilt and the fact recorded. */
+  try{ await resealOrbChainAfterSync('a backup was restored'); }catch(_){}
   return verdict;
   }, { source: 'program' });
 }
@@ -28016,6 +28338,7 @@ async function mergeFullDatabase(payload){
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
   try{ renderDataHealth(); }catch(_){}
+  try{ await resealOrbChainAfterSync('a backup was merged in'); }catch(_){}
   return verdict;
   }, { source: 'program' });
 }
@@ -29163,8 +29486,10 @@ function setSnapshotStatus(msg){
 async function rollBackToSnapshot(id){
   const all = await listDatabaseSnapshots();
   const snap = all.find(r => r.id === id);
-  if (!snap || !snap.payload) throw new Error('That snapshot is no longer on this device.');
-  await restoreFullDatabase(snap.payload);
+  if (!snap) throw new Error('That snapshot is no longer on this device.');
+  const payload = await inflateSnapshot(snap);
+  if (!payload) throw new Error('That snapshot holds no data on this device.');
+  await restoreFullDatabase(payload);
   await logSyncEvent({ kind: 'rollback', direction: 'local', result: 'ok',
     message: `Rolled back to the snapshot taken ${snap.takenAt} (${snap.reason || ''})` });
   return snap;
@@ -31433,32 +31758,132 @@ function orbDigest(text){
  * The digests are cheap; the IndexedDB writes are not, which is why only
  * changed rows are written.
  */
+/* Over this many rewrites the work is worth showing: anything less is quick
+   enough that a progress bar would only flicker. */
+const ORB_RESEAL_NOISY_ROWS = 200;
+/* Hand the main thread back every so often. An uninterrupted run of thousands
+   of IndexedDB puts freezes the WebView, and on Android a freeze long enough
+   is an ANR -- which the engineer experiences as the app crashing. */
+const ORB_RESEAL_YIELD_EVERY = 50;
+
 async function resealOrbChain(){
   if (!window.EORB || typeof EORB.rebuildOrbChain !== 'function') return null;
   const before = (state.orbEntries || []);
   if (!before.length) return null;
   const sealed = await EORB.rebuildOrbChain(before, orbDigest);
   const byId = new Map(before.map(e => [e.id, e]));
-  let written = 0;
+
+  /* Work out what actually has to be written before writing any of it, so the
+     count is known and the run can be reported and paced.
+
+     The number is not small in the ordinary case. A new entry dated today
+     changes one row. A backdated correction -- which is what "record the
+     correct operation as a new entry" produces -- changes every row after it,
+     and voiding a line from last year changes nearly the whole book: measured
+     at 3,990 of 4,000. */
+  const pending = [];
   for (const next of sealed){
     const prev = byId.get(next.id);
     if (!prev) continue;
     if (prev.contentHash === next.contentHash &&
         prev.prevHash === next.prevHash &&
         prev.chainHash === next.chainHash) continue;
-    prev.contentHash = next.contentHash;
-    prev.prevHash = next.prevHash;
-    prev.chainHash = next.chainHash;
-    await dbPut('orbEntries', prev);
-    written += 1;
+    pending.push([prev, next]);
   }
-  return { written, head: sealed.length ? sealed[sealed.length - 1].chainHash : '' };
+
+  const head = sealed.length ? sealed[sealed.length - 1].chainHash : '';
+  if (!pending.length) return { written: 0, head };
+
+  const noisy = pending.length >= ORB_RESEAL_NOISY_ROWS;
+  if (noisy) beginActivity('orb-reseal', 'Resealing the record book…', { source: 'program' });
+  try{
+    let written = 0;
+    for (const [prev, next] of pending){
+      prev.contentHash = next.contentHash;
+      prev.prevHash = next.prevHash;
+      prev.chainHash = next.chainHash;
+      await dbPut('orbEntries', prev);
+      written += 1;
+      if (noisy && (written % 10 === 0 || written === pending.length)){
+        updateActivity('orb-reseal', {
+          label: 'Resealing the record book…', current: written, total: pending.length
+        });
+      }
+      if (written % ORB_RESEAL_YIELD_EVERY === 0){
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+    return { written, head };
+  } finally {
+    if (noisy) endActivity('orb-reseal');
+  }
 }
 
 /** Verify and report in words a port-state inspector would accept. */
 async function verifyOrbChainNow(){
   if (!window.EORB || typeof EORB.verifyOrbChain !== 'function') return null;
-  return EORB.verifyOrbChain(state.orbEntries || [], orbDigest);
+  const verdict = await EORB.verifyOrbChain(state.orbEntries || [], orbDigest);
+  if (verdict) verdict.seal = await readOrbSealMarker();
+  return verdict;
+}
+
+/* Set by the paths that bring ORB entries in from the server; consumed once the
+   sync has finished, so the chain is rebuilt after the writes rather than
+   between them. */
+let _orbNeedsReseal = null;
+
+/* ---- What the seal actually covers ----------------------------------------
+   The chain is a statement about one set of entries in one order. A pull or a
+   two-way sync brings in authentic entries from another device, and an entry
+   dated between two existing ones lands in the middle of book order -- so
+   every line after it follows a different predecessor and the chain breaks,
+   on a book nobody touched.
+
+   Left alone, that means every multi-device ship is told its record book was
+   tampered with the first time it syncs. A warning that fires on normal
+   operation is worse than no warning: it gets ignored, and then the real one
+   is ignored too.
+
+   So a sync reseals, and the claim is narrowed to what is actually true: the
+   book is unaltered SINCE IT WAS LAST SEALED, and when that seal followed a
+   merge rather than an entry, it says so with the date. That is honest, and it
+   is still worth having -- an edit made on this device after the last sync is
+   exactly what it catches. */
+const ORB_SEAL_MARKER_KEY = 'orbChainSeal';
+
+async function readOrbSealMarker(){
+  try{
+    const row = await dbGet('meta', ORB_SEAL_MARKER_KEY);
+    return (row && row.value) || null;
+  }catch(_){ return null; }
+}
+
+async function writeOrbSealMarker(reason, external){
+  const value = {
+    at: new Date().toISOString(),
+    reason: reason || 'an entry was saved',
+    external: !!external
+  };
+  try{ await dbPut('meta', { key: ORB_SEAL_MARKER_KEY, value }); }catch(_){}
+  return value;
+}
+
+/**
+ * Reseal after entries arrive from somewhere else, and record that it happened.
+ * Called by every path that writes the ORB from outside this device: restore,
+ * merge, pull, two-way sync.
+ */
+async function resealOrbChainAfterSync(reason){
+  if (!window.EORB || typeof EORB.rebuildOrbChain !== 'function') return null;
+  if (!(state.orbEntries || []).length) return null;
+  const res = await resealOrbChain();
+  await writeOrbSealMarker(reason, true);
+  await logSyncEvent({
+    kind: 'e-ORB resealed', direction: 'local', result: 'ok',
+    message: `${reason} — ${res ? res.written : 0} entr${res && res.written === 1 ? 'y' : 'ies'} rewritten in book order`
+  });
+  try{ await refreshOrbIntegrity(); }catch(_){}
+  return res;
 }
 
 function renderOrbIntegrity(verdict){
@@ -31485,7 +31910,13 @@ function renderOrbIntegrity(verdict){
   /* Short form of the head digest: enough to quote and compare, not so long
      nobody reads it. */
   const head = String(verdict.headHash || '').split(':').pop().slice(0, 16);
-  el.textContent = `✓ All ${verdict.checked} entries verify. Book digest ${head}.`;
+  /* Say what the seal covers. After a sync the honest claim is "unaltered
+     since the merge", not "unaltered since written". */
+  const seal = verdict.seal;
+  const since = (seal && seal.external)
+    ? ` Unaltered since ${seal.reason} on ${new Date(seal.at).toLocaleString()}.`
+    : '';
+  el.textContent = `✓ All ${verdict.checked} entries verify. Book digest ${head}.${since}`;
 }
 
 async function refreshOrbIntegrity(){
@@ -31512,7 +31943,13 @@ document.getElementById('btnOrbVerify')?.addEventListener('click', async ()=>{
       alert(`${verdict.checked} entries verify.\n\n${verdict.note || ''}`);
       return;
     }
+    const seal = verdict.seal;
     alert(`All ${verdict.checked} entries verify.\n\nBook digest:\n${verdict.headHash}\n\n`
+      + (seal && seal.external
+        ? `The book was resealed when ${seal.reason} on ${new Date(seal.at).toLocaleString()}, `
+          + 'because entries arriving from another device change book order and would otherwise '
+          + 'read as tampering. So this confirms the book is unaltered SINCE THEN.\n\n'
+        : '')
       + 'Quote this digest on a printed page: a book that still produces it has not been altered.');
   });
 });
