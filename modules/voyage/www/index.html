@@ -4123,6 +4123,14 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <tbody id="rangeRobReconBody"><tr class="empty-row"><td colspan="7">Select a report range.</td></tr></tbody>
         </table>
       </div>
+      <h2 style="margin-top:16px;">Sludge — book against tank</h2>
+      <div class="hint">What the e-ORB says was disposed of over this stretch, against what the sludge soundings actually moved. Generation is not metered on a ship, so it is derived as the figure that makes the two meet; more leaving the tank than its net fall is ordinary, because sludge is being made the whole time. A <strong>negative</strong> figure is the one to look at: the tank fell by more than any entry accounts for, so either a disposal went unrecorded or a sounding is wrong.</div>
+      <div class="table-scroll">
+        <table id="sludgeReconTable">
+          <thead><tr><th>Movement</th><th>m³</th><th>Where it came from</th></tr></thead>
+          <tbody id="sludgeReconBody"><tr class="empty-row"><td colspan="3">Select a report range.</td></tr></tbody>
+        </table>
+      </div>
     </div>
     <div class="panel">
       <h2>Reports In Range</h2>
@@ -4278,6 +4286,21 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Machinery Running Hours (voyage)</h2>
       <div class="stat-strip cols5" id="runningHoursStrip"></div>
       <div class="hint">Period totals from log / report hour-meters — useful for PMS planning. M/E hours = steaming periods with engine distance. Each A/E shows only that generator's own running hours (A/E #1, A/E #2, A/E #3) — not a combined total. Boiler / incinerator from supplementary / voyage-summary runtime.</div>
+    </div>
+    <div class="panel" id="bdnRetentionPanel">
+      <h2>BDN &amp; sample retention</h2>
+      <p class="hint">MARPOL Annex VI Reg. 18.6 and 18.8.1: the bunker delivery note stays on board and available for inspection for <strong>three years</strong> after delivery, and the sealed representative sample for <strong>twelve months</strong>. Both get found expired at inspections because nothing counts the days. This does. Lube and fresh water receipts carry no Annex VI retention and are not listed.</p>
+      <div class="btn-row">
+        <button type="button" class="ghost small" id="btnBdnRefresh">Refresh</button>
+        <button type="button" class="ghost small" id="btnBdnPrint">Print retention list</button>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="bdnRetentionTable">
+          <thead><tr><th>Delivered</th><th>BDN no.</th><th>Grade</th><th>Qty</th><th>Port</th><th>Sample until</th><th>BDN until</th></tr></thead>
+          <tbody id="bdnRetentionBody"><tr class="empty-row"><td colspan="7">No fuel receipts recorded.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" id="bdnRetentionStatus" role="status" aria-live="polite"></div>
     </div>
     <div class="panel" id="pmsPanel">
       <h2>Running Hours &amp; Maintenance</h2>
@@ -4914,6 +4937,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button class="ghost small" id="btnExportCSVLog">Export Voyage Log (CSV)</button>
         <button class="ghost small" id="btnExportCSVCons">Export Consumption (CSV)</button>
         <button class="ghost small" id="btnExportDcs">Compile IMO DCS / EU MRV year…</button>
+        <button class="ghost small" id="btnHandoverPack">Print handover pack</button>
         <button class="primary small" id="btnRecalculateAllData" type="button">Recalculate All Data</button>
         <input type="file" id="fileImport" accept="application/json" style="display:none;">
         <input type="file" id="fileImportSetup" accept="application/json" style="display:none;">
@@ -12321,6 +12345,156 @@ function numOrNull(v){
   return isFinite(n) ? n : null;
 }
 
+/* ---- Sludge: what was booked against what the tank shows -------------------
+   The e-ORB records every disposal, and the log records the sludge sounding at
+   each report. Nothing compared the two, and the comparison is the whole point
+   at an inspection: a disposal booked that the tank does not reflect, or a tank
+   that emptied with no disposal booked, is the finding. Catching it the same
+   week is a correction; catching it at the next PSC is a deficiency.
+
+   Reconciliation over a window, all in m3:
+
+       opening sounding + generated - disposed ashore - incinerated
+         - transferred out - other = closing sounding
+
+   Generation is not metered anywhere on a ship, so it is not guessed: it is
+   derived as the residual that makes the two sides meet, and labelled as
+   such. More can leave the tank than its net fall, because sludge is being
+   made the whole time -- that is ordinary.
+
+   A NEGATIVE derived generation is the signal, and it means the opposite:
+   the tank fell by MORE than was booked out, so sludge left it that no entry
+   accounts for. Sludge cannot be un-generated, so either a disposal went
+   unrecorded -- which is the serious finding, an undeclared discharge -- or a
+   sounding is wrong. Both are worth settling the same week. */
+const ORB_SLUDGE_ROUTES = {
+  '12.1': 'ashore',
+  '12.2': 'transferred',
+  '12.3': 'incinerated',
+  '12.4': 'other'
+};
+
+/** Sludge disposals from the ORB over a window, split by route. */
+function sludgeDisposalsBetween(fromIso, toIso){
+  const out = { ashore: 0, transferred: 0, incinerated: 0, other: 0, entries: [] };
+  const from = fromIso ? String(fromIso).slice(0, 10) : '';
+  const to = toIso ? String(toIso).slice(0, 10) : '9999-12-31';
+  (state.orbEntries || []).forEach(e => {
+    /* A voided line is struck through: it is still in the book, but it is not
+       a disposal that happened. */
+    if (!e || e.voided || e.code !== 'C') return;
+    const day = String(e.date || '').slice(0, 10);
+    if (!day || day <= from || day > to) return;
+    const route = ORB_SLUDGE_ROUTES[String(e.itemNo || '')];
+    if (!route) return;
+    const qty = numOrNull(e.values && e.values.qtyDisposed);
+    if (qty == null) return;
+    out[route] += qty;
+    out.entries.push({ id: e.id, date: day, itemNo: e.itemNo, route, qty });
+  });
+  return out;
+}
+
+/** The sludge sounding at a report, from the log. */
+function sludgeRobAtEntry(entry){
+  if (!entry) return null;
+  return numOrNull(entry.sludgeRob != null ? entry.sludgeRob : entry.report?.sludgeRob);
+}
+
+/**
+ * Reconcile the sludge book against the tank over a window.
+ * `fromEntry` / `toEntry` are log entries carrying soundings.
+ */
+function reconcileSludge(fromEntry, toEntry){
+  const opening = sludgeRobAtEntry(fromEntry);
+  const closing = sludgeRobAtEntry(toEntry);
+  const disposals = sludgeDisposalsBetween(fromEntry?.datetime, toEntry?.datetime);
+  const removed = disposals.ashore + disposals.incinerated + disposals.transferred + disposals.other;
+
+  if (opening == null || closing == null){
+    return {
+      ok: false,
+      reason: opening == null
+        ? 'No sludge sounding recorded at the start of this stretch.'
+        : 'No sludge sounding recorded at the end of this stretch.',
+      disposals, removed, opening, closing
+    };
+  }
+  /* Generated is the residual, not a measurement — a ship has no sludge meter. */
+  const generated = closing - opening + removed;
+  return {
+    ok: true,
+    opening, closing, removed, generated,
+    disposals,
+    /* Negative generation cannot happen: the tank fell by more than anything
+       booked accounts for. That is the discrepancy, not a rounding artefact. */
+    impossible: generated < -0.01,
+    perDay: null
+  };
+}
+
+/* ---- Bunker delivery notes: the retention clock ---------------------------
+   MARPOL Annex VI Reg. 18.6 and 18.8.1: the BDN is kept on board and
+   available for inspection for three years after the fuel was delivered, and
+   the sealed representative sample for twelve months. Both are routinely
+   found expired at an inspection because nothing counts the days -- the note
+   is filed and forgotten. This counts them. */
+const BDN_KEEP_YEARS = 3;
+const BDN_SAMPLE_KEEP_MONTHS = 12;
+const BDN_WARN_DAYS = 60;
+
+function addYearsIso(iso, years){
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return null;
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return d.toISOString().slice(0, 10);
+}
+function addMonthsIso(iso, months){
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return null;
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Every fuel delivery with a BDN, and how long each obligation still has.
+ * Lube and fresh water are not fuel oil and carry no Annex VI retention, so
+ * they are left out rather than given a clock they do not have.
+ */
+function bdnRetentionList(){
+  const today = new Date().toISOString().slice(0, 10);
+  const daysTo = (iso) => {
+    if (!iso) return null;
+    const d = (new Date(iso).getTime() - new Date(today).getTime()) / 86400000;
+    return Math.round(d);
+  };
+  return (state.receipts || [])
+    .filter(r => r && r.category === 'fuel' && r.date)
+    .map(r => {
+      const day = String(r.date).slice(0, 10);
+      const bdnUntil = addYearsIso(day, BDN_KEEP_YEARS);
+      const sampleUntil = addMonthsIso(day, BDN_SAMPLE_KEEP_MONTHS);
+      const bdnDays = daysTo(bdnUntil);
+      const sampleDays = daysTo(sampleUntil);
+      const state_ = (days) => days == null ? 'unknown'
+        : days < 0 ? 'expired'
+        : days <= BDN_WARN_DAYS ? 'soon' : 'ok';
+      return {
+        id: r.id,
+        date: day,
+        bdnNo: r.bdnNo || '',
+        grade: r.type || '',
+        qty: numOrNull(r.qty),
+        port: r.location || '',
+        supplier: r.company || '',
+        missingBdnNo: !String(r.bdnNo || '').trim(),
+        bdnUntil, bdnDays, bdnState: state_(bdnDays),
+        sampleUntil, sampleDays, sampleState: state_(sampleDays)
+      };
+    })
+    .sort((a, b) => (a.sampleDays ?? 1e9) - (b.sampleDays ?? 1e9));
+}
+
 /* ---- IMO DCS and EU MRV compilation ---------------------------------------
    The figures a verifier asks for in January are already in the log; what was
    missing is the arithmetic over a CALENDAR year, which is not how this
@@ -13642,6 +13816,13 @@ function renderRangeTotals(){
       + 'figures cover the reports from the one after "From" up to and including "To".';
   }
 
+  /* Book against tank for sludge, over the same two reports as the stock table. */
+  try{
+    const flatFrom = list.find(e => e.id === fromEl.value) || list[0];
+    const flatTo = list.find(e => e.id === toEl.value) || list[list.length - 1];
+    renderSludgeRecon(flatFrom, flatTo);
+  }catch(_){}
+
   const reconBody = document.getElementById('rangeRobReconBody');
   if (reconBody){
     const recon = rangeReconciliation(pool, scoped, fromEl.value, toEl.value, robBook, agg);
@@ -14038,6 +14219,234 @@ document.getElementById('btnRangeAll')?.addEventListener('click', ()=>{
   document.getElementById('rangeFrom').value = list[0].id;
   document.getElementById('rangeTo').value = list[list.length - 1].id;
   renderRangeTotals();
+});
+
+/* ---- Handover pack --------------------------------------------------------
+   What a relief Chief needs in the first twenty minutes, on one set of sheets
+   instead of two days of asking: what is on board, what is falling due, what
+   is outstanding on the requisitions, and where the record books stand.
+
+   Everything on it is already in the program. The value is purely that it is
+   in one place, printed, at the moment the handover happens -- and that it
+   says which figures are soundings and which are book figures, because the
+   relief has no way to tell otherwise and will be signing for them. */
+async function printHandoverPack(){
+  const { rows } = computeDerived();
+  const last = rows.length ? rows[rows.length - 1] : null;
+  const asOf = last ? robAsOfComputedRow(last, rows) : null;
+  const snap = asOf ? summarizeRobSnapshot(asOf) : null;
+  const setup = state.setup || {};
+
+  const robTable = snap ? `<table class="pr-table">
+    <tr><th>Grade / item</th><th>Quantity</th><th>Basis</th></tr>
+    ${FUEL_TYPES.map(t => `<tr>
+      <td class="row-lbl">${escPrint(t)}</td>
+      <td>${snap.byType?.[t] == null ? '—' : escPrint(fmt(snap.byType[t], FUEL_DECIMALS)) + ' MT'}</td>
+      <td>book figure</td></tr>`).join('')}
+    <tr><td class="row-lbl"><strong>All fuel</strong></td>
+      <td><strong>${snap.fuelTotal == null ? '—' : escPrint(fmt(snap.fuelTotal, FUEL_DECIMALS)) + ' MT'}</strong></td>
+      <td>book figure</td></tr>
+    <tr><td class="row-lbl">Total lubes</td>
+      <td>${snap.lubeTotal == null ? '—' : escPrint(fmt(snap.lubeTotal, 0)) + ' L'}</td>
+      <td>book figure</td></tr>
+    <tr><td class="row-lbl">Fresh water</td>
+      <td>${snap.fwTotal == null ? '—' : escPrint(fmt(litresToM3(snap.fwTotal), 2)) + ' m³'}</td>
+      <td>book figure</td></tr>
+  </table>` : '<div class="pr-note">No reports yet, so there is no R.O.B. to hand over.</div>';
+
+  /* Falling due, worst first — the list the relief will work from. */
+  const due = pmsDueList();
+  const dueTable = due.length ? `<table class="pr-table">
+    <tr><th>Unit</th><th>Task</th><th>Counter</th><th>Due at</th><th>Status</th></tr>
+    ${due.slice(0, 25).map(({ unit, task, status }) => `<tr>
+      <td class="row-lbl">${escPrint(unit.name || '')}</td>
+      <td>${escPrint(task.name || '')}</td>
+      <td>${unit.counterHrs == null ? '—' : escPrint(fmt(unit.counterHrs, 0))}</td>
+      <td>${status.dueAt == null ? '—' : escPrint(fmt(status.dueAt, 0))}</td>
+      <td>${escPrint(status.label)}</td></tr>`).join('')}
+  </table>` : '<div class="pr-note">No maintenance tasks recorded on this device.</div>';
+
+  /* Requisitions not yet received -- what the relief is still waiting on. The
+     page is Requisition / Sent / Received, so "outstanding" is everything that
+     has not reached Received. */
+  const reqs = ensureRequisitions().filter(r => r && r.status !== 'received');
+  const reqTable = reqs.length ? `<table class="pr-table">
+    <tr><th>Description</th><th>Kind</th><th>Sent</th><th>Status</th></tr>
+    ${reqs.slice(0, 30).map(r => `<tr>
+      <td class="row-lbl">${escPrint(r.description || '')}</td>
+      <td>${escPrint(reqKindLabel(r.kind))}</td>
+      <td>${escPrint(String(r.sentDate || '').slice(0, 10) || '—')}</td>
+      <td>${escPrint(reqStatusLabel(r.status))}</td></tr>`).join('')}
+  </table>${reqs.length > 30 ? '<div class="pr-note">' + (reqs.length - 30) + ' further requisitions not shown.</div>' : ''}`
+    : '<div class="pr-note">Nothing outstanding — every requisition on this device is marked received.</div>';
+
+  /* Where the record books stand, including whether the e-ORB verifies. */
+  let orbLine = 'Not checked.';
+  try{
+    const verdict = await verifyOrbChainNow();
+    if (verdict){
+      orbLine = !verdict.ok
+        ? `DOES NOT VERIFY — first failing line ${verdict.brokenAt?.date || ''}: ${verdict.reason}`
+        : verdict.complete
+          ? `All ${verdict.checked} entries verify. Book digest ${String(verdict.headHash || '').split(':').pop().slice(0, 16)}.`
+          : `${verdict.checked} entries verify; earlier entries predate tamper-evidence.`;
+    } else {
+      orbLine = 'No e-ORB entries on this device.';
+    }
+  }catch(_){}
+
+  const bdn = bdnRetentionList();
+  const bdnExpired = bdn.filter(r => r.bdnState === 'expired' || r.sampleState === 'expired').length;
+  const bdnSoon = bdn.filter(r => r.bdnState === 'soon' || r.sampleState === 'soon').length;
+
+  let backupLine = 'Not known.';
+  try{
+    const row = await dbGet('meta', 'lastDbBackup');
+    const when = row?.value?.exportedAt;
+    backupLine = when ? `${new Date(when).toLocaleString()} (${agoLabel(when)})` : 'Never taken on this device.';
+  }catch(_){}
+  const sync = ensureSyncConfig();
+
+  const standing = `<table class="pr-table">
+    <tr><th>Item</th><th>State</th></tr>
+    <tr><td class="row-lbl">e-ORB</td><td>${escPrint(orbLine)}</td></tr>
+    <tr><td class="row-lbl">BDN / sample retention</td><td>${escPrint(
+      bdn.length ? `${bdn.length} fuel deliveries on record` +
+        (bdnExpired ? `, ${bdnExpired} past retention` : '') +
+        (bdnSoon ? `, ${bdnSoon} expiring within ${BDN_WARN_DAYS} days` : '')
+      : 'No fuel receipts recorded')}</td></tr>
+    <tr><td class="row-lbl">Last full backup</td><td>${escPrint(backupLine)}</td></tr>
+    <tr><td class="row-lbl">Last server sync</td><td>${escPrint(
+      sync.lastSyncedAt ? `${new Date(sync.lastSyncedAt).toLocaleString()} (${agoLabel(sync.lastSyncedAt)})` : 'Never')}</td></tr>
+    <tr><td class="row-lbl">Reports in the open voyage</td><td>${escPrint(String(rows.length))}</td></tr>
+  </table>`;
+
+  const meta = printMetaGrid([
+    { label: 'Vessel', value: setup.vesselName || setup.shipName || '' },
+    { label: 'Voyage', value: `${setup.voyageNumber || '—'} ${normalizeCondition(setup.shipCondition) === 'L' ? 'Laden' : 'Ballast'}` },
+    { label: 'Handed over', value: new Date().toLocaleString() }
+  ], 3);
+
+  const sheetHtml = `<div class="pr-sheet">
+    ${printDocHeader({ title: 'Engineer Handover Pack', subtitle: 'Remaining on board, maintenance falling due, and where the records stand' })}
+    ${meta}
+    ${printSection('Remaining on board', robTable)}
+    ${printSection('Where the records stand', standing)}
+    ${printSection('Maintenance falling due', dueTable)}
+    ${printSection('Outstanding requisitions', reqTable)}
+    <div class="pr-note">R.O.B. figures above are BOOK figures carried forward from the last report, not soundings taken at handover. Sound the tanks and agree the figures before signing. Maintenance counters are as recorded on this device; the counter on each machine governs. This pack reflects only what this device holds — if another device holds later reports, merge or sync before relying on it.</div>
+    <div class="pr-sign-row">
+      <div><div class="pr-sign-line"></div>Handing over — name, rank, date</div>
+      <div><div class="pr-sign-line"></div>Taking over — name, rank, date</div>
+    </div>
+  </div>`;
+  printPortraitPages([sheetHtml]);
+}
+
+document.getElementById('btnHandoverPack')?.addEventListener('click', async ()=>{
+  try{
+    await withActivity('handover', 'Building the handover pack…', async ()=> printHandoverPack());
+  }catch(e){
+    console.error(e);
+    alert('Could not build the handover pack: ' + e.message);
+  }
+});
+
+/* ---- Sludge reconciliation and the BDN clock (rendering) ------------------ */
+function renderSludgeRecon(fromEntry, toEntry){
+  const body = document.getElementById('sludgeReconBody');
+  if (!body) return;
+  const res = reconcileSludge(fromEntry, toEntry);
+  const m3 = (v) => v == null ? '—' : fmt(v, 2);
+  if (!res.ok){
+    const booked = res.removed;
+    body.innerHTML = `<tr class="empty-row"><td colspan="3">${escHtml(res.reason)}${
+      booked > 0 ? ` The e-ORB books ${escHtml(fmt(booked, 2))} m³ disposed of over this stretch, which cannot be checked against the tank without soundings at both ends.` : ''
+    }</td></tr>`;
+    return;
+  }
+  const d = res.disposals;
+  const row = (label, val, src, cls) =>
+    `<tr><td>${escHtml(label)}</td><td class="${cls || ''}">${m3(val)}</td><td class="hint">${escHtml(src)}</td></tr>`;
+  body.innerHTML = [
+    row('Opening sounding', res.opening, 'sludge R.O.B. at the start report'),
+    row('Generated (derived)', res.generated, 'the figure that makes the book and the tank meet — not a measurement',
+      res.impossible ? 'alert-text' : ''),
+    row('Disposed ashore', -d.ashore, 'e-ORB code C item 12.1'),
+    row('Incinerated', -d.incinerated, 'e-ORB code C item 12.3'),
+    row('Transferred out', -d.transferred, 'e-ORB code C item 12.2'),
+    row('Other method', -d.other, 'e-ORB code C item 12.4'),
+    row('Closing sounding', res.closing, 'sludge R.O.B. at the end report')
+  ].join('') + (res.impossible
+    ? `<tr><td colspan="3" class="alert-text">⚠ Derived generation is negative. The tank fell by ${escHtml(fmt(res.opening - res.closing, 2))} m³ but only ${escHtml(fmt(res.removed, 2))} m³ is booked as disposed of, so ${escHtml(fmt(res.opening - res.closing - res.removed, 2))} m³ left the tank that no entry accounts for. Either a disposal went unrecorded or a sounding is wrong — both worth settling before the next inspection.</td></tr>`
+    : '');
+}
+
+function renderBdnRetention(){
+  const body = document.getElementById('bdnRetentionBody');
+  const status = document.getElementById('bdnRetentionStatus');
+  if (!body) return;
+  const list = bdnRetentionList();
+  if (!list.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">No fuel receipts recorded.</td></tr>';
+    if (status) status.textContent = '';
+    return;
+  }
+  const cls = (st) => st === 'expired' ? 'alert-text' : st === 'soon' ? 'warn-text' : '';
+  const when = (until, days, st) => {
+    if (!until) return '—';
+    const tail = days == null ? ''
+      : days < 0 ? ` (expired ${Math.abs(days)}d ago)`
+      : ` (${days}d)`;
+    return `<span class="${cls(st)}">${escHtml(until)}${escHtml(tail)}</span>`;
+  };
+  body.innerHTML = list.map(r => `<tr>
+    <td>${escHtml(r.date)}</td>
+    <td>${r.missingBdnNo ? '<span class="warn-text">not recorded</span>' : escHtml(r.bdnNo)}</td>
+    <td>${escHtml(r.grade)}</td>
+    <td>${r.qty == null ? '—' : escHtml(fmt(r.qty, FUEL_DECIMALS)) + ' MT'}</td>
+    <td>${escHtml(r.port)}</td>
+    <td>${when(r.sampleUntil, r.sampleDays, r.sampleState)}</td>
+    <td>${when(r.bdnUntil, r.bdnDays, r.bdnState)}</td>
+  </tr>`).join('');
+  if (status){
+    const expired = list.filter(r => r.bdnState === 'expired' || r.sampleState === 'expired').length;
+    const soon = list.filter(r => r.bdnState === 'soon' || r.sampleState === 'soon').length;
+    const noNo = list.filter(r => r.missingBdnNo).length;
+    const bits = [];
+    if (expired) bits.push(`${expired} past its retention period`);
+    if (soon) bits.push(`${soon} within ${BDN_WARN_DAYS} days of expiring`);
+    if (noNo) bits.push(`${noNo} with no BDN number recorded — a Reg. 18.5 data item`);
+    status.textContent = bits.length
+      ? bits.join(' · ')
+      : `${list.length} fuel deliveries, all inside their retention periods.`;
+    status.className = expired ? 'hint alert-text' : soon || noNo ? 'hint warn-text' : 'hint good-text';
+  }
+}
+
+document.getElementById('btnBdnRefresh')?.addEventListener('click', renderBdnRetention);
+
+document.getElementById('btnBdnPrint')?.addEventListener('click', ()=>{
+  const list = bdnRetentionList();
+  if (!list.length){ alert('No fuel receipts to print.'); return; }
+  const rows = list.map(r => `<tr>
+    <td class="row-lbl">${escPrint(r.date)}</td>
+    <td>${escPrint(r.missingBdnNo ? 'NOT RECORDED' : r.bdnNo)}</td>
+    <td>${escPrint(r.grade)}</td>
+    <td>${r.qty == null ? '—' : escPrint(fmt(r.qty, FUEL_DECIMALS))}</td>
+    <td>${escPrint(r.port)}</td>
+    <td>${escPrint(r.supplier)}</td>
+    <td>${escPrint(r.sampleUntil || '—')}</td>
+    <td>${escPrint(r.bdnUntil || '—')}</td>
+  </tr>`).join('');
+  const sheetHtml = `<div class="pr-sheet">
+    ${printDocHeader({ title: 'BDN & Sample Retention', subtitle: 'MARPOL Annex VI Reg. 18.6 / 18.8.1' })}
+    ${printSection('Fuel deliveries on record', `<table class="pr-table">
+      <tr><th>Delivered</th><th>BDN no.</th><th>Grade</th><th>Qty (MT)</th><th>Port</th><th>Supplier</th><th>Sample until</th><th>BDN until</th></tr>
+      ${rows}</table>`)}
+    <div class="pr-note">The bunker delivery note is kept on board and available for inspection for three years from delivery; the sealed representative sample for twelve months. Dates above are counted from the delivery date recorded against each receipt — check them against the notes and samples actually held.</div>
+  </div>`;
+  printPortraitPages([sheetHtml]);
 });
 
 /* ---- Running hours & maintenance handlers --------------------------------- */
@@ -14673,6 +15082,7 @@ function render(){
   renderRunningHoursStrip(rows, perf);
   /* Counters and the due list sit under the voyage hours on the same page. */
   try{ renderPms(); }catch(_){}
+  try{ renderBdnRetention(); }catch(_){}
   renderDepArrRobTable(consByFuel, consByLube);
 
   const geCells = machineryGeHourCells(perf.geTotals?.hrs, geUnitCount());
