@@ -63,6 +63,7 @@
     'bk-tank-full', 'bk-tank-import', 'bk-tank-vessel', 'bk-tank-vessel-import',
     'bk-voyage-db', 'bk-voyage-restore', 'bk-voyage-merge',
     'bk-voyage-vessel', 'bk-voyage-vessel-import',
+    'bk-check-voyage', 'bk-check-tanks', 'bk-consistency-apply',
   ];
   let progressJob = null;
 
@@ -79,6 +80,13 @@
       if (on) {
         if (btn.dataset.bkWasDisabled == null) btn.dataset.bkWasDisabled = btn.disabled ? '1' : '0';
         btn.disabled = true;
+      } else if (id === 'bk-consistency-apply') {
+        /* The check enables this only after it has rows. Restoring the
+           disabled flag from before the check would leave a finished
+           comparison with nothing to press. */
+        const any = document.querySelector('#bk-consistency-list input[data-consistency-row]:checked');
+        btn.disabled = !any;
+        delete btn.dataset.bkWasDisabled;
       } else if (btn.dataset.bkWasDisabled != null) {
         btn.disabled = btn.dataset.bkWasDisabled === '1';
         delete btn.dataset.bkWasDisabled;
@@ -389,7 +397,7 @@
     if (conflict) conflict.value = settings.conflictPolicy || 'merge';
   }
 
-  async function voyagePost(action, extra, host) {
+  async function voyagePost(action, extra, host, timeoutMs) {
     ensureVoyageFrame(host);
     const requestId = 'bk-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     for (let i = 0; i < 600 && !(voyageReady && voyageFrameAlive()); i += 1) {
@@ -414,7 +422,7 @@
         if (!pendingVoyage[requestId]) return;
         delete pendingVoyage[requestId];
         reject(new Error('Voyage Chief did not respond — open Voyage once, then retry'));
-      }, 120000);
+      }, timeoutMs || 120000);
     });
   }
 
@@ -509,6 +517,7 @@
               <button type="button" class="btn" id="bk-voy-sync-pull">Pull active leg</button>
               <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
             </div>
+            <p class="hint">Keep data persistent compares every voyage leg. Tick the ones both databases should hold, then press it again. A leg on only one side is copied across. A leg on both sides keeps the newer watch. The latest leg opens afterwards, and Tank Chief loads the latest sounding report and tank readings.</p>
             <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
 
             <div class="backup-subsection">
@@ -531,6 +540,18 @@
               </div>
               <div id="bk-voy-sync-remote" class="hint backup-remote-list" hidden></div>
             </div>
+          </details>
+
+          <details class="form-panel backup-section" id="bk-consistency" open>
+            <summary><span class="backup-section-title">Database consistency</span><span class="hint backup-summary-note" id="bk-consistency-summary">not checked</span></summary>
+            <p class="hint">Compares every voyage leg, and every saved tank report, on this device with the server. Push and pull of the active leg do not see the other voyages. Nothing here deletes a leg or a report. Where both sides have the same one, the newer copy is kept and records that exist on only one side stay.</p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-check-voyage">Check voyage legs</button>
+              <button type="button" class="btn" id="bk-check-tanks">Check saved tank reports</button>
+              <button type="button" class="btn" id="bk-consistency-apply" disabled>Update to the newest of both</button>
+            </div>
+            <div id="bk-consistency-list" class="bk-consistency-list hint">Not checked yet.</div>
+            <p class="hint" id="bk-consistency-status">Ready.</p>
           </details>
 
           <h2 class="backup-step"><span class="backup-step-no">2</span> Vessels on the server</h2>
@@ -1020,6 +1041,468 @@
         }
       };
 
+
+      /* ---------- Local vs server consistency ---------- */
+      const consistencyList = root.querySelector('#bk-consistency-list');
+      const consistencyStatus = root.querySelector('#bk-consistency-status');
+      const consistencySummary = root.querySelector('#bk-consistency-summary');
+      const consistencyApply = root.querySelector('#bk-consistency-apply');
+      let consistencyPlan = null;
+
+      const setConsistency = (text) => { if (consistencyStatus) consistencyStatus.textContent = text; };
+      const setConsistencySummary = (text) => { if (consistencySummary) consistencySummary.textContent = text; };
+
+      function legCondition(raw) {
+        const s = String(raw || '').trim().toUpperCase();
+        if (s === 'L' || s === 'LADEN' || s === 'LOADED') return 'L';
+        if (s === 'B' || s === 'BALLAST' || s === '') return 'B';
+        return s.slice(0, 1) || 'B';
+      }
+
+      function legConditionLabel(cond) {
+        return legCondition(cond) === 'L' ? 'Laden' : 'Ballast';
+      }
+
+      function shortWhen(iso) {
+        if (!iso) return 'no date';
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
+        return d.toLocaleString(undefined, {
+          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+      }
+
+      function adviseReport(local, remote) {
+        if (local && !remote) return { action: 'push', reason: 'Only on this device', checked: true };
+        if (!local && remote) return { action: 'pull', reason: 'Only on the server', checked: true };
+        if ((local.savedAt || '') === (remote.savedAt || '')) return { action: 'same', reason: 'Same copy', checked: false };
+        if ((local.savedAt || '') > (remote.savedAt || '')) return { action: 'push', reason: 'This device is newer', checked: true };
+        return { action: 'pull', reason: 'The server is newer', checked: true };
+      }
+
+      function sideText(count, when) {
+        if (count == null) return '—';
+        const n = Number(count) || 0;
+        return `${n} ${n === 1 ? 'entry' : 'entries'} · ${shortWhen(when)}`;
+      }
+
+      function renderConsistency(plan) {
+        consistencyPlan = plan;
+        if (!consistencyList) return;
+        const rows = plan.rows || [];
+        if (!rows.length) {
+          consistencyList.innerHTML = '<p class="hint">Nothing to compare.</p>';
+        } else {
+          consistencyList.innerHTML = `
+            <div class="bk-consistency-row bk-consistency-head"><span></span><span>Item</span><span>This device</span><span>Server</span><span>Suggestion</span></div>
+            ${rows.map((row, i) => `
+              <div class="bk-consistency-row">
+                <span>${row.checked == null ? '' : `<input type="checkbox" data-consistency-row="${i}" ${row.checked ? 'checked' : ''} ${row.action === 'same' ? 'disabled' : ''}>`}</span>
+                <span>${esc(row.title)}</span>
+                <span>${esc(row.localText)}</span>
+                <span>${esc(row.serverText)}</span>
+                <span>${esc(row.reason)}</span>
+              </div>`).join('')}`;
+        }
+        const chosen = rows.filter((row) => row.checked && row.action !== 'same').length;
+        if (consistencyApply) consistencyApply.disabled = !chosen;
+        setConsistencySummary(plan.summary || 'checked');
+        setConsistency(plan.status || 'Ready.');
+      }
+
+      function selectedConsistencyRows() {
+        if (!consistencyPlan || !consistencyList) return [];
+        const picked = [];
+        consistencyList.querySelectorAll('[data-consistency-row]').forEach((box) => {
+          if (!box.checked) return;
+          const row = consistencyPlan.rows[Number(box.getAttribute('data-consistency-row'))];
+          if (row && row.action !== 'same') picked.push(row);
+        });
+        return picked;
+      }
+
+      if (consistencyList) {
+        consistencyList.addEventListener('change', () => {
+          if (!consistencyApply || !consistencyPlan) return;
+          consistencyApply.disabled = !selectedConsistencyRows().length;
+        });
+      }
+
+      function voyageNumbers(rows, side) {
+        const key = side === 'local' ? 'localText' : 'serverText';
+        const seen = [];
+        for (const row of rows || []) {
+          if (!row || row[key] === '—') continue;
+          const no = String(row.voyage || '').trim();
+          if (no && !seen.includes(no)) seen.push(no);
+        }
+        return seen;
+      }
+
+      function reloadOpenVoyageFrame() {
+        document.querySelectorAll('iframe.aio-embed-frame').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('voyage') < 0) return;
+            frame.contentWindow.postMessage({
+              type: 'chengaio-voyage-backup',
+              action: 'show-open-leg',
+              requestId: 'show-' + Date.now(),
+            }, '*');
+          } catch (_) { /* the voyage page is not open */ }
+        });
+      }
+
+      function reloadOpenTankFrames() {
+        document.querySelectorAll('iframe').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0) return;
+            frame.contentWindow.postMessage({ type: 'chengaio-reload-sounding' }, '*');
+          } catch (_) { /* tank page is not open */ }
+        });
+      }
+
+      async function loadLatestSounding(vesselIds, bothSides) {
+        const ids = [...new Set((vesselIds || []).filter(Boolean))];
+        const active = ChengPro.vessel.getActive();
+        if (active && active.id && !ids.includes(active.id)) ids.push(active.id);
+        const notes = [];
+        for (const id of ids) {
+          const path = '/api/vessels/' + encodeURIComponent(id) + '/sounding-report/load-latest';
+          const opts = { method: 'POST', body: '{}' };
+          if (usingLocalTank() || bothSides) {
+            try {
+              if (canUseLocalTank()) notes.push(await tankRequest(path, opts));
+            } catch (e) {
+              notes.push({ id, error: e.message });
+            }
+          }
+          if (!usingLocalTank() || bothSides) {
+            try { notes.push(await gatewayTankApi(path, opts)); }
+            catch (e) { notes.push({ id, error: e.message }); }
+          }
+        }
+        reloadOpenTankFrames();
+        return notes.filter((note) => note && note.loaded);
+      }
+
+      async function refreshVoyageConsistency() {
+        const settings = readVoyageSyncForm(root);
+        if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
+        progressSet(20, 'Comparing voyage legs on this device and the server…');
+        watchVoyage(20, 90);
+        const compared = await voyagePost('compare-legs', {
+          vessel: settings.vesselId,
+          settings,
+        }, root);
+        const rows = (compared.rows || []).map((row) => ({
+          kind: 'voyage-leg',
+          voyage: row.voyage,
+          condition: legCondition(row.condition),
+          action: row.action,
+          reason: row.reason,
+          checked: !!row.checked,
+          title: `Voyage ${row.voyage} · ${legConditionLabel(row.condition)}`,
+          localText: row.localEntryCount == null ? '—' : sideText(row.localEntryCount, row.localAt),
+          serverText: row.remoteEntryCount == null ? '—' : sideText(row.remoteEntryCount, row.remoteAt),
+        })).sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }));
+        const differ = rows.filter((row) => row.action !== 'same').length;
+        const ship = compared.vesselName || compared.vessel || settings.vesselId || 'this ship';
+        const plan = {
+          kind: 'voyage',
+          settings,
+          vessel: settings.vesselId || compared.vessel,
+          rows,
+          summary: differ ? `${differ} leg${differ === 1 ? '' : 's'} differ` : 'legs match',
+          status: `${rows.length} leg${rows.length === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
+        };
+        renderConsistency(plan);
+        return plan;
+      }
+
+      root.querySelector('#bk-check-voyage').onclick = async () => {
+        try {
+          await withProgress('Comparing voyage legs…', 'Reading this device…', async () => {
+            const plan = await refreshVoyageConsistency();
+            const differ = (plan.rows || []).filter((row) => row.action !== 'same').length;
+            return differ
+              ? `${differ} voyage leg${differ === 1 ? '' : 's'} differ`
+              : 'Voyage legs match';
+          });
+        } catch (e) {
+          setConsistency(e.message || 'Voyage check failed');
+          toast(e.message || 'Voyage check failed');
+        }
+      };
+
+      function reportGroups(payload) {
+        const brief = (payload && payload.brief) || {};
+        const full = payload || {};
+        return [
+          ['reportHistory', 'Fuel oil reports', brief.reportHistory, full.reportHistory],
+          ['voyageHistory', 'Voyage tank prints', brief.voyageHistory, full.voyageHistory],
+          ['tankSummaryHistory', 'Tank summary reports', brief.tankSummaryHistory, full.tankSummaryHistory],
+          ['bunkerPlans', 'Bunker plans', brief.bunkerPlans, full.bunkerHistory && full.bunkerHistory.plans],
+          ['bunkerAfter', 'Bunker delivery reports', brief.bunkerAfter, full.bunkerHistory && full.bunkerHistory.after],
+          ['bunkerSummaries', 'Bunker summaries', brief.bunkerSummaries, full.bunkerHistory && full.bunkerHistory.summaries],
+        ];
+      }
+
+      function compareReportSides(localPayload, serverPayload, vesselName) {
+        const localGroups = reportGroups(localPayload);
+        const serverGroups = reportGroups(serverPayload);
+        const rows = [];
+        localGroups.forEach((group, index) => {
+          const serverGroup = serverGroups[index];
+          const localBrief = new Map((group[2] || []).map((item) => [item.id, item]));
+          const serverBrief = new Map((serverGroup[2] || []).map((item) => [item.id, item]));
+          const ids = new Set([...localBrief.keys(), ...serverBrief.keys()]);
+          if (!ids.size) return;
+          let onlyLocal = 0;
+          let onlyServer = 0;
+          let newerLocal = 0;
+          let newerServer = 0;
+          ids.forEach((id) => {
+            const advice = adviseReport(localBrief.get(id), serverBrief.get(id));
+            if (advice.action === 'push' && !serverBrief.get(id)) onlyLocal += 1;
+            else if (advice.action === 'pull' && !localBrief.get(id)) onlyServer += 1;
+            else if (advice.action === 'push') newerLocal += 1;
+            else if (advice.action === 'pull') newerServer += 1;
+          });
+          const differ = onlyLocal + onlyServer + newerLocal + newerServer;
+          const bits = [];
+          if (onlyLocal) bits.push(`${onlyLocal} only on this device`);
+          if (onlyServer) bits.push(`${onlyServer} only on the server`);
+          if (newerLocal) bits.push(`${newerLocal} newer on this device`);
+          if (newerServer) bits.push(`${newerServer} newer on the server`);
+          rows.push({
+            kind: 'tank-reports',
+            groupKey: group[0],
+            action: differ ? 'merge' : 'same',
+            reason: differ ? bits.join(' · ') : 'Already the same',
+            checked: !!differ,
+            title: `${vesselName} · ${group[1]}`,
+            localText: `${localBrief.size} saved`,
+            serverText: `${serverBrief.size} saved`,
+            vesselId: (localPayload && localPayload.vesselId) || (serverPayload && serverPayload.vesselId),
+          });
+        });
+        return rows;
+      }
+
+      async function readTankReportBundle(via, vesselId) {
+        const path = '/api/vessels/' + encodeURIComponent(vesselId) + '/saved-reports';
+        if (via === 'local') return tankRequest(path);
+        return gatewayTankApi(path);
+      }
+
+      async function listTankVesselIds(via) {
+        const data = via === 'local' ? await tankRequest('/api/vessels') : await gatewayTankApi('/api/vessels');
+        return ((data && data.vessels) || []).filter((v) => v && v.id);
+      }
+
+      root.querySelector('#bk-check-tanks').onclick = async () => {
+        try {
+          await withProgress('Comparing saved tank reports…', 'Reading this device…', async () => {
+            const peerUrl = (root.querySelector('#bk-sync-url')?.value || '').trim();
+            const peerToken = (root.querySelector('#bk-sync-token')?.value || '').trim();
+            if (!usingLocalTank()) {
+              if (!peerUrl) {
+                if (tankTransport() === 'local' && !canUseLocalTank()) {
+                  throw new Error('On this device is not available in this window, so there is no separate tank copy to compare. Set a peer URL to compare with another computer. On the phone, choose On this device first.');
+                }
+                throw new Error('This screen is already using the server database, so there is no separate copy to compare. Switch Database on this device to “On this device”, or set a peer URL to compare with another computer.');
+              }
+              progressSet(20, 'Reading saved reports on the peer…');
+              const compared = await gatewayTankApi('/api/sync/saved-reports/compare', {
+                method: 'POST',
+                body: JSON.stringify({ syncUrl: peerUrl, syncApiToken: peerToken }),
+              });
+              const rows = [];
+              for (const vessel of compared.rows || []) {
+                if (!vessel.onDevice || !vessel.onPeer) {
+                  rows.push({
+                    kind: 'tank-peer-vessel',
+                    vesselId: vessel.vesselId,
+                    action: 'same',
+                    reason: vessel.onDevice
+                      ? 'Only on this device — not created on the peer by this check'
+                      : 'Only on the peer — not created here by this check',
+                    checked: false,
+                    title: vessel.name || vessel.vesselId,
+                    localText: vessel.onDevice ? 'vessel' : '—',
+                    serverText: vessel.onPeer ? 'vessel' : '—',
+                  });
+                  continue;
+                }
+                for (const group of vessel.groups || []) {
+                  if (!group.localCount && !group.peerCount) continue;
+                  const bits = [];
+                  if (group.onlyHere) bits.push(`${group.onlyHere} only on this device`);
+                  if (group.onlyPeer) bits.push(`${group.onlyPeer} only on the peer`);
+                  if (group.newerHere) bits.push(`${group.newerHere} newer on this device`);
+                  if (group.newerPeer) bits.push(`${group.newerPeer} newer on the peer`);
+                  rows.push({
+                    kind: 'tank-peer',
+                    vesselId: vessel.vesselId,
+                    action: group.differ ? 'merge' : 'same',
+                    reason: group.differ ? bits.join(' · ') : 'Already the same',
+                    checked: !!group.differ,
+                    title: `${vessel.name || vessel.vesselId} · ${group.title}`,
+                    localText: `${group.localCount} saved`,
+                    serverText: `${group.peerCount} saved`,
+                  });
+                }
+              }
+              const differ = rows.filter((row) => row.checked).length;
+              renderConsistency({
+                kind: 'tank-peer',
+                peerUrl,
+                peerToken,
+                rows,
+                summary: differ ? `${differ} report group${differ === 1 ? '' : 's'} differ` : 'reports match',
+                status: differ
+                  ? `${differ} saved-report group${differ === 1 ? '' : 's'} differ from the peer. Updating keeps every report and the newer copy of a shared one.`
+                  : 'Saved tank reports match the peer.',
+              });
+              return differ ? `${differ} report groups differ` : 'Saved tank reports match';
+            }
+
+            progressSet(15, 'Listing vessels on this device and the server…');
+            const [localVessels, serverVessels] = await Promise.all([
+              listTankVesselIds('local'),
+              listTankVesselIds('server'),
+            ]);
+            const byId = new Map();
+            for (const vessel of localVessels) byId.set(vessel.id, { local: vessel });
+            for (const vessel of serverVessels) {
+              const slot = byId.get(vessel.id) || {};
+              slot.server = vessel;
+              byId.set(vessel.id, slot);
+            }
+            const ids = [...byId.keys()];
+            const rows = [];
+            for (let i = 0; i < ids.length; i++) {
+              const id = ids[i];
+              const slot = byId.get(id);
+              const name = (slot.local && slot.local.name) || (slot.server && slot.server.name) || id;
+              progressSet(20 + Math.round(70 * (i / Math.max(ids.length, 1))), `Reading reports for ${name}…`);
+              if (!slot.local || !slot.server) {
+                rows.push({
+                  kind: 'tank-reports',
+                  vesselId: id,
+                  action: 'same',
+                  reason: slot.local
+                    ? 'Only on this device — this check does not create the ship on the server'
+                    : 'Only on the server — this check does not create the ship on this device',
+                  checked: false,
+                  title: name,
+                  localText: slot.local ? 'vessel' : '—',
+                  serverText: slot.server ? 'vessel' : '—',
+                });
+                continue;
+              }
+              const [localBundle, serverBundle] = await Promise.all([
+                readTankReportBundle('local', id),
+                readTankReportBundle('server', id),
+              ]);
+              rows.push(...compareReportSides(localBundle, serverBundle, name));
+            }
+            const differ = rows.filter((row) => row.checked).length;
+            renderConsistency({
+              kind: 'tank-local',
+              bundles: null,
+              rows,
+              summary: differ ? `${differ} report group${differ === 1 ? '' : 's'} differ` : 'reports match',
+              status: differ
+                ? `${differ} saved-report group${differ === 1 ? '' : 's'} differ. Updating copies the missing reports both ways and keeps the newer copy when both have the same report.`
+                : 'Saved tank reports on this device match the server.',
+            });
+            return differ ? `${differ} report groups differ` : 'Saved tank reports match';
+          });
+        } catch (e) {
+          setConsistency(e.message || 'Tank report check failed');
+          toast(e.message || 'Tank report check failed');
+        }
+      };
+
+      root.querySelector('#bk-consistency-apply').onclick = async () => {
+        const picked = selectedConsistencyRows();
+        if (!picked.length || !consistencyPlan) {
+          toast('Check the database first');
+          return;
+        }
+        const noun = consistencyPlan.kind === 'voyage'
+          ? `${picked.length} voyage leg${picked.length === 1 ? '' : 's'}`
+          : `${picked.length} saved-report group${picked.length === 1 ? '' : 's'}`;
+        if (!confirm(`Update ${noun} to the newest of both sides?\n\nRecords that exist on only one side are copied across. Where both sides have the same record, the newer copy is kept. Nothing is deleted.`)) return;
+        try {
+          await withProgress('Updating to the newest copy…', 'Starting…', async () => {
+            if (consistencyPlan.kind === 'voyage') {
+              const settings = consistencyPlan.settings || readVoyageSyncForm(root);
+              watchVoyage(8, 96);
+              const msg = await voyagePost('reconcile-legs', {
+                vessel: consistencyPlan.vessel,
+                settings,
+                openLatest: true,
+                legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
+              }, root, 600000);
+              reloadOpenVoyageFrame();
+              const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
+              const soundNote = sounded[0] && sounded[0].loaded
+                ? ` Latest sounding report loaded${sounded[0].voyageNo ? ' (voyage ' + sounded[0].voyageNo + ')' : ''}.`
+                : '';
+              const line = (msg.message || 'Voyage legs updated.') + soundNote;
+              setConsistency(line);
+              setConsistencySummary('updated');
+              toast(line);
+              return line;
+            }
+            if (consistencyPlan.kind === 'tank-peer') {
+              progressSet(30, 'Merging saved reports with the peer…');
+              const vesselIds = [...new Set(picked.map((row) => row.vesselId).filter(Boolean))];
+              const result = await gatewayTankApi('/api/sync/saved-reports/merge', {
+                method: 'POST',
+                body: JSON.stringify({
+                  syncUrl: consistencyPlan.peerUrl,
+                  syncApiToken: consistencyPlan.peerToken,
+                  vesselIds,
+                }),
+              });
+              const notes = (result.results || []).map((row) => row.peerNote).filter(Boolean);
+              const sounded = await loadLatestSounding(vesselIds, false);
+              const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${notes.length ? ' ' + notes[0] : ''}${sounded.length ? ' Latest sounding report loaded.' : ''}`;
+              setConsistency(line);
+              setConsistencySummary('updated');
+              toast('Saved reports merged');
+              return line;
+            }
+            const vesselIds = [...new Set(picked.map((row) => row.vesselId).filter(Boolean))];
+            for (let i = 0; i < vesselIds.length; i++) {
+              const id = vesselIds[i];
+              progressSet(Math.round(90 * (i / Math.max(vesselIds.length, 1))), `Merging reports for ${id}…`);
+              const [localBundle, serverBundle] = await Promise.all([
+                readTankReportBundle('local', id),
+                readTankReportBundle('server', id),
+              ]);
+              const path = '/api/vessels/' + encodeURIComponent(id) + '/saved-reports/merge';
+              await tankRequest(path, { method: 'POST', body: JSON.stringify(serverBundle) });
+              await gatewayTankApi(path, { method: 'POST', body: JSON.stringify(localBundle) });
+            }
+            const sounded = await loadLatestSounding(vesselIds, true);
+            const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}`;
+            setConsistency(line);
+            setConsistencySummary('updated');
+            toast('Saved reports merged');
+            return line;
+          });
+          if (consistencyApply) consistencyApply.disabled = true;
+        } catch (e) {
+          setConsistency(e.message || 'Update failed');
+          toast(e.message || 'Update failed');
+        }
+      };
 
       /* ---------- Server vessel library + sync settings ---------- */
       const libStatus = root.querySelector('#bk-lib-status');
@@ -1875,13 +2358,83 @@
       });
 
       root.querySelector('#bk-voy-sync-persist')?.addEventListener('click', async () => {
-        if (!confirm('KEEP DATA PERSISTENT — merge local and server chronologically both ways, then save on both sides. Continue?')) return;
-        setVoySync('Merging local ↔ server…');
+        const settings = readVoyageSyncForm(root);
+        if (!settings.serverUrl) {
+          setVoySync('Set the Voyage Chief sync server URL, then press Keep data persistent.');
+          toast('Set the sync server URL first');
+          return;
+        }
+        const planMatches = consistencyPlan
+          && consistencyPlan.kind === 'voyage'
+          && (consistencyPlan.settings || {}).serverUrl === settings.serverUrl
+          && String((consistencyPlan.settings || {}).vesselId || '') === String(settings.vesselId || '');
+        if (!planMatches) {
+          setVoySync('Comparing every voyage leg…');
+          try {
+            await voyagePost('save-sync-settings', { settings }, root);
+            const plan = await withProgress('Comparing voyage legs…', 'Reading this device and the server…', () => refreshVoyageConsistency());
+            const rows = plan.rows || [];
+            const differ = rows.filter((row) => row.action !== 'same');
+            const box = root.querySelector('#bk-consistency');
+            if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+            if (!differ.length) {
+              const opened = await voyagePost('open-latest-leg', { vessel: plan.vessel, settings }, root);
+              reloadOpenVoyageFrame();
+              const sounded = await loadLatestSounding([plan.vessel], false);
+              const line = (opened.message || 'Voyage legs already match.')
+                + (sounded[0] && sounded[0].loaded ? ' Latest sounding report loaded.' : '');
+              setVoySync(line);
+              setConsistency(line);
+              toast(line);
+              return;
+            }
+            const here = voyageNumbers(rows, 'local');
+            const there = voyageNumbers(rows, 'server');
+            const line = `This device has voyage ${here.join(', ') || 'none'}. The server has voyage ${there.join(', ') || 'none'}. Tick the legs both databases should hold, then press Keep data persistent again.`;
+            setVoySync(line);
+            setConsistency(line);
+            toast('Select the legs, then press Keep data persistent again');
+          } catch (e) {
+            setVoySync(e.message || 'Compare failed');
+            toast(e.message || 'Compare failed');
+          }
+          return;
+        }
+        const picked = selectedConsistencyRows();
+        if (!picked.length) {
+          setVoySync('No legs are ticked. Tick the ones both databases should share, then press Keep data persistent again.');
+          toast('Tick at least one leg');
+          return;
+        }
+        const lines = picked.map((row) => `• ${row.title} — ${row.reason}`).join('\n');
+        if (!confirm(
+          'KEEP DATA PERSISTENT\n\n'
+          + 'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n'
+          + lines
+          + '\n\nThe latest leg opens when this finishes. Continue?'
+        )) return;
+        setVoySync('Copying the selected voyage legs…');
         try {
-          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
-          const msg = await voyagePost('persist-merge', {}, root);
-          setVoySync(msg.message || 'Merge completed');
-          toast(msg.message || 'Merge completed');
+          await withProgress('Updating voyage legs…', 'Starting…', async () => {
+            watchVoyage(8, 90);
+            const msg = await voyagePost('reconcile-legs', {
+              vessel: consistencyPlan.vessel,
+              settings,
+              openLatest: true,
+              legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
+            }, root, 600000);
+            reloadOpenVoyageFrame();
+            progressSet(94, 'Loading the latest sounding report…');
+            const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
+            const line = (msg.message || 'Voyage legs updated.')
+              + (sounded[0] && sounded[0].loaded ? ' Latest sounding report and tank readings loaded.' : '');
+            setVoySync(line);
+            setConsistency(line);
+            setConsistencySummary('updated');
+            toast(line);
+            return line;
+          });
+          if (consistencyApply) consistencyApply.disabled = true;
         } catch (e) {
           setVoySync(e.message || 'Merge failed');
           toast(e.message || 'Merge failed');

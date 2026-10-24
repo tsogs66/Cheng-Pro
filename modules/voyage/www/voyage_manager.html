@@ -4660,6 +4660,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button type="button" class="ghost small" id="btnListRemoteVoyages">List Remote Voyages</button>
         <button type="button" class="ghost small" id="btnRequestPersist">Keep Data Persistent</button>
       </div>
+      <div id="persistLegPicker" class="hint" style="display:none; margin-top:8px;"></div>
       <div class="form-grid cols3" style="margin-top:10px;">
         <div class="field"><label>Pull voyage no.</label><select id="sync_pullVoyage"></select></div>
         <div class="field"><label>Pull condition</label><select id="sync_pullCondition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
@@ -4669,7 +4670,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint" id="syncMetaLine">Last sync: never</div>
       <div id="remoteVoyageList" class="hint" style="display:none; margin-top:8px;"></div>
-      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Keep Data Persistent</strong> merges local and server entries for the same leg in chronological order (union both ways — missing entries are filled from the other side), then saves the merged result on both sides. Every action asks for confirmation first.</div>
+      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Keep Data Persistent</strong> compares every voyage leg. Tick the ones both databases should hold — a leg that exists on only one side is copied across, and a leg on both sides keeps the newer watch. Nothing is deleted. The latest leg opens when the merge finishes.</div>
       <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden).</div>
     </div>
 
@@ -6165,7 +6166,9 @@ const BACKUP_ACTIVITY_IDS = {
   'db-restore': true,
   'db-merge': true,
   'vessel-export': true,
-  'vessel-import': true
+  'vessel-import': true,
+  'reconcile-legs': true,
+  'sync': true
 };
 let _lastBackupActivityId = null;
 /** The AIO backup page cannot see this frame, so backup jobs are posted up. */
@@ -8437,13 +8440,13 @@ function syncSlugCoreWithoutImo(raw){
  * just typed in AIO Backup), so Harbour Key would "match" mv-flag-evi and
  * receive Flag Evi's pulled leg.
  */
-async function ensureLocalVesselForSyncSlug(asked){
+function findLocalVesselForSyncSlug(asked){
   const raw = String(asked || '').trim();
   if (!raw) return null;
   const slug = sanitizeSyncSlug(raw);
   const core = syncSlugCore(raw);
   const coreLoose = syncSlugCoreWithoutImo(raw);
-  let vessel = (state.vessels || []).find((v) => {
+  return (state.vessels || []).find((v) => {
     if (!v) return false;
     if (v.id === raw || v.id === slug) return true;
     const reg = vesselRegistrySyncSlug(v);
@@ -8454,6 +8457,13 @@ async function ensureLocalVesselForSyncSlug(asked){
     if (syncSlugCoreWithoutImo(nameCore) === coreLoose) return true;
     return false;
   }) || null;
+}
+
+async function ensureLocalVesselForSyncSlug(asked){
+  const raw = String(asked || '').trim();
+  if (!raw) return null;
+  const slug = sanitizeSyncSlug(raw);
+  let vessel = findLocalVesselForSyncSlug(raw);
   if (vessel) return vessel;
   const pretty = syncSlugCoreWithoutImo(raw).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
     || raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
@@ -24591,33 +24601,100 @@ document.getElementById('voyageLibraryBody')?.addEventListener('click', async (e
   await loadSelectedVoyageLeg(vn, cond, { goSummary: true });
 });
 
+let persistPickerReady = false;
+
+function persistConditionWord(cond){
+  return normalizeCondition(cond) === 'L' ? 'Laden' : 'Ballast';
+}
+
+function persistText(value){
+  return String(value == null ? '' : value).replace(/[&<>"]/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+  }[ch]));
+}
+
+function renderPersistPicker(compared){
+  const host = document.getElementById('persistLegPicker');
+  if (!host) return false;
+  const differ = (compared.rows || []).filter((row) => row.action !== 'same');
+  if (!differ.length){
+    host.style.display = 'none';
+    host.innerHTML = '';
+    host._persistRows = [];
+    persistPickerReady = false;
+    return false;
+  }
+  host.style.display = 'block';
+  host._persistRows = differ;
+  host.innerHTML = '<strong>Select the legs both databases should hold.</strong>'
+    + differ.map((row, i) => {
+      const local = row.localEntryCount == null ? 'not on this device' : `${row.localEntryCount} entries`;
+      const remote = row.remoteEntryCount == null ? 'not on the server' : `${row.remoteEntryCount} entries`;
+      return `<label style="display:block; margin:4px 0;">
+        <input type="checkbox" data-persist-leg="${i}" ${row.checked ? 'checked' : ''}>
+        Voyage ${persistText(row.voyage)} · ${persistConditionWord(row.condition)} — ${persistText(row.reason)}
+        (this device: ${local}; server: ${remote})
+      </label>`;
+    }).join('')
+    + '<div style="margin-top:6px;">Untick a leg to leave it where it is. Press Keep Data Persistent again to copy the ticked legs.</div>';
+  persistPickerReady = true;
+  return true;
+}
+
 document.getElementById('btnRequestPersist')?.addEventListener('click', async ()=>{
-  if (!confirm(
-    'KEEP DATA PERSISTENT — WARNING\n\n' +
-    'This merges the active voyage leg with the same leg on the server:\n' +
-    '• Union of local and server entries/receipts (chronological / by record id)\n' +
-    '• Missing entries on either side are filled from the other\n' +
-    '• Same watch (datetime + operation) collapses to the newer copy\n' +
-    '• The merged result is then saved locally AND pushed to the server\n\n' +
-    'This is the safe two-way sync. Push/Pull alone overwrite one side.\n\nContinue with chronological merge?'
-  )) return;
   try {
-    await syncNow({ policy: 'merge' });
-    let persistMsg = '';
-    try {
-      if (navigator.storage && navigator.storage.persist){
-        const already = await navigator.storage.persisted();
-        if (!already){
-          const ok = await navigator.storage.persist();
-          persistMsg = ok
-            ? '\n\nBrowser also granted persistent IndexedDB storage on this device.'
-            : '\n\n(Browser did not grant persistent storage — install as PWA for best results.)';
-        } else {
-          persistMsg = '\n\nBrowser storage was already marked persistent on this device.';
-        }
+    if (!syncApiBase()){
+      alert('Enter a Sync Server URL first.');
+      return;
+    }
+    const meta = document.getElementById('syncMetaLine');
+    if (!persistPickerReady){
+      const compared = await withActivity('reconcile-legs', 'Comparing voyage legs…', () => compareLocalAndServerLegs(), { source: 'server' });
+      const localNos = [...new Set(compared.rows.filter((row) => row.localEntryCount != null).map((row) => row.voyage))];
+      const serverNos = [...new Set(compared.rows.filter((row) => row.remoteEntryCount != null).map((row) => row.voyage))];
+      const needs = renderPersistPicker(compared);
+      if (!needs){
+        const opened = await openLatestVoyageLeg();
+        const line = opened
+          ? `Both databases already have the same voyage legs. Voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is now open.`
+          : 'Both databases already have the same voyage legs.';
+        if (meta) meta.textContent = line;
+        alert(line);
+        return;
       }
-    } catch (_) {}
-    alert('Keep Data Persistent completed: active leg merged both ways with the server.' + persistMsg);
+      const line = `This device has voyage ${localNos.join(', ') || 'none'}. The server has voyage ${serverNos.join(', ') || 'none'}. Tick the legs both databases should hold, then press Keep Data Persistent again.`;
+      if (meta) meta.textContent = line;
+      return;
+    }
+    const host = document.getElementById('persistLegPicker');
+    const rows = (host && host._persistRows) || [];
+    const picked = [];
+    host.querySelectorAll('[data-persist-leg]').forEach((box) => {
+      if (!box.checked) return;
+      const row = rows[Number(box.getAttribute('data-persist-leg'))];
+      if (row) picked.push({ voyage: row.voyage, condition: row.condition });
+    });
+    if (!picked.length){
+      alert('No legs are ticked. Tick the ones both databases should share, then press Keep Data Persistent again.');
+      return;
+    }
+    const lines = picked.map((row) => `• Voyage ${row.voyage} · ${persistConditionWord(row.condition)}`).join('\n');
+    if (!confirm(
+      'KEEP DATA PERSISTENT\n\n' +
+      'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n' +
+      lines +
+      '\n\nThe latest leg opens when this finishes. Continue?'
+    )) return;
+    const outcome = await withActivity('reconcile-legs', 'Updating voyage legs with the server…', () => {
+      return reconcileVoyageLegs(picked, { openLatest: true });
+    }, { source: 'server' });
+    persistPickerReady = false;
+    if (host){ host.style.display = 'none'; host.innerHTML = ''; host._persistRows = []; }
+    const opened = outcome && outcome.opened;
+    const line = `Updated ${(outcome.results || []).length} voyage leg(s).`
+      + (opened ? ` Voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is now open.` : '');
+    if (meta) meta.textContent = line;
+    alert(line);
   } catch (e){
     alert('Keep Data Persistent failed: ' + e.message);
   }
@@ -24672,7 +24749,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v326';
+let androidInstallCacheName = 'noon-report-v327';
 
 /*
  * What the program is called.
@@ -25896,6 +25973,234 @@ document.getElementById('btnImportVesselBackup')?.addEventListener('click', ()=>
   document.getElementById('fileImportVesselBackup')?.click();
 });
 
+/** Newest log-entry stamp on a leg — not the moment the leg file was last opened. */
+function legContentStamp(leg){
+  let best = '';
+  for (const item of (leg && leg.entries) || []){
+    const t = String((item && (item.updatedAt || item.datetime)) || '');
+    if (t > best) best = t;
+  }
+  return best;
+}
+
+function summarizeStoredLeg(leg){
+  return {
+    voyageNumber: String(leg.voyageNumber || '').trim(),
+    condition: normalizeCondition(leg.condition),
+    entryCount: leg.entryCount != null ? Number(leg.entryCount) : ((leg.entries || []).length),
+    savedAt: leg.updatedAt || '',
+    contentAt: legContentStamp(leg) || leg.updatedAt || '',
+  };
+}
+
+/** Local voyage library, including the leg open on screen, without restamping it. */
+async function listLocalLegSummaries(){
+  const vid = state.activeVesselId;
+  const stored = await listVoyageLegsForVessel(vid);
+  const byKey = new Map();
+  for (const leg of stored){
+    const row = summarizeStoredLeg(leg);
+    if (!row.voyageNumber) continue;
+    byKey.set(row.voyageNumber + '|' + row.condition, row);
+  }
+  const vn = (state.setup.voyageNumber || '').trim();
+  if (vn && vid){
+    const cond = normalizeCondition(state.setup.shipCondition);
+    const key = vn + '|' + cond;
+    const prev = byKey.get(key);
+    const live = {
+      voyageNumber: vn,
+      condition: cond,
+      entryCount: (state.entries || []).length,
+      savedAt: (prev && prev.savedAt) || '',
+      contentAt: legContentStamp({ entries: state.entries }) || (prev && prev.contentAt) || '',
+    };
+    byKey.set(key, live);
+  }
+  return [...byKey.values()];
+}
+
+/** Load one leg, or an empty working copy when it exists only on the server. */
+async function openLegForReconcile(voyage, condition){
+  const vid = state.activeVesselId;
+  const vn = String(voyage || '').trim();
+  const cond = normalizeCondition(condition);
+  try {
+    await activateVoyageLeg(vid, vn, cond, { persistCurrent: false });
+    return;
+  } catch (e) {
+    if (!/No .* records for voyage/i.test(String(e && e.message || ''))) throw e;
+  }
+  await clearActiveVesselWorkingData(vid);
+  state.setup = migrateSetup(state.setup || {});
+  state.setup.voyageNumber = vn;
+  state.setup.shipCondition = cond;
+  state.entries = [];
+  state.receipts = [];
+  state.documents = [];
+  state.abstracts = [];
+  state.printHistory = [];
+  await saveSetup();
+}
+
+function remoteLegSummaries(voyages){
+  const rows = [];
+  for (const voyage of voyages || []){
+    const conds = Array.isArray(voyage.conditions)
+      ? voyage.conditions
+      : Object.entries(voyage.conditions || {}).map(([condition, meta]) => ({
+          condition,
+          ...(meta && typeof meta === 'object' ? meta : {}),
+        }));
+    for (const meta of conds){
+      const voyageNumber = String((meta && meta.voyageNumber) || voyage.voyageNumber || '').trim();
+      if (!voyageNumber) continue;
+      rows.push({
+        voyageNumber,
+        condition: normalizeCondition((meta && meta.condition) || ''),
+        entryCount: Number(meta && meta.entryCount) || 0,
+        updatedAt: (meta && (meta.updatedAt || meta.serverUpdatedAt)) || '',
+      });
+    }
+  }
+  return rows;
+}
+
+/** Same rule the Backup page uses: counts first, then the newest log entry. */
+function adviseLegPair(local, remote){
+  if (local && !remote) return { action: 'push', reason: 'Only on this device', checked: true };
+  if (!local && remote) return { action: 'pull', reason: 'Only on the server', checked: true };
+  const lc = Number(local.entryCount) || 0;
+  const rc = Number(remote.entryCount) || 0;
+  const content = local.contentAt || '';
+  const saved = local.savedAt || '';
+  const remoteAt = remote.updatedAt || '';
+  if (lc !== rc){
+    const extra = Math.abs(lc - rc);
+    const noun = extra === 1 ? 'entry' : 'entries';
+    return {
+      action: 'merge',
+      reason: lc > rc
+        ? `This device has ${extra} more ${noun}`
+        : `The server has ${extra} more ${noun}`,
+      checked: true,
+    };
+  }
+  if (content && remoteAt && content > remoteAt){
+    return { action: 'merge', reason: 'A log entry on this device is newer than the server copy', checked: true };
+  }
+  const remoteMs = Date.parse(remoteAt);
+  const savedMs = Date.parse(saved);
+  if (Number.isFinite(remoteMs) && Number.isFinite(savedMs) && remoteMs - savedMs > 60000){
+    return { action: 'merge', reason: 'The server copy is newer', checked: true };
+  }
+  if (Number.isFinite(savedMs) && Number.isFinite(remoteMs) && savedMs - remoteMs > 60000 && !(content && remoteAt && content <= remoteAt)){
+    return { action: 'merge', reason: 'This device copy is newer', checked: true };
+  }
+  return { action: 'same', reason: 'Same entry count', checked: false };
+}
+
+/** Every local leg against every server leg. Does not write either side. */
+async function compareLocalAndServerLegs(){
+  const base = syncApiBase();
+  if (!base) throw new Error('Enter a Sync Server URL first.');
+  const localLegs = await listLocalLegSummaries();
+  const vessel = vesselSyncSlug();
+  const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
+  const remoteLegs = remoteLegSummaries((body && body.voyages) || []);
+  const keys = new Map();
+  for (const leg of localLegs){
+    keys.set(leg.voyageNumber + '|' + normalizeCondition(leg.condition), { local: leg });
+  }
+  for (const leg of remoteLegs){
+    const key = leg.voyageNumber + '|' + normalizeCondition(leg.condition);
+    const slot = keys.get(key) || {};
+    slot.remote = leg;
+    keys.set(key, slot);
+  }
+  const rows = [...keys.values()].map((slot) => {
+    const advice = adviseLegPair(slot.local, slot.remote);
+    const voyageNumber = (slot.local && slot.local.voyageNumber) || slot.remote.voyageNumber;
+    const condition = normalizeCondition((slot.local && slot.local.condition) || slot.remote.condition);
+    return {
+      voyage: voyageNumber,
+      condition,
+      action: advice.action,
+      reason: advice.reason,
+      checked: advice.checked,
+      localEntryCount: slot.local ? slot.local.entryCount : null,
+      localAt: slot.local ? (slot.local.contentAt || slot.local.savedAt || '') : '',
+      remoteEntryCount: slot.remote ? slot.remote.entryCount : null,
+      remoteAt: slot.remote ? (slot.remote.updatedAt || '') : '',
+    };
+  }).sort((a, b) => String(a.voyage).localeCompare(String(b.voyage), undefined, { numeric: true })
+    || String(a.condition).localeCompare(String(b.condition)));
+  return { vessel, vesselName: state.setup.vesselName || '', rows };
+}
+
+/** The leg with the newest log entry. A higher voyage number breaks a tie. */
+async function openLatestVoyageLeg(){
+  const legs = await listVoyageLegsForVessel(state.activeVesselId);
+  let best = null;
+  for (const leg of legs){
+    const stamp = legContentStamp(leg) || leg.updatedAt || '';
+    const vn = String(leg.voyageNumber || '');
+    if (!vn) continue;
+    if (!best || stamp > best.stamp || (stamp === best.stamp && vn.localeCompare(best.vn, undefined, { numeric: true }) > 0)){
+      best = { leg, stamp, vn };
+    }
+  }
+  if (!best) return null;
+  await activateVoyageLeg(state.activeVesselId, best.leg.voyageNumber, best.leg.condition, { persistCurrent: false });
+  render();
+  applyEntryDefaults();
+  prefillFromLastEntry();
+  try { renderSyncUi(); } catch (_) {}
+  try { await renderVoyageLibrary(); } catch (_) {}
+  return {
+    voyage: best.leg.voyageNumber,
+    condition: normalizeCondition(best.leg.condition),
+    entryCount: (state.entries || []).length,
+  };
+}
+
+/**
+ * Merge each named leg with the same leg on the server.
+ * The server keeps the newer copy of a watch and does not drop records that
+ * exist on only one side. Pass openLatest to leave the newest leg on screen.
+ */
+async function reconcileVoyageLegs(legs, opts){
+  const list = (legs || []).filter((leg) => leg && String(leg.voyage || leg.voyageNumber || '').trim());
+  const prevVn = (state.setup.voyageNumber || '').trim();
+  const prevCond = normalizeCondition(state.setup.shipCondition);
+  const openLatest = !!(opts && opts.openLatest);
+  const results = [];
+  let opened = null;
+  try {
+    for (let i = 0; i < list.length; i++){
+      const vn = String(list[i].voyage || list[i].voyageNumber || '').trim();
+      const cond = normalizeCondition(list[i].condition);
+      updateActivity('reconcile-legs', {
+        label: `Updating voyage ${vn} ${cond} with the server…`,
+        current: i + 1,
+        total: list.length,
+      });
+      await openLegForReconcile(vn, cond);
+      await syncNow({ policy: 'merge' });
+      await archiveActiveVoyageLeg();
+      results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
+    }
+  } finally {
+    if (openLatest){
+      try { opened = await openLatestVoyageLeg(); } catch (_) {}
+    } else if (prevVn){
+      try { await activateVoyageLeg(state.activeVesselId, prevVn, prevCond, { persistCurrent: false }); }
+      catch (_) {}
+    }
+  }
+  return { results, opened };
+}
+
 window.addEventListener('message', async (ev)=>{
   const msg = ev.data || {};
   if (msg.type !== 'chengaio-voyage-backup') return;
@@ -26017,8 +26322,61 @@ window.addEventListener('message', async (ev)=>{
       await syncNow({ pullOnly: true, policy: 'remote' });
       reply({ message: 'Pull completed. Local active leg was overwritten with server data.' });
     } else if (msg.action === 'persist-merge') {
-      await syncNow({ policy: 'merge' });
-      reply({ message: 'Keep Data Persistent completed — local and server legs were merged both ways.' });
+      reply({
+        error: 'Keep Data Persistent now compares every leg first. Review the ticked legs, then confirm.',
+      });
+    } else if (msg.action === 'compare-legs' || msg.action === 'open-latest-leg' || msg.action === 'show-open-leg') {
+      if (msg.action !== 'show-open-leg' && msg.settings) {
+        const incoming = msg.settings;
+        const sync = ensureSyncConfig();
+        const url = typeof normalizeSyncServerUrl === 'function'
+          ? normalizeSyncServerUrl(incoming.serverUrl || '')
+          : String(incoming.serverUrl || '').trim();
+        if (url) sync.serverUrl = url;
+        const tok = String(incoming.apiToken || '').trim();
+        if (tok) sync.apiToken = tok;
+        if (incoming.vesselId != null) sync.vesselId = String(incoming.vesselId || '').trim();
+        applySyncFieldsToLiveConfig(sync);
+        writeSyncCredentialsToLocalStorage(sync);
+      }
+      const asked = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
+      const prevOverride = _syncSlugOverride;
+      try {
+        if (msg.action === 'show-open-leg') {
+          if (state.activeVesselId) {
+            await loadVesselFromDb(state.activeVesselId);
+            render();
+            applyEntryDefaults();
+            prefillFromLastEntry();
+            try { renderSyncUi(); } catch (_) {}
+            try { await renderVoyageLibrary(); } catch (_) {}
+          }
+          reply({ message: 'Open voyage leg reloaded.' });
+        } else {
+          if (asked) {
+            const vessel = findLocalVesselForSyncSlug(asked);
+            if (!vessel) {
+              throw new Error('No vessel on this device matches "' + asked + '". Set Vessel ID to this ship\'s slug, or leave it blank to use the ship that is open.');
+            }
+            if (vessel.id !== state.activeVesselId) await switchVessel(vessel.id);
+            _syncSlugOverride = sanitizeSyncSlug(asked) || vesselOwnSyncSlug(vessel.id);
+          }
+          if (msg.action === 'open-latest-leg') {
+            const opened = await openLatestVoyageLeg();
+            reply({
+              opened,
+              message: opened
+                ? `Voyage ${opened.voyage} ${opened.condition} is now open.`
+                : 'No voyage leg is saved on this device.',
+            });
+          } else {
+            const compared = await compareLocalAndServerLegs();
+            reply(compared);
+          }
+        }
+      } finally {
+        _syncSlugOverride = prevOverride;
+      }
     } else if (msg.action === 'list-remote') {
       if (msg.settings) {
         const incoming = msg.settings;
@@ -26048,6 +26406,64 @@ window.addEventListener('message', async (ev)=>{
         _syncSlugOverride = prevListOverride;
       }
       reply({ vessel, voyages, message: voyages.length ? `${voyages.length} remote voyage(s) for ${vessel}` : `No remote voyages for "${vessel}".` });
+    } else if (msg.action === 'list-local-legs') {
+      const asked = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
+      if (asked) {
+        const vessel = findLocalVesselForSyncSlug(asked);
+        if (!vessel) {
+          throw new Error('No vessel on this device matches "' + asked + '". Set Vessel ID to this ship\'s slug, or leave it blank to use the ship that is open.');
+        }
+        if (vessel.id !== state.activeVesselId) await switchVessel(vessel.id);
+      }
+      const legs = await listLocalLegSummaries();
+      reply({
+        vessel: vesselSyncSlug(),
+        vesselName: state.setup.vesselName || '',
+        legs,
+      });
+    } else if (msg.action === 'reconcile-legs') {
+      const asked = String(msg.vessel || (msg.settings && msg.settings.vesselId) || '').trim();
+      if (msg.settings) {
+        const incoming = msg.settings;
+        const sync = ensureSyncConfig();
+        const url = typeof normalizeSyncServerUrl === 'function'
+          ? normalizeSyncServerUrl(incoming.serverUrl || '')
+          : String(incoming.serverUrl || '').trim();
+        if (url) sync.serverUrl = url;
+        const tok = String(incoming.apiToken || '').trim();
+        if (tok) sync.apiToken = tok;
+        if (incoming.vesselId != null) sync.vesselId = String(incoming.vesselId || '').trim();
+        applySyncFieldsToLiveConfig(sync);
+        writeSyncCredentialsToLocalStorage(sync);
+      }
+      const prevOverride = _syncSlugOverride;
+      try {
+        if (asked) {
+          const vessel = findLocalVesselForSyncSlug(asked);
+          if (!vessel) {
+            throw new Error('No vessel on this device matches "' + asked + '".');
+          }
+          if (vessel.id !== state.activeVesselId) await switchVessel(vessel.id);
+          _syncSlugOverride = sanitizeSyncSlug(asked) || vesselOwnSyncSlug(vessel.id);
+        }
+        const outcome = await withActivity('reconcile-legs', 'Updating voyage legs with the server…', async () => {
+          return reconcileVoyageLegs(Array.isArray(msg.legs) ? msg.legs : [], { openLatest: !!msg.openLatest });
+        }, { source: 'server' });
+        const results = (outcome && outcome.results) || [];
+        const opened = outcome && outcome.opened;
+        reply({
+          message: results.length
+            ? `Updated ${results.length} voyage leg${results.length === 1 ? '' : 's'}.`
+              + (opened
+                ? ` Voyage ${opened.voyage} ${opened.condition} is now open.`
+                : (msg.openLatest ? '' : ' The leg you had open is restored.'))
+            : 'No voyage legs were selected.',
+          results,
+          opened,
+        });
+      } finally {
+        _syncSlugOverride = prevOverride;
+      }
     } else if (msg.action === 'pull-voyage-leg') {
       const voyage = String(msg.voyage || '').trim();
       const condition = normalizeCondition(msg.condition);
