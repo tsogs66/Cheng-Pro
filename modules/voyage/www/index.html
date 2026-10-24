@@ -2159,6 +2159,19 @@
   #syncStatus.online{color:var(--good);}
   #syncStatus.pending{color:var(--brass);}
   #syncStatus.error{color:var(--alert);}
+  /* Backup / sync age, in the status row beside the build number. Amber past a
+     week, red past a fortnight or never — the point is that a device quietly
+     weeks behind should not look like one that is up to date. */
+  #dataHealthStrip{display:flex; flex-wrap:wrap; gap:4px 12px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--paper-dim);}
+  #dataHealthStrip .dh-item{display:inline-flex; align-items:center; gap:5px; white-space:nowrap;}
+  #dataHealthStrip .dh-dot{width:7px; height:7px; border-radius:50%; background:var(--paper-dim); flex:0 0 auto;}
+  #dataHealthStrip .dh-ok .dh-dot{background:var(--good);}
+  #dataHealthStrip .dh-warn .dh-dot{background:var(--brass);}
+  #dataHealthStrip .dh-bad .dh-dot{background:var(--alert);}
+  #dataHealthStrip .dh-warn{color:var(--brass);}
+  #dataHealthStrip .dh-bad{color:var(--alert);}
+  .good-text{color:var(--good);}
+  .alert-text{color:var(--alert);}
   .cii-strip{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
   .cii-card{flex:1; min-width:120px; border:1px solid var(--line); border-radius:4px; padding:10px 12px; background:rgba(0,0,0,0.15);}
   .cii-card .val{font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:800; color:var(--brass);}
@@ -2882,6 +2895,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <div id="dbStatus">● local database ready</div>
       <div id="syncStatus">○ sync not configured</div>
       <div id="appVersion" title="The build this device is running. Quote it when reporting a problem."></div>
+      <div id="dataHealthStrip" title="How long since this device was last backed up and last synced." hidden></div>
     </div>
   </div>
   <button type="button" class="theme-toggle theme-fab" data-theme-toggle title="Day / bright mode for sunlight">Bright</button>
@@ -4651,7 +4665,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field"><label>API Token</label><input id="sync_apiToken" type="password" placeholder="Bearer token"></div>
         <div class="field"><label>Vessel ID (slug)</label><input id="sync_vesselId" placeholder="e.g. captain-veniamis"></div>
         <div class="field"><label>Device name</label><input id="sync_deviceName" placeholder="e.g. ER tablet / Chief PC"></div>
-        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="false" selected>Manual only</option><option value="true" disabled>On save &amp; when online (disabled)</option></select></div>
+        <div class="field"><label>Auto-sync</label><select id="sync_auto"><option value="false" selected>Manual only</option><option value="true">Background push after each save</option></select></div>
         <div class="field"><label>Conflict policy</label><select id="sync_conflict"><option value="merge">Merge by record (recommended)</option><option value="local">Prefer this device</option><option value="remote">Prefer server</option></select></div>
       </div>
       <div class="sync-save-status" id="syncSaveStatus" role="status" aria-live="polite"></div>
@@ -4662,7 +4676,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <button type="button" class="ghost small" id="btnSyncNow">Push Active Leg</button>
         <button type="button" class="ghost small" id="btnPullRemote">Pull Active Leg</button>
         <button type="button" class="ghost small" id="btnListRemoteVoyages">List Remote Voyages</button>
-        <button type="button" class="ghost small" id="btnRequestPersist">Keep Data Persistent</button>
+        <button type="button" class="ghost small" id="btnRequestPersist">Two-way sync (keep both sides)</button>
       </div>
       <div id="persistLegPicker" class="hint" style="display:none; margin-top:8px;"></div>
       <div class="form-grid cols3" style="margin-top:10px;">
@@ -4674,7 +4688,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       </div>
       <div class="hint" id="syncMetaLine">Last sync: never</div>
       <div id="remoteVoyageList" class="hint" style="display:none; margin-top:8px;"></div>
-      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Keep Data Persistent</strong> compares every voyage leg. Tick the ones both databases should hold — a leg that exists on only one side is copied across, and a leg on both sides keeps the newer watch. Nothing is deleted. The latest leg opens when the merge finishes.</div>
+      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Two-way sync</strong> compares every voyage leg. Tick the ones both databases should hold — a leg that exists on only one side is copied across, and a leg on both sides keeps the newer watch. Nothing is deleted. The latest leg opens when the merge finishes.</div>
       <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden).</div>
     </div>
 
@@ -4742,6 +4756,35 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <input type="file" id="fileDbMerge" accept="application/json,.json" style="display:none;">
       </div>
       <div class="hint" id="dbBackupStatus">No full-database action yet this session.</div>
+      <div class="hint" id="dbIntegrityHint" style="margin-top:6px;">Every backup carries a checksum and a record count. A restore or merge checks them first and refuses a damaged file, and keeps a snapshot of this device before it writes.</div>
+    </div>
+    <div class="panel" id="dbSnapshotPanel">
+      <h2>Undo a restore, pull or merge</h2>
+      <p class="hint">Before a restore, a merge, or a sync that overwrites this device, the database as it stood is kept here. The last five are held, on this device only — they are not pushed to the server and not included in a backup file, so restoring a backup can never wipe the snapshot that undoes it.</p>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnRefreshSnapshots">Refresh list</button>
+        <button class="ghost small" type="button" id="btnUndoLastOverwrite">Undo last overwrite</button>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="dbSnapshotTable">
+          <thead><tr><th>Taken</th><th>Before</th><th>Records</th><th></th></tr></thead>
+          <tbody id="dbSnapshotBody"><tr class="empty-row"><td colspan="4">Press Refresh list.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" id="dbSnapshotStatus" style="margin-top:8px;" role="status" aria-live="polite">Ready.</div>
+    </div>
+    <div class="panel" id="syncLogPanel">
+      <h2>Sync history</h2>
+      <p class="hint">What this device pushed, pulled and merged, and how many records each one changed. Kept on this device so two tablets that disagree can be compared against what each actually did.</p>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnRefreshSyncLog">Refresh list</button>
+      </div>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table id="syncLogTable">
+          <thead><tr><th>When</th><th>What</th><th>Leg</th><th>Changed</th><th>Result</th></tr></thead>
+          <tbody id="syncLogBody"><tr class="empty-row"><td colspan="5">Press Refresh list.</td></tr></tbody>
+        </table>
+      </div>
     </div>
     <div class="panel" id="deletedBackupPanel">
       <h2>Deleted Entry Backup</h2>
@@ -5933,7 +5976,7 @@ let dbOpenPromise = null;
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 8);
+    const req = indexedDB.open('noonReportDB', 9);
     req.onupgradeneeded = (e)=>{
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
@@ -5954,6 +5997,14 @@ function openDB(){
       if (!d.objectStoreNames.contains('orbEntries')) d.createObjectStore('orbEntries', {keyPath:'id'});
       /* Local-only trash for accidental deletes — not synced as its own store. */
       if (!d.objectStoreNames.contains('deletedBackup')) d.createObjectStore('deletedBackup', {keyPath:'trashId'});
+      /* The database as it stood just before a restore, pull or merge overwrote it.
+         Device-local and deliberately outside DB_BACKUP_STORES: a restore must not
+         be able to replace the very snapshots that undo it. */
+      if (!d.objectStoreNames.contains('dbSnapshots')) d.createObjectStore('dbSnapshots', {keyPath:'id'});
+      /* What this device pushed, pulled and merged, and what each one changed.
+         Also local-only: it is this device's account of its own syncs, which a
+         restore from another device has no business overwriting. */
+      if (!d.objectStoreNames.contains('syncLog')) d.createObjectStore('syncLog', {keyPath:'id'});
     };
     req.onsuccess = (e)=>{ db = e.target.result; db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; }; resolve(db); };
     req.onerror = (e)=>{ dbOpenPromise = null; reject(req.error || new Error('IndexedDB failed to open')); };
@@ -23019,8 +23070,10 @@ function ensureSyncConfig(){
       localStorage.setItem('noonReportDeviceId', s.deviceId);
     }
   }
-  /* Manual sync only — never auto push/pull after local edits. */
-  s.autoSync = false;
+  /* Auto-sync is opt-in and, when on, background push only — it never pulls
+     unattended, because a pull overwrites local rows and a watchkeeper who did
+     not ask for it has no reason to expect their last entry to move. */
+  if (typeof s.autoSync !== 'boolean') s.autoSync = false;
   s._manualSyncV1 = true;
   if (!s.conflictPolicy) s.conflictPolicy = 'merge';
   if (s.deviceName==null) s.deviceName = '';
@@ -23287,8 +23340,112 @@ function markPendingSync(){
   const sync = ensureSyncConfig();
   sync.pendingChanges = true;
   sync.lastModifiedAt = new Date().toISOString();
-  /* Never auto-sync here — operator presses Sync Now / Pull. */
   renderSyncUi();
+  /* With auto-sync on, a save queues a background push. Nothing is pushed from
+     inside this call: it runs on the watchkeeper's save path. */
+  scheduleBackgroundSync('a report was saved');
+}
+
+/* ---- Background auto-sync --------------------------------------------------
+   Push only, never pull: a pull overwrites local rows, and doing that to
+   someone mid-entry without being asked is how a watch's work disappears.
+   Nothing here paints a dialog, an overlay or an alert. The only thing it
+   touches is the status line in the header and the sync log, so a push that
+   fails at 0300 is visible in the morning without having interrupted anyone.
+
+   A failure is not retried on a timer forever: each one doubles the wait, up to
+   half an hour, and the next save or a reconnect clears the backoff. On a ship
+   the usual cause is that the satellite link is down, and hammering it helps
+   nobody. */
+const BG_SYNC_SETTLE_MS = 20000;        /* let a burst of saves finish first */
+const BG_SYNC_MIN_GAP_MS = 120000;      /* never more often than every 2 min */
+const BG_SYNC_BACKOFF_START_MS = 60000;
+const BG_SYNC_BACKOFF_MAX_MS = 1800000;
+let _bgSyncTimer = null;
+let _bgSyncLastRunAt = 0;
+let _bgSyncBackoffMs = 0;
+let _bgSyncRunning = false;
+let _bgSyncLast = null;   /* {at, ok, message} — what the status line reports */
+
+function backgroundSyncEnabled(){
+  const sync = ensureSyncConfig();
+  return !!(sync.autoSync && syncApiBase());
+}
+
+/** Why a background push cannot run right now, or '' when it can. */
+function backgroundSyncBlockedReason(){
+  if (!backgroundSyncEnabled()) return 'auto-sync is off';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+  if (_bgSyncRunning || syncInFlight) return 'a sync is already running';
+  /* Never compete with a print dialog or a foreground job for the one DB. */
+  if (typeof printHoldActive === 'function' && printHoldActive()) return 'printing';
+  if (typeof _activityStack !== 'undefined' && _activityStack.length) return 'another job is running';
+  return '';
+}
+
+function scheduleBackgroundSync(why, delayMs){
+  if (!backgroundSyncEnabled()) return;
+  const wait = delayMs != null ? delayMs : Math.max(BG_SYNC_SETTLE_MS, _bgSyncBackoffMs);
+  clearTimeout(_bgSyncTimer);
+  _bgSyncTimer = setTimeout(() => { runBackgroundSync(why); }, wait);
+}
+
+async function runBackgroundSync(why){
+  clearTimeout(_bgSyncTimer);
+  _bgSyncTimer = null;
+  const blocked = backgroundSyncBlockedReason();
+  if (blocked){
+    /* Come back when whatever is in the way has finished, unless it is simply off. */
+    if (blocked !== 'auto-sync is off') scheduleBackgroundSync(why, BG_SYNC_SETTLE_MS);
+    return;
+  }
+  if (Date.now() - _bgSyncLastRunAt < BG_SYNC_MIN_GAP_MS){
+    scheduleBackgroundSync(why, BG_SYNC_MIN_GAP_MS - (Date.now() - _bgSyncLastRunAt));
+    return;
+  }
+  _bgSyncRunning = true;
+  _bgSyncLastRunAt = Date.now();
+  renderSyncUi();
+  const started = Date.now();
+  try{
+    const result = await syncNow({ background: true, policy: 'merge' });
+    _bgSyncBackoffMs = 0;
+    _bgSyncLast = { at: new Date().toISOString(), ok: true, message: '' };
+    await logSyncEvent({
+      kind: 'auto push', direction: 'push', background: true, result: 'ok',
+      added: result && result.pushed != null ? result.pushed : null,
+      message: why || ''
+    });
+  }catch(e){
+    const msg = e && e.message ? e.message : String(e);
+    _bgSyncBackoffMs = Math.min(BG_SYNC_BACKOFF_MAX_MS,
+      _bgSyncBackoffMs ? _bgSyncBackoffMs * 2 : BG_SYNC_BACKOFF_START_MS);
+    _bgSyncLast = { at: new Date().toISOString(), ok: false, message: msg };
+    await logSyncEvent({
+      kind: 'auto push', direction: 'push', background: true, result: 'failed',
+      message: msg
+    });
+    /* Try again later, further out each time. Never tell the user now. */
+    scheduleBackgroundSync('retrying after a failed background push', _bgSyncBackoffMs);
+  }finally{
+    _bgSyncRunning = false;
+    void started;
+    renderSyncUi();
+    try{ renderDataHealth(); }catch(_){}
+  }
+}
+
+/** The background push's own words for the header status line. */
+function backgroundSyncStatusText(){
+  if (!backgroundSyncEnabled()) return '';
+  if (_bgSyncRunning) return '⟳ background sync running';
+  if (_bgSyncLast && !_bgSyncLast.ok){
+    const mins = Math.round(_bgSyncBackoffMs / 60000);
+    return `! background sync failed — retrying${mins >= 1 ? ' in ~' + mins + ' min' : ''}`;
+  }
+  if (_bgSyncLast && _bgSyncLast.ok) return '✓ auto-synced ' + agoLabel(_bgSyncLast.at);
+  if (_bgSyncTimer) return '⟳ background sync queued';
+  return '○ auto-sync on';
 }
 
 const SYNC_FORM_IDS = ['sync_serverUrl','sync_apiToken','sync_vesselId','sync_deviceName','sync_auto','sync_conflict'];
@@ -23370,7 +23527,7 @@ function readSyncSettingsFromForm(sync){
   s.apiToken = formToken || (s.apiToken || '') || (creds.apiToken || '');
   s.vesselId = (vesselEl.value || '').trim();
   s.deviceName = formName || (s.deviceName || '') || (creds.deviceName || '');
-  s.autoSync = false; /* product policy: sync is always operator-initiated */
+  s.autoSync = autoEl.value === 'true';
   s.conflictPolicy = conflictEl.value || 'merge';
   s.lastModifiedAt = new Date().toISOString();
   /* Never rewrite the box mid-typing: "http://" normalises to "http:", which would
@@ -23688,8 +23845,7 @@ async function applyMirroredSyncCredentials(){
       else if (creds.vesselId) sync.vesselId = creds.vesselId;
     }
     if (creds.deviceName != null) sync.deviceName = creds.deviceName || '';
-    /* Keep sync manual — ignore a stored autoSync:true from older builds. */
-    sync.autoSync = false;
+    if (typeof creds.autoSync === 'boolean') sync.autoSync = creds.autoSync;
     if (creds.conflictPolicy) sync.conflictPolicy = creds.conflictPolicy;
     if (creds.deviceId) sync.deviceId = creds.deviceId;
     return true;
@@ -23918,6 +24074,18 @@ function renderSyncUi(){
       statusClass = navigator.onLine ? 'online' : '';
     }
   }
+  /* With auto-sync on, the line reports the background push instead: that is
+     the thing actually moving data, and it is the only place it is announced. */
+  if (configured && backgroundSyncEnabled()){
+    const bg = backgroundSyncStatusText();
+    if (bg){
+      statusText = bg;
+      statusClass = _bgSyncRunning ? 'pending'
+        : (_bgSyncLast && !_bgSyncLast.ok) ? 'error'
+        : (_bgSyncLast && _bgSyncLast.ok) ? 'online'
+        : sync.pendingChanges ? 'pending' : statusClass;
+    }
+  }
   if (!activityHasSource('server')){
     status.textContent = statusText;
     status.className = statusClass;
@@ -23935,7 +24103,9 @@ function renderSyncUi(){
       banner.textContent = 'You are offline. Local changes are saved and will sync automatically when connectivity returns.';
     } else {
       banner.className = 'sync-banner ok';
-      banner.textContent = 'Sync configured for ' + vesselSyncSlug() + ' / ' + voyageSyncKey() + ' / ' + voyageConditionKey() + (navigator.onLine ? ' — online' : ' — offline');
+      banner.textContent = 'Sync configured for ' + vesselSyncSlug() + ' / ' + voyageSyncKey() + ' / ' + voyageConditionKey()
+        + (navigator.onLine ? ' — online' : ' — offline')
+        + (sync.autoSync ? ' — auto-sync pushes in the background after each save; pulls stay manual.' : '');
     }
   }
   if (meta){
@@ -24100,7 +24270,7 @@ function applyRemoteSnapshot(remote, policy){
   if (typeof entryMatchesActiveLeg === 'function'){
     state.entries = (state.entries || []).filter(entryMatchesActiveLeg);
   }
-  /* Chronological order for Keep Data Persistent / merge reviews. */
+  /* Chronological order for two-way sync / merge reviews. */
   state.entries = (state.entries || []).slice().sort((a,b)=> String(a.datetime||'').localeCompare(String(b.datetime||'')));
 }
 
@@ -24347,8 +24517,15 @@ async function syncNow(options = {}){
   if (!base) throw new Error('Enter a Sync Server URL on the Setup tab first.');
   if (syncInFlight) return syncInFlight;
 
+  /* A background push must leave the screen alone: no progress overlay, no
+     modal, nothing that steals focus from whoever is mid-entry. The work is the
+     same; only the reporting changes, to the one status line in the header. */
+  const background = !!options.background;
+  const runner = background
+    ? (id, label, fn) => fn({ update: () => {} })
+    : withActivity;
   syncInFlight = (async ()=>{
-    return withActivity('sync', pullOnly ? `Pulling ${voyageSyncKey()} ${voyageConditionKey()} from the server…` : `Syncing ${voyageSyncKey()} ${voyageConditionKey()}…`, async ({ update })=>{
+    return runner('sync', pullOnly ? `Pulling ${voyageSyncKey()} ${voyageConditionKey()} from the server…` : `Syncing ${voyageSyncKey()} ${voyageConditionKey()}…`, async ({ update })=>{
     const syncBefore = ensureSyncConfig();
     const vessel = vesselSyncSlug();
     const voyage = voyageSyncKey();
@@ -24459,12 +24636,14 @@ document.getElementById('btnSyncNow').addEventListener('click', async ()=>{
     'PUSH ACTIVE LEG — WARNING\n\n' +
     'This uploads the current active voyage leg from THIS device and OVERWRITES the same vessel/voyage/condition on the server if it already exists.\n\n' +
     'Server entries that exist only on the server (and not locally) for this leg will be lost.\n\n' +
-    'Use Keep Data Persistent instead if you need a chronological merge both ways.\n\nContinue with Push (overwrite server)?'
+    'Use Two-way sync instead if you need a chronological merge both ways.\n\nContinue with Push (overwrite server)?'
   )) return;
   try {
     await syncNow({ policy: 'local' });
+    await logSyncEvent({ kind: 'push (overwrite server)', direction: 'push', result: 'ok' });
     alert('Push completed. Server active leg was overwritten with this device’s data.');
   } catch (e){
+    await logSyncEvent({ kind: 'push (overwrite server)', direction: 'push', result: 'failed', message: e.message });
     alert('Push failed: ' + e.message);
   }
 });
@@ -24474,12 +24653,16 @@ document.getElementById('btnPullRemote').addEventListener('click', async ()=>{
     'PULL ACTIVE LEG — WARNING\n\n' +
     'This downloads the active voyage leg from the server and OVERWRITES the local active leg on this device.\n\n' +
     'Local-only entries for this leg that are not on the server will be lost.\n\n' +
-    'Use Keep Data Persistent instead if you need a chronological merge both ways.\n\nContinue with Pull (overwrite local)?'
+    'Use Two-way sync instead if you need a chronological merge both ways.\n\nContinue with Pull (overwrite local)?'
   )) return;
   try {
+    /* A pull overwrites this device, so it is snapshotted first like a restore. */
+    try{ await snapshotDatabase('before pulling the active leg from the server'); }catch(_){}
     await syncNow({ pullOnly: true, policy: 'remote' });
-    alert('Pull completed. Local active leg was overwritten with server data.');
+    await logSyncEvent({ kind: 'pull (overwrite device)', direction: 'pull', result: 'ok' });
+    alert('Pull completed. Local active leg was overwritten with server data.\n\nA snapshot of this device was taken first — Data › Undo a restore, pull or merge puts it back.');
   } catch (e){
+    await logSyncEvent({ kind: 'pull (overwrite device)', direction: 'pull', result: 'failed', message: e.message });
     alert('Pull failed: ' + e.message);
   }
 });
@@ -24659,7 +24842,7 @@ function renderPersistPicker(compared){
         (this device: ${local}; server: ${remote})
       </label>`;
     }).join('')
-    + '<div style="margin-top:6px;">Untick a leg to leave it where it is. Press Keep Data Persistent again to copy the ticked legs.</div>';
+    + '<div style="margin-top:6px;">Untick a leg to leave it where it is. Press Two-way sync again to copy the ticked legs.</div>';
   persistPickerReady = true;
   return true;
 }
@@ -24685,7 +24868,7 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
         alert(line);
         return;
       }
-      const line = `This device has voyage ${localNos.join(', ') || 'none'}. The server has voyage ${serverNos.join(', ') || 'none'}. Tick the legs both databases should hold, then press Keep Data Persistent again.`;
+      const line = `This device has voyage ${localNos.join(', ') || 'none'}. The server has voyage ${serverNos.join(', ') || 'none'}. Tick the legs both databases should hold, then press Two-way sync again.`;
       if (meta) meta.textContent = line;
       return;
     }
@@ -24698,7 +24881,7 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
       if (row) picked.push({ voyage: row.voyage, condition: row.condition });
     });
     if (!picked.length){
-      alert('No legs are ticked. Tick the ones both databases should share, then press Keep Data Persistent again.');
+      alert('No legs are ticked. Tick the ones both databases should share, then press Two-way sync again.');
       return;
     }
     const lines = picked.map((row) => `• Voyage ${row.voyage} · ${persistConditionWord(row.condition)}`).join('\n');
@@ -24719,13 +24902,18 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
     if (meta) meta.textContent = line;
     alert(line);
   } catch (e){
-    alert('Keep Data Persistent failed: ' + e.message);
+    alert('Two-way sync failed: ' + e.message);
   }
 });
 
 window.addEventListener('online', ()=>{
   renderSyncUi();
-  /* Manual sync only — do not push/pull on reconnect. */
+  /* A reconnect is the one moment a stalled push is most likely to get through,
+     so the backoff is cleared and the queue restarted — still push-only. */
+  _bgSyncBackoffMs = 0;
+  if (backgroundSyncEnabled() && ensureSyncConfig().pendingChanges){
+    scheduleBackgroundSync('came back online');
+  }
 });
 
 window.addEventListener('offline', renderSyncUi);
@@ -25361,6 +25549,203 @@ document.getElementById('btnCopyPcInstall')?.addEventListener('click', async ()=
 const DB_BACKUP_FORMAT = 'noon-report-db-v1';
 const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','voyageLegParts','orbEntries','deletedBackup'];
 
+/* Snapshots and the sync log are device-local history, never part of a backup:
+   restoring a file must not be able to overwrite the record of what it replaced. */
+const DB_SNAPSHOT_STORE = 'dbSnapshots';
+const SYNC_LOG_STORE = 'syncLog';
+/* Five is enough to walk back a bad afternoon without filling the tablet. */
+const DB_SNAPSHOT_KEEP = 5;
+const SYNC_LOG_KEEP = 300;
+
+/* ---- Backup integrity ------------------------------------------------------
+   A truncated or half-written backup file used to import as a short one: the
+   JSON still parsed, the restore ran, and the missing tail was simply gone.
+   Every backup now carries a digest of its own contents and the record count
+   it should have, and a restore refuses a file whose body does not match. */
+const BACKUP_INTEGRITY_VERSION = 1;
+
+/* Key order out of IndexedDB is not guaranteed stable between devices, so the
+   digest is taken over a canonical form: object keys sorted, nothing else
+   changed. Without this the same data hashes differently on two tablets. */
+function canonicalJsonString(value){
+  const seen = new WeakSet();
+  const walk = (v) => {
+    if (v === null || typeof v !== 'object') return v;
+    if (seen.has(v)) return null;           /* a cycle cannot be hashed; drop it */
+    seen.add(v);
+    if (Array.isArray(v)) return v.map(walk);
+    const out = {};
+    Object.keys(v).sort().forEach(k => { out[k] = walk(v[k]); });
+    return out;
+  };
+  return JSON.stringify(walk(value));
+}
+
+/* 64-bit FNV-1a, used where crypto.subtle is absent — it is only exposed over
+   https or on localhost, and plenty of ships run this over plain http on the
+   LAN. Weaker than SHA-256 against a forger, but this is guarding against
+   truncation and corruption, not an attacker, and the header names which was
+   used so verification never compares one against the other. */
+function fnv1a64Hex(text){
+  let hi = 0x811c9dc5, lo = 0x1b873593;
+  for (let i = 0; i < text.length; i++){
+    const c = text.charCodeAt(i);
+    lo ^= c & 0xff;
+    hi ^= (c >>> 8) & 0xff;
+    /* multiply by the 64-bit FNV prime, in two 32-bit halves */
+    const loMul = (lo * 0x01000193) >>> 0;
+    const hiMul = ((hi * 0x01000193) + Math.floor((lo * 0x01000193) / 0x100000000)) >>> 0;
+    lo = loMul; hi = hiMul;
+  }
+  return (hi >>> 0).toString(16).padStart(8, '0') + (lo >>> 0).toString(16).padStart(8, '0');
+}
+
+async function digestText(text){
+  try{
+    if (typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest){
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      return { algo: 'sha256', hex };
+    }
+  }catch(_){}
+  return { algo: 'fnv1a64', hex: fnv1a64Hex(text) };
+}
+
+/** Rows in a backup body, counted the same way on both sides of a verify. */
+function countBackupRecords(payload){
+  let n = (payload && Array.isArray(payload.meta)) ? payload.meta.length : 0;
+  const stores = (payload && payload.stores) || {};
+  Object.keys(stores).forEach(k => { n += (stores[k] || []).length; });
+  return n;
+}
+
+/** The part of a backup the digest covers: the data, not the header about it. */
+function backupIntegrityBody(payload){
+  return { meta: payload.meta || [], stores: payload.stores || {}, vessels: payload.vessels || [] };
+}
+
+async function buildBackupIntegrity(payload){
+  const { algo, hex } = await digestText(canonicalJsonString(backupIntegrityBody(payload)));
+  return {
+    version: BACKUP_INTEGRITY_VERSION,
+    algo,
+    digest: hex,
+    recordCount: countBackupRecords(payload),
+    appVersion: (typeof currentAppVersionLabel === 'function' ? currentAppVersionLabel() : ''),
+    schema: DB_BACKUP_FORMAT
+  };
+}
+
+/**
+ * Check a backup against its own header before anything is written.
+ * Older files carry no header at all — those still restore, because refusing
+ * them would strand every backup taken before this build, but the caller is
+ * told so it can say the file could not be checked.
+ */
+async function verifyBackupIntegrity(payload){
+  const stated = payload && payload.integrity;
+  const actualCount = countBackupRecords(payload);
+  if (!stated || !stated.digest){
+    return { checked: false, ok: true, actualCount,
+      note: 'This backup predates integrity checking, so its contents could not be verified.' };
+  }
+  if (Number.isFinite(Number(stated.recordCount)) && Number(stated.recordCount) !== actualCount){
+    return { checked: true, ok: false, actualCount,
+      reason: `the file says it holds ${stated.recordCount} records but ${actualCount} were found` };
+  }
+  /* Recompute with the algorithm the file was signed with, not whichever this
+     device prefers: a tablet on plain http has no crypto.subtle and would
+     otherwise read every SHA-256 backup as corrupt. */
+  const canonical = canonicalJsonString(backupIntegrityBody(payload));
+  let mine = null;
+  if (stated.algo === 'fnv1a64'){
+    mine = fnv1a64Hex(canonical);
+  } else if (stated.algo === 'sha256' || !stated.algo){
+    const d = await digestText(canonical);
+    /* No SHA-256 here, so the digest cannot be checked either way. */
+    if (d.algo !== 'sha256'){
+      return { checked: false, ok: true, actualCount,
+        note: `Its ${actualCount} records are all present, but this connection has no SHA-256 to check the digest with.` };
+    }
+    mine = d.hex;
+  } else {
+    return { checked: false, ok: true, actualCount,
+      note: `This backup is signed with ${stated.algo}, which this build cannot check.` };
+  }
+  if (mine !== stated.digest){
+    return { checked: true, ok: false, actualCount, reason: 'its contents do not match the digest in the file' };
+  }
+  return { checked: true, ok: true, actualCount };
+}
+
+/* ---- Snapshot before an overwrite -----------------------------------------
+   restoreFullDatabase clears every store before it writes. Pull Active Leg
+   overwrites the active leg. Both are one tap away and neither could be undone.
+   A snapshot is taken first, so there is always a way back to the last known
+   good state. */
+async function snapshotDatabase(reason){
+  await ensureDB();
+  const payload = await collectFullDatabasePayload();
+  const row = {
+    id: 'snap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    takenAt: new Date().toISOString(),
+    reason: reason || 'before an overwrite',
+    counts: payload.counts || {},
+    recordCount: countBackupRecords(payload),
+    payload
+  };
+  await dbPut(DB_SNAPSHOT_STORE, row);
+  /* Keep the newest few; a tablet has no room for a snapshot per pull. */
+  try{
+    const all = await dbGetAll(DB_SNAPSHOT_STORE);
+    const sorted = (all || []).slice().sort((a, b) => String(b.takenAt).localeCompare(String(a.takenAt)));
+    for (const old of sorted.slice(DB_SNAPSHOT_KEEP)) await dbDelete(DB_SNAPSHOT_STORE, old.id);
+  }catch(_){}
+  return row;
+}
+
+async function listDatabaseSnapshots(){
+  try{
+    const all = await dbGetAll(DB_SNAPSHOT_STORE);
+    return (all || []).slice().sort((a, b) => String(b.takenAt).localeCompare(String(a.takenAt)));
+  }catch(_){ return []; }
+}
+
+async function latestDatabaseSnapshot(){
+  const list = await listDatabaseSnapshots();
+  return list[0] || null;
+}
+
+/* ---- Sync log --------------------------------------------------------------
+   A sync used to leave nothing behind but "Last sync: <time>". When two devices
+   disagree a month later, what is needed is which device pushed what, and how
+   many records it changed. */
+async function logSyncEvent(ev){
+  try{
+    await ensureDB();
+    const row = Object.assign({
+      id: 'sl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      at: new Date().toISOString(),
+      device: (ensureSyncConfig().deviceName || '').trim(),
+      vessel: (typeof vesselSyncSlug === 'function' ? vesselSyncSlug() : ''),
+      leg: (typeof voyageSyncKey === 'function' ? `${voyageSyncKey()} ${voyageConditionKey()}` : '')
+    }, ev || {});
+    await dbPut(SYNC_LOG_STORE, row);
+    const all = await dbGetAll(SYNC_LOG_STORE);
+    const sorted = (all || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    for (const old of sorted.slice(SYNC_LOG_KEEP)) await dbDelete(SYNC_LOG_STORE, old.id);
+    return row;
+  }catch(_){ return null; }
+}
+
+async function listSyncLog(limit){
+  try{
+    const all = await dbGetAll(SYNC_LOG_STORE);
+    const sorted = (all || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return limit ? sorted.slice(0, limit) : sorted;
+  }catch(_){ return []; }
+}
+
 async function downloadJsonFile(filename, obj){
   const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
   const safeName = filename || `voyage-chief-backup_${Date.now()}.json`;
@@ -25390,6 +25775,8 @@ async function downloadJsonFile(filename, obj){
   }
 
   try {
+    /* The header's health line reads this row, so repaint it once it is written. */
+    setTimeout(()=>{ try{ renderDataHealth(); }catch(_){} }, 0);
     dbPut('meta', {
       key: 'lastDbBackup',
       value: {
@@ -25425,22 +25812,27 @@ function setDbBackupStatus(msg){
   if (el) el.textContent = msg;
 }
 
-async function buildFullDatabaseBackup(){
-  return withActivity('db-backup', 'Building a full database backup…', async ({ update })=>{
+/**
+ * Read the whole database into a backup body. Split out of buildFullDatabaseBackup
+ * so a pre-restore snapshot can use the same reader without nesting one progress
+ * overlay inside another.
+ */
+async function collectFullDatabasePayload(update){
+  const tick = typeof update === 'function' ? update : () => {};
   await ensureDB();
-  update({ label: 'Saving the active vessel first…' });
+  tick({ label: 'Saving the active vessel first…' });
   await saveCurrentVesselState();
-  update({ label: 'Reading the local database…' });
+  tick({ label: 'Reading the local database…' });
   const meta = await dbGetAll('meta');
   const stores = {};
   for (let i = 0; i < DB_BACKUP_STORES.length; i++){
     const name = DB_BACKUP_STORES[i];
-    update({ label: `Reading ${name}…`, current: i + 1, total: DB_BACKUP_STORES.length });
+    tick({ label: `Reading ${name}…`, current: i + 1, total: DB_BACKUP_STORES.length });
     await new Promise((r) => setTimeout(r, 0));
     try{ stores[name] = await dbGetAll(name); }
     catch(_){ stores[name] = []; }
   }
-  return {
+  const payload = {
     format: DB_BACKUP_FORMAT,
     app: APP_NAME,
     exportedAt: new Date().toISOString(),
@@ -25450,7 +25842,16 @@ async function buildFullDatabaseBackup(){
     stores,
     counts: Object.fromEntries(Object.entries(stores).map(([k,v])=>[k, (v||[]).length]))
   };
-  }, { source: 'program' });
+  /* The digest goes on last, over the body only, so a verify can recompute
+     exactly what was hashed without having to strip the header back off. */
+  tick({ label: 'Checksumming the backup…' });
+  payload.integrity = await buildBackupIntegrity(payload);
+  return payload;
+}
+
+async function buildFullDatabaseBackup(){
+  return withActivity('db-backup', 'Building a full database backup…',
+    ({ update }) => collectFullDatabasePayload(update), { source: 'program' });
 }
 
 
@@ -25527,11 +25928,31 @@ async function writeStoreRows(storeName, rows, progress){
   }
 }
 
+/**
+ * Everything that must happen before a file is allowed to overwrite this device:
+ * check the file against its own digest, then snapshot what is about to be lost.
+ * Returns the verification result so the caller can report an unverifiable file.
+ */
+async function guardBeforeOverwrite(payload, reason){
+  const verdict = await verifyBackupIntegrity(payload);
+  if (!verdict.ok){
+    throw new Error(
+      `This backup is damaged and was not restored — ${verdict.reason}. ` +
+      'Nothing on this device has been changed. Take a fresh backup from the device that made this file.');
+  }
+  await snapshotDatabase(reason);
+  return verdict;
+}
+
 async function restoreFullDatabase(payload){
   payload = unwrapVoyageBackupPayload(payload);
   if (!isFullDatabaseBackup(payload)) throw new Error('Not a full database backup (expected format noon-report-db-v1).');
   return withActivity('db-restore', 'Restoring the database on this device…', async ({ update })=>{
   await ensureDB();
+  /* Check the file, then keep what is about to be cleared. A restore wipes every
+     store; before this there was no way back from one started by mistake. */
+  update({ label: 'Checking the backup file…' });
+  const verdict = await guardBeforeOverwrite(payload, 'before restoring a backup file');
   update({ label: 'Clearing local stores…' });
   for (const name of DB_BACKUP_STORES) await dbClear(name);
   await dbClear('meta');
@@ -25564,6 +25985,8 @@ async function restoreFullDatabase(payload){
   prefillFromLastEntry();
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
+  try{ renderDataHealth(); }catch(_){}
+  return verdict;
   }, { source: 'program' });
 }
 
@@ -25574,6 +25997,10 @@ async function mergeFullDatabase(payload){
   await ensureDB();
   update({ label: 'Saving the active vessel first…' });
   await saveCurrentVesselState();
+  /* A merge keeps local rows, but last-write-wins still overwrites any row the
+     file holds a newer copy of — so it is snapshotted like a restore. */
+  update({ label: 'Checking the backup file…' });
+  const verdict = await guardBeforeOverwrite(payload, 'before merging a backup file');
 
   const localMeta = await dbGetAll('meta');
   const mergedMeta = mergeMetaRows(localMeta, payload.meta || []);
@@ -25613,6 +26040,8 @@ async function mergeFullDatabase(payload){
   prefillFromLastEntry();
   renderSyncUi();
   try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
+  try{ renderDataHealth(); }catch(_){}
+  return verdict;
   }, { source: 'program' });
 }
 
@@ -26373,7 +26802,7 @@ async function onVoyageBackupMessage(ev){
       sync.vesselId = String(incoming.vesselId || '').trim();
       const dname = String(incoming.deviceName || '').trim();
       if (dname) sync.deviceName = dname;
-      sync.autoSync = false;
+      if (typeof incoming.autoSync === 'boolean') sync.autoSync = incoming.autoSync;
       sync.conflictPolicy = incoming.conflictPolicy || sync.conflictPolicy || 'merge';
       sync.lastModifiedAt = new Date().toISOString();
       writeSyncCredentialsToLocalStorage(sync);
@@ -26428,7 +26857,7 @@ async function onVoyageBackupMessage(ev){
       reply({ message: 'Pull completed. Local active leg was overwritten with server data.' });
     } else if (msg.action === 'persist-merge') {
       reply({
-        error: 'Keep Data Persistent now compares every leg first. Review the ticked legs, then confirm.',
+        error: 'Two-way sync now compares every leg first. Review the ticked legs, then confirm.',
       });
     } else if (msg.action === 'compare-legs' || msg.action === 'open-latest-leg' || msg.action === 'show-open-leg') {
       if (msg.action !== 'show-open-leg' && msg.settings) {
@@ -26660,6 +27089,196 @@ document.getElementById('btnPurgeDeletedBackup')?.addEventListener('click', asyn
   await pruneDeletedBackups();
   await renderDeletedBackupList();
 });
+/* ---- Data health, snapshots and the sync log ------------------------------ */
+
+/** "3 days ago" in the words a watchkeeper would use; '' when never. */
+function agoLabel(iso){
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (!isFinite(then)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 2) return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+  const days = Math.round(hrs / 24);
+  return days + (days === 1 ? ' day ago' : ' days ago');
+}
+
+/** Days since an ISO stamp, or null. Drives the amber/red thresholds. */
+function daysSince(iso){
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (!isFinite(then)) return null;
+  return (Date.now() - then) / 86400000;
+}
+
+const BACKUP_STALE_DAYS = 7;
+const BACKUP_OVERDUE_DAYS = 14;
+
+/**
+ * One line a Chief can see without opening anything: when this device was last
+ * backed up and last synced. A device that is quietly weeks behind looks exactly
+ * like one that is up to date, which is how a month of entries gets lost.
+ */
+async function renderDataHealth(){
+  const el = document.getElementById('dataHealthStrip');
+  if (!el) return;
+  let lastBackup = null;
+  try{
+    const row = await dbGet('meta', 'lastDbBackup');
+    lastBackup = row && row.value && row.value.exportedAt || null;
+  }catch(_){}
+  const sync = ensureSyncConfig();
+  const lastSync = sync.lastSyncedAt || null;
+
+  const worst = (iso) => {
+    const d = daysSince(iso);
+    if (d == null) return 'bad';
+    if (d >= BACKUP_OVERDUE_DAYS) return 'bad';
+    if (d >= BACKUP_STALE_DAYS) return 'warn';
+    return 'ok';
+  };
+  const cell = (label, iso, neverText) => {
+    const klass = worst(iso);
+    const when = iso ? agoLabel(iso) : neverText;
+    return `<span class="dh-item dh-${klass}"><span class="dh-dot" aria-hidden="true"></span>${escHtml(label)}: <strong>${escHtml(when)}</strong></span>`;
+  };
+  const parts = [
+    cell('Last backup', lastBackup, 'never'),
+    cell('Last server sync', lastSync, sync.serverUrl ? 'never' : 'not configured')
+  ];
+  el.innerHTML = parts.join('');
+  el.hidden = false;
+}
+
+function renderSnapshotList(rows){
+  const body = document.getElementById('dbSnapshotBody');
+  if (!body) return;
+  if (!rows || !rows.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="4">No snapshots yet — one is taken automatically before a restore, merge or overwriting pull.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const when = new Date(r.takenAt).toLocaleString(undefined,
+      { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<tr>
+      <td>${escHtml(when)}<div class="hint">${escHtml(agoLabel(r.takenAt))}</div></td>
+      <td>${escHtml(r.reason || '')}</td>
+      <td>${escHtml(String(r.recordCount != null ? r.recordCount : ''))}</td>
+      <td><button type="button" class="ghost small" data-snap-restore="${escHtml(r.id)}">Roll back to this</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function refreshSnapshotPanel(){
+  renderSnapshotList(await listDatabaseSnapshots());
+}
+
+function setSnapshotStatus(msg){
+  const el = document.getElementById('dbSnapshotStatus');
+  if (el) el.textContent = msg;
+}
+
+/**
+ * Put a snapshot back. The snapshot's own body is a backup payload, so this goes
+ * through the ordinary restore path — which snapshots the present state first,
+ * so a roll-back can itself be rolled back.
+ */
+async function rollBackToSnapshot(id){
+  const all = await listDatabaseSnapshots();
+  const snap = all.find(r => r.id === id);
+  if (!snap || !snap.payload) throw new Error('That snapshot is no longer on this device.');
+  await restoreFullDatabase(snap.payload);
+  await logSyncEvent({ kind: 'rollback', direction: 'local', result: 'ok',
+    message: `Rolled back to the snapshot taken ${snap.takenAt} (${snap.reason || ''})` });
+  return snap;
+}
+
+function syncLogChangedLabel(r){
+  const bits = [];
+  if (r.added != null) bits.push(`+${r.added}`);
+  if (r.overwritten != null) bits.push(`~${r.overwritten}`);
+  if (r.skipped != null) bits.push(`=${r.skipped}`);
+  return bits.length ? bits.join(' ') : '—';
+}
+
+async function refreshSyncLogPanel(){
+  const body = document.getElementById('syncLogBody');
+  if (!body) return;
+  const rows = await listSyncLog(100);
+  if (!rows.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">Nothing synced from this device yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const when = new Date(r.at).toLocaleString(undefined,
+      { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const what = [r.kind || '', r.background ? '(background)' : ''].filter(Boolean).join(' ');
+    const ok = r.result === 'ok';
+    return `<tr>
+      <td>${escHtml(when)}<div class="hint">${escHtml(agoLabel(r.at))}${r.device ? ' · ' + escHtml(r.device) : ''}</div></td>
+      <td>${escHtml(what)}</td>
+      <td>${escHtml(r.leg || '')}</td>
+      <td>${escHtml(syncLogChangedLabel(r))}</td>
+      <td class="${ok ? 'good-text' : 'alert-text'}">${escHtml(r.result || '')}${r.message ? '<div class="hint">' + escHtml(r.message) + '</div>' : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('btnRefreshSnapshots')?.addEventListener('click', async ()=>{
+  setSnapshotStatus('Reading snapshots…');
+  try{ await refreshSnapshotPanel(); setSnapshotStatus('Ready.'); }
+  catch(e){ setSnapshotStatus('Could not read snapshots: ' + e.message); }
+});
+
+document.getElementById('btnUndoLastOverwrite')?.addEventListener('click', async ()=>{
+  const snap = await latestDatabaseSnapshot();
+  if (!snap){
+    alert('There is no snapshot on this device yet. One is taken automatically before a restore, a merge, or a pull that overwrites this device.');
+    return;
+  }
+  const when = new Date(snap.takenAt).toLocaleString();
+  if (!confirm(
+    'UNDO LAST OVERWRITE\n\n' +
+    `This puts the database back to how it stood at ${when}, taken ${snap.reason || 'before an overwrite'}.\n\n` +
+    'Anything entered on this device since then will be replaced. The present state is snapshotted first, so this can itself be undone.\n\nContinue?'
+  )) return;
+  try{
+    setSnapshotStatus('Rolling back…');
+    await rollBackToSnapshot(snap.id);
+    await refreshSnapshotPanel();
+    setSnapshotStatus(`Rolled back to ${when}.`);
+    alert('Database rolled back to ' + when + '.');
+  }catch(e){
+    console.error(e);
+    setSnapshotStatus('Roll-back failed: ' + e.message);
+    alert('Roll-back failed: ' + e.message);
+  }
+});
+
+document.getElementById('dbSnapshotBody')?.addEventListener('click', async (ev)=>{
+  const id = ev.target?.closest?.('[data-snap-restore]')?.getAttribute('data-snap-restore');
+  if (!id) return;
+  const all = await listDatabaseSnapshots();
+  const snap = all.find(r => r.id === id);
+  if (!snap) return;
+  const when = new Date(snap.takenAt).toLocaleString();
+  if (!confirm(`Roll the database back to ${when}?\n\nAnything entered since then will be replaced. The present state is snapshotted first.`)) return;
+  try{
+    setSnapshotStatus('Rolling back…');
+    await rollBackToSnapshot(id);
+    await refreshSnapshotPanel();
+    setSnapshotStatus(`Rolled back to ${when}.`);
+    alert('Database rolled back to ' + when + '.');
+  }catch(e){
+    setSnapshotStatus('Roll-back failed: ' + e.message);
+    alert('Roll-back failed: ' + e.message);
+  }
+});
+
+document.getElementById('btnRefreshSyncLog')?.addEventListener('click', ()=>{ refreshSyncLogPanel(); });
+
 document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
   const btn = document.getElementById('btnDbBackup');
   if (btn) btn.disabled = true;
@@ -30411,6 +31030,13 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     await applyMirroredSyncCredentials();
     registerServiceWorker();
     renderSyncUi();
+    /* Backup / sync age in the header, and the first background push if one is
+       owed. Both are deliberately after first paint: neither is worth delaying
+       a usable screen for. */
+    try{ await renderDataHealth(); }catch(_){}
+    if (backgroundSyncEnabled() && ensureSyncConfig().pendingChanges){
+      scheduleBackgroundSync('changes were pending at startup');
+    }
 
     const recalcMeta = metaAll.find(m => m.key === 'dataRecalcVersion');
     const needRecalc = !recalcMeta || Number(recalcMeta.value) < DATA_RECALC_VERSION;
