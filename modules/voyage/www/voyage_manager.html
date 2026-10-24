@@ -5937,7 +5937,7 @@ let dbOpenPromise = null;
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 7);
+    const req = indexedDB.open('noonReportDB', 8);
     req.onupgradeneeded = (e)=>{
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
@@ -5948,6 +5948,12 @@ function openDB(){
       if (!d.objectStoreNames.contains('printHistory')) d.createObjectStore('printHistory', {keyPath:'id'});
       /* One archived leg per vessel + voyage number + B|L — keeps active lists short. */
       if (!d.objectStoreNames.contains('voyageLegs')) d.createObjectStore('voyageLegs', {keyPath:'id'});
+      /* Pieces of a large leg. One IndexedDB value big enough to hold every
+         watch, photo and PDF kills the Android WebView on Save Current Leg. */
+      if (!d.objectStoreNames.contains('voyageLegParts')){
+        const parts = d.createObjectStore('voyageLegParts', {keyPath:'id'});
+        parts.createIndex('legId', 'legId', {unique:false});
+      }
       /* Vessel-lifetime Oil Record Book entries (not voyage-leg scoped). */
       if (!d.objectStoreNames.contains('orbEntries')) d.createObjectStore('orbEntries', {keyPath:'id'});
       /* Local-only trash for accidental deletes — not synced as its own store. */
@@ -6059,6 +6065,105 @@ async function dbDelete(store, key){
       catch(err){ rej(err); }
     });
   });
+}
+/* Stay under the WebView IPC limit. A larger single value crashes the view. */
+const VOYAGE_LEG_PART_CHARS = 160000;
+function voyageLegPartId(legId, index){
+  return String(legId) + '::part::' + index;
+}
+async function dbIndexKeys(store, indexName, value){
+  const d = await ensureDB();
+  return new Promise((res, rej)=>{
+    let idx;
+    try{ idx = d.transaction(store, 'readonly').objectStore(store).index(indexName); }
+    catch(err){ rej(err); return; }
+    const r = idx.getAllKeys(value);
+    r.onsuccess = ()=> res(r.result || []);
+    r.onerror = ()=> rej(r.error || new Error('IndexedDB read failed'));
+  });
+}
+async function deleteStoredVoyageLeg(legId){
+  if (!legId) return;
+  let keys = [];
+  try{ keys = await dbIndexKeys('voyageLegParts', 'legId', legId); }
+  catch(_){ keys = []; }
+  for (const key of keys) await dbDelete('voyageLegParts', key);
+  await dbDelete('voyageLegs', legId);
+}
+/** Read a leg header back into the full record. Small legs are stored whole. */
+async function inflateVoyageLeg(row){
+  if (!row || !row.chunked) return row;
+  const count = Number(row.partCount) || 0;
+  let text = '';
+  for (let i = 0; i < count; i++){
+    const part = await dbGet('voyageLegParts', voyageLegPartId(row.id, i));
+    if (!part || typeof part.text !== 'string'){
+      throw new Error('Saved voyage leg is incomplete on this device. Save the current leg again.');
+    }
+    text += part.text;
+  }
+  const leg = JSON.parse(text);
+  leg.id = row.id;
+  leg.vesselId = row.vesselId;
+  leg.voyageNumber = row.voyageNumber;
+  leg.condition = row.condition;
+  if (row.updatedAt) leg.updatedAt = row.updatedAt;
+  if (row.entryCount != null) leg.entryCount = row.entryCount;
+  return leg;
+}
+/**
+ * Write a voyage leg without handing the WebView one giant value.
+ * Photos, PDFs and the vessel stamp live inside the leg; one put of all of
+ * that is what closes the app on Save Current Leg.
+ */
+async function putVoyageLeg(leg){
+  if (!leg || !leg.id) return leg;
+  const json = JSON.stringify(leg);
+  if (json.length <= VOYAGE_LEG_PART_CHARS){
+    await deleteStoredVoyageLeg(leg.id);
+    const slim = JSON.parse(json);
+    delete slim.chunked;
+    delete slim.partCount;
+    await dbPut('voyageLegs', slim);
+    return slim;
+  }
+  let partCount = 0;
+  for (let i = 0; i < json.length; partCount++){
+    let end = Math.min(json.length, i + VOYAGE_LEG_PART_CHARS);
+    if (end > i && end < json.length){
+      const tail = json.charCodeAt(end - 1);
+      if (tail >= 0xD800 && tail <= 0xDBFF) end -= 1;
+    }
+    if (end <= i) end = Math.min(json.length, i + VOYAGE_LEG_PART_CHARS);
+    await dbPut('voyageLegParts', {
+      id: voyageLegPartId(leg.id, partCount),
+      legId: leg.id,
+      i: partCount,
+      text: json.slice(i, end)
+    });
+    i = end;
+    await new Promise((r)=> setTimeout(r, 0));
+  }
+  const header = {
+    id: leg.id,
+    vesselId: leg.vesselId,
+    voyageNumber: leg.voyageNumber,
+    condition: leg.condition,
+    updatedAt: leg.updatedAt,
+    entryCount: leg.entryCount,
+    contentAt: (typeof legContentStamp === 'function' ? legContentStamp(leg) : '') || leg.updatedAt || '',
+    chunked: true,
+    partCount
+  };
+  await dbPut('voyageLegs', header);
+  let keys = [];
+  try{ keys = await dbIndexKeys('voyageLegParts', 'legId', leg.id); }
+  catch(_){ keys = []; }
+  for (const key of keys){
+    const n = Number(String(key).split('::part::').pop());
+    if (n >= partCount) await dbDelete('voyageLegParts', key);
+  }
+  return header;
 }
 async function dbGet(store, key){ const s = await txStore(store,'readonly'); return new Promise((res,rej)=>{ const r = s.get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 async function dbGetAll(store){ const s = await txStore(store,'readonly'); return new Promise((res,rej)=>{ const r = s.getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -7584,7 +7689,7 @@ async function clearVesselPackData(vesselId){
     await clearVesselStore(store, vesselId);
   }
   const legs = await listVoyageLegsForVessel(vesselId);
-  for (const leg of legs) await dbDelete('voyageLegs', leg.id);
+  for (const leg of legs) await deleteStoredVoyageLeg(leg.id);
   await dbDelete('meta', `setup:${vesselId}`);
 }
 
@@ -7758,7 +7863,7 @@ async function saveVoyageLegToLibrary(vesselId, voyageNumber, condition, pack){
     abstracts: (pack.abstracts || []).map(a => ({ ...a, vesselId: vid, voyageNumber: vn })),
     printHistory: (pack.printHistory || []).map(p => ({ ...p, vesselId: vid, voyageNumber: vn }))
   };
-  await dbPut('voyageLegs', leg);
+  await putVoyageLeg(leg);
   return leg;
 }
 
@@ -7920,21 +8025,22 @@ async function listVoyageLegsForVessel(vesselId){
   const mine = all.filter(l => legBelongsToVessel(l, vid));
   /* Migrate legacy BALLAST/LADEN leg ids to B/L and normalize vesselId once. */
   const out = [];
-  for (const leg of mine){
-    const cond = normalizeCondition(leg.condition);
-    const wantId = voyageLegId(vid, leg.voyageNumber, cond);
-    if (leg.id !== wantId || leg.condition !== cond || leg.vesselId !== vid){
+  for (const raw of mine){
+    const cond = normalizeCondition(raw.condition);
+    const wantId = voyageLegId(vid, raw.voyageNumber, cond);
+    if (raw.id !== wantId || raw.condition !== cond || raw.vesselId !== vid){
+      const leg = await inflateVoyageLeg(raw);
       const migrated = { ...leg, id: wantId, condition: cond, vesselId: vid };
       if (migrated.setup) migrated.setup.shipCondition = cond;
       (migrated.entries || []).forEach(e => {
         e.condition = normalizeCondition(e.condition);
         e.vesselId = vid;
       });
-      await dbPut('voyageLegs', migrated);
-      if (leg.id !== wantId) await dbDelete('voyageLegs', leg.id);
-      out.push(migrated);
+      await putVoyageLeg(migrated);
+      if (raw.id !== wantId) await deleteStoredVoyageLeg(raw.id);
+      out.push(await dbGet('voyageLegs', wantId));
     } else {
-      out.push(leg);
+      out.push(raw);
     }
   }
   return out;
@@ -7978,9 +8084,10 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
 
   const id = voyageLegId(vid, vn, cond);
   const all = await listVoyageLegsForVessel(vid);
-  const leg = all.find(l => l.id === id)
+  let leg = all.find(l => l.id === id)
     || all.find(l => (l.voyageNumber || '').trim() === vn && normalizeCondition(l.condition) === cond);
   if (!leg) throw new Error(`No ${cond} records for voyage ${vn} on this vessel`);
+  leg = await inflateVoyageLeg(leg);
 
   await clearActiveVesselWorkingData(vid);
 
@@ -8109,7 +8216,7 @@ async function saveVesselPack(vesselId, pack){
   /* Clear prior working + leg data for this vessel when installing a pack. */
   await clearActiveVesselWorkingData(vesselId);
   const existingLegs = await listVoyageLegsForVessel(vesselId);
-  for (const leg of existingLegs) await dbDelete('voyageLegs', leg.id);
+  for (const leg of existingLegs) await deleteStoredVoyageLeg(leg.id);
 
   const voyageNumber = (setup.voyageNumber || 'VOYAGE').trim();
   const legs = Array.isArray(pack.legs) && pack.legs.length
@@ -8352,8 +8459,9 @@ async function migrateToMultiVessel(metaAll){
       }
     }
     const legacyLegs = await dbGetAll('voyageLegs');
-    for (const leg of legacyLegs){
-      if (!leg.vesselId || leg.vesselId === LEGACY_VESSEL_ID){
+    for (const raw of legacyLegs){
+      if (!raw.vesselId || raw.vesselId === LEGACY_VESSEL_ID){
+        const leg = await inflateVoyageLeg(raw);
         const cond = normalizeCondition(leg.condition);
         const migrated = {
           ...leg,
@@ -8361,8 +8469,8 @@ async function migrateToMultiVessel(metaAll){
           condition: cond,
           id: voyageLegId(vUser.id, leg.voyageNumber, cond)
         };
-        await dbPut('voyageLegs', migrated);
-        if (leg.id !== migrated.id) await dbDelete('voyageLegs', leg.id);
+        await putVoyageLeg(migrated);
+        if (raw.id !== migrated.id) await deleteStoredVoyageLeg(raw.id);
       }
     }
     await installTestFleet({ switchToFirst: false });
@@ -9061,9 +9169,10 @@ async function recalculateAllProgramData({ interactive = true } = {}){
         source: 'program'
       });
       /* Skip re-writing the active leg we just archived — still safe to refresh. */
-      const rebuilt = await recalculateLegPack(leg);
+      const fullLeg = await inflateVoyageLeg(leg);
+      const rebuilt = await recalculateLegPack(fullLeg);
       const next = {
-        ...leg,
+        ...fullLeg,
         setup: rebuilt.setup,
         entries: rebuilt.entries,
         receipts: rebuilt.receipts,
@@ -9073,7 +9182,7 @@ async function recalculateAllProgramData({ interactive = true } = {}){
         entryCount: rebuilt.entries.length,
         updatedAt: new Date().toISOString()
       };
-      await dbPut('voyageLegs', next);
+      await putVoyageLeg(next);
       summary.legs++;
       summary.entries += rebuilt.stats.entryCount;
       summary.rpmFixed += rebuilt.stats.rpmFixed;
@@ -25334,7 +25443,7 @@ document.getElementById('btnCopyPcInstall')?.addEventListener('click', async ()=
 
 /* ---------------- full database backup / restore / merge ---------------- */
 const DB_BACKUP_FORMAT = 'noon-report-db-v1';
-const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','orbEntries','deletedBackup'];
+const DB_BACKUP_STORES = ['entries','receipts','documents','abstracts','printHistory','voyageLegs','voyageLegParts','orbEntries','deletedBackup'];
 
 async function downloadJsonFile(filename, obj){
   const text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
@@ -25494,7 +25603,11 @@ async function writeStoreRows(storeName, rows, progress){
       patch.pct = Math.round(base + span * ((i + 1) / list.length));
     }
     updateActivity(null, patch);
-    await dbPut(storeName, row);
+    if (storeName === 'voyageLegs' && row && !row.chunked && (row.entries || row.setup || row.documents || row.receipts)){
+      await putVoyageLeg(row);
+    } else {
+      await dbPut(storeName, row);
+    }
   }
 }
 
@@ -25651,9 +25764,17 @@ async function buildVesselExport(vesselId){
       stores[name] = (all || []).filter(r => recordBelongsToVessel(name, r, vessel.id));
     }catch(_){ stores[name] = []; }
   }
-  stores.voyageLegs = (stores.voyageLegs || []).map(leg =>
-    (leg && leg.setup) ? { ...leg, setup: setupForVesselExport(leg.setup) } : leg
-  );
+  const exportedLegs = [];
+  for (const leg of stores.voyageLegs || []){
+    const full = await inflateVoyageLeg(leg);
+    if (full && full.setup) full.setup = setupForVesselExport(full.setup);
+    if (full){
+      delete full.chunked;
+      delete full.partCount;
+    }
+    exportedLegs.push(full);
+  }
+  stores.voyageLegs = exportedLegs;
 
   return {
     format: VESSEL_EXPORT_FORMAT,
@@ -25759,9 +25880,10 @@ async function importVesselExport(payload, options = {}){
           }
         }
         if (row.setup) row.setup = { ...row.setup, sync: { ...(row.setup.sync || {}), apiToken: '', vesselId: srcSlug } };
-        const prev = byId.get(row.id);
+        const prevRaw = byId.get(row.id);
+        const prev = prevRaw ? await inflateVoyageLeg(prevRaw) : null;
         if (!prev){
-          await dbPut('voyageLegs', row);
+          await putVoyageLeg(row);
           written++;
           continue;
         }
@@ -25782,7 +25904,7 @@ async function importVesselExport(payload, options = {}){
           /* Prefer local setup/opening on merge; keep incoming only when local missing. */
           setup: prev.setup || row.setup
         };
-        await dbPut('voyageLegs', merged);
+        await putVoyageLeg(merged);
         written++;
       }
       continue;
@@ -25820,7 +25942,8 @@ async function importVesselExport(payload, options = {}){
         }
         if (row.setup) row.setup = { ...row.setup, sync: { ...(row.setup.sync || {}), apiToken: '', vesselId: srcSlug } };
       }
-      await dbPut(name, row);
+      if (name === 'voyageLegs') await putVoyageLeg(row);
+      else await dbPut(name, row);
       written++;
     }
   }
@@ -25989,7 +26112,7 @@ function summarizeStoredLeg(leg){
     condition: normalizeCondition(leg.condition),
     entryCount: leg.entryCount != null ? Number(leg.entryCount) : ((leg.entries || []).length),
     savedAt: leg.updatedAt || '',
-    contentAt: legContentStamp(leg) || leg.updatedAt || '',
+    contentAt: leg.contentAt || legContentStamp(leg) || leg.updatedAt || '',
   };
 }
 
@@ -26143,7 +26266,7 @@ async function openLatestVoyageLeg(){
   const legs = await listVoyageLegsForVessel(state.activeVesselId);
   let best = null;
   for (const leg of legs){
-    const stamp = legContentStamp(leg) || leg.updatedAt || '';
+    const stamp = leg.contentAt || legContentStamp(leg) || leg.updatedAt || '';
     const vn = String(leg.voyageNumber || '');
     if (!vn) continue;
     if (!best || stamp > best.stamp || (stamp === best.stamp && vn.localeCompare(best.vn, undefined, { numeric: true }) > 0)){
@@ -26201,14 +26324,80 @@ async function reconcileVoyageLegs(legs, opts){
   return { results, opened };
 }
 
-window.addEventListener('message', async (ev)=>{
+const VOYAGE_BRIDGE_CHUNK = 160000;
+const voyageBackupIncoming = {};
+function voyageBridgeChunkEnd(text, start, size){
+  let end = Math.min(text.length, start + size);
+  if (end > start && end < text.length){
+    const tail = text.charCodeAt(end - 1);
+    if (tail >= 0xD800 && tail <= 0xDBFF) end -= 1;
+  }
+  if (end <= start) end = Math.min(text.length, start + size);
+  return end;
+}
+async function onVoyageBackupMessage(ev){
   const msg = ev.data || {};
+  if (msg.type === 'chengaio-voyage-backup-chunk' && msg.requestId && voyageBackupIncoming[msg.requestId]){
+    voyageBackupIncoming[msg.requestId].parts.push(String(msg.chunk || ''));
+    return;
+  }
+  if (msg.type === 'chengaio-voyage-backup-end' && msg.requestId && voyageBackupIncoming[msg.requestId]){
+    const job = voyageBackupIncoming[msg.requestId];
+    delete voyageBackupIncoming[msg.requestId];
+    try{
+      job.msg.payload = JSON.parse(job.parts.join('') || 'null');
+    }catch(err){
+      try{
+        ev.source.postMessage({
+          type: 'chengaio-voyage-backup-result',
+          requestId: msg.requestId,
+          error: 'Could not read the voyage file: ' + (err && err.message ? err.message : err)
+        }, ev.origin || '*');
+      }catch(_){}
+      return;
+    }
+    job.msg.payloadChunked = false;
+    await onVoyageBackupMessage(job.ev);
+    return;
+  }
   if (msg.type !== 'chengaio-voyage-backup') return;
   const reply = (extra) => {
     try {
+      const hasPayload = extra && Object.prototype.hasOwnProperty.call(extra, 'payload');
+      if (hasPayload){
+        const meta = { ...extra };
+        delete meta.payload;
+        const text = JSON.stringify(extra.payload);
+        const target = ev.source;
+        const origin = ev.origin || '*';
+        target.postMessage({
+          type: 'chengaio-voyage-backup-result-begin',
+          requestId: msg.requestId,
+          length: text.length,
+          meta
+        }, origin);
+        for (let i = 0; i < text.length;){
+          const end = voyageBridgeChunkEnd(text, i, VOYAGE_BRIDGE_CHUNK);
+          target.postMessage({
+            type: 'chengaio-voyage-backup-result-chunk',
+            requestId: msg.requestId,
+            chunk: text.slice(i, end)
+          }, origin);
+          i = end;
+        }
+        target.postMessage({
+          type: 'chengaio-voyage-backup-result-end',
+          requestId: msg.requestId
+        }, origin);
+        return;
+      }
       ev.source.postMessage({ type: 'chengaio-voyage-backup-result', requestId: msg.requestId, ...extra }, ev.origin || '*');
     } catch (_) {}
   };
+  if (msg.payloadChunked){
+    voyageBackupIncoming[msg.requestId] = { ev, msg, parts: [] };
+    return;
+  }
   try {
     if (msg.action === 'export-db') {
       const payload = await buildFullDatabaseBackup();
@@ -26515,7 +26704,8 @@ window.addEventListener('message', async (ev)=>{
   } catch (e) {
     reply({ error: e.message || String(e) });
   }
-});
+}
+window.addEventListener('message', onVoyageBackupMessage);
 
 document.getElementById('fileImportVessel')?.addEventListener('change', async (ev)=>{
   const file = ev.target.files && ev.target.files[0];

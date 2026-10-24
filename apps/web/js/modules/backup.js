@@ -337,6 +337,26 @@
       if (msg.type === 'chengaio-voyage-backup-progress') {
         applyVoyageProgress(msg);
       }
+      if (msg.type === 'chengaio-voyage-backup-result-begin' && msg.requestId && pendingVoyage[msg.requestId]) {
+        pendingVoyage[msg.requestId].parts = [];
+        pendingVoyage[msg.requestId].meta = msg.meta || {};
+        return;
+      }
+      if (msg.type === 'chengaio-voyage-backup-result-chunk' && msg.requestId && pendingVoyage[msg.requestId]) {
+        pendingVoyage[msg.requestId].parts.push(String(msg.chunk || ''));
+        return;
+      }
+      if (msg.type === 'chengaio-voyage-backup-result-end' && msg.requestId && pendingVoyage[msg.requestId]) {
+        const job = pendingVoyage[msg.requestId];
+        delete pendingVoyage[msg.requestId];
+        try {
+          const payload = JSON.parse((job.parts || []).join('') || 'null');
+          job.resolve({ ...(job.meta || {}), payload });
+        } catch (err) {
+          job.reject(err instanceof Error ? err : new Error(String(err)));
+        }
+        return;
+      }
       if (msg.type === 'chengaio-voyage-backup-result' && msg.requestId && pendingVoyage[msg.requestId]) {
         const { resolve, reject } = pendingVoyage[msg.requestId];
         delete pendingVoyage[msg.requestId];
@@ -411,13 +431,46 @@
       throw new Error('Voyage Chief is still loading — wait a moment and try again');
     }
     return new Promise((resolve, reject) => {
-      pendingVoyage[requestId] = { resolve, reject };
-      voyageFrame.contentWindow.postMessage({
-        type: 'chengaio-voyage-backup',
-        action,
-        requestId,
-        ...extra,
-      }, '*');
+      pendingVoyage[requestId] = { resolve, reject, parts: [], meta: {} };
+      const frame = voyageFrame.contentWindow;
+      const extraObj = extra || {};
+      const hasPayload = Object.prototype.hasOwnProperty.call(extraObj, 'payload');
+      if (hasPayload) {
+        const rest = { ...extraObj };
+        delete rest.payload;
+        const text = JSON.stringify(extraObj.payload);
+        frame.postMessage({
+          type: 'chengaio-voyage-backup',
+          action,
+          requestId,
+          ...rest,
+          payloadChunked: true,
+          length: text.length,
+        }, '*');
+        const size = 160000;
+        for (let i = 0; i < text.length;) {
+          let end = Math.min(text.length, i + size);
+          if (end > i && end < text.length) {
+            const tail = text.charCodeAt(end - 1);
+            if (tail >= 0xD800 && tail <= 0xDBFF) end -= 1;
+          }
+          if (end <= i) end = Math.min(text.length, i + size);
+          frame.postMessage({
+            type: 'chengaio-voyage-backup-chunk',
+            requestId,
+            chunk: text.slice(i, end),
+          }, '*');
+          i = end;
+        }
+        frame.postMessage({ type: 'chengaio-voyage-backup-end', requestId }, '*');
+      } else {
+        frame.postMessage({
+          type: 'chengaio-voyage-backup',
+          action,
+          requestId,
+          ...extraObj,
+        }, '*');
+      }
       setTimeout(() => {
         if (!pendingVoyage[requestId]) return;
         delete pendingVoyage[requestId];
