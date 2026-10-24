@@ -1139,7 +1139,8 @@ html.aio-fullscreen-embed .bottom-nav,
 html.aio-fullscreen-embed .bn-more-sheet,
 html.aio-fullscreen-embed .theme-fab,
 html.aio-fullscreen-embed .sidebar-backdrop,
-html.aio-fullscreen-embed .menu-btn {
+html.aio-fullscreen-embed .menu-btn,
+html.aio-fullscreen-embed .watch-strip {
   display: none !important;
 }
 html.aio-fullscreen-embed {
@@ -1169,10 +1170,14 @@ html.aio-fullscreen-embed .eorb-embed-wrap {
 html.aio-fullscreen-embed .aio-embed-frame,
 html.aio-fullscreen-embed .eorb-embed-frame {
   /* Below the strip, not under it — a module's own toolbar is usually the
-     first thing at its top, and it was being covered. */
-  min-height: calc(100dvh - var(--embed-bar-h)) !important;
-  height: calc(100dvh - var(--embed-bar-h));
+     first thing at its top, and it was being covered.
+     The height has to give back the same inset the margin takes, including
+     the safe areas. Leaving those on only the margin made the frame taller
+     than the screen, and Tank Chief's bottom menu was clipped. */
   margin-top: calc(var(--embed-bar-h) + env(safe-area-inset-top, 0px));
+  height: calc(100dvh - var(--embed-bar-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: 0 !important;
+  max-height: calc(100dvh - var(--embed-bar-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
 }
 html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   display: flex;
