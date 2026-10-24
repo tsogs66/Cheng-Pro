@@ -2932,6 +2932,175 @@
   }
 
   /** Entries in book order: by date, then by the order they were written that day. */
+  /* ---- Tamper evidence ------------------------------------------------------
+     An inspector who asks "how do I know this page was not edited after it was
+     signed" currently has no answer: the entries are rows in a database the
+     ship controls. MARPOL does not require tamper-evidence, but flag-approved
+     e-ORB software under MEPC.312(74) is expected to show it, and a book that
+     can prove it was not altered is worth more at a port-state inspection than
+     one that merely was not.
+
+     Three things, each cheap:
+
+     Every entry carries a digest of its own content and the digest of the
+     entry before it in book order, so altering an old line breaks the chain
+     from there on and the break is visible at the line it happened.
+
+     A signature carries the content digest it was made over, so an entry
+     edited after signing reads "edited after signing" rather than carrying a
+     signature that silently attests to different words.
+
+     A voided line names the entry that replaces it, so a strike-through and
+     its correction read as a pair instead of two unexplained rows.
+
+     The hash itself is the host's: this module is loaded on its own and has no
+     crypto of its own, and duplicating the primitive is how two devices end up
+     disagreeing about the same entry. Canonicalisation lives here, once,
+     because that is the part that has to match everywhere. */
+
+  /* Fields that are the RECORD. Everything else about a row -- when it was
+     synced, which device wrote it, the chain fields themselves -- is
+     bookkeeping and must not change the digest, or an entry would hash
+     differently on two tablets holding the same record. */
+  const ORB_CONTENT_FIELDS = [
+    'date', 'code', 'itemNo', 'part', 'tank', 'tanks', 'quantity', 'qty',
+    'position', 'time', 'operation', 'text', 'remarks', 'values',
+    'officerName', 'rank', 'chiefName', 'voided', 'voidReason',
+    /* Which line a correction replaces, and which correction superseded a
+       voided line, are part of the record a reader relies on -- so they are
+       sealed with it, not left as bookkeeping that could be rewritten later. */
+    'replacesEntryId', 'voidedByEntryId'
+  ];
+
+  /** Stable string for an entry's record content, key order fixed. */
+  function orbCanonicalContent(entry) {
+    const pick = {};
+    ORB_CONTENT_FIELDS.forEach((k) => {
+      if (entry == null) return;
+      const v = entry[k];
+      if (v === undefined) return;
+      pick[k] = v;
+    });
+    const walk = (v) => {
+      if (v === null || typeof v !== 'object') return v;
+      if (Array.isArray(v)) return v.map(walk);
+      const out = {};
+      Object.keys(v).sort().forEach((k) => { out[k] = walk(v[k]); });
+      return out;
+    };
+    return JSON.stringify(walk(pick));
+  }
+
+  /**
+   * Recompute the chain over entries in book order.
+   *
+   * `digest` is async and supplied by the host: (text) => Promise<string>.
+   * Returns the entries with chain fields set, and never mutates the inputs.
+   */
+  async function rebuildOrbChain(entries, digest) {
+    const ordered = sortEntriesForBook(entries);
+    let prev = '';
+    const out = [];
+    for (const e of ordered) {
+      const contentHash = await digest(orbCanonicalContent(e));
+      const chainHash = await digest(prev + '|' + contentHash);
+      out.push(Object.assign({}, e, {
+        contentHash: contentHash,
+        prevHash: prev,
+        chainHash: chainHash
+      }));
+      prev = chainHash;
+    }
+    return out;
+  }
+
+  /**
+   * Check a chain. Reports the FIRST line that does not verify and why, because
+   * after a break every later line fails too and listing them all hides where
+   * the edit actually happened.
+   */
+  async function verifyOrbChain(entries, digest) {
+    const ordered = sortEntriesForBook(entries);
+    let prev = '';
+    let checked = 0;
+    for (let i = 0; i < ordered.length; i++) {
+      const e = ordered[i];
+      /* An entry written before this build carries no chain fields. It cannot
+         be verified, and saying "broken" about it would be wrong. */
+      if (!e.contentHash || !e.chainHash) {
+        return {
+          ok: true, complete: false, checked: checked,
+          firstUnchained: { id: e.id, date: e.date, index: i },
+          note: 'Entries from before tamper-evidence was added cannot be checked. ' +
+            'The chain is verified from the first entry that carries one.'
+        };
+      }
+      const contentHash = await digest(orbCanonicalContent(e));
+      if (contentHash !== e.contentHash) {
+        return {
+          ok: false, complete: false, checked: checked,
+          brokenAt: { id: e.id, date: e.date, code: e.code, index: i },
+          reason: 'the contents of this entry no longer match the digest recorded with it'
+        };
+      }
+      if (String(e.prevHash || '') !== String(prev || '')) {
+        return {
+          ok: false, complete: false, checked: checked,
+          brokenAt: { id: e.id, date: e.date, code: e.code, index: i },
+          reason: 'this entry does not follow the one before it — a line has been inserted, removed or reordered'
+        };
+      }
+      const chainHash = await digest(prev + '|' + contentHash);
+      if (chainHash !== e.chainHash) {
+        return {
+          ok: false, complete: false, checked: checked,
+          brokenAt: { id: e.id, date: e.date, code: e.code, index: i },
+          reason: 'the chain value recorded with this entry is not the one its own contents produce'
+        };
+      }
+      prev = chainHash;
+      checked += 1;
+    }
+    return { ok: true, complete: true, checked: checked, headHash: prev };
+  }
+
+  /** The digest a signature attests to, so a later edit is detectable. */
+  async function signOrbEntry(entry, signer, digest) {
+    const contentHash = await digest(orbCanonicalContent(entry));
+    return Object.assign({}, entry, {
+      contentHash: contentHash,
+      signature: Object.assign({}, entry.signature || {}, signer || {}, {
+        signedAt: (signer && signer.signedAt) || new Date().toISOString(),
+        /* The whole point: what was signed, not merely that something was. */
+        signedContentHash: contentHash
+      })
+    });
+  }
+
+  /**
+   * Has this entry changed since it was signed?
+   * 'unsigned' | 'intact' | 'edited' | 'unknown' — 'unknown' for a signature
+   * made before the hash was bound, which must not be reported as intact.
+   */
+  async function orbSignatureState(entry, digest) {
+    const sig = entry && entry.signature;
+    if (!sig || !sig.signedAt) return 'unsigned';
+    if (!sig.signedContentHash) return 'unknown';
+    const now = await digest(orbCanonicalContent(entry));
+    return now === sig.signedContentHash ? 'intact' : 'edited';
+  }
+
+  /** Tie a voided line to the entry that replaces it, both ways. */
+  function linkOrbVoidReplacement(voidedEntry, replacementEntry) {
+    const voided = Object.assign({}, voidedEntry, {
+      voidedByEntryId: replacementEntry && replacementEntry.id || null
+    });
+    const replacement = Object.assign({}, replacementEntry, {
+      replacesEntryId: voidedEntry && voidedEntry.id || null
+    });
+    return { voided: voided, replacement: replacement };
+  }
+
   function sortEntriesForBook(entries) {
     return (entries || []).slice().sort((a, b) =>
       String(a.date).localeCompare(String(b.date)) ||
@@ -3683,6 +3852,15 @@
     formatLatLonPosition,
     lastMatchingEntryDate,
     weeklyDueStatus,
-    weeklyInventoryDateError
+    weeklyInventoryDateError,
+    /* Tamper evidence. The digest primitive is passed in by the host; see the
+       block above rebuildOrbChain for why it is not implemented here. */
+    ORB_CONTENT_FIELDS,
+    orbCanonicalContent,
+    rebuildOrbChain,
+    verifyOrbChain,
+    signOrbEntry,
+    orbSignatureState,
+    linkOrbVoidReplacement
   };
 })(typeof window !== 'undefined' ? window : globalThis);

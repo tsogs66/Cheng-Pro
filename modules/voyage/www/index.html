@@ -4666,8 +4666,11 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <button class="primary small" type="button" id="btnOrbFilter">Fetch Records</button>
           <button class="ghost small" type="button" id="btnOrbPrint">Print Selected Period</button>
           <button class="ghost small" type="button" id="btnOrbVoid">Void / correct selected</button>
+          <button class="ghost small" type="button" id="btnOrbVerify">Verify record book</button>
           <button class="ghost small" type="button" id="btnOrbExportJson">Export JSON</button>
         </div>
+        <div class="hint" id="orbIntegrityLine" role="status" aria-live="polite"></div>
+        <div class="hint">Each entry carries a digest of its own contents and of the entry before it in book order, so a line altered, inserted, removed or reordered after the fact shows up at the point it happened. <strong>Verify record book</strong> checks the whole chain and reads nothing out of it — running it changes nothing. Quote the book digest on a printed page: a book that still produces the same digest has not been altered.</div>
         <div class="table-scroll" style="margin-top:12px;">
           <table class="orb-table">
             <thead><tr><th></th><th>Date</th><th>Part</th><th>Code</th><th>Items</th><th>Record / Officer</th></tr></thead>
@@ -29948,6 +29951,9 @@ function renderOrbUi(){
   renderOrbTankStatus();
   renderOrbBook();
   applyOrbDateBounds();
+  /* Verifying is a run of digests over every entry, so it is deliberately not
+     awaited here: the page paints first and the line fills in behind it. */
+  refreshOrbIntegrity();
   const hint = document.getElementById('orbNewHint');
   const flag = EORB.getFlag(orbSetup().flag);
   if (hint) hint.textContent = `Flag: ${flag.name}. Weekly sludge and bilge inventory must be within 7 days of the last sounding (sooner is allowed). Pick the operation you carried out — the MARPOL code and item numbers are chosen for you.`;
@@ -30221,6 +30227,10 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
       saved += 1;
     }
   }
+  /* Seal the book before anything else: the new lines are what the chain is
+     being asked to vouch for. */
+  await resealOrbChain();
+  await refreshOrbIntegrity();
   await saveSetup();
   document.getElementById('orbWeeklyWizard').style.display = 'none';
   fillOrbBrowseOfficerSelect();
@@ -30339,6 +30349,10 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
     state.orbEntries.push(entry);
     await dbPut('orbEntries', entry);
   }
+  /* Link before sealing: which line this corrects is part of the record. */
+  await linkOrbReplacements(records);
+  await resealOrbChain();
+  await refreshOrbIntegrity();
   await saveSetup();
   document.getElementById('orbEntryWizard').style.display = 'none';
   _orbWizard.code = null;
@@ -30363,6 +30377,141 @@ document.getElementById('btnOrbFilter')?.addEventListener('click', ()=>{
   renderOrbTankStatus();
   renderOrbBook();
 });
+/* Lines struck through and awaiting their correction, so the next entry saved
+   can be tied to them. Not persisted: a correction that is not written in the
+   same sitting is linked by hand, and a stale pointer across a reload would
+   attach the link to the wrong entry. */
+let _orbAwaitingReplacement = [];
+
+/**
+ * Tie the entries just saved to the lines they correct, both ways: the voided
+ * line names what replaced it and the replacement names what it replaces.
+ */
+async function linkOrbReplacements(savedRecords){
+  if (!_orbAwaitingReplacement.length || !savedRecords || !savedRecords.length) return 0;
+  if (!window.EORB || typeof EORB.linkOrbVoidReplacement !== 'function') return 0;
+  const replacement = savedRecords[0];
+  let n = 0;
+  for (const voidedId of _orbAwaitingReplacement){
+    const voided = (state.orbEntries || []).find(e => e.id === voidedId);
+    if (!voided || !voided.voided) continue;
+    voided.voidedByEntryId = replacement.id;
+    voided.updatedAt = new Date().toISOString();
+    await dbPut('orbEntries', voided);
+    n += 1;
+  }
+  if (n){
+    replacement.replacesEntryId = _orbAwaitingReplacement.slice();
+    replacement.updatedAt = new Date().toISOString();
+    await dbPut('orbEntries', replacement);
+  }
+  _orbAwaitingReplacement = [];
+  return n;
+}
+
+/* ---- e-ORB tamper evidence (host side) -------------------------------------
+   EORB owns the canonical form of a record; the digest primitive is this
+   file's, so there is exactly one of each. */
+function orbDigest(text){
+  return digestText(String(text)).then(d => d.algo + ':' + d.hex);
+}
+
+/**
+ * Recompute the chain over the whole book and persist only the rows whose
+ * chain fields actually changed.
+ *
+ * It has to be the whole book, not just the new line: an entry dated earlier
+ * than existing ones lands in the middle of book order, and every line after
+ * it then follows a different predecessor. Writing only the new row would
+ * leave the book reading as tampered with from that point on.
+ *
+ * The digests are cheap; the IndexedDB writes are not, which is why only
+ * changed rows are written.
+ */
+async function resealOrbChain(){
+  if (!window.EORB || typeof EORB.rebuildOrbChain !== 'function') return null;
+  const before = (state.orbEntries || []);
+  if (!before.length) return null;
+  const sealed = await EORB.rebuildOrbChain(before, orbDigest);
+  const byId = new Map(before.map(e => [e.id, e]));
+  let written = 0;
+  for (const next of sealed){
+    const prev = byId.get(next.id);
+    if (!prev) continue;
+    if (prev.contentHash === next.contentHash &&
+        prev.prevHash === next.prevHash &&
+        prev.chainHash === next.chainHash) continue;
+    prev.contentHash = next.contentHash;
+    prev.prevHash = next.prevHash;
+    prev.chainHash = next.chainHash;
+    await dbPut('orbEntries', prev);
+    written += 1;
+  }
+  return { written, head: sealed.length ? sealed[sealed.length - 1].chainHash : '' };
+}
+
+/** Verify and report in words a port-state inspector would accept. */
+async function verifyOrbChainNow(){
+  if (!window.EORB || typeof EORB.verifyOrbChain !== 'function') return null;
+  return EORB.verifyOrbChain(state.orbEntries || [], orbDigest);
+}
+
+function renderOrbIntegrity(verdict){
+  const el = document.getElementById('orbIntegrityLine');
+  if (!el) return;
+  if (!verdict){
+    el.textContent = '';
+    return;
+  }
+  if (!verdict.ok){
+    const at = verdict.brokenAt || {};
+    el.className = 'hint alert-text';
+    el.textContent = `⚠ The record book does not verify. The first line that fails is ${at.date || ''}`
+      + (at.code ? ` code ${at.code}` : '')
+      + ` — ${verdict.reason}. Lines before it verified (${verdict.checked}).`;
+    return;
+  }
+  if (!verdict.complete){
+    el.className = 'hint';
+    el.textContent = `${verdict.checked} entries verified. ${verdict.note || ''}`;
+    return;
+  }
+  el.className = 'hint good-text';
+  /* Short form of the head digest: enough to quote and compare, not so long
+     nobody reads it. */
+  const head = String(verdict.headHash || '').split(':').pop().slice(0, 16);
+  el.textContent = `✓ All ${verdict.checked} entries verify. Book digest ${head}.`;
+}
+
+async function refreshOrbIntegrity(){
+  try{ renderOrbIntegrity(await verifyOrbChainNow()); }
+  catch(e){ console.error(e); }
+}
+
+document.getElementById('btnOrbVerify')?.addEventListener('click', async ()=>{
+  await withActivity('orb-verify', 'Checking the record book…', async ()=>{
+    const verdict = await verifyOrbChainNow();
+    renderOrbIntegrity(verdict);
+    if (!verdict){ alert('No entries to check.'); return; }
+    if (!verdict.ok){
+      const at = verdict.brokenAt || {};
+      alert('THE RECORD BOOK DOES NOT VERIFY\n\n'
+        + `First line that fails: ${at.date || ''}${at.code ? ' code ' + at.code : ''}\n`
+        + `Why: ${verdict.reason}\n\n`
+        + `Entries before it verified: ${verdict.checked}\n\n`
+        + 'A line has been altered, inserted, removed or reordered since it was written. '
+        + 'The entries themselves are untouched by this check — nothing has been changed by running it.');
+      return;
+    }
+    if (!verdict.complete){
+      alert(`${verdict.checked} entries verify.\n\n${verdict.note || ''}`);
+      return;
+    }
+    alert(`All ${verdict.checked} entries verify.\n\nBook digest:\n${verdict.headHash}\n\n`
+      + 'Quote this digest on a printed page: a book that still produces it has not been altered.');
+  });
+});
+
 document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
   const ids = [...document.querySelectorAll('.orb-browse-check:checked')].map(c=>c.value);
   if (!ids.length){ alert('Select the entry to void.'); return; }
@@ -30383,10 +30532,19 @@ document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
     n += 1;
   }
   if (!n){ alert('Those lines are already voided.'); return; }
+  /* Voiding changes the record content of those lines, so the chain over them
+     and everything after has to be resealed. The strike-through is part of the
+     record -- MARPOL does not allow deleting -- so it is sealed, not excluded. */
+  await resealOrbChain();
+  await refreshOrbIntegrity();
   renderOrbBrowse();
   renderOrbBook();
   applyOrbDateBounds();
-  alert(n + ' ORB line(s) struck through. Record the correct operation as a new entry.');
+  /* A voided line and its correction are a pair. Remembering which lines were
+     just struck means the next entry saved can say what it replaces, instead
+     of leaving a reader two unexplained rows. */
+  _orbAwaitingReplacement = ids.slice();
+  alert(n + ' ORB line(s) struck through.\n\nRecord the correct operation as a new entry — the next entry you save will be linked to the line(s) it replaces, so the book reads as a correction rather than two separate rows.');
 });
 /** Open the system print dialog for the given ORB entry rows (same layout as Browse / Print). */
 function printOrbEntries(rows, rangeLabel){
