@@ -134,6 +134,29 @@ check('and still gives the pane its own scrollbar',
 
 /* ---- 3. a bar above the frame must not push its bottom off the screen ---- */
 
+/* Scope, corrected after a full sweep of every module.
+ 
+   The commit that fixed this said the fault was confined to the two pages with
+   a .bunker-file-bar. That was understated. Driving the real shell through all
+   13 modules x 4 viewports x fullscreen/windowed -- 104 cases -- showed the old
+   rules clipping content the pane could not scroll to on EVERY embed module in
+   fullscreen, because the frame's margin-top put the pane's content 44px past
+   its own height before any sibling was involved:
+ 
+     voyage, tanks, spares, e-ORB      154px clipped, all four viewports
+     Consumption Plan, Bunkering Plan  255-356px, worst in Android portrait
+                                       (their file bar adds 101px / 55px)
+     the 56 panel (non-embed) cases    clean, then and now
+ 
+   The two plan pages were simply the ones bad enough to be noticed and
+   reported. One fix covers all six, and the sweep after it reports 0 of 104
+   cases clipping. Two things had to be got right before that sweep said
+   anything true: it must drive the shell's own navigation, because calling a
+   module's render() by hand loses a race with the shell's vessel-change
+   repaint and silently measures Vessel Setup instead; and it must assert that
+   an embed module really produced a frame, or an unlicensed module reads as a
+   page with nothing wrong. Both mistakes were made first. */
+
 /* Consumption Plan and Bunkering Plan are the only modules that put a
    .bunker-file-bar above the embed wrap. The fullscreen rules used to size the
    pane, the wrap AND the frame each to 100dvh and give the embed strip back
@@ -184,14 +207,35 @@ check('and the reason is written down',
 check('including the measurement that found it',
   /101px unreachable in\s+Android portrait/.test(CSS), true);
 
-/* The two modules this protects are the two that have such a bar. If a third
-   grows one, this list is how the next reader learns the rule applies to it. */
-const modules = ['bunkerplan', 'bunkeringplan'];
-for (const m of modules) {
+/* The two modules with a file bar above the wrap. If a third grows one, this
+   list is how the next reader learns the rule applies to it. */
+for (const m of ['bunkerplan', 'bunkeringplan']) {
   const src = fs.readFileSync(path.join(ROOT, `apps/web/js/modules/${m}.js`), 'utf8');
   check(`${m} still puts its file bar above the embed wrap`,
     src.indexOf('bunker-file-bar') < src.indexOf('aio-embed-wrap'), true);
 }
+
+/* Every module that embeds another program relies on these rules, not just the
+   two with a bar -- all six were clipping before the fix. A module that embeds
+   must use one of the two wrapper classes the rules name, or it inherits
+   nothing and is on its own. */
+/* Module name -> the file that registers it. `tanks` has no tanks.js: it is
+   declared alongside `voyage`, which is the sort of thing a path guessed from
+   the module name gets wrong. */
+const embedModules = {
+  voyage: 'voyage.js', tanks: 'voyage.js', spares: 'spares.js',
+  bunkerplan: 'bunkerplan.js', bunkeringplan: 'bunkeringplan.js', eorb: 'eorb.js',
+};
+for (const [m, file] of Object.entries(embedModules)) {
+  const full = path.join(ROOT, 'apps/web/js/modules', file);
+  check(`${m} is registered in ${file}`, fs.existsSync(full)
+    && new RegExp(`ChengProModules\\.${m}\\s*=`).test(fs.readFileSync(full, 'utf8')), true);
+  check(`${m} embeds through a wrapper the fullscreen rules cover`,
+    /aio-embed-wrap|eorb-embed-wrap/.test(fs.readFileSync(full, 'utf8')), true);
+}
+check('and both wrapper classes are named in the pane rules',
+  /html\.aio-fullscreen-embed \.main:has\(\.aio-embed-wrap\),/.test(CSS)
+  && /html\.aio-fullscreen-embed \.main:has\(\.eorb-embed-wrap\)/.test(CSS), true);
 
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);
