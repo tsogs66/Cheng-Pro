@@ -16253,6 +16253,9 @@ async function deleteRequisition(id){
     return r.id === id && (r.files || []).some(function(f){ return f.id === _reqViewFile.id; });
   });
   state.setup.requisitions = ensureRequisitions().filter(function(r){ return r.id !== id; });
+  /* Without a tombstone the next merge takes the row back from the other
+     device, and a requisition deleted as cancelled reappears as outstanding. */
+  rememberDeleted('requisitions', id);
   if (_reqEditId === id) clearReqForm();
   if (viewing) closeReqViewer();
   renderRequisitions();
@@ -16279,7 +16282,11 @@ async function saveRequisitionFromForm(){
     files: _reqFiles.map(function(f){
       return { id:f.id, filename:f.filename, mime:f.mime, dataUrl:f.dataUrl };
     }),
-    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString()
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+    /* A merge picks the newer row per id across two devices, so an edit needs a
+       stamp of its own -- createdAt never moves, and without this the first
+       version of a line would win over a correction made later elsewhere. */
+    updatedAt: new Date().toISOString()
   };
   const list = ensureRequisitions();
   const snapshot = list.map(function(r){ return r; });
@@ -26235,6 +26242,90 @@ async function purgeTombstonedFromDb(){
   }
 }
 
+/* ---- miscellaneous vessel data ----------------------------------------
+   Spares and stores requisitions, the consumption plan's saved snapshots, the
+   bunkering plan's, and the e-ORB -- data that is not a log entry and so has no
+   store of its own. It all lives inside the vessel's `setup` object, which is
+   how it reaches a backup file and the sync server at all.
+
+   Riding inside `setup` is also how it used to be LOST. A merge chose the whole
+   setup object from whichever side had the newer `sync.lastModifiedAt`, so if
+   the server's copy was a minute newer, every requisition raised on this device
+   since the last sync went with the discarded half -- silently, with no row in
+   any comparison to show it had happened. A requisition is a purchase the ship
+   is waiting on; a plan snapshot is what the next bunkering is costed against.
+
+   The lists below are therefore merged by id across both sides instead of being
+   taken from one, newest edit winning per row, with tombstones honoured so a
+   deletion is not undone by the other device still holding the row.
+
+   Tank Chief's bunkering plans are compared on their own rows in the AIO
+   backup page already, so the lists here are Voyage Chief's: the requisitions
+   and the Consumption Plan's saved snapshots. The plan currently being drafted
+   is a single working object and still comes from the chosen side whole -- the
+   snapshots are the record, and half a plan from each device would be worse
+   than one device's.
+
+   `orb` is deliberately NOT merged row by row: it is the book's configuration
+   (tank list, IOPP form, equipment fitted), one coherent set that is wrong if
+   half comes from each side. The book's ENTRIES are merged by id as always, and
+   those are what the record consists of. */
+const MISC_VESSEL_DATA_LISTS = [
+  { key: 'requisitions', label: 'spares & stores requisitions', cap: 0 },
+  { key: 'bunkerPlanHistory', label: 'consumption plan snapshots', cap: 50 },
+];
+
+/** A row's last-touched stamp, falling back through the names these lists use. */
+function miscRowTs(row){
+  return (row && (row.updatedAt || row.savedAt || row.printedAt || row.createdAt || row.date)) || '';
+}
+
+/**
+ * Union two sides of one miscellaneous list, newest row per id winning.
+ * Rows without an id cannot be matched, so they are kept from both sides --
+ * better a duplicate the engineer can delete than a purchase order that
+ * vanished.
+ */
+function mergeMiscList(localList, remoteList, tombstones, cap){
+  const dead = new Set(tombstones || []);
+  const byId = new Map();
+  const loose = [];
+  for (const row of [...(remoteList || []), ...(localList || [])]){
+    if (!row || typeof row !== 'object') continue;
+    if (row.id == null || row.id === ''){ loose.push(row); continue; }
+    if (dead.has(row.id)) continue;
+    const prev = byId.get(row.id);
+    if (!prev || miscRowTs(row) >= miscRowTs(prev)) byId.set(row.id, row);
+  }
+  let out = [...byId.values(), ...loose];
+  out.sort((a, b) => String(miscRowTs(b)).localeCompare(String(miscRowTs(a))));
+  if (cap && out.length > cap) out = out.slice(0, cap);
+  return out;
+}
+
+/** Put the merged miscellaneous lists back onto the setup a merge chose. */
+function mergeMiscVesselData(setup, localSetup, remoteSetup, deleted){
+  if (!setup) return setup;
+  for (const spec of MISC_VESSEL_DATA_LISTS){
+    const localList = (localSetup || {})[spec.key];
+    const remoteList = (remoteSetup || {})[spec.key];
+    if (!Array.isArray(localList) && !Array.isArray(remoteList)) continue;
+    setup[spec.key] = mergeMiscList(localList, remoteList, (deleted || {})[spec.key], spec.cap);
+  }
+  return setup;
+}
+
+/** What this device holds, for the backup page to report. */
+function miscVesselDataCounts(){
+  const setup = state.setup || {};
+  return {
+    requisitions: (setup.requisitions || []).length,
+    bunkerPlanHistory: (setup.bunkerPlanHistory || []).length,
+    orbEntries: (state.orbEntries || []).length,
+    orbConfigured: !!(setup.orb && (setup.orb.shipName || setup.orb.imo)),
+  };
+}
+
 function applyRemoteSnapshot(remote, policy){
   const localSync = localSyncCredentialSnapshot();
   const remoteData = remote.data || remote;
@@ -26271,6 +26362,8 @@ function applyRemoteSnapshot(remote, policy){
      remote-only deletedIds left locally-deleted rows alive when a peer still
      had them — and a recreate-with-new-id then looked like a duplicate. */
   const deleted = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
+  /* The chosen setup is one side's; its miscellaneous lists must be both. */
+  mergeMiscVesselData(state.setup, localSetup, remoteSetup, deleted);
   state.entries = dedupeEntriesByContent(
     filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
     deleted
@@ -26303,7 +26396,10 @@ function filterDeleted(items, deleted){
 
 function mergeDeletedIds(a, b){
   const out = { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] };
-  const keys = Object.keys(out);
+  /* Keys from both sides, not just the five written above: a requisition
+     tombstone was being dropped here, so deleting a requisition on one device
+     and then merging brought it back from the other. */
+  const keys = [...new Set([...Object.keys(out), ...Object.keys(a || {}), ...Object.keys(b || {})])];
   keys.forEach(k=>{
     out[k] = [...new Set([...(a?.[k]||[]), ...(b?.[k]||[])])].slice(-500);
   });
@@ -29314,6 +29410,17 @@ async function onVoyageBackupMessage(ev){
         }
       } finally {
         _syncSlugOverride = prevOverride;
+      }
+    } else if (msg.action === 'misc-summary') {
+      /* What the ship holds outside the log: requisitions, the Consumption
+         Plan's snapshots, the oil record book. The AIO backup page shows this
+         so the engineer can see the data exists and is covered, rather than
+         having to take it on trust. Counts only -- the rows themselves carry
+         scanned PDFs and are measured in megabytes. */
+      if (state.activeVesselId) {
+        reply({ counts: miscVesselDataCounts(), vesselName: state.setup.vesselName || '' });
+      } else {
+        reply({ counts: null, message: 'No vessel is open in Voyage Chief on this device.' });
       }
     } else if (msg.action === 'list-remote') {
       if (msg.settings) {

@@ -1319,6 +1319,40 @@
           localText: row.localEntryCount == null ? '—' : sideText(row.localEntryCount, row.localAt),
           serverText: row.remoteEntryCount == null ? '—' : sideText(row.remoteEntryCount, row.remoteAt),
         })).sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }));
+        /* Miscellaneous vessel data: the requisitions, the Consumption Plan's
+           saved snapshots and the oil record book. None of it is a log entry,
+           so none of it has a leg of its own -- it travels inside the vessel
+           setup that each leg carries, which is why it is reported here rather
+           than compared side by side: downloading a leg to count its rows
+           would pull the scanned requisitions with it, hundreds of megabytes,
+           for a number. Its own row says what this device holds and that the
+           update below carries it. */
+        let miscRow = null;
+        try {
+          const misc = await voyagePost('misc-summary', {}, root, 60000);
+          const c = misc && misc.counts;
+          if (c) {
+            const held = [
+              `${c.requisitions} requisition${c.requisitions === 1 ? '' : 's'}`,
+              `${c.bunkerPlanHistory} plan snapshot${c.bunkerPlanHistory === 1 ? '' : 's'}`,
+              `${c.orbEntries} e-ORB entr${c.orbEntries === 1 ? 'y' : 'ies'}`,
+            ];
+            if (c.orbConfigured) held.push('oil record book set up');
+            miscRow = {
+              kind: 'voyage-misc',
+              action: 'same',
+              reason: 'Carried by the voyage legs above — nothing to tick',
+              checked: false,
+              title: 'Miscellaneous vessel data',
+              localText: held.join(' · '),
+              serverText: 'travels with each leg',
+            };
+          }
+        } catch (err) {
+          /* A module that cannot answer must not block the leg comparison. */
+          console.warn('Miscellaneous data summary skipped:', err.message);
+        }
+        if (miscRow) rows.push(miscRow);
         const differ = rows.filter((row) => row.action !== 'same').length;
         const ship = compared.vesselName || compared.vessel || settings.vesselId || 'this ship';
         const plan = {
@@ -1327,7 +1361,7 @@
           vessel: settings.vesselId || compared.vessel,
           rows,
           summary: differ ? `${differ} leg${differ === 1 ? '' : 's'} differ` : 'legs match',
-          status: `${rows.length} leg${rows.length === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
+          status: `${rows.length - (miscRow ? 1 : 0)} leg${rows.length - (miscRow ? 1 : 0) === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
         };
         renderConsistency(plan);
         return plan;
