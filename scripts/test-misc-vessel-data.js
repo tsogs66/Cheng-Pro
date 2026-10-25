@@ -26,6 +26,7 @@ const path = require('path');
 const vm = require('vm');
 
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'modules/voyage/www/voyage_manager.html'), 'utf8');
+const EORB_SRC = fs.readFileSync(path.join(__dirname, '..', 'modules/voyage/www/eorb.js'), 'utf8');
 
 let fails = 0, checks = 0;
 function check(label, actual, expected) {
@@ -65,6 +66,9 @@ const sb = { console, Object, String, Array, Set, Map, Number, state: { setup: {
 vm.createContext(sb);
 vm.runInContext([
   extract('MISC_VESSEL_DATA_LISTS', 'const'),
+  extract('ORB_TANK_GROUPS', 'const'),
+  extract('mergeOrbTankGroup'),
+  extract('mergeOrbTanks'),
   extract('miscRowTs'),
   extract('mergeMiscList'),
   extract('mergeMiscVesselData'),
@@ -72,8 +76,8 @@ vm.runInContext([
   extract('mergeDeletedIds'),
 ].join('\n'), sb);
 
-const { mergeMiscList, mergeMiscVesselData, mergeDeletedIds } = sb;
-const ids = (list) => list.map((r) => r.id);
+const { mergeMiscList, mergeMiscVesselData, mergeDeletedIds, mergeOrbTankGroup } = sb;
+const ids = (list) => (Array.isArray(list) ? list : []).map((r) => r.id);
 
 /* ---- the reported loss ------------------------------------------------- */
 
@@ -149,16 +153,88 @@ check('nothing is invented when neither side has a list', Object.keys(bare), [])
 check('a side that is not an array does not throw',
   ids(mergeMiscList(null, remoteReqs, null, 0)).sort(), ['rq_a', 'rq_c']);
 
-/* ---- the book's configuration is NOT row-merged ---------------------- */
+/* ---- the book's settings come whole from one side, its tanks are merged -- */
 
-const orbChosen = { orb: { shipName: 'Server copy', tanks: { fuel: [{ id: 'f1' }] } } };
-mergeMiscVesselData(orbChosen,
-  { orb: { shipName: 'Local copy', tanks: { fuel: [{ id: 'f2' }] } } },
-  { orb: { shipName: 'Server copy', tanks: { fuel: [{ id: 'f1' }] } } }, {});
-check('the oil record book configuration is taken whole from one side',
-  orbChosen.orb.shipName, 'Server copy');
-check('and its tank list is not half from each device',
-  orbChosen.orb.tanks.fuel.map((t) => t.id), ['f1']);
+/* A tank added on one device is a tank the ship has: dropping it took every
+   entry that names it out of the selectable list. The SETTINGS are a different
+   matter -- one coherent set, wrong if half comes from each device. */
+const remoteOrb = {
+  shipName: 'Server copy', ioppForm: 'B',
+  tanks: { fuel: [{ id: 'f1', name: 'FO 1', robM3: 12 }], sludge: [{ id: 's1', robM3: 4 }] },
+};
+const localOrb = {
+  shipName: 'Local copy', ioppForm: 'A',
+  tanks: {
+    fuel: [{ id: 'f1', name: 'FO 1', robM3: 9 }, { id: 'f2', name: 'FO 2', robM3: 7 }],
+    sludge: [{ id: 's1', robM3: 1 }],
+    lube: [{ id: 'l1', name: 'LO sump' }],
+  },
+};
+const orbChosen = { orb: remoteOrb };
+mergeMiscVesselData(orbChosen, { orb: localOrb }, { orb: remoteOrb }, {}, true);
+
+check('the book settings are taken whole from the chosen side',
+  [orbChosen.orb.shipName, orbChosen.orb.ioppForm], ['Server copy', 'B']);
+check('a tank only the other device has is added',
+  ids(orbChosen.orb.tanks.fuel), ['f1', 'f2']);
+check('a whole group only the other device has is added',
+  ids(orbChosen.orb.tanks.lube), ['l1']);
+check('a tank both sides hold is not duplicated',
+  (orbChosen.orb.tanks.sludge || []).length, 1);
+/* robM3 is a running retained quantity that each entry mutates -- it is not
+   recomputed from the entry list -- so the row from the side whose book won
+   must be the one kept, or the figure and the entries disagree. */
+check('and keeps the chosen side ROB, not the losing one',
+  ((orbChosen.orb.tanks.fuel || [])[0] || {}).robM3, 12);
+check('while a tank only the other side has keeps its own last figure',
+  ((orbChosen.orb.tanks.fuel || [])[1] || {}).robM3, 7);
+check('the chosen list order is not reshuffled',
+  ids(mergeOrbTankGroup([{ id: 'b' }, { id: 'a' }], [{ id: 'c' }], [])),
+  ['b', 'a', 'c']);
+
+/* The other direction: local wins the setup choice. */
+const orbLocalWins = { orb: localOrb };
+mergeMiscVesselData(orbLocalWins, { orb: localOrb }, { orb: remoteOrb }, {}, false);
+check('when this device wins, its ROB is the one kept',
+  ((orbLocalWins.orb.tanks.fuel || [])[0] || {}).robM3, 9);
+check('and the server-only tanks still come across',
+  ids(orbLocalWins.orb.tanks.fuel).sort(), ['f1', 'f2']);
+
+/* A removed tank must not come back with the other device's ROB against it. */
+check('a tombstoned tank stays removed',
+  ids(mergeOrbTankGroup([{ id: 'f1' }], [{ id: 'f2', robM3: 7 }], ['f2'])), ['f1']);
+check('from the chosen side too',
+  ids(mergeOrbTankGroup([{ id: 'f1' }, { id: 'f2' }], [], ['f2'])), ['f1']);
+
+/* The groups are seeded with default tanks on both sides, so an id-less row
+   from the losing side would duplicate a default rather than recover a tank. */
+check('an id-less tank from the losing side is not added',
+  mergeOrbTankGroup([{ name: 'Sludge Tank' }], [{ name: 'Sludge Tank' }], []).length, 1);
+check('but an id-less row already on the chosen side is kept',
+  mergeOrbTankGroup([{ name: 'Sludge Tank' }], [], []).length, 1);
+
+check('a group neither side has is not invented',
+  (() => {
+    const o = { orb: { tanks: { fuel: [] } } };
+    mergeMiscVesselData(o, { orb: { tanks: { fuel: [] } } }, { orb: { tanks: { fuel: [] } } }, {}, true);
+    return Object.keys(o.orb.tanks);
+  })(), ['fuel']);
+check('a setup with no book at all does not throw',
+  (() => { const o = {}; mergeMiscVesselData(o, {}, {}, {}, true); return o.orb; })(), undefined);
+/* The group list is compared against eorb.js itself, not against a copy
+   written out here: a group added to defaultOrbSetup and not to ORB_TANK_GROUPS
+   would never be merged at all, and nothing else would say so. (`const` in a vm
+   context is not a sandbox property, so the declaration is read as text.) */
+const declaredGroups = (extract('ORB_TANK_GROUPS', 'const').match(/'([a-zA-Z]+)'/g) || [])
+  .map((q) => q.slice(1, -1));
+const orbDefault = EORB_SRC.slice(EORB_SRC.indexOf('      tanks: {'));
+const actualGroups = orbDefault.slice(0, orbDefault.indexOf('\n      },'))
+  .split('\n').map((line) => (line.match(/^\s{8}([a-zA-Z]+):/) || [])[1]).filter(Boolean);
+check('eorb.js lays out the groups this test expects',
+  actualGroups,
+  ['sludge', 'bilge', 'bilgeWells', 'fuel', 'lube', 'dirtyBallast', 'cargo', 'slop', 'cbt']);
+check('and every one of them is merged',
+  declaredGroups, actualGroups);
 
 /* ---- counts for the backup page -------------------------------------- */
 
@@ -173,14 +249,17 @@ check('and an unconfigured book says so',
 
 /* ---- wiring ---------------------------------------------------------- */
 
-check('the merge calls it with both sides and the tombstones',
-  /mergeMiscVesselData\(state\.setup, localSetup, remoteSetup, deleted\);/.test(HTML), true);
+
 check('a requisition edit is stamped so the newest can be chosen',
   /updatedAt: new Date\(\)\.toISOString\(\)\s*\n\s*\};/.test(HTML), true);
 check('a deleted requisition is tombstoned',
   /rememberDeleted\('requisitions', id\);/.test(HTML), true);
 check('and the shell can ask what is held',
   /msg\.action === 'misc-summary'/.test(HTML), true);
+check('the caller tells the tank merge which side won the setup',
+  /mergeMiscVesselData\(state\.setup, localSetup, remoteSetup, deleted, chosen === remoteSetup\);/.test(HTML), true);
+check('and removing a tank tombstones it',
+  /rememberDeleted\('orbTanks', removed\.id\)/.test(HTML), true);
 /* It all rides inside setup, which is what the sync and the file both carry. */
 check('setup is still what the sync payload sends',
   /setup: state\.setup,/.test(HTML), true);

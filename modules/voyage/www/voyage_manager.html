@@ -26266,10 +26266,12 @@ async function purgeTombstonedFromDb(){
    snapshots are the record, and half a plan from each device would be worse
    than one device's.
 
-   `orb` is deliberately NOT merged row by row: it is the book's configuration
-   (tank list, IOPP form, equipment fitted), one coherent set that is wrong if
-   half comes from each side. The book's ENTRIES are merged by id as always, and
-   those are what the record consists of. */
+   The e-ORB's settings -- IOPP form, equipment fitted, flag, signatory policy --
+   are still taken whole from the chosen side: one coherent set that is wrong if
+   half comes from each device. Its TANK LIST is merged, by id and per group: a
+   tank added on one device is a tank the ship has, and dropping it took every
+   entry that names it out of the selectable list. The book's entries are merged
+   by id as always. */
 const MISC_VESSEL_DATA_LISTS = [
   { key: 'requisitions', label: 'spares & stores requisitions', cap: 0 },
   { key: 'bunkerPlanHistory', label: 'consumption plan snapshots', cap: 50 },
@@ -26303,14 +26305,93 @@ function mergeMiscList(localList, remoteList, tombstones, cap){
   return out;
 }
 
+/* The e-ORB tank groups, as defaultOrbSetup lays them out. Named here rather
+   than discovered from the object so a group missing on both sides stays
+   missing instead of appearing as an empty list. */
+const ORB_TANK_GROUPS = ['sludge', 'bilge', 'bilgeWells', 'fuel', 'lube',
+  'dirtyBallast', 'cargo', 'slop', 'cbt'];
+
+/**
+ * Union the two devices' e-ORB tank lists, group by group.
+ *
+ * A tank row has no timestamp of its own, so a row both sides hold is taken
+ * from the CHOSEN side -- the setup that won on `sync.lastModifiedAt`. That
+ * matters for one field in particular: `robM3` is a running retained quantity
+ * that each entry mutates as it is applied, not a figure recomputed from the
+ * entry list, so the chosen side's row is the one whose ROB belongs with the
+ * chosen side's book.
+ *
+ * A tank only the other device has is added, keeping its own robM3 -- that
+ * device's last figure for it is the only figure there is. It is a starting
+ * point to confirm against a sounding, not an authority; merging two books'
+ * entries already leaves these quantities approximate, which is why the book
+ * is resealed and rechecked after a merge.
+ *
+ * Order is kept: the chosen side's list as it stands, then the newcomers, so a
+ * tank list an engineer has arranged to match the IOPP Supplement is not
+ * reshuffled underneath him.
+ */
+function mergeOrbTankGroup(chosenList, otherList, tombstones){
+  const dead = new Set(tombstones || []);
+  const out = [];
+  const seen = new Set();
+  for (const row of (chosenList || [])){
+    if (!row || typeof row !== 'object') continue;
+    if (row.id != null && dead.has(row.id)) continue;
+    if (row.id != null){
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+    }
+    out.push(row);
+  }
+  for (const row of (otherList || [])){
+    if (!row || typeof row !== 'object') continue;
+    /* A tank with no id cannot be matched, and the groups are seeded with
+       default tanks on both sides, so adding it would duplicate the default
+       rather than recover anything. Skip it. */
+    if (row.id == null || row.id === '') continue;
+    if (dead.has(row.id) || seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Merge the tank list onto the orb settings the chosen setup brought.
+ * `otherOrb` is the side that LOST the setup choice -- named by the caller
+ * rather than worked out from object identity here, because which side won is
+ * the caller's decision and guessing it wrong would silently pick the stale
+ * ROB figures.
+ */
+function mergeOrbTanks(orb, otherOrb, deleted){
+  if (!orb || typeof orb !== 'object') return orb;
+  const chosenTanks = orb.tanks || {};
+  const otherTanks = (otherOrb || {}).tanks || {};
+  const dead = (deleted || {}).orbTanks;
+  const merged = { ...chosenTanks };
+  for (const group of ORB_TANK_GROUPS){
+    const chosenList = chosenTanks[group];
+    const otherList = otherTanks[group];
+    if (!Array.isArray(chosenList) && !Array.isArray(otherList)) continue;
+    merged[group] = mergeOrbTankGroup(chosenList, otherList, dead);
+  }
+  orb.tanks = merged;
+  return orb;
+}
+
 /** Put the merged miscellaneous lists back onto the setup a merge chose. */
-function mergeMiscVesselData(setup, localSetup, remoteSetup, deleted){
+function mergeMiscVesselData(setup, localSetup, remoteSetup, deleted, chosenIsRemote){
   if (!setup) return setup;
   for (const spec of MISC_VESSEL_DATA_LISTS){
     const localList = (localSetup || {})[spec.key];
     const remoteList = (remoteSetup || {})[spec.key];
     if (!Array.isArray(localList) && !Array.isArray(remoteList)) continue;
     setup[spec.key] = mergeMiscList(localList, remoteList, (deleted || {})[spec.key], spec.cap);
+  }
+  if (setup.orb && typeof setup.orb === 'object'){
+    const other = chosenIsRemote ? (localSetup || {}) : (remoteSetup || {});
+    mergeOrbTanks(setup.orb, other.orb, deleted);
   }
   return setup;
 }
@@ -26363,7 +26444,7 @@ function applyRemoteSnapshot(remote, policy){
      had them — and a recreate-with-new-id then looked like a duplicate. */
   const deleted = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
   /* The chosen setup is one side's; its miscellaneous lists must be both. */
-  mergeMiscVesselData(state.setup, localSetup, remoteSetup, deleted);
+  mergeMiscVesselData(state.setup, localSetup, remoteSetup, deleted, chosen === remoteSetup);
   state.entries = dedupeEntriesByContent(
     filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
     deleted
@@ -31609,7 +31690,14 @@ document.getElementById('orbTankEditors')?.addEventListener('click', (e)=>{
   const key = del.getAttribute('data-orb-tank-del');
   const idx = Number(del.getAttribute('data-idx'));
   const setup = orbSetup();
-  setup.tanks[key] = (setup.tanks[key] || []).filter((_,i)=>i!==idx);
+  const list = setup.tanks[key] || [];
+  const removed = list[idx];
+  setup.tanks[key] = list.filter((_,i)=>i!==idx);
+  /* The tank list is merged across devices now, so a removal needs a tombstone
+     or the next merge takes the tank back from the other device -- and it would
+     come back with that device's last ROB against a tank the ship no longer
+     records. */
+  if (removed && removed.id != null && removed.id !== '') rememberDeleted('orbTanks', removed.id);
   state.setup.orb = setup;
   renderOrbTankEditors();
 });
