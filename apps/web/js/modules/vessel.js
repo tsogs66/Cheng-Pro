@@ -173,7 +173,13 @@ window.ChengProModules.vessel = {
         }
         if (window.ChengProVoyageBridge && saved) {
           try {
-            const pushed = await ChengProVoyageBridge.exportVesselToVoyage({ ...data, id: saved.id || active?.id });
+            const pushed = await ChengProVoyageBridge.exportVesselToVoyage({
+              ...data,
+              id: saved.id || active?.id,
+              /* so a name change reaches Voyage with the signature already on
+                 file for it, rather than waiting for the next upload */
+              chEngSignatures: assets.chEngSignatures,
+            });
             if (pushed?.ok) toast(pushed.message);
           } catch (err) {
             console.warn('Voyage push skipped:', err.message);
@@ -275,6 +281,22 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
       { method: 'PUT', body: JSON.stringify(assets) },
     );
     assets = normalizeAssets(saved);
+    /* Tank Chief reads these straight from the vessel bundle, but Voyage Chief
+       keeps its own copy in IndexedDB, so a signature uploaded here has to be
+       handed over or its printouts carry a blank line. Best effort: Voyage may
+       never have been opened on this device, which is not an error here. */
+    try {
+      if (window.ChengProVoyageBridge) {
+        await ChengProVoyageBridge.exportVesselToVoyage({
+          id: vesselId,
+          name: (ChengPro.vessel.getActive() || {}).name,
+          chiefEngineer: getChEngName(),
+          chEngSignatures: assets.chEngSignatures,
+        });
+      }
+    } catch (err) {
+      console.warn('Voyage signature push skipped:', err.message);
+    }
     return assets;
   }
 

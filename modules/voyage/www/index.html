@@ -2982,7 +2982,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field span2"><label>Chief Engineer</label><input id="s_chEngVoyage" placeholder="Update at crew change"></div>
       </div>
       <div class="hint">Date &amp; Time (initial) and Time zone are the voyage-start reference for the first log entry — period hours are measured from this ship's-clock stamp. The time-zone list only labels the clock; use Change clocks on the log entry when the watch actually advances or retards time.</div>
-      <div class="hint">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward. The signature is managed under Vessel Data. Entries already saved keep the officer who was aboard when they were made.</div>
+      <div class="hint" id="chEngVoyageNote">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward. The signature is managed under Vessel Data. Entries already saved keep the officer who was aboard when they were made.</div>
       <div class="hint">Each voyage number <strong>starts as B (ballast)</strong> and <strong>ends as L (laden)</strong>. Only these two letters mark voyage condition — never any other. Legs are stored separately so the active log stays short. From Log Entry you can start the next leg with <strong>New Voyage</strong> (destination + distance).</div>
     </div>
 
@@ -4593,7 +4593,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Call sign / distinctive letters</label><input id="orb_callSign"></div>
           <div class="field"><label>Gross tonnage</label><input type="number" step="1" id="orb_gt"></div>
           <div class="field"><label>Master</label><input id="orb_master"></div>
-          <div class="field"><label>Chief Engineer</label><input id="orb_ce"></div>
+          <div class="field"><label>Chief Engineer</label><input id="orb_ce" readonly>
+            <span class="hint">From Vessel Setup. Change it there at a crew change and every book, report and signature line follows.</span></div>
         </div>
         <div class="orb-flag-box" id="orbFlagInfo"></div>
         <div class="form-grid cols3" style="margin-top:12px;">
@@ -30241,7 +30242,13 @@ function ensureOrbSetup(raw){
   if (!seed.shipName && state.setup?.vesselName) seed.shipName = state.setup.vesselName;
   if (!seed.imo && state.setup?.imoNo) seed.imo = state.setup.imoNo;
   if (!seed.flag && state.setup?.flag) seed.flag = state.setup.flag;
-  if (!seed.chiefEng && state.setup?.chEng) seed.chiefEng = state.setup.chEng;
+  /* Vessel Setup owns the Chief Engineer, so this follows it rather than
+     seeding from it once. Seeding only when blank let the two drift: the name
+     entered here stayed on every ORB page and printout after a crew change had
+     been recorded on Vessel Setup, and the book then carried the name of an
+     officer who had left the ship. The local value is kept only while Vessel
+     Setup names nobody. */
+  if (state.setup?.chEng) seed.chiefEng = state.setup.chEng;
   return EORB.defaultOrbSetup(seed);
 }
 
@@ -30483,7 +30490,7 @@ function renderOrbSignatoryGuidance(){
     const el = document.getElementById(id);
     if (el) el.style.display = dual ? '' : 'none';
   });
-  const ce = setup.chiefEng || document.getElementById('orb_ce')?.value?.trim() || '';
+  const ce = setup.chiefEng || String(state.setup?.chEng || '').trim();
   if (dual) {
     ['orb_chiefEngSignName', 'orb_weeklyChiefEngSignName'].forEach(id => {
       const el = document.getElementById(id);
@@ -30607,7 +30614,8 @@ function readOrbSetupFromForm(){
   const gt = parseFloat(document.getElementById('orb_gt')?.value);
   setup.gt = isFinite(gt) ? gt : null;
   setup.masterName = document.getElementById('orb_master')?.value || '';
-  setup.chiefEng = document.getElementById('orb_ce')?.value || '';
+  /* The box is read-only; Vessel Setup is where the name is changed. */
+  setup.chiefEng = state.setup.chEng || setup.chiefEng || '';
   setup.equipment = setup.equipment || {};
   setup.equipment.owsFitted = document.getElementById('orb_ows')?.value === 'true';
   setup.equipment.incineratorFitted = document.getElementById('orb_incin')?.value === 'true';
@@ -32834,6 +32842,27 @@ function applyChengAioVesselHubLock(alreadyLocked){
   const ident = document.getElementById('vesselIdentityPanel');
   if (sel) sel.hidden = !!hub;
   if (ident) ident.hidden = !!hub;
+  /* The Chief Engineer box on the voyage tab is outside the hidden panel, so
+     it has to be locked on its own. Embedded, AIO Vessel Setup owns the name
+     and the signature and pushes both in; leaving this editable would let a
+     name be typed here only to be overwritten on the next push, which looks
+     like the program losing the entry. */
+  const chEngVoy = document.getElementById('s_chEngVoyage');
+  if (chEngVoy) {
+    chEngVoy.readOnly = !!hub;
+    chEngVoy.placeholder = hub ? 'From ChEng AIO Vessel Setup' : 'Update at crew change';
+    chEngVoy.title = hub ? 'Change this on the ChEng AIO Vessel Setup page.' : '';
+  }
+  const chEngVoyNote = document.getElementById('chEngVoyageNote');
+  if (chEngVoyNote) {
+    chEngVoyNote.textContent = hub
+      ? 'Chief Engineer and signature come from the ChEng AIO Vessel Setup page — change them there at a '
+        + 'crew change and every printout, report and e-ORB signature line in the suite follows. Entries '
+        + 'already saved keep the officer who was aboard when they were made.'
+      : 'Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it '
+        + 'carries forward. The signature is managed under Vessel Data. Entries already saved keep the '
+        + 'officer who was aboard when they were made.';
+  }
   /* Standalone: leave fields editable. Embedded panels are hidden above. */
   if (!hub) {
     ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {
