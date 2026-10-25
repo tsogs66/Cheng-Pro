@@ -1493,7 +1493,38 @@
               slot.server = vessel;
               byId.set(vessel.id, slot);
             }
-            const ids = [...byId.keys()];
+            let ids = [...byId.keys()];
+
+            /* The ship in the switcher, not the whole fleet.
+            
+               This walked every vessel on both sides, and a vessel present on
+               only one of them produced a row naming just the ship -- so with
+               fleets that do not line up the screen filled with vessel names
+               and showed no reports at all. The engineer asked for the saved
+               reports of the ship he is working on.
+            
+               Matched by hull, the same way the rest of the suite matches:
+               the tank id is the tank database's own key and need not be the
+               shell's. Where the active ship cannot be found on either side
+               the full fleet is still compared, because showing nothing at all
+               would be worse than showing more than was asked for -- and the
+               status line says which of the two happened. */
+            const activeVessel = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive()) || null;
+            const VK = window.ChengVesselKey;
+            let scopedTo = null;
+            if (activeVessel) {
+              const sameHull = (v) => (VK && VK.sameVessel
+                ? VK.sameVessel({ name: v.name, imo: v.imo }, { name: activeVessel.name, imo: activeVessel.imo })
+                : String(v.name || '').trim().toUpperCase() === String(activeVessel.name || '').trim().toUpperCase());
+              const hit = ids.find((id) => {
+                const slot = byId.get(id);
+                return (slot.local && sameHull(slot.local)) || (slot.server && sameHull(slot.server));
+              });
+              if (hit) {
+                ids = [hit];
+                scopedTo = activeVessel.name || hit;
+              }
+            }
             const rows = [];
             for (let i = 0; i < ids.length; i++) {
               const id = ids[i];
@@ -1522,16 +1553,26 @@
               rows.push(...compareReportSides(localBundle, serverBundle, name));
             }
             const differ = rows.filter((row) => row.checked).length;
+            /* Say which ship this covers. Without it the engineer cannot tell
+               a clean result for his own ship from a clean result for a fleet
+               that happens not to include it. */
+            const scope = scopedTo
+              ? `${scopedTo}`
+              : (activeVessel
+                ? `every vessel on this device and the server — ${activeVessel.name || 'the active vessel'} was not found on either side`
+                : 'every vessel on this device and the server — no active vessel is selected');
             renderConsistency({
               kind: 'tank-local',
               bundles: null,
               rows,
               summary: differ ? `${differ} report group${differ === 1 ? '' : 's'} differ` : 'reports match',
-              status: differ
+              status: (differ
                 ? `${differ} saved-report group${differ === 1 ? '' : 's'} differ. Updating copies the missing reports both ways and keeps the newer copy when both have the same report.`
-                : 'Saved tank reports on this device match the server.',
+                : 'Saved tank reports on this device match the server.')
+                + ` Checked: ${scope}.`,
             });
-            return differ ? `${differ} report groups differ` : 'Saved tank reports match';
+            return (differ ? `${differ} report groups differ` : 'Saved tank reports match')
+              + (scopedTo ? ` — ${scopedTo}` : '');
           });
         } catch (e) {
           setConsistency(e.message || 'Tank report check failed');
