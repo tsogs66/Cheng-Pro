@@ -29012,8 +29012,12 @@ async function reconcileVoyageLegs(legs, opts){
         total: list.length,
       });
       await openLegForReconcile(vn, cond);
+      /* syncNow archives the active leg itself before it returns, so the
+         archive that used to follow this line wrote the whole leg to
+         IndexedDB a second time -- a multi-megabyte chunked write per leg,
+         for nothing, on a leg carrying scanned requisitions. That doubling
+         is a large part of why this took so long over a ship's connection. */
       await syncNow({ policy: 'merge' });
-      await archiveActiveVoyageLeg();
       results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
     }
   } finally {

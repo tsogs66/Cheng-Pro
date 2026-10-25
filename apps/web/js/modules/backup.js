@@ -126,6 +126,9 @@
   }
 
   /** Map Voyage's own 0–100 into a slice of this job's bar. */
+  /* When the module last said it was doing something. */
+  let voyageLastProgressAt = 0;
+
   function watchVoyage(from, to) {
     if (progressJob) progressJob.voyage = { from, to };
   }
@@ -336,6 +339,9 @@
       }
       if (msg.type === 'chengaio-voyage-backup-progress') {
         applyVoyageProgress(msg);
+        /* Proof of life. A long job is not a hung one, and the deadline below
+           is measured from the last sign of work rather than from the start. */
+        voyageLastProgressAt = Date.now();
       }
       if (msg.type === 'chengaio-voyage-backup-result-begin' && msg.requestId && pendingVoyage[msg.requestId]) {
         pendingVoyage[msg.requestId].parts = [];
@@ -349,6 +355,7 @@
       if (msg.type === 'chengaio-voyage-backup-result-end' && msg.requestId && pendingVoyage[msg.requestId]) {
         const job = pendingVoyage[msg.requestId];
         delete pendingVoyage[msg.requestId];
+        if (job.done) job.done();
         try {
           const payload = JSON.parse((job.parts || []).join('') || 'null');
           job.resolve({ ...(job.meta || {}), payload });
@@ -358,8 +365,9 @@
         return;
       }
       if (msg.type === 'chengaio-voyage-backup-result' && msg.requestId && pendingVoyage[msg.requestId]) {
-        const { resolve, reject } = pendingVoyage[msg.requestId];
+        const { resolve, reject, done } = pendingVoyage[msg.requestId];
         delete pendingVoyage[msg.requestId];
+        if (done) done();
         if (msg.error) reject(new Error(msg.error));
         else resolve(msg);
       }
@@ -498,11 +506,35 @@
           ...extraObj,
         }, '*');
       }
-      setTimeout(() => {
-        if (!pendingVoyage[requestId]) return;
+      /* A deadline measured from the last sign of life, not from the start.
+      
+         This was a flat setTimeout, and "Update to the newest of both" passed
+         it 600000 -- so at exactly ten minutes a job that was still working
+         was abandoned with "did not respond", which is what looked like being
+         stuck at "uploading voyage leg to the server". Ten minutes is not long
+         for a handful of legs carrying scanned requisitions over a ship's
+         connection: each one is a full download, a full merge and a full
+         upload.
+      
+         So silence is what fails now, not duration. While the module keeps
+         reporting progress the job is left alone; if it stops reporting for
+         the whole window, it really has died and the message says so. */
+      const quietMs = timeoutMs || 120000;
+      voyageLastProgressAt = Date.now();
+      const startedAt = Date.now();
+      const tick = setInterval(() => {
+        if (!pendingVoyage[requestId]) { clearInterval(tick); return; }
+        const quietFor = Date.now() - Math.max(voyageLastProgressAt, startedAt);
+        if (quietFor < quietMs) return;
+        clearInterval(tick);
         delete pendingVoyage[requestId];
-        reject(new Error('Voyage Chief did not respond — open Voyage once, then retry'));
-      }, timeoutMs || 120000);
+        const mins = Math.round(quietFor / 60000);
+        reject(new Error(
+          `Voyage Chief stopped reporting progress for ${mins} minute${mins === 1 ? '' : 's'}`
+          + ' — open Voyage once, then retry. Work already uploaded is on the server;'
+          + ' running this again picks up where it left off.'));
+      }, 1000);
+      pendingVoyage[requestId].done = () => clearInterval(tick);
     });
   }
 
