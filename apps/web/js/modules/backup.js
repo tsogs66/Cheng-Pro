@@ -2061,7 +2061,7 @@
                  is a vessel export with no records in it: importVesselExport
                  creates the ship and its setup row and writes nothing else. */
               try {
-                await voyagePost('import-vessel', {
+                const voyRes = await voyagePost('import-vessel', {
                   payload: {
                     format: 'noon-report-vessel-v1',
                     vessel: {
@@ -2076,7 +2076,12 @@
                   },
                   mode: 'merge',
                 }, root);
-                notes.push(`Voyage Chief — on this device's vessel list, and now the active ship.`);
+                /* The module matches on hull, so it can tell us whether this
+                   was already the engineer's ship. Saying "added" either way
+                   is what let a duplicate pass unnoticed. */
+                notes.push(voyRes && voyRes.matched
+                  ? `Voyage Chief — already on this device's list, and now the active ship.`
+                  : `Voyage Chief — added to this device's vessel list, and now the active ship.`);
               } catch (e) {
                 notes.push(`Voyage Chief — ${e.message || 'failed'}`);
               }

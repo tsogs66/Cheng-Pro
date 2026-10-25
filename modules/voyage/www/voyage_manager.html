@@ -28436,10 +28436,70 @@ function isVesselExport(payload){
 }
 
 /** The fleet entry this file would land on, or null when it is a new ship. */
-function matchVesselForImport(payload){
+/**
+ * Every vessel's IMO, by vessel id.
+ *
+ * A vessel row is {id, name, slug} -- the IMO lives in its setup row, so
+ * identifying a hull means reading those.
+ */
+async function vesselImoById(){
+  const byId = new Map();
+  let metaAll = [];
+  try{ metaAll = await dbGetAll('meta'); }catch(_){ return byId; }
+  (metaAll || []).forEach(row => {
+    if (!row || typeof row.key !== 'string' || row.key.indexOf('setup:') !== 0) return;
+    const imo = normalizeImoForAio(row.value && row.value.imoNo);
+    if (imo) byId.set(row.key.slice('setup:'.length), imo);
+  });
+  return byId;
+}
+
+/**
+ * The vessel an import belongs to, or null for a genuinely new ship.
+ *
+ * This used to match on id or slug alone, and never looked at the IMO -- so
+ * "Save & connect" on a ship already in the list added a SECOND record of the
+ * same hull whenever the slug differed, which it does whenever the name was
+ * typed differently, or the row came from the other program, or the local
+ * record predates slugs. The engineer was then choosing between two copies of
+ * his own ship on every page.
+ *
+ * The rule is the suite's own, the one ChengVesselKey.sameVessel uses on the
+ * Tank side: the IMO is the hull's identity and decides whenever both sides
+ * have one -- a mismatch is a NO even if the names are identical, because two
+ * ships genuinely do share names. Only where a side has no IMO does the name
+ * or slug get to answer.
+ */
+async function matchVesselForImport(payload){
   const src = (payload && payload.vessel) || {};
-  return state.vessels.find(v => src.id && v.id === src.id)
-      || state.vessels.find(v => src.slug && v.slug === src.slug)
+  const setup = (payload && payload.setup) || {};
+
+  /* An explicit id is this database's own key; nothing beats it. */
+  const byId = state.vessels.find(v => src.id && v.id === src.id);
+  if (byId) return byId;
+
+  const srcImo = normalizeImoForAio(src.imo != null ? src.imo : setup.imoNo);
+  const srcName = normalizeVesselNameForAio(src.name || setup.vesselName);
+  const bySlug = (v) => src.slug && v.slug === src.slug;
+  const byName = (v) => !!srcName && normalizeVesselNameForAio(v.name) === srcName;
+
+  if (srcImo){
+    const imos = await vesselImoById();
+    const sameImo = state.vessels.find(v => imos.get(v.id) === srcImo);
+    if (sameImo) return sameImo;
+    /* The incoming hull is identified and no local record shares it. A local
+       record that carries a DIFFERENT IMO is a different ship, whatever it is
+       called, so only records with no IMO of their own may be matched on
+       slug or name. */
+    const unidentified = (v) => !imos.get(v.id);
+    return state.vessels.find(v => unidentified(v) && bySlug(v))
+        || state.vessels.find(v => unidentified(v) && byName(v))
+        || null;
+  }
+
+  /* No IMO on the incoming record: slug, then the name. */
+  return state.vessels.find(bySlug)
+      || state.vessels.find(byName)
       || null;
 }
 
@@ -28462,7 +28522,7 @@ async function importVesselExport(payload, options = {}){
   const srcName = String(src.name || payload.setup?.vesselName || 'IMPORTED VESSEL').trim();
   const srcSlug = src.slug || vesselSlugFromName(srcName);
 
-  let target = matchVesselForImport(payload);
+  let target = await matchVesselForImport(payload);
   const replacing = !!target;
   if (target){
     if (srcName) target.name = srcName;
@@ -28617,9 +28677,9 @@ function setLocalVesselBackupStatus(msg){
 }
 
 /** Prompt: new vessel / merge legs / overwrite entire vessel. Returns mode or null if cancelled. */
-function promptVesselImportMode(payload, fileName){
+async function promptVesselImportMode(payload, fileName){
   const src = payload.vessel || {};
-  const existing = matchVesselForImport(payload);
+  const existing = await matchVesselForImport(payload);
   const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
   const summary = vesselExportCountSummary(payload.counts);
   if (!existing){
@@ -28679,7 +28739,7 @@ async function runVesselBackupImport(payload, fileName, statusFn){
   if (!isVesselExport(payload)){
     throw new Error('This file is not a vessel export (format ' + VESSEL_EXPORT_FORMAT + '). Create one with “Export Active Vessel”. Full-database backups go through Restore / Merge on the Setup tab.');
   }
-  const mode = promptVesselImportMode(payload, fileName);
+  const mode = await promptVesselImportMode(payload, fileName);
   if (!mode){ setStatus('Vessel import cancelled.'); return null; }
   setStatus(mode === 'merge' ? 'Merging vessel backup…' : 'Importing vessel (overwrite)…');
   const res = await importVesselExport(payload, { mode });
@@ -29069,7 +29129,17 @@ async function onVoyageBackupMessage(ev){
       if (!msg.payload) throw new Error('No vessel payload');
       const mode = msg.mode === 'merge' ? 'merge' : 'replace';
       const res = await importVesselExport(msg.payload, { mode });
-      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records, mode ${res.mode}).` });
+      /* Say which it was. The caller shows this to the engineer, and "imported"
+         for a ship that was already on the list is how a duplicate goes
+         unnoticed -- matched now means matched, by hull. */
+      reply({
+        matched: !!res.replacing,
+        vesselName: res.vessel.name,
+        written: res.written,
+        message: res.replacing
+          ? `Vessel ${res.vessel.name} was already on this device's list — ${res.written} record(s) folded in (mode ${res.mode}).`
+          : `Vessel ${res.vessel.name} added to this device's list (${res.written} records, mode ${res.mode}).`
+      });
     } else if (msg.action === 'get-sync-settings') {
       ensureSyncConfig();
       await applyMirroredSyncCredentials();
