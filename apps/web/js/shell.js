@@ -191,9 +191,16 @@
       const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches
         || ((navigator.maxTouchPoints || 0) > 0 && Math.min(screen.width, screen.height) <= 1100);
       const vw = window.innerWidth || 0;
-      const vh = window.innerHeight || 0;
-      const screenMin = Math.min(screen.width || 0, screen.height || 0);
-      if (touch || screenMin <= 900 || (Math.min(vw, vh) > 0 && Math.min(vw, vh) <= 900) || (vw > 0 && vw <= 1180)) {
+      /* WIDTH decides, never height.
+         This used to read `Math.min(vw, vh) <= 900`, so a 1440x900 desktop --
+         or any laptop, or a maximised window on a 1080p screen, where the
+         inner height lands under 900 -- was classified as a phone. Every
+         desktop layout rule is written `:not(.use-bottom-nav)`, so that one
+         test switched off the pinned shell and the scrolling pane, and the
+         whole window scrolled instead. A short window is still a desktop.
+         The same went for `screen` min side, which is 900 on a 1600x900
+         monitor and 768 on a 1366x768 laptop. */
+      if (touch || (vw > 0 && vw <= 1180)) {
         return true;
       }
     } catch { /* ignore */ }
