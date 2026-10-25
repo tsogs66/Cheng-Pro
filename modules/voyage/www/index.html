@@ -32654,7 +32654,40 @@ async function syncActiveVesselFromChengAio(forceVessel){
       || (nameKey && normalizeVesselNameForAio(v.name) === nameKey)
     ) || null;
   }
-  if (!match) return false;
+  /* No local record for the ship the shell is on.
+     
+     Returning false here is what made "I activated another vessel and the
+     page still shows the old one" happen: a ship added in the shell, or one
+     that only ever existed on the shell side, has no counterpart in this
+     module's own fleet, so the switch silently did nothing and every page
+     here kept naming the previous ship. Silently showing the wrong vessel is
+     the worst of the three options.
+     
+     So the ship is created here from what the shell knows -- its name and
+     IMO -- and made active. It arrives with no tank table and no opening
+     stock, which the engineer fills in; what matters is that the program is
+     on the ship he selected. matchVesselForImport identifies by hull, so a
+     later import of the same vessel folds into this record instead of adding
+     another. */
+  if (!match) {
+    const createName = String(hint.name || hint.vesselName || '').trim();
+    if (!createName) return false;
+    try {
+      const created = await importVesselExport({
+        format: VESSEL_EXPORT_FORMAT,
+        vessel: { name: createName, slug: hint.slug || slug || undefined, imo: hint.imo || '' },
+        setup: { vesselName: createName, imoNo: hint.imo || '' },
+        stores: {}
+      }, { mode: 'merge' });
+      /* importVesselExport writes activeVesselId and calls loadVesselFromDb
+         itself, so the ship is already open; switching again would load it
+         a second time. */
+      return !!(created && created.vessel);
+    } catch (err) {
+      console.warn('AIO vessel sync could not add the shell vessel:', err && err.message);
+      return false;
+    }
+  }
   if (match.id !== state.activeVesselId) await switchVessel(match.id);
   return true;
 }

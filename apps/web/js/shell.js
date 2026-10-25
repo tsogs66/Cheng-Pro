@@ -441,6 +441,17 @@
     }
   });
 
+  /* The vessel on screen must be the active one, whichever route changed it.
+     Only the switcher's own change handler used to re-render, so activating a
+     ship from Vessel Setup's fleet register -- or creating one, which activates
+     it -- left every other page still showing the ship before it. The engineer
+     then read one vessel's name on a page while the suite worked on another.
+
+     Re-rendering here covers every caller of setActive at once, including the
+     ones added later. An embedded module is not re-rendered: it holds its own
+     state and hears about the change over chengaio-vessel-changed, and
+     reloading its frame would throw away whatever is half-entered in it. */
+  let vesselRepaintTimer = null;
   ChengPro.vessel.subscribe(() => {
     fillVesselSelect();
     /* The strip carries the active vessel, and the switcher it mirrors is
@@ -448,6 +459,14 @@
        from here rather than from the select. */
     fillEmbedBar();
     if (window.ChengWatchStrip) ChengWatchStrip.refresh();
+    if (!booted) return;
+    /* Coalesced: setActive then refresh can both land, and rendering the page
+       twice in a row flickers and doubles the work. */
+    clearTimeout(vesselRepaintTimer);
+    vesselRepaintTimer = setTimeout(() => {
+      if (isSoftEmbedModule(current)) return;
+      navigate(current, { force: true });
+    }, 0);
   });
 
   window.addEventListener('chengpro:navigate', (e) => {

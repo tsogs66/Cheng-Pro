@@ -403,6 +403,30 @@
     };
   }
 
+  /**
+   * The slug the active vessel syncs under.
+   *
+   * The ship is already chosen in the switcher at the top of the window, so
+   * the field below should not be empty and waiting to be typed -- getting it
+   * wrong points the push at another ship's folder on the server. The vessel
+   * record carries its own voyage slug where it has one; otherwise it is
+   * derived the same way the voyage bridge derives it, so both land on the
+   * same folder.
+   */
+  function activeVesselSlug() {
+    try {
+      const active = window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive();
+      if (!active) return '';
+      if (active.voyageSlug) return String(active.voyageSlug);
+      if (active.slug) return String(active.slug);
+      const VB = window.ChengProVoyageBridge;
+      if (VB && typeof VB.slugify === 'function' && active.name) return VB.slugify(active.name);
+      return String(active.id || '');
+    } catch (_) {
+      return '';
+    }
+  }
+
   function fillVoyageSyncForm(root, settings) {
     if (!settings) return;
     const url = root.querySelector('#bk-voy-sync-url');
@@ -412,7 +436,10 @@
     const conflict = root.querySelector('#bk-voy-sync-conflict');
     if (url) url.value = settings.serverUrl || '';
     if (tok && settings.apiToken) tok.value = settings.apiToken;
-    if (vessel) vessel.value = settings.vesselId || '';
+    /* Carry the active vessel's slug when the module has none stored, rather
+       than leaving it blank for the engineer to guess at. A slug the module
+       has already recorded wins -- that is the folder its data is in. */
+    if (vessel) vessel.value = settings.vesselId || activeVesselSlug() || '';
     if (device) device.value = settings.deviceName || '';
     if (conflict) conflict.value = settings.conflictPolicy || 'merge';
   }
