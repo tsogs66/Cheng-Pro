@@ -56,6 +56,29 @@ async function main() {
     assert.ok(health.json.modules.voyage.ok, 'voyage sync should be ok');
     assert.ok(health.json.modules.tanks.ok, 'tanks should be ok');
 
+    /* One /api/health call should answer "can this box take a chunked push?"
+       for BOTH modules. Voyage's block is proxied from the sync server so it
+       carries resumableUpload already; the tanks block is assembled by the
+       shell, so it is the one that can silently fall behind /api/sync/ping.
+       Compare the two rather than restating the numbers here -- a test that
+       hardcodes 2 GB keeps passing after someone changes the limit. */
+    const tanksHealth = health.json.modules.tanks;
+    const capPing = await request(port, 'GET', '/api/sync/ping');
+    assert.equal(capPing.status, 200, '/api/sync/ping should be mounted in AIO');
+    assert.deepStrictEqual(
+      tanksHealth.resumableImport, capPing.json.resumableImport,
+      'health tanks.resumableImport should match /api/sync/ping',
+    );
+    assert.equal(
+      tanksHealth.maxSinglePostBytes, capPing.json.maxSinglePostBytes,
+      'health tanks.maxSinglePostBytes should match /api/sync/ping',
+    );
+    assert.equal(tanksHealth.resumableImport.supported, true);
+    assert.ok(tanksHealth.resumableImport.maxChunkBytes > 0);
+    assert.ok(tanksHealth.maxSinglePostBytes > 0);
+    assert.ok(health.json.modules.voyage.resumableUpload,
+      'voyage block should still carry resumableUpload');
+
     const created = await request(port, 'POST', '/api/shell/vessels', {
       name: 'MV SMOKE TEST',
       imo: '9988776',

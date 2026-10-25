@@ -161,11 +161,15 @@ app.get('/api/health', async (req, res) => {
   let tanks = null;
   try {
     const store = require('../modules/tanks/server/store');
+    /* Same numbers /api/sync/ping reports, from the tank module itself: one
+       /api/health call should answer "can this box take a chunked push?" for
+       both modules, not just Voyage. */
     tanks = {
       ok: true,
       activeVesselId: store.getActiveVesselId(),
       vesselCount: store.listVessels().length,
       dataDir: store.DATA_DIR,
+      ...tank.syncCapabilities(),
     };
   } catch (e) {
     tanks = { ok: false, error: e.message };
