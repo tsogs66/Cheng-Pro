@@ -20,6 +20,16 @@ API:
   GET  /api/voyage/<vessel>/<voyage>/<B|L>               — pull leg snapshot
   PUT  /api/voyage/<vessel>/<voyage>/<B|L>               — push / merge leg snapshot
 
+  Resumable push, for a leg too big for one request on a ship's connection:
+  POST   /api/voyage/<v>/<voyage>/<B|L>/upload                 — begin or resume, returns uploadId + chunks already held
+  PUT    /api/voyage/<v>/<voyage>/<B|L>/upload/<id>/<index>    — one chunk, raw bytes, idempotent
+  GET    /api/voyage/<v>/<voyage>/<B|L>/upload/<id>            — which chunks are held
+  POST   /api/voyage/<v>/<voyage>/<B|L>/upload/<id>/complete   — assemble, verify the digest, then merge exactly as PUT does
+  DELETE /api/voyage/<v>/<voyage>/<B|L>/upload/<id>            — abandon and delete the parts
+  GET  /api/vessel-library                               — list vessels (name + IMO) across user DBs
+  POST /api/vessel-library/import                        — copy particulars + latest leg into caller DB
+  GET  /api/admin/inventory                              — admin: users, vessels, voyage legs
+
 Legacy flat files <voyage>-<CONDITION>.json are still readable and listed.
 
 Auth: Authorization: Bearer <SYNC_API_TOKEN>
@@ -29,6 +39,7 @@ Auth: Authorization: Bearer <SYNC_API_TOKEN>
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import mimetypes
@@ -36,6 +47,7 @@ import os
 import re
 import secrets
 import sys
+import time
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -252,6 +264,12 @@ def list_voyages(vessel: str) -> list[dict]:
             voyage_number = path.name
             if not SLUG_RE.match(voyage_number):
                 continue
+            # SLUG_RE allows a leading dot, so the resumable-upload staging
+            # folder would otherwise be scanned as if it were a voyage. It
+            # holds no leg files today, so nothing would be listed, but that
+            # is luck rather than intent -- say it.
+            if voyage_number.startswith("."):
+                continue
             for cond_file in sorted(path.glob("*.json")):
                 cond = cond_file.stem.upper()
                 if COND_RE.match(cond):
@@ -303,6 +321,164 @@ def list_conditions(vessel: str, voyage: str) -> list[dict]:
     if voyage not in voyages:
         return []
     return voyages[voyage]["conditions"]
+
+
+# ---------------------------------------------------------------------------
+# Resumable leg upload
+#
+# A full voyage leg carrying scanned requisitions runs to tens or hundreds of
+# megabytes, and a ship's connection drops. As one PUT, an upload that dies at
+# 90% is worth nothing: the next attempt starts from the beginning, and on a
+# link that slow it may never finish at all.
+#
+# So a leg may instead be sent as numbered chunks into a staging folder, and
+# assembled here once every chunk has arrived. A chunk is written under its
+# index, which makes a re-send idempotent -- a client that is unsure whether a
+# chunk landed can simply send it again -- and a resumed upload asks the server
+# which indices it already holds rather than trusting its own record of what it
+# sent.
+#
+# The assembled bytes are verified against the digest declared when the upload
+# began, BEFORE anything is merged into the leg. That is the whole point of
+# carrying the digest: a leg assembled from chunks must be provably the leg the
+# ship built, not merely the right number of bytes. A mismatch is refused and
+# the parts are kept, so the client can re-send rather than lose the work.
+#
+# Nothing here changes how a leg is merged: completing an upload runs the same
+# merge_snapshots path the single-request PUT runs.
+# ---------------------------------------------------------------------------
+
+UPLOAD_DIR_NAME = ".uploads"
+UPLOAD_MANIFEST = "manifest.json"
+# A leg this big is a bug, not a leg; refuse it before filling the disk.
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
+MAX_UPLOAD_CHUNKS = 20000
+# Per chunk. 256 KiB is the client default; the ceiling leaves room to raise it
+# on a good link without a server change.
+MAX_CHUNK_BYTES = 8 * 1024 * 1024
+# An upload nobody has touched for this long is abandoned. A ship may be a week
+# between useful connections, so this is generous.
+UPLOAD_STALE_SECONDS = 14 * 24 * 3600
+
+
+def sha256_hex(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def upload_root(vessel: str, email: str | None = None) -> Path:
+    return vessel_dir(vessel, email) / UPLOAD_DIR_NAME
+
+
+def upload_dir(vessel: str, upload_id: str, email: str | None = None) -> Path:
+    """The staging folder, with the id validated rather than trusted.
+
+    The id goes into a filesystem path, so it is checked against a strict
+    pattern instead of being sanitised: an id that is not one we issued has no
+    business resolving to a path at all.
+    """
+    if not re.fullmatch(r"[0-9a-f]{32}", upload_id or ""):
+        raise ValueError("invalid upload id")
+    return upload_root(vessel, email) / upload_id
+
+
+def chunk_path(folder: Path, index: int) -> Path:
+    return folder / f"{index:06d}.part"
+
+
+def read_upload_manifest(folder: Path) -> dict | None:
+    try:
+        return json.loads((folder / UPLOAD_MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def write_upload_manifest(folder: Path, manifest: dict) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    manifest["touchedAt"] = utc_now()
+    (folder / UPLOAD_MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def upload_received(folder: Path, total_chunks: int) -> list[int]:
+    """Indices actually on disk. The disk is the authority, not the client."""
+    got = []
+    for i in range(total_chunks):
+        p = chunk_path(folder, i)
+        try:
+            if p.exists() and p.stat().st_size > 0:
+                got.append(i)
+        except OSError:
+            continue
+    return got
+
+
+def assemble_upload(folder: Path, manifest: dict) -> str:
+    total = int(manifest.get("totalChunks") or 0)
+    missing = [i for i in range(total) if i not in set(upload_received(folder, total))]
+    if missing:
+        raise ValueError(f"{len(missing)} chunk(s) still missing: {missing[:10]}")
+    out = bytearray()
+    for i in range(total):
+        out.extend(chunk_path(folder, i).read_bytes())
+    declared_bytes = int(manifest.get("totalBytes") or 0)
+    if declared_bytes and len(out) != declared_bytes:
+        raise ValueError(
+            f"assembled {len(out)} bytes, the upload declared {declared_bytes}"
+        )
+    text = out.decode("utf-8")
+    # Verified against the digest declared when the upload began, before a byte
+    # of it is merged: a leg assembled from chunks must be provably the leg the
+    # ship built, not merely the right number of bytes.
+    #
+    # Only sha256 is checked here, and the client only declares it when it can
+    # compute it. crypto.subtle is exposed only over https or on localhost, so a
+    # tablet on plain http cannot, and declares "none" instead. Mirroring that
+    # device's FNV-1a fallback on this side was the obvious thing to do and is
+    # wrong: its multiply exceeds 2^53 in JavaScript, so the browser's own
+    # result is a float approximation that an exact-integer Python port would
+    # not reproduce, and every upload from such a device would be refused for a
+    # corruption that had not happened. Those uploads are checked on length and
+    # chunk completeness, and the response says the digest was not verified
+    # rather than implying it was.
+    algo = str(manifest.get("digestAlgo") or "none")
+    declared = str(manifest.get("digest") or "")
+    if algo == "sha256" and declared:
+        actual = sha256_hex(text)
+        if actual != declared:
+            raise ValueError(
+                "the assembled leg does not match the digest the ship declared "
+                f"(sha256: got {actual[:16]}…, expected {declared[:16]}…) — "
+                "the parts are kept, send the chunks again"
+            )
+    return text
+
+
+def prune_stale_uploads(root: Path) -> None:
+    """Drop staging folders nobody has touched in a fortnight. Best effort."""
+    try:
+        folders = list(root.iterdir())
+    except OSError:
+        return
+    cutoff = time.time() - UPLOAD_STALE_SECONDS
+    for folder in folders:
+        if not folder.is_dir():
+            continue
+        try:
+            if folder.stat().st_mtime >= cutoff:
+                continue
+            for child in folder.iterdir():
+                child.unlink(missing_ok=True)
+            folder.rmdir()
+        except OSError:
+            continue
+
+
+def delete_upload(folder: Path) -> None:
+    try:
+        for child in folder.iterdir():
+            child.unlink(missing_ok=True)
+        folder.rmdir()
+    except OSError:
+        pass
 
 
 class SyncHandler(BaseHTTPRequestHandler):
@@ -544,11 +720,35 @@ class SyncHandler(BaseHTTPRequestHandler):
                     # screen instead of asking for a bare sync token.
                     "accountsEnabled": not ACCOUNTS.is_empty(),
                     "loginRequired": ACCOUNTS.has_admin(),
+                    # Resumable chunked leg upload. A client reads this rather
+                    # than probing: an older server answers an unknown POST
+                    # with its own error page, and "is this a 404 or a proxy
+                    # being odd" is not a question worth asking mid-upload.
+                    "resumableUpload": {
+                        "supported": True,
+                        "maxBytes": MAX_UPLOAD_BYTES,
+                        "maxChunks": MAX_UPLOAD_CHUNKS,
+                        "maxChunkBytes": MAX_CHUNK_BYTES,
+                    },
                 },
             )
             return
 
         parts = [p for p in parsed.path.strip("/").split("/") if p]
+
+        try:
+            upload_route = self._upload_route(parts)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid path"})
+            return
+        if upload_route:
+            vessel_part, _voyage, _condition, upload_id, tail = upload_route
+            if self._authorize_vessel(safe_slug(vessel_part), write=True) is None:
+                return
+            if upload_id and not tail:
+                return self._upload_status(vessel_part, upload_id)
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "GET /upload/<id> for upload status"})
+            return
 
         if parts == ["api", "auth", "me"]:
             principal = self._principal()
@@ -774,6 +974,23 @@ class SyncHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            # Resumable leg upload: begin or resume, and complete.
+            try:
+                route = self._upload_route(parts)
+            except ValueError:
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid path"})
+                return
+            if route:
+                vessel_part, voyage, condition, upload_id, tail = route
+                if self._authorize_vessel(safe_slug(vessel_part), write=True) is None:
+                    return
+                if not upload_id:
+                    return self._upload_begin(vessel_part, voyage, condition, body)
+                if tail == "complete":
+                    return self._upload_complete(vessel_part, voyage, condition, upload_id)
+                json_response(self, HTTPStatus.NOT_FOUND, {"error": "POST /upload to begin or /upload/<id>/complete to finish"})
+                return
+
             if parts == ["api", "auth", "login"]:
                 return self._handle_login(body)
             if parts == ["api", "auth", "logout"]:
@@ -817,6 +1034,16 @@ class SyncHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         parts = [p for p in parsed.path.strip("/").split("/") if p]
         try:
+            route = self._upload_route(parts)
+            if route:
+                vessel_part, _voyage, _condition, upload_id, tail = route
+                if self._authorize_vessel(safe_slug(vessel_part), write=True) is None:
+                    return
+                if upload_id and not tail:
+                    return self._upload_abandon(vessel_part, upload_id)
+                json_response(self, HTTPStatus.NOT_FOUND, {"error": "DELETE /upload/<id> to abandon an upload"})
+                return
+
             if len(parts) == 4 and parts[:3] == ["api", "admin", "vessels"]:
                 if self._require_admin() is None:
                     return
@@ -1207,6 +1434,19 @@ class SyncHandler(BaseHTTPRequestHandler):
         if self._authorize_vessel(requested_vessel, write=True) is None:
             return
 
+        # A chunk of a resumable upload: raw bytes, not a JSON leg.
+        try:
+            route = self._upload_route(parts)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid path"})
+            return
+        if route:
+            vessel_part, _voyage, _condition, upload_id, tail = route
+            if upload_id and tail:
+                return self._upload_chunk(vessel_part, upload_id, tail)
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "PUT an upload chunk as /upload/<id>/<index>"})
+            return
+
         try:
             if len(parts) == 5:
                 vessel, voyage, condition = parts[2], parts[3], parts[4]
@@ -1242,9 +1482,282 @@ class SyncHandler(BaseHTTPRequestHandler):
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid json"})
             return
 
+        merged = self._merge_leg(
+            parts[2] if len(parts) >= 3 else vessel, voyage, condition, path, incoming
+        )
+        json_response(self, HTTPStatus.OK, merged)
+
+    # ---- resumable upload ------------------------------------------------
+
+    def _upload_route(self, parts: list[str]):
+        """Parse /api/voyage/<v>/<voyage>/<B|L>/upload[/<id>[/<index>|complete]].
+
+        Returns (vessel_part, voyage, condition, upload_id, tail) or None when
+        the path is not an upload route. Authorisation is the caller's job.
+        """
+        if len(parts) < 6 or parts[0] != "api" or parts[1] != "voyage" or parts[5] != "upload":
+            return None
+        vessel_part = parts[2]
+        voyage = safe_slug(parts[3])
+        condition = safe_condition(parts[4])
+        upload_id = parts[6] if len(parts) >= 7 else ""
+        tail = parts[7] if len(parts) >= 8 else ""
+        if len(parts) > 8:
+            return None
+        return vessel_part, voyage, condition, upload_id, tail
+
+    def _upload_begin(self, vessel_part: str, voyage: str, condition: str, body: dict) -> None:
+        """Begin a new upload, or resume one and say which chunks are held.
+
+        A resume is the same call with the same uploadId: the client does not
+        tell us what it has sent, it ASKS what we hold. Its own record can be
+        wrong in the one way that matters -- a chunk whose response was lost is
+        on disk here but unconfirmed there -- and trusting it would skip a chunk
+        that never arrived.
+
+        The declared digest is what binds a resumed upload to the leg it
+        started as. If the leg changed between attempts the digest changes with
+        it, and we start a new upload rather than assembling halves of two
+        different legs into something that is neither.
+        """
+        try:
+            total_bytes = int(body.get("totalBytes") or 0)
+            total_chunks = int(body.get("totalChunks") or 0)
+            chunk_bytes = int(body.get("chunkBytes") or 0)
+        except (TypeError, ValueError):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "totalBytes, totalChunks and chunkBytes must be numbers"})
+            return
+        if total_bytes <= 0 or total_chunks <= 0 or chunk_bytes <= 0:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "totalBytes, totalChunks and chunkBytes are required"})
+            return
+        if total_bytes > MAX_UPLOAD_BYTES:
+            json_response(self, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": f"leg is {total_bytes} bytes; this server accepts up to {MAX_UPLOAD_BYTES}"})
+            return
+        if total_chunks > MAX_UPLOAD_CHUNKS:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"{total_chunks} chunks exceeds the limit of {MAX_UPLOAD_CHUNKS}; use a larger chunk size"})
+            return
+        if chunk_bytes > MAX_CHUNK_BYTES:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"chunkBytes {chunk_bytes} exceeds the limit of {MAX_CHUNK_BYTES}"})
+            return
+
+        digest = str(body.get("digest") or "")
+        digest_algo = str(body.get("digestAlgo") or "none")
+        if digest_algo not in ("sha256", "none"):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "digestAlgo must be sha256 or none"})
+            return
+
+        root = upload_root(vessel_part)
+        prune_stale_uploads(root)
+
+        asked = str(body.get("uploadId") or "")
+        folder = None
+        manifest = None
+        if asked:
+            try:
+                folder = upload_dir(vessel_part, asked)
+            except ValueError:
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid upload id"})
+                return
+            manifest = read_upload_manifest(folder)
+            if manifest and (
+                manifest.get("digest") != digest
+                or manifest.get("digestAlgo") != digest_algo
+                or int(manifest.get("totalBytes") or 0) != total_bytes
+                or int(manifest.get("totalChunks") or 0) != total_chunks
+            ):
+                # The leg changed since that upload began. Its parts describe a
+                # leg that no longer exists, so they are dropped rather than
+                # mixed with the new one.
+                delete_upload(folder)
+                manifest = None
+                folder = None
+
+        if manifest is None:
+            upload_id = secrets.token_hex(16)
+            folder = upload_dir(vessel_part, upload_id)
+            manifest = {
+                "uploadId": upload_id,
+                "vessel": vessel_part,
+                "voyage": voyage,
+                "condition": condition,
+                "totalBytes": total_bytes,
+                "totalChunks": total_chunks,
+                "chunkBytes": chunk_bytes,
+                "digest": digest,
+                "digestAlgo": digest_algo,
+                "startedAt": utc_now(),
+            }
+            write_upload_manifest(folder, manifest)
+
+        received = upload_received(folder, total_chunks)
+        json_response(
+            self,
+            HTTPStatus.OK,
+            {
+                "uploadId": manifest["uploadId"],
+                "received": received,
+                "receivedCount": len(received),
+                "totalChunks": total_chunks,
+                "chunkBytes": chunk_bytes,
+                "resumed": bool(asked) and bool(received),
+                "digestVerified": digest_algo == "sha256",
+            },
+        )
+
+    def _upload_status(self, vessel_part: str, upload_id: str) -> None:
+        try:
+            folder = upload_dir(vessel_part, upload_id)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid upload id"})
+            return
+        manifest = read_upload_manifest(folder)
+        if not manifest:
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "no such upload"})
+            return
+        received = upload_received(folder, int(manifest.get("totalChunks") or 0))
+        json_response(
+            self,
+            HTTPStatus.OK,
+            {
+                "uploadId": manifest.get("uploadId"),
+                "received": received,
+                "receivedCount": len(received),
+                "totalChunks": manifest.get("totalChunks"),
+                "chunkBytes": manifest.get("chunkBytes"),
+                "startedAt": manifest.get("startedAt"),
+                "touchedAt": manifest.get("touchedAt"),
+            },
+        )
+
+    def _upload_chunk(self, vessel_part: str, upload_id: str, index_raw: str) -> None:
+        """Store one chunk. Writing it under its index is what makes a re-send
+        harmless: a client that lost our response can send the chunk again and
+        the second copy simply replaces the first."""
+        try:
+            folder = upload_dir(vessel_part, upload_id)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid upload id"})
+            return
+        manifest = read_upload_manifest(folder)
+        if not manifest:
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "no such upload — begin it again"})
+            return
+        total_chunks = int(manifest.get("totalChunks") or 0)
+        try:
+            index = int(index_raw)
+        except (TypeError, ValueError):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk index must be a number"})
+            return
+        if index < 0 or index >= total_chunks:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"chunk index {index} is outside 0..{total_chunks - 1}"})
+            return
+
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        if length <= 0:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "empty chunk"})
+            return
+        if length > MAX_CHUNK_BYTES:
+            json_response(self, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": f"chunk is {length} bytes; the limit is {MAX_CHUNK_BYTES}"})
+            return
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk was cut short — send it again"})
+            return
+
+        # Written to a temporary name and moved into place, so a connection that
+        # dies mid-write cannot leave a short chunk looking complete.
+        tmp = folder / f"{index:06d}.part.tmp"
+        try:
+            tmp.write_bytes(raw)
+            tmp.replace(chunk_path(folder, index))
+        except OSError as err:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            json_response(self, HTTPStatus.INSUFFICIENT_STORAGE, {"error": f"could not store the chunk: {err}"})
+            return
+        write_upload_manifest(folder, manifest)
+
+        received = upload_received(folder, total_chunks)
+        json_response(
+            self,
+            HTTPStatus.OK,
+            {
+                "uploadId": manifest.get("uploadId"),
+                "index": index,
+                "receivedCount": len(received),
+                "totalChunks": total_chunks,
+            },
+        )
+
+    def _upload_complete(self, vessel_part: str, voyage: str, condition: str, upload_id: str) -> None:
+        try:
+            folder = upload_dir(vessel_part, upload_id)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid upload id"})
+            return
+        manifest = read_upload_manifest(folder)
+        if not manifest:
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "no such upload — begin it again"})
+            return
+        try:
+            text = assemble_upload(folder, manifest)
+        except ValueError as err:
+            # The parts are deliberately NOT deleted: the ship can re-send the
+            # chunks that are wrong rather than the whole leg again.
+            total = int(manifest.get("totalChunks") or 0)
+            json_response(
+                self,
+                HTTPStatus.CONFLICT,
+                {
+                    "error": str(err),
+                    "uploadId": manifest.get("uploadId"),
+                    "received": upload_received(folder, total),
+                    "totalChunks": total,
+                },
+            )
+            return
+        except (OSError, UnicodeDecodeError) as err:
+            json_response(self, HTTPStatus.CONFLICT, {"error": f"could not read the uploaded parts: {err}"})
+            return
+
+        try:
+            incoming = json.loads(text)
+        except json.JSONDecodeError as err:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"the assembled leg is not valid JSON: {err}"})
+            return
+
+        path = voyage_leg_path(vessel_part, voyage, condition)
+        merged = self._merge_leg(vessel_part, voyage, condition, path, incoming)
+        # Only now, once the leg is stored, are the parts no longer needed.
+        delete_upload(folder)
+        merged["uploadId"] = manifest.get("uploadId")
+        merged["digestVerified"] = manifest.get("digestAlgo") == "sha256"
+        json_response(self, HTTPStatus.OK, merged)
+
+    def _upload_abandon(self, vessel_part: str, upload_id: str) -> None:
+        try:
+            folder = upload_dir(vessel_part, upload_id)
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid upload id"})
+            return
+        delete_upload(folder)
+        json_response(self, HTTPStatus.OK, {"ok": True, "uploadId": upload_id})
+
+    def _merge_leg(
+        self, vessel_part: str, voyage: str, condition: str, path: Path, incoming: dict
+    ) -> dict:
+        """Merge an incoming snapshot into the stored leg and write it.
+
+        Shared by the single-request PUT and the completion of a chunked upload,
+        deliberately: a leg that arrived in pieces must be merged by exactly the
+        same rules as one that arrived whole, or the two routes would drift and
+        only one of them would be the tested one.
+        """
         existing = None
         # Prefer folder file; also merge from legacy flat if only that exists
-        read_path = resolve_leg_path(parts[2] if len(parts) >= 3 else vessel, voyage, condition)
+        read_path = resolve_leg_path(vessel_part, voyage, condition)
         if read_path.exists():
             existing = json.loads(read_path.read_text(encoding="utf-8"))
 
@@ -1266,7 +1779,7 @@ class SyncHandler(BaseHTTPRequestHandler):
         merged["serverUpdatedAt"] = utc_now()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
-        json_response(self, HTTPStatus.OK, merged)
+        return merged
 
 
 def merge_snapshots(server: dict | None, client: dict) -> dict:

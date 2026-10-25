@@ -25354,6 +25354,208 @@ function syncTooLargeMessage(opts){
     'server to apply it). The URL and API token are not the problem.';
 }
 
+/* ---- resumable leg upload ----------------------------------------------
+   A full leg carrying scanned requisitions is tens or hundreds of megabytes,
+   and a ship's connection drops. As one PUT, an upload that dies at 90% is
+   worth nothing: the next attempt starts from the beginning, and on a link that
+   slow it may never finish at all. The ten-minute watchdog was raised for this
+   same reason, which treated the symptom.
+
+   So the leg goes up as numbered chunks. Each chunk is a small request that
+   either lands or does not, the server holds what has arrived, and an upload
+   resumes from the chunk after the last one it accepted -- after a dropped
+   connection, and after the app has been closed and reopened, because the
+   session is kept in IndexedDB rather than in memory.
+
+   Two rules keep this honest:
+
+   - the SERVER is asked which chunks it holds; our own record of what we sent
+     is not trusted. A chunk whose response was lost is on disk there and
+     unconfirmed here, and believing ourselves would skip it for good.
+   - the digest of the whole payload is declared up front and verified by the
+     server after assembly, before anything is merged. A leg rebuilt from parts
+     has to be provably the leg this device built, not merely the right number
+     of bytes.
+
+   An older sync server knows none of this, so /api/health is read first and the
+   single PUT is used when it does not advertise the capability.                 */
+
+/* 256 KiB: small enough that losing one on a satellite link costs little,
+   large enough that a 100 MB leg is 400 requests rather than 25,000. */
+const LEG_UPLOAD_CHUNK_BYTES = 256 * 1024;
+/* Below this a leg goes in one request; the handshake is not worth it. */
+const LEG_UPLOAD_MIN_BYTES = 512 * 1024;
+const LEG_UPLOAD_CHUNK_TRIES = 4;
+const LEG_UPLOAD_SESSION_PREFIX = 'legUpload:';
+
+/** Where a half-finished upload is remembered, per vessel and leg. */
+function legUploadSessionKey(vessel, voyage, condition){
+  return `${LEG_UPLOAD_SESSION_PREFIX}${vessel}/${voyage}/${condition}`;
+}
+
+async function readLegUploadSession(key){
+  try{
+    const rows = await dbGetAll('meta');
+    const hit = (rows || []).find(r => r && r.key === key);
+    return (hit && hit.value) || null;
+  }catch(_){ return null; }
+}
+
+async function writeLegUploadSession(key, value){
+  try{ await dbPut('meta', { key, value }); }
+  catch(err){ console.warn('Upload session could not be remembered:', err && err.message); }
+}
+
+async function clearLegUploadSession(key){
+  try{ await dbDelete('meta', key); }catch(_){}
+}
+
+/** Does this server take chunked uploads? Read, not probed. */
+async function serverSupportsResumableUpload(base, headers){
+  try{
+    const { body } = await fetchSyncJson(`${base}/api/health`, { headers });
+    const cap = body && body.resumableUpload;
+    return !!(cap && cap.supported);
+  }catch(_){
+    /* If health cannot be read the sync is in trouble anyway; let the ordinary
+       upload path report the real reason. */
+    return false;
+  }
+}
+
+/**
+ * Split a string into byte-counted chunks.
+ *
+ * Counted in BYTES, not characters. The payload is UTF-8 on the wire and a leg
+ * is full of vessel names, degree signs and scanned-file base64; slicing by
+ * character would make the declared byte total disagree with what the server
+ * receives, and a multi-byte character split across two chunks would arrive as
+ * two invalid halves.
+ */
+function sliceUtf8(bytes, chunkBytes){
+  const out = [];
+  for (let i = 0; i < bytes.length; i += chunkBytes){
+    out.push(bytes.subarray(i, Math.min(i + chunkBytes, bytes.length)));
+  }
+  return out;
+}
+
+function sleepMs(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Upload one leg as resumable chunks. Returns the merged snapshot the server
+ * sends back from the completion call, exactly as the single PUT would.
+ */
+async function uploadLegInChunks(legUrl, payloadText, opts){
+  const o = opts || {};
+  const headers = o.headers || {};
+  const update = typeof o.update === 'function' ? o.update : () => {};
+  const sessionKey = o.sessionKey;
+
+  const bytes = new TextEncoder().encode(payloadText);
+  const chunkBytes = o.chunkBytes || LEG_UPLOAD_CHUNK_BYTES;
+  const chunks = sliceUtf8(bytes, chunkBytes);
+  const { algo, hex } = await digestText(payloadText);
+  /* The server only verifies sha256. Where crypto.subtle is absent -- a tablet
+     on plain http -- it is told so rather than being handed a digest it cannot
+     check, and it then verifies length and chunk completeness only. */
+  const digestAlgo = algo === 'sha256' ? 'sha256' : 'none';
+  const digest = digestAlgo === 'sha256' ? hex : '';
+
+  const manifest = {
+    totalBytes: bytes.length,
+    totalChunks: chunks.length,
+    chunkBytes,
+    digest,
+    digestAlgo
+  };
+
+  const stored = sessionKey ? await readLegUploadSession(sessionKey) : null;
+  if (stored && stored.digest === digest && stored.digestAlgo === digestAlgo
+      && stored.totalBytes === bytes.length && stored.totalChunks === chunks.length){
+    manifest.uploadId = stored.uploadId;
+  }
+
+  update({ label: `Preparing ${chunks.length} chunk(s) for the server…`, source: 'server' });
+  const begun = await fetchSyncJson(`${legUrl}/upload`, {
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(manifest)
+  });
+  const session = begun.body || {};
+  const uploadId = session.uploadId;
+  if (!uploadId) throw new Error('The sync server did not return an upload id.');
+
+  /* The server's list, not ours. */
+  const have = new Set(Array.isArray(session.received) ? session.received : []);
+  if (sessionKey){
+    await writeLegUploadSession(sessionKey, {
+      uploadId, digest, digestAlgo,
+      totalBytes: bytes.length, totalChunks: chunks.length,
+      startedAt: new Date().toISOString()
+    });
+  }
+  if (have.size){
+    update({
+      label: `Resuming: the server already holds ${have.size} of ${chunks.length} chunk(s).`,
+      source: 'server'
+    });
+  }
+
+  let sent = have.size;
+  for (let i = 0; i < chunks.length; i++){
+    if (have.has(i)) continue;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= LEG_UPLOAD_CHUNK_TRIES; attempt++){
+      try{
+        await fetchSyncJson(`${legUrl}/upload/${encodeURIComponent(uploadId)}/${i}`, {
+          method: 'PUT',
+          headers: { ...headers, 'Content-Type': 'application/octet-stream' },
+          /* A fresh view per attempt: a retried body must not be a buffer the
+             previous attempt may still be reading from. */
+          body: chunks[i].slice()
+        });
+        lastErr = null;
+        break;
+      }catch(err){
+        lastErr = err;
+        if (attempt < LEG_UPLOAD_CHUNK_TRIES){
+          /* 1s, 2s, 4s. A ship's link often comes back on its own; failing the
+             whole leg on the first blip is what this change exists to stop. */
+          const wait = 1000 * Math.pow(2, attempt - 1);
+          update({
+            label: `Chunk ${i + 1} of ${chunks.length} failed — retrying in ${wait / 1000}s…`,
+            current: sent, total: chunks.length, source: 'server'
+          });
+          await sleepMs(wait);
+        }
+      }
+    }
+    if (lastErr){
+      /* Everything already uploaded stays on the server, and the session is on
+         this device, so running the sync again continues from here. */
+      throw new Error(
+        `Upload stopped at chunk ${i + 1} of ${chunks.length} (${lastErr.message}). `
+        + `The ${sent} chunk(s) already sent are kept on the server — run the sync again `
+        + 'and it continues from here rather than starting over.'
+      );
+    }
+    sent++;
+    update({
+      label: `Uploading voyage leg: chunk ${sent} of ${chunks.length}…`,
+      current: sent, total: chunks.length, source: 'server'
+    });
+  }
+
+  update({ label: 'Server is reassembling and checking the leg…', source: 'server' });
+  const done = await fetchSyncJson(`${legUrl}/upload/${encodeURIComponent(uploadId)}/complete`, {
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}'
+  });
+  if (sessionKey) await clearLegUploadSession(sessionKey);
+  return done.body;
+}
+
 async function fetchSyncJson(url, options = {}){
   const opts = Object.assign({ cache: 'no-store' }, options || {});
   const own = !activityIsActive();
@@ -26870,9 +27072,27 @@ async function syncNow(options = {}){
     if (!pullOnly){
       update({ label: `Uploading voyage ${legLabel} to the server…`, source: 'server' });
       const payload = buildSyncPayload();
-      const { body: merged } = await fetchSyncJson(legUrl, {
-        method: 'PUT', headers, body: JSON.stringify(payload)
-      });
+      const payloadText = JSON.stringify(payload);
+      const payloadBytes = new TextEncoder().encode(payloadText).length;
+      let merged = null;
+      /* A big leg goes up in resumable chunks where the server takes them. A
+         small one does not: the handshake would cost more than the leg. */
+      let chunked = false;
+      if (payloadBytes >= LEG_UPLOAD_MIN_BYTES){
+        chunked = await serverSupportsResumableUpload(base, headers);
+      }
+      if (chunked){
+        merged = await uploadLegInChunks(legUrl, payloadText, {
+          headers,
+          update,
+          sessionKey: legUploadSessionKey(vessel, voyage, condition)
+        });
+      } else {
+        const res = await fetchSyncJson(legUrl, {
+          method: 'PUT', headers, body: payloadText
+        });
+        merged = res.body;
+      }
       if (policy !== 'local'){
         update({ label: 'Saving the merged copy on this device…' });
         applyRemoteSnapshot(merged, 'merge');
