@@ -1424,16 +1424,39 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.45), inset 0 -10px 18px rgba(0,0,0,.18), 0 10px 22px rgba(0,0,0,.28);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
+  /* The figure and the words naming it must not be the same ink.
+     The title was `color: inherit; opacity: .92` -- the value's own colour at
+     92% -- so on a glass card the two read as identical and a panel of ten
+     results was a wall of same-coloured text with nothing to catch the eye.
+
+     The pairing below was chosen by measuring, not by eye, across all four
+     themes (default, bright, prism, astrolabe) against each one's own card:
+
+       value  --paper      11.7:1 worst case against the card
+       title  --paper-dim   5.9:1 worst case, so still past 4.5:1 at 11px
+       the two differ by at least 1.8:1 in luminance
+
+     Brass was the obvious first choice for the value, since that is what the
+     calculated inputs above use -- but measured against --paper-dim it came
+     out at 1.00:1 in the default theme. Identical luminance: the very fault
+     being fixed. It stays on the unit suffix, where it carries the accent
+     without costing the number any contrast. */
   .bp-result-value{
     font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; line-height:1.15;
     font-variant-numeric:tabular-nums; letter-spacing:0;
+    color:var(--paper);
   }
   .bp-result-value b{font-weight:800;}
-  .bp-result-unit{font-weight:500; font-size:13px; margin-left:6px; letter-spacing:.04em;}
-  .bp-result-title{
-    font-family:'Oswald',sans-serif; font-size:11px; font-weight:500; letter-spacing:.05em;
-    text-transform:uppercase; line-height:1.25; color:inherit; opacity:.92;
+  .bp-result-unit{
+    font-weight:500; font-size:13px; margin-left:6px; letter-spacing:.04em;
+    color:var(--brass);
   }
+  .bp-result-title{
+    font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.07em;
+    text-transform:uppercase; line-height:1.25; color:var(--paper-dim); opacity:1;
+  }
+  /* An empty card should not present a bright dash as if it were a figure. */
+  .bp-result-value:not(:has(.bp-result-unit)){color:var(--paper-dim);}
   html.bright .bp-result{
     color:#122238;
     background:linear-gradient(165deg, rgba(255,255,255,.92), rgba(255,255,255,.55) 48%, rgba(201,154,83,.16));
@@ -1442,6 +1465,14 @@
   }
   html.prism .bp-result{color:var(--paper);}
   html.astrolabe .bp-result{color:var(--paper);}
+  /* Bright is the one theme whose card is light, so its dim token has to be
+     dark enough to read on near-white rather than the pale grey the dark
+     themes use. --paper-dim is #3d4a5c there, which is exactly that.
+     The unit suffix needs its own value here: bright's --brass (#8a5a1a) at
+     13px measures 3.01:1 against the sampled card background (rgb(184,185,188)),
+     under the 4.5:1 small-text floor, and --brass-dim is lighter still. This
+     is the same hue taken dark enough to pass -- measured 5.10:1. */
+  html.bright .bp-result-unit{color:#5e3c0e;}
   .bunker-plan-footer{
     display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; align-items:start;
   }
@@ -2951,7 +2982,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
         <div class="field span2"><label>Chief Engineer</label><input id="s_chEngVoyage" placeholder="Update at crew change"></div>
       </div>
       <div class="hint">Date &amp; Time (initial) and Time zone are the voyage-start reference for the first log entry — period hours are measured from this ship's-clock stamp. The time-zone list only labels the clock; use Change clocks on the log entry when the watch actually advances or retards time.</div>
-      <div class="hint">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward. The signature is managed under Vessel Data. Entries already saved keep the officer who was aboard when they were made.</div>
+      <div class="hint" id="chEngVoyageNote">Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it carries forward. The signature is managed under Vessel Data. Entries already saved keep the officer who was aboard when they were made.</div>
       <div class="hint">Each voyage number <strong>starts as B (ballast)</strong> and <strong>ends as L (laden)</strong>. Only these two letters mark voyage condition — never any other. Legs are stored separately so the active log stays short. From Log Entry you can start the next leg with <strong>New Voyage</strong> (destination + distance).</div>
     </div>
 
@@ -4562,7 +4593,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
           <div class="field"><label>Call sign / distinctive letters</label><input id="orb_callSign"></div>
           <div class="field"><label>Gross tonnage</label><input type="number" step="1" id="orb_gt"></div>
           <div class="field"><label>Master</label><input id="orb_master"></div>
-          <div class="field"><label>Chief Engineer</label><input id="orb_ce"></div>
+          <div class="field"><label>Chief Engineer</label><input id="orb_ce" readonly>
+            <span class="hint">From Vessel Setup. Change it there at a crew change and every book, report and signature line follows.</span></div>
         </div>
         <div class="orb-flag-box" id="orbFlagInfo"></div>
         <div class="form-grid cols3" style="margin-top:12px;">
@@ -16221,6 +16253,9 @@ async function deleteRequisition(id){
     return r.id === id && (r.files || []).some(function(f){ return f.id === _reqViewFile.id; });
   });
   state.setup.requisitions = ensureRequisitions().filter(function(r){ return r.id !== id; });
+  /* Without a tombstone the next merge takes the row back from the other
+     device, and a requisition deleted as cancelled reappears as outstanding. */
+  rememberDeleted('requisitions', id);
   if (_reqEditId === id) clearReqForm();
   if (viewing) closeReqViewer();
   renderRequisitions();
@@ -16247,7 +16282,11 @@ async function saveRequisitionFromForm(){
     files: _reqFiles.map(function(f){
       return { id:f.id, filename:f.filename, mime:f.mime, dataUrl:f.dataUrl };
     }),
-    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString()
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+    /* A merge picks the newer row per id across two devices, so an edit needs a
+       stamp of its own -- createdAt never moves, and without this the first
+       version of a line would win over a correction made later elsewhere. */
+    updatedAt: new Date().toISOString()
   };
   const list = ensureRequisitions();
   const snapshot = list.map(function(r){ return r; });
@@ -26203,6 +26242,171 @@ async function purgeTombstonedFromDb(){
   }
 }
 
+/* ---- miscellaneous vessel data ----------------------------------------
+   Spares and stores requisitions, the consumption plan's saved snapshots, the
+   bunkering plan's, and the e-ORB -- data that is not a log entry and so has no
+   store of its own. It all lives inside the vessel's `setup` object, which is
+   how it reaches a backup file and the sync server at all.
+
+   Riding inside `setup` is also how it used to be LOST. A merge chose the whole
+   setup object from whichever side had the newer `sync.lastModifiedAt`, so if
+   the server's copy was a minute newer, every requisition raised on this device
+   since the last sync went with the discarded half -- silently, with no row in
+   any comparison to show it had happened. A requisition is a purchase the ship
+   is waiting on; a plan snapshot is what the next bunkering is costed against.
+
+   The lists below are therefore merged by id across both sides instead of being
+   taken from one, newest edit winning per row, with tombstones honoured so a
+   deletion is not undone by the other device still holding the row.
+
+   Tank Chief's bunkering plans are compared on their own rows in the AIO
+   backup page already, so the lists here are Voyage Chief's: the requisitions
+   and the Consumption Plan's saved snapshots. The plan currently being drafted
+   is a single working object and still comes from the chosen side whole -- the
+   snapshots are the record, and half a plan from each device would be worse
+   than one device's.
+
+   The e-ORB's settings -- IOPP form, equipment fitted, flag, signatory policy --
+   are still taken whole from the chosen side: one coherent set that is wrong if
+   half comes from each device. Its TANK LIST is merged, by id and per group: a
+   tank added on one device is a tank the ship has, and dropping it took every
+   entry that names it out of the selectable list. The book's entries are merged
+   by id as always. */
+const MISC_VESSEL_DATA_LISTS = [
+  { key: 'requisitions', label: 'spares & stores requisitions', cap: 0 },
+  { key: 'bunkerPlanHistory', label: 'consumption plan snapshots', cap: 50 },
+];
+
+/** A row's last-touched stamp, falling back through the names these lists use. */
+function miscRowTs(row){
+  return (row && (row.updatedAt || row.savedAt || row.printedAt || row.createdAt || row.date)) || '';
+}
+
+/**
+ * Union two sides of one miscellaneous list, newest row per id winning.
+ * Rows without an id cannot be matched, so they are kept from both sides --
+ * better a duplicate the engineer can delete than a purchase order that
+ * vanished.
+ */
+function mergeMiscList(localList, remoteList, tombstones, cap){
+  const dead = new Set(tombstones || []);
+  const byId = new Map();
+  const loose = [];
+  for (const row of [...(remoteList || []), ...(localList || [])]){
+    if (!row || typeof row !== 'object') continue;
+    if (row.id == null || row.id === ''){ loose.push(row); continue; }
+    if (dead.has(row.id)) continue;
+    const prev = byId.get(row.id);
+    if (!prev || miscRowTs(row) >= miscRowTs(prev)) byId.set(row.id, row);
+  }
+  let out = [...byId.values(), ...loose];
+  out.sort((a, b) => String(miscRowTs(b)).localeCompare(String(miscRowTs(a))));
+  if (cap && out.length > cap) out = out.slice(0, cap);
+  return out;
+}
+
+/* The e-ORB tank groups, as defaultOrbSetup lays them out. Named here rather
+   than discovered from the object so a group missing on both sides stays
+   missing instead of appearing as an empty list. */
+const ORB_TANK_GROUPS = ['sludge', 'bilge', 'bilgeWells', 'fuel', 'lube',
+  'dirtyBallast', 'cargo', 'slop', 'cbt'];
+
+/**
+ * Union the two devices' e-ORB tank lists, group by group.
+ *
+ * A tank row has no timestamp of its own, so a row both sides hold is taken
+ * from the CHOSEN side -- the setup that won on `sync.lastModifiedAt`. That
+ * matters for one field in particular: `robM3` is a running retained quantity
+ * that each entry mutates as it is applied, not a figure recomputed from the
+ * entry list, so the chosen side's row is the one whose ROB belongs with the
+ * chosen side's book.
+ *
+ * A tank only the other device has is added, keeping its own robM3 -- that
+ * device's last figure for it is the only figure there is. It is a starting
+ * point to confirm against a sounding, not an authority; merging two books'
+ * entries already leaves these quantities approximate, which is why the book
+ * is resealed and rechecked after a merge.
+ *
+ * Order is kept: the chosen side's list as it stands, then the newcomers, so a
+ * tank list an engineer has arranged to match the IOPP Supplement is not
+ * reshuffled underneath him.
+ */
+function mergeOrbTankGroup(chosenList, otherList, tombstones){
+  const dead = new Set(tombstones || []);
+  const out = [];
+  const seen = new Set();
+  for (const row of (chosenList || [])){
+    if (!row || typeof row !== 'object') continue;
+    if (row.id != null && dead.has(row.id)) continue;
+    if (row.id != null){
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+    }
+    out.push(row);
+  }
+  for (const row of (otherList || [])){
+    if (!row || typeof row !== 'object') continue;
+    /* A tank with no id cannot be matched, and the groups are seeded with
+       default tanks on both sides, so adding it would duplicate the default
+       rather than recover anything. Skip it. */
+    if (row.id == null || row.id === '') continue;
+    if (dead.has(row.id) || seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Merge the tank list onto the orb settings the chosen setup brought.
+ * `otherOrb` is the side that LOST the setup choice -- named by the caller
+ * rather than worked out from object identity here, because which side won is
+ * the caller's decision and guessing it wrong would silently pick the stale
+ * ROB figures.
+ */
+function mergeOrbTanks(orb, otherOrb, deleted){
+  if (!orb || typeof orb !== 'object') return orb;
+  const chosenTanks = orb.tanks || {};
+  const otherTanks = (otherOrb || {}).tanks || {};
+  const dead = (deleted || {}).orbTanks;
+  const merged = { ...chosenTanks };
+  for (const group of ORB_TANK_GROUPS){
+    const chosenList = chosenTanks[group];
+    const otherList = otherTanks[group];
+    if (!Array.isArray(chosenList) && !Array.isArray(otherList)) continue;
+    merged[group] = mergeOrbTankGroup(chosenList, otherList, dead);
+  }
+  orb.tanks = merged;
+  return orb;
+}
+
+/** Put the merged miscellaneous lists back onto the setup a merge chose. */
+function mergeMiscVesselData(setup, localSetup, remoteSetup, deleted, chosenIsRemote){
+  if (!setup) return setup;
+  for (const spec of MISC_VESSEL_DATA_LISTS){
+    const localList = (localSetup || {})[spec.key];
+    const remoteList = (remoteSetup || {})[spec.key];
+    if (!Array.isArray(localList) && !Array.isArray(remoteList)) continue;
+    setup[spec.key] = mergeMiscList(localList, remoteList, (deleted || {})[spec.key], spec.cap);
+  }
+  if (setup.orb && typeof setup.orb === 'object'){
+    const other = chosenIsRemote ? (localSetup || {}) : (remoteSetup || {});
+    mergeOrbTanks(setup.orb, other.orb, deleted);
+  }
+  return setup;
+}
+
+/** What this device holds, for the backup page to report. */
+function miscVesselDataCounts(){
+  const setup = state.setup || {};
+  return {
+    requisitions: (setup.requisitions || []).length,
+    bunkerPlanHistory: (setup.bunkerPlanHistory || []).length,
+    orbEntries: (state.orbEntries || []).length,
+    orbConfigured: !!(setup.orb && (setup.orb.shipName || setup.orb.imo)),
+  };
+}
+
 function applyRemoteSnapshot(remote, policy){
   const localSync = localSyncCredentialSnapshot();
   const remoteData = remote.data || remote;
@@ -26239,6 +26443,8 @@ function applyRemoteSnapshot(remote, policy){
      remote-only deletedIds left locally-deleted rows alive when a peer still
      had them — and a recreate-with-new-id then looked like a duplicate. */
   const deleted = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
+  /* The chosen setup is one side's; its miscellaneous lists must be both. */
+  mergeMiscVesselData(state.setup, localSetup, remoteSetup, deleted, chosen === remoteSetup);
   state.entries = dedupeEntriesByContent(
     filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
     deleted
@@ -26271,7 +26477,10 @@ function filterDeleted(items, deleted){
 
 function mergeDeletedIds(a, b){
   const out = { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] };
-  const keys = Object.keys(out);
+  /* Keys from both sides, not just the five written above: a requisition
+     tombstone was being dropped here, so deleting a requisition on one device
+     and then merging brought it back from the other. */
+  const keys = [...new Set([...Object.keys(out), ...Object.keys(a || {}), ...Object.keys(b || {})])];
   keys.forEach(k=>{
     out[k] = [...new Set([...(a?.[k]||[]), ...(b?.[k]||[])])].slice(-500);
   });
@@ -28436,10 +28645,70 @@ function isVesselExport(payload){
 }
 
 /** The fleet entry this file would land on, or null when it is a new ship. */
-function matchVesselForImport(payload){
+/**
+ * Every vessel's IMO, by vessel id.
+ *
+ * A vessel row is {id, name, slug} -- the IMO lives in its setup row, so
+ * identifying a hull means reading those.
+ */
+async function vesselImoById(){
+  const byId = new Map();
+  let metaAll = [];
+  try{ metaAll = await dbGetAll('meta'); }catch(_){ return byId; }
+  (metaAll || []).forEach(row => {
+    if (!row || typeof row.key !== 'string' || row.key.indexOf('setup:') !== 0) return;
+    const imo = normalizeImoForAio(row.value && row.value.imoNo);
+    if (imo) byId.set(row.key.slice('setup:'.length), imo);
+  });
+  return byId;
+}
+
+/**
+ * The vessel an import belongs to, or null for a genuinely new ship.
+ *
+ * This used to match on id or slug alone, and never looked at the IMO -- so
+ * "Save & connect" on a ship already in the list added a SECOND record of the
+ * same hull whenever the slug differed, which it does whenever the name was
+ * typed differently, or the row came from the other program, or the local
+ * record predates slugs. The engineer was then choosing between two copies of
+ * his own ship on every page.
+ *
+ * The rule is the suite's own, the one ChengVesselKey.sameVessel uses on the
+ * Tank side: the IMO is the hull's identity and decides whenever both sides
+ * have one -- a mismatch is a NO even if the names are identical, because two
+ * ships genuinely do share names. Only where a side has no IMO does the name
+ * or slug get to answer.
+ */
+async function matchVesselForImport(payload){
   const src = (payload && payload.vessel) || {};
-  return state.vessels.find(v => src.id && v.id === src.id)
-      || state.vessels.find(v => src.slug && v.slug === src.slug)
+  const setup = (payload && payload.setup) || {};
+
+  /* An explicit id is this database's own key; nothing beats it. */
+  const byId = state.vessels.find(v => src.id && v.id === src.id);
+  if (byId) return byId;
+
+  const srcImo = normalizeImoForAio(src.imo != null ? src.imo : setup.imoNo);
+  const srcName = normalizeVesselNameForAio(src.name || setup.vesselName);
+  const bySlug = (v) => src.slug && v.slug === src.slug;
+  const byName = (v) => !!srcName && normalizeVesselNameForAio(v.name) === srcName;
+
+  if (srcImo){
+    const imos = await vesselImoById();
+    const sameImo = state.vessels.find(v => imos.get(v.id) === srcImo);
+    if (sameImo) return sameImo;
+    /* The incoming hull is identified and no local record shares it. A local
+       record that carries a DIFFERENT IMO is a different ship, whatever it is
+       called, so only records with no IMO of their own may be matched on
+       slug or name. */
+    const unidentified = (v) => !imos.get(v.id);
+    return state.vessels.find(v => unidentified(v) && bySlug(v))
+        || state.vessels.find(v => unidentified(v) && byName(v))
+        || null;
+  }
+
+  /* No IMO on the incoming record: slug, then the name. */
+  return state.vessels.find(bySlug)
+      || state.vessels.find(byName)
       || null;
 }
 
@@ -28462,7 +28731,7 @@ async function importVesselExport(payload, options = {}){
   const srcName = String(src.name || payload.setup?.vesselName || 'IMPORTED VESSEL').trim();
   const srcSlug = src.slug || vesselSlugFromName(srcName);
 
-  let target = matchVesselForImport(payload);
+  let target = await matchVesselForImport(payload);
   const replacing = !!target;
   if (target){
     if (srcName) target.name = srcName;
@@ -28617,9 +28886,9 @@ function setLocalVesselBackupStatus(msg){
 }
 
 /** Prompt: new vessel / merge legs / overwrite entire vessel. Returns mode or null if cancelled. */
-function promptVesselImportMode(payload, fileName){
+async function promptVesselImportMode(payload, fileName){
   const src = payload.vessel || {};
-  const existing = matchVesselForImport(payload);
+  const existing = await matchVesselForImport(payload);
   const total = Object.values(payload.counts || {}).reduce((a,b)=>a+(b||0),0);
   const summary = vesselExportCountSummary(payload.counts);
   if (!existing){
@@ -28679,7 +28948,7 @@ async function runVesselBackupImport(payload, fileName, statusFn){
   if (!isVesselExport(payload)){
     throw new Error('This file is not a vessel export (format ' + VESSEL_EXPORT_FORMAT + '). Create one with “Export Active Vessel”. Full-database backups go through Restore / Merge on the Setup tab.');
   }
-  const mode = promptVesselImportMode(payload, fileName);
+  const mode = await promptVesselImportMode(payload, fileName);
   if (!mode){ setStatus('Vessel import cancelled.'); return null; }
   setStatus(mode === 'merge' ? 'Merging vessel backup…' : 'Importing vessel (overwrite)…');
   const res = await importVesselExport(payload, { mode });
@@ -28952,8 +29221,12 @@ async function reconcileVoyageLegs(legs, opts){
         total: list.length,
       });
       await openLegForReconcile(vn, cond);
+      /* syncNow archives the active leg itself before it returns, so the
+         archive that used to follow this line wrote the whole leg to
+         IndexedDB a second time -- a multi-megabyte chunked write per leg,
+         for nothing, on a leg carrying scanned requisitions. That doubling
+         is a large part of why this took so long over a ship's connection. */
       await syncNow({ policy: 'merge' });
-      await archiveActiveVoyageLeg();
       results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
     }
   } finally {
@@ -29069,7 +29342,17 @@ async function onVoyageBackupMessage(ev){
       if (!msg.payload) throw new Error('No vessel payload');
       const mode = msg.mode === 'merge' ? 'merge' : 'replace';
       const res = await importVesselExport(msg.payload, { mode });
-      reply({ message: `Vessel ${res.vessel.name} imported (${res.written} records, mode ${res.mode}).` });
+      /* Say which it was. The caller shows this to the engineer, and "imported"
+         for a ship that was already on the list is how a duplicate goes
+         unnoticed -- matched now means matched, by hull. */
+      reply({
+        matched: !!res.replacing,
+        vesselName: res.vessel.name,
+        written: res.written,
+        message: res.replacing
+          ? `Vessel ${res.vessel.name} was already on this device's list — ${res.written} record(s) folded in (mode ${res.mode}).`
+          : `Vessel ${res.vessel.name} added to this device's list (${res.written} records, mode ${res.mode}).`
+      });
     } else if (msg.action === 'get-sync-settings') {
       ensureSyncConfig();
       await applyMirroredSyncCredentials();
@@ -29208,6 +29491,17 @@ async function onVoyageBackupMessage(ev){
         }
       } finally {
         _syncSlugOverride = prevOverride;
+      }
+    } else if (msg.action === 'misc-summary') {
+      /* What the ship holds outside the log: requisitions, the Consumption
+         Plan's snapshots, the oil record book. The AIO backup page shows this
+         so the engineer can see the data exists and is covered, rather than
+         having to take it on trust. Counts only -- the rows themselves carry
+         scanned PDFs and are measured in megabytes. */
+      if (state.activeVesselId) {
+        reply({ counts: miscVesselDataCounts(), vesselName: state.setup.vesselName || '' });
+      } else {
+        reply({ counts: null, message: 'No vessel is open in Voyage Chief on this device.' });
       }
     } else if (msg.action === 'list-remote') {
       if (msg.settings) {
@@ -30136,7 +30430,13 @@ function ensureOrbSetup(raw){
   if (!seed.shipName && state.setup?.vesselName) seed.shipName = state.setup.vesselName;
   if (!seed.imo && state.setup?.imoNo) seed.imo = state.setup.imoNo;
   if (!seed.flag && state.setup?.flag) seed.flag = state.setup.flag;
-  if (!seed.chiefEng && state.setup?.chEng) seed.chiefEng = state.setup.chEng;
+  /* Vessel Setup owns the Chief Engineer, so this follows it rather than
+     seeding from it once. Seeding only when blank let the two drift: the name
+     entered here stayed on every ORB page and printout after a crew change had
+     been recorded on Vessel Setup, and the book then carried the name of an
+     officer who had left the ship. The local value is kept only while Vessel
+     Setup names nobody. */
+  if (state.setup?.chEng) seed.chiefEng = state.setup.chEng;
   return EORB.defaultOrbSetup(seed);
 }
 
@@ -30378,7 +30678,7 @@ function renderOrbSignatoryGuidance(){
     const el = document.getElementById(id);
     if (el) el.style.display = dual ? '' : 'none';
   });
-  const ce = setup.chiefEng || document.getElementById('orb_ce')?.value?.trim() || '';
+  const ce = setup.chiefEng || String(state.setup?.chEng || '').trim();
   if (dual) {
     ['orb_chiefEngSignName', 'orb_weeklyChiefEngSignName'].forEach(id => {
       const el = document.getElementById(id);
@@ -30502,7 +30802,8 @@ function readOrbSetupFromForm(){
   const gt = parseFloat(document.getElementById('orb_gt')?.value);
   setup.gt = isFinite(gt) ? gt : null;
   setup.masterName = document.getElementById('orb_master')?.value || '';
-  setup.chiefEng = document.getElementById('orb_ce')?.value || '';
+  /* The box is read-only; Vessel Setup is where the name is changed. */
+  setup.chiefEng = state.setup.chEng || setup.chiefEng || '';
   setup.equipment = setup.equipment || {};
   setup.equipment.owsFitted = document.getElementById('orb_ows')?.value === 'true';
   setup.equipment.incineratorFitted = document.getElementById('orb_incin')?.value === 'true';
@@ -31389,7 +31690,14 @@ document.getElementById('orbTankEditors')?.addEventListener('click', (e)=>{
   const key = del.getAttribute('data-orb-tank-del');
   const idx = Number(del.getAttribute('data-idx'));
   const setup = orbSetup();
-  setup.tanks[key] = (setup.tanks[key] || []).filter((_,i)=>i!==idx);
+  const list = setup.tanks[key] || [];
+  const removed = list[idx];
+  setup.tanks[key] = list.filter((_,i)=>i!==idx);
+  /* The tank list is merged across devices now, so a removal needs a tombstone
+     or the next merge takes the tank back from the other device -- and it would
+     come back with that device's last ROB against a tank the ship no longer
+     records. */
+  if (removed && removed.id != null && removed.id !== '') rememberDeleted('orbTanks', removed.id);
   state.setup.orb = setup;
   renderOrbTankEditors();
 });
@@ -32584,7 +32892,40 @@ async function syncActiveVesselFromChengAio(forceVessel){
       || (nameKey && normalizeVesselNameForAio(v.name) === nameKey)
     ) || null;
   }
-  if (!match) return false;
+  /* No local record for the ship the shell is on.
+     
+     Returning false here is what made "I activated another vessel and the
+     page still shows the old one" happen: a ship added in the shell, or one
+     that only ever existed on the shell side, has no counterpart in this
+     module's own fleet, so the switch silently did nothing and every page
+     here kept naming the previous ship. Silently showing the wrong vessel is
+     the worst of the three options.
+     
+     So the ship is created here from what the shell knows -- its name and
+     IMO -- and made active. It arrives with no tank table and no opening
+     stock, which the engineer fills in; what matters is that the program is
+     on the ship he selected. matchVesselForImport identifies by hull, so a
+     later import of the same vessel folds into this record instead of adding
+     another. */
+  if (!match) {
+    const createName = String(hint.name || hint.vesselName || '').trim();
+    if (!createName) return false;
+    try {
+      const created = await importVesselExport({
+        format: VESSEL_EXPORT_FORMAT,
+        vessel: { name: createName, slug: hint.slug || slug || undefined, imo: hint.imo || '' },
+        setup: { vesselName: createName, imoNo: hint.imo || '' },
+        stores: {}
+      }, { mode: 'merge' });
+      /* importVesselExport writes activeVesselId and calls loadVesselFromDb
+         itself, so the ship is already open; switching again would load it
+         a second time. */
+      return !!(created && created.vessel);
+    } catch (err) {
+      console.warn('AIO vessel sync could not add the shell vessel:', err && err.message);
+      return false;
+    }
+  }
   if (match.id !== state.activeVesselId) await switchVessel(match.id);
   return true;
 }
@@ -32696,6 +33037,27 @@ function applyChengAioVesselHubLock(alreadyLocked){
   const ident = document.getElementById('vesselIdentityPanel');
   if (sel) sel.hidden = !!hub;
   if (ident) ident.hidden = !!hub;
+  /* The Chief Engineer box on the voyage tab is outside the hidden panel, so
+     it has to be locked on its own. Embedded, AIO Vessel Setup owns the name
+     and the signature and pushes both in; leaving this editable would let a
+     name be typed here only to be overwritten on the next push, which looks
+     like the program losing the entry. */
+  const chEngVoy = document.getElementById('s_chEngVoyage');
+  if (chEngVoy) {
+    chEngVoy.readOnly = !!hub;
+    chEngVoy.placeholder = hub ? 'From ChEng AIO Vessel Setup' : 'Update at crew change';
+    chEngVoy.title = hub ? 'Change this on the ChEng AIO Vessel Setup page.' : '';
+  }
+  const chEngVoyNote = document.getElementById('chEngVoyageNote');
+  if (chEngVoyNote) {
+    chEngVoyNote.textContent = hub
+      ? 'Chief Engineer and signature come from the ChEng AIO Vessel Setup page — change them there at a '
+        + 'crew change and every printout, report and e-ORB signature line in the suite follows. Entries '
+        + 'already saved keep the officer who was aboard when they were made.'
+      : 'Chief Engineer is the same record as on Vessel Data — update it here at a crew change and it '
+        + 'carries forward. The signature is managed under Vessel Data. Entries already saved keep the '
+        + 'officer who was aboard when they were made.';
+  }
   /* Standalone: leave fields editable. Embedded panels are hidden above. */
   if (!hub) {
     ['s_vesselName', 's_imoNo', 's_company', 's_callSign', 's_dwt', 's_flag'].forEach(id => {

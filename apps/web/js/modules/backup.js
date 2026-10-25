@@ -126,6 +126,9 @@
   }
 
   /** Map Voyage's own 0–100 into a slice of this job's bar. */
+  /* When the module last said it was doing something. */
+  let voyageLastProgressAt = 0;
+
   function watchVoyage(from, to) {
     if (progressJob) progressJob.voyage = { from, to };
   }
@@ -336,6 +339,9 @@
       }
       if (msg.type === 'chengaio-voyage-backup-progress') {
         applyVoyageProgress(msg);
+        /* Proof of life. A long job is not a hung one, and the deadline below
+           is measured from the last sign of work rather than from the start. */
+        voyageLastProgressAt = Date.now();
       }
       if (msg.type === 'chengaio-voyage-backup-result-begin' && msg.requestId && pendingVoyage[msg.requestId]) {
         pendingVoyage[msg.requestId].parts = [];
@@ -349,6 +355,7 @@
       if (msg.type === 'chengaio-voyage-backup-result-end' && msg.requestId && pendingVoyage[msg.requestId]) {
         const job = pendingVoyage[msg.requestId];
         delete pendingVoyage[msg.requestId];
+        if (job.done) job.done();
         try {
           const payload = JSON.parse((job.parts || []).join('') || 'null');
           job.resolve({ ...(job.meta || {}), payload });
@@ -358,8 +365,9 @@
         return;
       }
       if (msg.type === 'chengaio-voyage-backup-result' && msg.requestId && pendingVoyage[msg.requestId]) {
-        const { resolve, reject } = pendingVoyage[msg.requestId];
+        const { resolve, reject, done } = pendingVoyage[msg.requestId];
         delete pendingVoyage[msg.requestId];
+        if (done) done();
         if (msg.error) reject(new Error(msg.error));
         else resolve(msg);
       }
@@ -403,6 +411,30 @@
     };
   }
 
+  /**
+   * The slug the active vessel syncs under.
+   *
+   * The ship is already chosen in the switcher at the top of the window, so
+   * the field below should not be empty and waiting to be typed -- getting it
+   * wrong points the push at another ship's folder on the server. The vessel
+   * record carries its own voyage slug where it has one; otherwise it is
+   * derived the same way the voyage bridge derives it, so both land on the
+   * same folder.
+   */
+  function activeVesselSlug() {
+    try {
+      const active = window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive();
+      if (!active) return '';
+      if (active.voyageSlug) return String(active.voyageSlug);
+      if (active.slug) return String(active.slug);
+      const VB = window.ChengProVoyageBridge;
+      if (VB && typeof VB.slugify === 'function' && active.name) return VB.slugify(active.name);
+      return String(active.id || '');
+    } catch (_) {
+      return '';
+    }
+  }
+
   function fillVoyageSyncForm(root, settings) {
     if (!settings) return;
     const url = root.querySelector('#bk-voy-sync-url');
@@ -412,7 +444,10 @@
     const conflict = root.querySelector('#bk-voy-sync-conflict');
     if (url) url.value = settings.serverUrl || '';
     if (tok && settings.apiToken) tok.value = settings.apiToken;
-    if (vessel) vessel.value = settings.vesselId || '';
+    /* Carry the active vessel's slug when the module has none stored, rather
+       than leaving it blank for the engineer to guess at. A slug the module
+       has already recorded wins -- that is the folder its data is in. */
+    if (vessel) vessel.value = settings.vesselId || activeVesselSlug() || '';
     if (device) device.value = settings.deviceName || '';
     if (conflict) conflict.value = settings.conflictPolicy || 'merge';
   }
@@ -471,11 +506,35 @@
           ...extraObj,
         }, '*');
       }
-      setTimeout(() => {
-        if (!pendingVoyage[requestId]) return;
+      /* A deadline measured from the last sign of life, not from the start.
+      
+         This was a flat setTimeout, and "Update to the newest of both" passed
+         it 600000 -- so at exactly ten minutes a job that was still working
+         was abandoned with "did not respond", which is what looked like being
+         stuck at "uploading voyage leg to the server". Ten minutes is not long
+         for a handful of legs carrying scanned requisitions over a ship's
+         connection: each one is a full download, a full merge and a full
+         upload.
+      
+         So silence is what fails now, not duration. While the module keeps
+         reporting progress the job is left alone; if it stops reporting for
+         the whole window, it really has died and the message says so. */
+      const quietMs = timeoutMs || 120000;
+      voyageLastProgressAt = Date.now();
+      const startedAt = Date.now();
+      const tick = setInterval(() => {
+        if (!pendingVoyage[requestId]) { clearInterval(tick); return; }
+        const quietFor = Date.now() - Math.max(voyageLastProgressAt, startedAt);
+        if (quietFor < quietMs) return;
+        clearInterval(tick);
         delete pendingVoyage[requestId];
-        reject(new Error('Voyage Chief did not respond — open Voyage once, then retry'));
-      }, timeoutMs || 120000);
+        const mins = Math.round(quietFor / 60000);
+        reject(new Error(
+          `Voyage Chief stopped reporting progress for ${mins} minute${mins === 1 ? '' : 's'}`
+          + ' — open Voyage once, then retry. Work already uploaded is on the server;'
+          + ' running this again picks up where it left off.'));
+      }, 1000);
+      pendingVoyage[requestId].done = () => clearInterval(tick);
     });
   }
 
@@ -1260,6 +1319,40 @@
           localText: row.localEntryCount == null ? '—' : sideText(row.localEntryCount, row.localAt),
           serverText: row.remoteEntryCount == null ? '—' : sideText(row.remoteEntryCount, row.remoteAt),
         })).sort((a, b) => String(a.title).localeCompare(String(b.title), undefined, { numeric: true }));
+        /* Miscellaneous vessel data: the requisitions, the Consumption Plan's
+           saved snapshots and the oil record book. None of it is a log entry,
+           so none of it has a leg of its own -- it travels inside the vessel
+           setup that each leg carries, which is why it is reported here rather
+           than compared side by side: downloading a leg to count its rows
+           would pull the scanned requisitions with it, hundreds of megabytes,
+           for a number. Its own row says what this device holds and that the
+           update below carries it. */
+        let miscRow = null;
+        try {
+          const misc = await voyagePost('misc-summary', {}, root, 60000);
+          const c = misc && misc.counts;
+          if (c) {
+            const held = [
+              `${c.requisitions} requisition${c.requisitions === 1 ? '' : 's'}`,
+              `${c.bunkerPlanHistory} plan snapshot${c.bunkerPlanHistory === 1 ? '' : 's'}`,
+              `${c.orbEntries} e-ORB entr${c.orbEntries === 1 ? 'y' : 'ies'}`,
+            ];
+            if (c.orbConfigured) held.push('oil record book set up');
+            miscRow = {
+              kind: 'voyage-misc',
+              action: 'same',
+              reason: 'Carried by the voyage legs above — nothing to tick',
+              checked: false,
+              title: 'Miscellaneous vessel data',
+              localText: held.join(' · '),
+              serverText: 'travels with each leg',
+            };
+          }
+        } catch (err) {
+          /* A module that cannot answer must not block the leg comparison. */
+          console.warn('Miscellaneous data summary skipped:', err.message);
+        }
+        if (miscRow) rows.push(miscRow);
         const differ = rows.filter((row) => row.action !== 'same').length;
         const ship = compared.vesselName || compared.vessel || settings.vesselId || 'this ship';
         const plan = {
@@ -1268,7 +1361,7 @@
           vessel: settings.vesselId || compared.vessel,
           rows,
           summary: differ ? `${differ} leg${differ === 1 ? '' : 's'} differ` : 'legs match',
-          status: `${rows.length} leg${rows.length === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
+          status: `${rows.length - (miscRow ? 1 : 0)} leg${rows.length - (miscRow ? 1 : 0) === 1 ? '' : 's'} compared for ${ship}. ${differ ? `${differ} need an update. Tick the ones both databases should hold.` : 'Nothing is ahead on either side.'}`,
         };
         renderConsistency(plan);
         return plan;
@@ -1434,7 +1527,38 @@
               slot.server = vessel;
               byId.set(vessel.id, slot);
             }
-            const ids = [...byId.keys()];
+            let ids = [...byId.keys()];
+
+            /* The ship in the switcher, not the whole fleet.
+            
+               This walked every vessel on both sides, and a vessel present on
+               only one of them produced a row naming just the ship -- so with
+               fleets that do not line up the screen filled with vessel names
+               and showed no reports at all. The engineer asked for the saved
+               reports of the ship he is working on.
+            
+               Matched by hull, the same way the rest of the suite matches:
+               the tank id is the tank database's own key and need not be the
+               shell's. Where the active ship cannot be found on either side
+               the full fleet is still compared, because showing nothing at all
+               would be worse than showing more than was asked for -- and the
+               status line says which of the two happened. */
+            const activeVessel = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive()) || null;
+            const VK = window.ChengVesselKey;
+            let scopedTo = null;
+            if (activeVessel) {
+              const sameHull = (v) => (VK && VK.sameVessel
+                ? VK.sameVessel({ name: v.name, imo: v.imo }, { name: activeVessel.name, imo: activeVessel.imo })
+                : String(v.name || '').trim().toUpperCase() === String(activeVessel.name || '').trim().toUpperCase());
+              const hit = ids.find((id) => {
+                const slot = byId.get(id);
+                return (slot.local && sameHull(slot.local)) || (slot.server && sameHull(slot.server));
+              });
+              if (hit) {
+                ids = [hit];
+                scopedTo = activeVessel.name || hit;
+              }
+            }
             const rows = [];
             for (let i = 0; i < ids.length; i++) {
               const id = ids[i];
@@ -1463,16 +1587,26 @@
               rows.push(...compareReportSides(localBundle, serverBundle, name));
             }
             const differ = rows.filter((row) => row.checked).length;
+            /* Say which ship this covers. Without it the engineer cannot tell
+               a clean result for his own ship from a clean result for a fleet
+               that happens not to include it. */
+            const scope = scopedTo
+              ? `${scopedTo}`
+              : (activeVessel
+                ? `every vessel on this device and the server — ${activeVessel.name || 'the active vessel'} was not found on either side`
+                : 'every vessel on this device and the server — no active vessel is selected');
             renderConsistency({
               kind: 'tank-local',
               bundles: null,
               rows,
               summary: differ ? `${differ} report group${differ === 1 ? '' : 's'} differ` : 'reports match',
-              status: differ
+              status: (differ
                 ? `${differ} saved-report group${differ === 1 ? '' : 's'} differ. Updating copies the missing reports both ways and keeps the newer copy when both have the same report.`
-                : 'Saved tank reports on this device match the server.',
+                : 'Saved tank reports on this device match the server.')
+                + ` Checked: ${scope}.`,
             });
-            return differ ? `${differ} report groups differ` : 'Saved tank reports match';
+            return (differ ? `${differ} report groups differ` : 'Saved tank reports match')
+              + (scopedTo ? ` — ${scopedTo}` : '');
           });
         } catch (e) {
           setConsistency(e.message || 'Tank report check failed');
@@ -2061,7 +2195,7 @@
                  is a vessel export with no records in it: importVesselExport
                  creates the ship and its setup row and writes nothing else. */
               try {
-                await voyagePost('import-vessel', {
+                const voyRes = await voyagePost('import-vessel', {
                   payload: {
                     format: 'noon-report-vessel-v1',
                     vessel: {
@@ -2076,7 +2210,12 @@
                   },
                   mode: 'merge',
                 }, root);
-                notes.push(`Voyage Chief — on this device's vessel list, and now the active ship.`);
+                /* The module matches on hull, so it can tell us whether this
+                   was already the engineer's ship. Saying "added" either way
+                   is what let a duplicate pass unnoticed. */
+                notes.push(voyRes && voyRes.matched
+                  ? `Voyage Chief — already on this device's list, and now the active ship.`
+                  : `Voyage Chief — added to this device's vessel list, and now the active ship.`);
               } catch (e) {
                 notes.push(`Voyage Chief — ${e.message || 'failed'}`);
               }

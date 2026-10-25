@@ -1147,6 +1147,48 @@ html.aio-fullscreen-embed {
   --bottom-h: 0px;
   --topbar-h: 0px;
 }
+/* Full screen: the window itself must never scroll, whatever the nav mode.
+   There is no shell chrome on screen to scroll past -- the frame is sized to
+   the viewport -- so an outer scrollbar is always wrong here, and it was the
+   reason a module could not be scrolled at full screen: the page grew taller
+   than the viewport, the window took the scroll, and the frame never got the
+   wheel. Each module scrolls inside its own frame instead.
+
+   Deliberately not written :not(.use-bottom-nav) like the desktop block
+   below it. That is what left this broken: the shell calls a short desktop
+   window a phone, so every rule guarded that way switched off. Full screen
+   is full screen on a phone and on a 24-inch monitor alike. */
+html.aio-fullscreen-embed,
+html.aio-fullscreen-embed body {
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.aio-fullscreen-embed .app {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+html.aio-fullscreen-embed .body {
+  min-height: 0;
+  overflow: hidden;
+}
+/* Anything full screen that is NOT an embedded frame -- a shell page opened
+   full screen -- still has to be able to scroll, so the pane keeps its own
+   scrollbar rather than inheriting the hidden one above. */
+html.aio-fullscreen-embed .main {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* A frame fills the pane exactly, so the pane must not scroll behind it;
+   the module inside does its own scrolling. */
+html.aio-fullscreen-embed .main:has(.aio-embed-wrap),
+html.aio-fullscreen-embed .main:has(.eorb-embed-wrap) {
+  overflow: hidden;
+}
 html.aio-fullscreen-embed .app {
   min-height: 100dvh;
 }

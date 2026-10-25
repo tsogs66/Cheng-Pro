@@ -532,6 +532,31 @@
       for (const key of ENGINE_KEYS) {
         if (vessel[key] != null && vessel[key] !== '') setup[key] = vessel[key];
       }
+
+      /* The Chief Engineer, and his signature, come from Vessel Setup.
+      
+         Without this they did not travel at all: the shell held the name and
+         the signature image, and Voyage Chief held its own copies, so the
+         engineer typed the name into Vessel Setup, again into Voyage setup,
+         and uploaded the signature a second time -- and after a crew change
+         any page he forgot still printed the officer who had left.
+      
+         The name is taken as authoritative, overwriting Voyage's copy, which
+         is the point of having one place to change it. Signatures are MERGED,
+         filed under the lower-cased name exactly as both programs file them,
+         so a sheet reprinted after a handover still carries the signature of
+         the officer named on it. */
+      const chEng = String(vessel.chiefEngineer || '').trim();
+      if (chEng) setup.chEng = chEng;
+      const incomingSigs = (vessel.chEngSignatures && typeof vessel.chEngSignatures === 'object')
+        ? vessel.chEngSignatures
+        : null;
+      if (incomingSigs) {
+        if (!setup.chEngSignatures || typeof setup.chEngSignatures !== 'object') setup.chEngSignatures = {};
+        for (const [key, url] of Object.entries(incomingSigs)) {
+          if (typeof url === 'string' && url) setup.chEngSignatures[String(key).trim().toLowerCase()] = url;
+        }
+      }
       if (!setup.sync) setup.sync = {};
       setup.sync.vesselId = setup.sync.vesselId || reg.slug || vessel.id;
       await idbPut(db, 'meta', { key: setupKey, value: setup });
