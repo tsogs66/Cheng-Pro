@@ -139,6 +139,60 @@ def safe_slug(value: str) -> str:
     return value
 
 
+def slug_core(value: str) -> str:
+    """Canonical ship key for matching: m-v-flag-evi, mv-flag-evi, and flag-evi
+    are the same vessel. Account registration often keeps the MV as an m-v-
+    prefix in the folder name; Voyage Chief's Setup field may use the bare
+    name — treat them as one ship when reading/writing voyage data.
+    """
+    raw = unquote(value or "").strip().lower()
+    s = re.sub(r"[^a-z0-9._-]+", "-", raw).strip("-.")
+    prev = None
+    while s != prev:
+        prev = s
+        s = re.sub(r"^m[._-]?v[._-]+", "", s)
+        s = s.lstrip("-._")
+    return s or "vessel"
+
+
+_RESERVED_ROOT_DIRS = frozenset({"users"})
+
+
+def resolve_vessel_slug(vessel: str, email: str | None = None) -> str:
+    """Map a requested vessel id onto an existing data folder with the same core.
+
+    Exact match wins. Otherwise any sibling folder whose slug_core matches
+    (e.g. request flag-evi → folder m-v-flag-evi). If nothing matches, return
+    the asked slug so a first push still creates a new folder under that name.
+    """
+    asked = safe_slug(vessel)
+    if email is None:
+        email = current_license_email()
+    root = DATA_DIR / "users" / email_slug(email) if email else DATA_DIR
+    if (root / asked).is_dir():
+        return asked
+    if not root.is_dir():
+        return asked
+    core = slug_core(asked)
+    matches: list[str] = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        if not email and child.name.lower() in _RESERVED_ROOT_DIRS:
+            continue
+        if not SLUG_RE.match(child.name):
+            continue
+        if slug_core(child.name) == core:
+            matches.append(child.name)
+    if not matches:
+        return asked
+    if asked in matches:
+        return asked
+    # Prefer the m-v- form account registration historically wrote.
+    matches.sort(key=lambda n: (0 if n.lower().startswith("m-v-") else 1, len(n), n))
+    return matches[0]
+
+
 def safe_condition(value: str) -> str:
     """Canonical voyage condition: B (ballast) or L (laden/loaded) only."""
     value = unquote(value or "").strip().upper()
@@ -156,7 +210,7 @@ def vessel_dir(vessel: str, email: str | None = None) -> Path:
     root = DATA_DIR
     if email:
         root = DATA_DIR / "users" / email_slug(email)
-    return root / safe_slug(vessel)
+    return root / resolve_vessel_slug(vessel, email)
 
 
 def voyage_dir(vessel: str, voyage: str, email: str | None = None) -> Path:
@@ -321,6 +375,334 @@ def list_conditions(vessel: str, voyage: str) -> list[dict]:
     if voyage not in voyages:
         return []
     return voyages[voyage]["conditions"]
+
+
+
+SKIP_ROOT_NAMES = {"users", "__pycache__"}
+
+
+def iter_owner_roots():
+    """Yield (owner_slug|None, root_path) for root and each users/<slug>/ tree."""
+    yield None, DATA_DIR
+    users = DATA_DIR / "users"
+    if not users.is_dir():
+        return
+    try:
+        names = sorted(users.iterdir())
+    except OSError:
+        return
+    for p in names:
+        try:
+            if p.is_dir() and p.name not in SKIP_ROOT_NAMES and not p.name.startswith("."):
+                yield p.name, p
+        except OSError:
+            continue
+
+
+def _leg_payload(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _setup_from_leg(data: dict | None) -> dict:
+    if not data:
+        return {}
+    inner = data.get("data") if isinstance(data.get("data"), dict) else None
+    setup = (inner or data).get("setup")
+    return setup if isinstance(setup, dict) else {}
+
+
+def _particulars_from_setup(setup: dict, vessel_slug: str) -> dict:
+    setup = setup or {}
+    name = (
+        setup.get("vesselName")
+        or setup.get("shipName")
+        or vessel_slug.replace("-", " ").title()
+    )
+    imo = setup.get("imoNo") or setup.get("imo") or setup.get("imoNumber") or ""
+    return {
+        "vesselName": name,
+        "imoNo": imo,
+        "callSign": setup.get("callSign") or "",
+        "flag": setup.get("flag") or "",
+        "company": setup.get("company") or "",
+        "dwt": setup.get("dwt"),
+        "chEng": setup.get("chEng") or "",
+        "pitch": setup.get("pitch"),
+        "mcrRpm": setup.get("mcrRpm"),
+        "mcrKw": setup.get("mcrKw"),
+        "csrRpm": setup.get("csrRpm"),
+        "csrKw": setup.get("csrKw"),
+        "sfoc100": setup.get("sfoc100"),
+        "sfoc85": setup.get("sfoc85"),
+        "lcvRef": setup.get("lcvRef"),
+        "lcvActual": setup.get("lcvActual"),
+        "capacity": setup.get("capacity"),
+        "capacityLube": setup.get("capacityLube"),
+        "fuelTanks": setup.get("fuelTanks"),
+        "lubeTanks": setup.get("lubeTanks"),
+        "fwTanks": setup.get("fwTanks"),
+        "generators": setup.get("generators"),
+        "flowmeters": setup.get("flowmeters"),
+        "defaults": setup.get("defaults"),
+        "geArrangement": setup.get("geArrangement"),
+        "generatorCount": setup.get("generatorCount"),
+        "meCylinderCount": setup.get("meCylinderCount"),
+        "turboCount": setup.get("turboCount"),
+    }
+
+
+def find_latest_leg(owner_slug: str | None, vessel_slug: str) -> dict | None:
+    """Newest B/L leg on disk for a vessel under root or users/<slug>/.
+
+    Important: do not call vessel_dir(..., None) here — that falls back to the
+    request's X-License-Email and would hide root-level vessels from a scoped user.
+    """
+    vessel_slug = safe_slug(vessel_slug)
+    if owner_slug:
+        root = DATA_DIR / "users" / email_slug(owner_slug) / vessel_slug
+    else:
+        root = DATA_DIR / vessel_slug
+    if not root.exists():
+        return None
+    best = None
+    best_key = ""
+
+    def consider(voyage_no: str, condition: str, path: Path) -> None:
+        nonlocal best, best_key
+        data = _leg_payload(path)
+        meta = read_leg_meta(path, voyage_no, condition)
+        stamp = meta.get("updatedAt") or meta.get("serverUpdatedAt") or ""
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0
+        key = f"{stamp}|{mtime:020.0f}|{voyage_no}|{condition}"
+        if key >= best_key:
+            best_key = key
+            best = {
+                "ownerSlug": owner_slug,
+                "vesselSlug": vessel_slug,
+                "voyageNo": voyage_no,
+                "condition": safe_condition(condition),
+                "updatedAt": stamp or None,
+                "path": path,
+                "data": data,
+            }
+
+    try:
+        children = sorted(root.iterdir())
+    except OSError:
+        return None
+    for path in children:
+        if path.is_dir():
+            voyage_no = path.name
+            if not SLUG_RE.match(voyage_no):
+                continue
+            if voyage_no.startswith("."):  # upload staging, not a voyage
+                continue
+            for cond_file in sorted(path.glob("*.json")):
+                cond = cond_file.stem.upper()
+                if COND_RE.match(cond):
+                    consider(voyage_no, safe_condition(cond), cond_file)
+        elif path.suffix == ".json":
+            m = LEGACY_COND_SUFFIX.match(path.stem)
+            if m:
+                consider(m.group("voyage"), m.group("cond"), path)
+    return best
+
+
+def list_vessel_library() -> list[dict]:
+    """All vessels on this sync server (name + IMO), across user folders."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for owner_slug, root in iter_owner_roots():
+        if not root.exists():
+            continue
+        try:
+            children = sorted(root.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if not child.is_dir():
+                    continue
+            except OSError:
+                continue
+            if child.name in SKIP_ROOT_NAMES or child.name.startswith("."):
+                continue
+            if child.name.endswith(".db"):
+                continue
+            vessel_slug = child.name
+            if not SLUG_RE.match(vessel_slug):
+                continue
+            key = f"{owner_slug or ''}::{vessel_slug}"
+            if key in seen:
+                continue
+            seen.add(key)
+            leg = find_latest_leg(owner_slug, vessel_slug)
+            setup = _setup_from_leg(leg["data"] if leg else None)
+            particulars = _particulars_from_setup(setup, vessel_slug)
+            # Fleet register may have a friendlier name/IMO when disk has none.
+            acct = None
+            try:
+                acct = ACCOUNTS.get_vessel(vessel_slug)
+            except Exception:
+                acct = None
+            if acct:
+                if not particulars.get("vesselName") or particulars["vesselName"] == vessel_slug.replace("-", " ").title():
+                    particulars["vesselName"] = acct.get("vesselName") or particulars["vesselName"]
+                if not particulars.get("imoNo"):
+                    particulars["imoNo"] = acct.get("imo") or ""
+            out.append({
+                "ownerSlug": owner_slug,
+                "vesselId": vessel_slug,
+                "name": particulars.get("vesselName") or vessel_slug,
+                "imo": particulars.get("imoNo") or "",
+                "updatedAt": (leg or {}).get("updatedAt"),
+                "hasVoyageLeg": bool(leg),
+            })
+    out.sort(key=lambda v: str(v.get("name") or "").lower())
+    return out
+
+
+def import_vessel_library_entry(owner_slug: str | None, vessel_id: str, dest_email: str | None) -> dict:
+    """Copy ship particulars + latest voyage leg into the requester's user folder."""
+    vessel_id = safe_slug(vessel_id)
+    source_owner = owner_slug.strip() if isinstance(owner_slug, str) and owner_slug.strip() else None
+    leg = find_latest_leg(source_owner, vessel_id)
+    setup = _setup_from_leg(leg["data"] if leg else None)
+    particulars = _particulars_from_setup(setup, vessel_id)
+    if not particulars.get("vesselName"):
+        try:
+            acct = ACCOUNTS.get_vessel(vessel_id)
+            if acct:
+                particulars["vesselName"] = acct.get("vesselName") or vessel_id
+                particulars["imoNo"] = particulars.get("imoNo") or acct.get("imo") or ""
+        except Exception:
+            pass
+
+    voyage_copy = None
+    voyage_leg = None
+    if leg and leg.get("data") is not None:
+        voyage_leg = {
+            "ownerSlug": leg["ownerSlug"],
+            "vesselSlug": leg["vesselSlug"],
+            "voyageNo": leg["voyageNo"],
+            "condition": leg["condition"],
+            "updatedAt": leg["updatedAt"],
+            "data": leg["data"],
+        }
+        dest_vessel = vessel_id
+        # Build destination under the caller's user folder explicitly (no request-context fallback).
+        if dest_email:
+            dest_root = DATA_DIR / "users" / email_slug(dest_email) / safe_slug(dest_vessel)
+        else:
+            dest_root = DATA_DIR / safe_slug(dest_vessel)
+        dest_path = dest_root / safe_slug(leg["voyageNo"]) / f"{safe_condition(leg['condition'])}.json"
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.loads(json.dumps(leg["data"]))  # deep copy via JSON
+        if isinstance(payload, dict):
+            payload["serverUpdatedAt"] = utc_now()
+            payload["copiedFrom"] = {
+                "ownerSlug": leg["ownerSlug"],
+                "vesselSlug": leg["vesselSlug"],
+                "voyageNo": leg["voyageNo"],
+                "condition": leg["condition"],
+                "at": utc_now(),
+            }
+        dest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        voyage_copy = {
+            "ownerSlug": email_slug(dest_email) if dest_email else None,
+            "vesselSlug": dest_vessel,
+            "voyageNo": leg["voyageNo"],
+            "condition": leg["condition"],
+            "path": (str(dest_path.relative_to(DATA_DIR)) if str(dest_path).startswith(str(DATA_DIR)) else str(dest_path)),
+        }
+
+    return {
+        "ok": True,
+        "vessel": {
+            "id": vessel_id,
+            "slug": vessel_id,
+            "name": particulars.get("vesselName") or vessel_id,
+            "imo": particulars.get("imoNo") or "",
+        },
+        "particulars": particulars,
+        "voyageLeg": voyage_leg,
+        "voyageCopy": voyage_copy,
+        "message": (
+            "Ship particulars imported and latest voyage leg copied into your server database."
+            if voyage_copy
+            else "Ship particulars imported (no voyage leg found on server)."
+        ),
+    }
+
+
+def list_admin_inventory() -> dict:
+    """Master inventory: user folders, vessels, and voyage legs on disk."""
+    users = []
+    for owner_slug, root in iter_owner_roots():
+        vessels = []
+        try:
+            children = sorted(root.iterdir())
+        except OSError:
+            children = []
+        for child in children:
+            try:
+                if not child.is_dir() or child.name in SKIP_ROOT_NAMES or child.name.startswith("."):
+                    continue
+            except OSError:
+                continue
+            if not SLUG_RE.match(child.name):
+                continue
+            leg = find_latest_leg(owner_slug, child.name)
+            setup = _setup_from_leg(leg["data"] if leg else None)
+            particulars = _particulars_from_setup(setup, child.name)
+            vessels.append({
+                "vesselId": child.name,
+                "name": particulars.get("vesselName") or child.name,
+                "imo": particulars.get("imoNo") or "",
+                "updatedAt": (leg or {}).get("updatedAt"),
+            })
+        users.append({
+            "emailSlug": owner_slug or "(root)",
+            "vesselCount": len(vessels),
+            "vessels": vessels,
+        })
+    legs = []
+    for owner_slug, root in iter_owner_roots():
+        try:
+            children = sorted(root.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if not child.is_dir() or child.name in SKIP_ROOT_NAMES:
+                    continue
+            except OSError:
+                continue
+            if not SLUG_RE.match(child.name):
+                continue
+            # reuse list_voyages under that owner
+            prev = current_license_email()
+            try:
+                _request_ctx.email = owner_slug
+                for voyage in list_voyages(child.name):
+                    for cond in voyage.get("conditions") or []:
+                        legs.append({
+                            "ownerSlug": owner_slug,
+                            "vesselSlug": child.name,
+                            "voyageNo": voyage.get("voyageNumber"),
+                            "condition": cond.get("condition"),
+                            "updatedAt": cond.get("updatedAt"),
+                        })
+            finally:
+                _request_ctx.email = prev
+    return {"users": users, "voyageLegs": legs}
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +967,8 @@ class SyncHandler(BaseHTTPRequestHandler):
             return principal
 
         if write:
-            if principal.get("writable") != vessel:
+            writable = principal.get("writable")
+            if writable is None or slug_core(writable) != slug_core(vessel):
                 current = principal.get("writable")
                 json_response(
                     self, HTTPStatus.FORBIDDEN,
@@ -600,7 +983,7 @@ class SyncHandler(BaseHTTPRequestHandler):
                 return None
             return principal
 
-        if vessel not in readable:
+        if not any(slug_core(v) == slug_core(vessel) for v in readable):
             json_response(
                 self, HTTPStatus.FORBIDDEN,
                 {"error": "forbidden", "reason": "wrong_vessel",
@@ -797,6 +1180,40 @@ class SyncHandler(BaseHTTPRequestHandler):
             )
             return
 
+
+        if parts == ["api", "vessel-library"]:
+            principal = self._principal()
+            if principal["reason"]:
+                self._reject_unauthorized(principal["reason"])
+                return
+            try:
+                json_response(
+                    self,
+                    HTTPStatus.OK,
+                    {"ok": True, "vessels": list_vessel_library()},
+                )
+            except Exception as err:
+                json_response(
+                    self,
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": str(err) or "Failed to list vessel library"},
+                )
+            return
+
+        if parts == ["api", "admin", "inventory"]:
+            if self._require_admin() is None:
+                return
+            try:
+                inv = list_admin_inventory()
+                json_response(self, HTTPStatus.OK, {"ok": True, **inv})
+            except Exception as err:
+                json_response(
+                    self,
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": str(err) or "Failed to build inventory"},
+                )
+            return
+
         if parts == ["api", "admin", "vessels", "pending"]:
             if self._require_admin() is None:
                 return
@@ -869,15 +1286,22 @@ class SyncHandler(BaseHTTPRequestHandler):
             try:
                 if len(parts) == 3:
                     vessel = safe_slug(parts[2])
+                    resolved = resolve_vessel_slug(vessel)
                     json_response(
                         self,
                         HTTPStatus.OK,
-                        {"ok": True, "vesselId": vessel, "voyages": list_voyages(vessel)},
+                        {
+                            "ok": True,
+                            "vesselId": resolved,
+                            "requestedVesselId": vessel,
+                            "voyages": list_voyages(vessel),
+                        },
                     )
                     return
                 if len(parts) == 4:
                     vessel = safe_slug(parts[2])
                     voyage = safe_slug(parts[3])
+                    resolved = resolve_vessel_slug(vessel)
                     # Could be legacy pull of voyageKey "22-F-BALLAST" OR list conditions
                     legacy = LEGACY_COND_SUFFIX.match(voyage)
                     if legacy:
@@ -890,7 +1314,8 @@ class SyncHandler(BaseHTTPRequestHandler):
                         HTTPStatus.OK,
                         {
                             "ok": True,
-                            "vesselId": vessel,
+                            "vesselId": resolved,
+                            "requestedVesselId": vessel,
                             "voyageNumber": voyage,
                             "conditions": list_conditions(vessel, voyage),
                         },
@@ -1023,6 +1448,37 @@ class SyncHandler(BaseHTTPRequestHandler):
                 return self._handle_vessel_import(body)
             if parts == ["api", "vessels", "claim"]:
                 return self._handle_claim_vessel(body)
+            if parts == ["api", "vessel-library", "import"]:
+                principal = self._principal()
+                if principal["reason"]:
+                    self._reject_unauthorized(principal["reason"])
+                    return
+                owner_slug = body.get("ownerSlug")
+                vessel_id = body.get("vesselId") or body.get("vesselSlug")
+                if not vessel_id:
+                    json_response(self, HTTPStatus.BAD_REQUEST, {"error": "vesselId is required"})
+                    return
+                dest_email = current_license_email()
+                if not dest_email and principal.get("role") != ROLE_ADMIN:
+                    json_response(
+                        self,
+                        HTTPStatus.BAD_REQUEST,
+                        {"error": "X-License-Email is required to import into your own server database"},
+                    )
+                    return
+                try:
+                    result = import_vessel_library_entry(owner_slug, str(vessel_id), dest_email)
+                except ValueError as err:
+                    json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(err)})
+                    return
+                except Exception as err:
+                    json_response(
+                        self,
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": str(err) or "Import failed"},
+                    )
+                    return
+                return json_response(self, HTTPStatus.OK, result)
         except AccountError as err:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(err)})
             return

@@ -132,5 +132,66 @@ check('the windowed desktop block still pins html and body',
 check('and still gives the pane its own scrollbar',
   /html:not\(\.aio-android-nav\):not\(\.use-bottom-nav\):not\(\.aio-fullscreen-embed\) \.main \{[^}]*overflow-y:\s*auto/.test(CSS), true);
 
+/* ---- 3. a bar above the frame must not push its bottom off the screen ---- */
+
+/* Consumption Plan and Bunkering Plan are the only modules that put a
+   .bunker-file-bar above the embed wrap. The fullscreen rules used to size the
+   pane, the wrap AND the frame each to 100dvh and give the embed strip back
+   with a margin on the frame -- which holds only while the frame is the pane's
+   one and only child. With the bar above it, a 100dvh wrap started 101px down
+   a 100dvh pane (55px in landscape) and its bottom fell outside a pane that is
+   overflow:hidden by design, so the module's own footer could not be reached.
+   Measured in Chromium before the fix: 101px unreachable in Android portrait
+   and 55px in all three landscape/portrait desktop cases, on both pages, while
+   every embed without a file bar was fine.
+
+   The fix is the same principle as the nav-mode fix above: let the layout do
+   the arithmetic. The strip and safe-area insets are padding on the pane,
+   counted once, and the wrap and frame are flex children taking the rest. */
+
+const fsEmbed = CSS.slice(
+  CSS.indexOf('html.aio-fullscreen-embed .main,'),
+  CSS.indexOf('html.aio-fullscreen-embed .aio-return-fabs')
+);
+
+check('the pane carries the strip and safe-area inset as padding',
+  /padding:\s*calc\(var\(--embed-bar-h\) \+ env\(safe-area-inset-top, 0px\)\) 0\s*\n\s*env\(safe-area-inset-bottom, 0px\) !important;/.test(fsEmbed), true);
+check('and sizes itself with border-box, so that padding is inside the 100dvh',
+  /box-sizing:\s*border-box/.test(fsEmbed), true);
+check('the pane is a flex column, so a sibling bar is accounted for',
+  /display:\s*flex;\s*\n\s*flex-direction:\s*column;/.test(fsEmbed), true);
+
+check('the wrap takes the remaining space rather than a whole viewport',
+  /html\.aio-fullscreen-embed \.aio-embed-wrap,\s*\nhtml\.aio-fullscreen-embed \.eorb-embed-wrap \{[^}]*flex:\s*1 1 auto/.test(fsEmbed), true);
+check('and no longer hard-sets itself to 100dvh',
+  /html\.aio-fullscreen-embed \.aio-embed-wrap,\s*\nhtml\.aio-fullscreen-embed \.eorb-embed-wrap \{[^}]*(min-)?height:\s*100dvh/.test(fsEmbed), false);
+
+check('the frame takes the remaining space too',
+  /html\.aio-fullscreen-embed \.aio-embed-frame,[\s\S]{0,400}?flex:\s*1 1 auto/.test(fsEmbed), true);
+/* The margin was the double-count: the pane already gives back the strip. */
+check('the frame no longer carries the strip as a margin',
+  /html\.aio-fullscreen-embed \.aio-embed-frame,[\s\S]{0,500}?margin-top:\s*calc\(var\(--embed-bar-h\)/.test(fsEmbed), false);
+check('its margin-top is explicitly zeroed, so a base rule cannot reintroduce it',
+  /html\.aio-fullscreen-embed \.aio-embed-frame,[\s\S]{0,400}?margin-top:\s*0;/.test(fsEmbed), true);
+check('and it no longer caps itself to a computed viewport height',
+  /html\.aio-fullscreen-embed \.aio-embed-frame,[\s\S]{0,500}?max-height:\s*calc\(100dvh/.test(fsEmbed), false);
+check('the file bar keeps its own height and only the frame gives way',
+  /html\.aio-fullscreen-embed \.main > \.bunker-file-bar \{\s*\n\s*flex:\s*0 0 auto;/.test(CSS), true);
+/* The comment wraps, so match with whitespace flexible rather than editing
+   the comment to suit the test. */
+check('and the reason is written down',
+  /works only while the\s+frame is the pane's one and only child/.test(CSS), true);
+check('including the measurement that found it',
+  /101px unreachable in\s+Android portrait/.test(CSS), true);
+
+/* The two modules this protects are the two that have such a bar. If a third
+   grows one, this list is how the next reader learns the rule applies to it. */
+const modules = ['bunkerplan', 'bunkeringplan'];
+for (const m of modules) {
+  const src = fs.readFileSync(path.join(ROOT, `apps/web/js/modules/${m}.js`), 'utf8');
+  check(`${m} still puts its file bar above the embed wrap`,
+    src.indexOf('bunker-file-bar') < src.indexOf('aio-embed-wrap'), true);
+}
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);

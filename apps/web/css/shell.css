@@ -1197,29 +1197,54 @@ html.aio-fullscreen-embed .body {
   min-height: 100dvh;
   height: 100dvh;
 }
+/* The pane owns the viewport; everything inside it takes what is left.
+ 
+   This used to size the pane, the wrap AND the frame each to 100dvh, with the
+   embed strip given back by a margin on the frame. That works only while the
+   frame is the pane's one and only child. Consumption Plan and Bunkering Plan
+   put a .bunker-file-bar above the wrap -- 101px in portrait, 55px in
+   landscape -- so a 100dvh wrap started that far down a 100dvh pane and its
+   bottom fell outside. The pane is overflow:hidden, by design, so the module's
+   own footer could not be scrolled to: measured at 101px unreachable in
+   Android portrait and 55px in every landscape case, on both pages, while the
+   embeds with no file bar were fine.
+ 
+   So the strip and the safe areas are now padding on the PANE, counted once,
+   and the wrap and frame are ordinary flex children that take the remainder.
+   A sibling bar of any height is then accounted for by the layout rather than
+   by arithmetic that has to be kept in step with it. */
 html.aio-fullscreen-embed .main,
 html.aio-fullscreen-embed .main:has(.aio-embed-wrap),
 html.aio-fullscreen-embed .main:has(.eorb-embed-wrap) {
-  padding: 0 !important;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--embed-bar-h) + env(safe-area-inset-top, 0px)) 0
+           env(safe-area-inset-bottom, 0px) !important;
   min-height: 100dvh !important;
   height: 100dvh;
+  max-height: 100dvh;
 }
 html.aio-fullscreen-embed .aio-embed-wrap,
 html.aio-fullscreen-embed .eorb-embed-wrap {
-  min-height: 100dvh;
-  height: 100dvh;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+/* A file bar above the frame keeps its own height and is not squeezed; only
+   the frame gives way. */
+html.aio-fullscreen-embed .main > .bunker-file-bar {
+  flex: 0 0 auto;
 }
 html.aio-fullscreen-embed .aio-embed-frame,
 html.aio-fullscreen-embed .eorb-embed-frame {
-  /* Below the strip, not under it — a module's own toolbar is usually the
-     first thing at its top, and it was being covered.
-     The height has to give back the same inset the margin takes, including
-     the safe areas. Leaving those on only the margin made the frame taller
-     than the screen, and Tank Chief's bottom menu was clipped. */
-  margin-top: calc(var(--embed-bar-h) + env(safe-area-inset-top, 0px));
-  height: calc(100dvh - var(--embed-bar-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  flex: 1 1 auto;
+  /* The strip inset lives on the pane now; a margin here would charge for it
+     a second time and push the bottom back off the screen. */
+  margin-top: 0;
+  height: auto;
   min-height: 0 !important;
-  max-height: calc(100dvh - var(--embed-bar-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: none;
 }
 html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   display: flex;
