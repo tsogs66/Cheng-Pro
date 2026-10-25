@@ -4805,7 +4805,8 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
       <h2>Server Sync</h2>
       <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally until you press Sync Now.</div>
       <div class="form-grid cols2">
-        <div class="field span2"><label>Sync Server URL</label><input id="sync_serverUrl" placeholder="http://192.168.x.x:8080 or https://sync.yourdomain.com (not voyage_manager.html)"></div>
+        <div class="field span2"><label>Sync Server URL</label><input id="sync_serverUrl" placeholder="http://192.168.x.x:8080 or https://sync.yourdomain.com (not voyage_manager.html)">
+          <span class="hint" id="syncUrlSchemeWarn" hidden></span></div>
         <div class="field"><label>API Token</label><input id="sync_apiToken" type="password" placeholder="Bearer token"></div>
         <div class="field"><label>Vessel ID (slug)</label><input id="sync_vesselId" placeholder="e.g. captain-veniamis"></div>
         <div class="field"><label>Device name</label><input id="sync_deviceName" placeholder="e.g. ER tablet / Chief PC"></div>
@@ -25164,6 +25165,85 @@ function normalizeSyncServerUrl(raw){
   return url;
 }
 
+/**
+ * The browser will not let an https page call an http server.
+ *
+ * A ship reported "error in uploading voyage leg -- http mixed content error".
+ * Nothing was wrong with the leg or the server: the app was open over https and
+ * the Sync Server URL was a plain http LAN address, so the browser refused the
+ * request before it left the machine. The old message put mixed content third
+ * in a list of three guesses ("check the URL, HTTPS mixed-content, and that
+ * voyage-sync/nginx are running"), which reads as "something is broken over
+ * there" when in fact the request never went anywhere and never will.
+ *
+ * This is decidable before any work starts, so it is decided there, and the
+ * message says what to change rather than what to check.
+ *
+ * Not a block:
+ *   - an http page calling an http server (the AIO shell on localhost, a LAN
+ *     install) -- no downgrade, nothing to refuse
+ *   - loopback: browsers treat http://localhost and http://127.0.0.1 as
+ *     potentially trustworthy, so an https page may call them
+ *   - the Android app: capacitor.config.json sets allowMixedContent, so the
+ *     WebView is allowed cleartext even though it is served from
+ *     https://localhost. Blocking there would stop a sync that works today.
+ */
+function syncMixedContentProblem(url){
+  let target;
+  try{ target = new URL(url, location.href); }
+  catch(_){ return ''; }
+  if (target.protocol !== 'http:') return '';
+  let pageHttps = false;
+  try{ pageHttps = location.protocol === 'https:'; }catch(_){ return ''; }
+  if (!pageHttps) return '';
+  const host = (target.hostname || '').toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+      || host.endsWith('.localhost')) return '';
+  try{
+    const cap = window.Capacitor;
+    const native = !!(cap && (cap.isNativePlatform ? cap.isNativePlatform() : (cap.getPlatform && cap.getPlatform() !== 'web')));
+    if (native) return '';
+  }catch(_){ /* not Capacitor */ }
+  return 'This copy of ' + APP_NAME + ' is open over https (' + location.origin + '), and the Sync '
+    + 'Server URL is plain http (' + target.origin + '). The browser blocks that before the request '
+    + 'leaves this machine — nothing reaches the server, so no amount of retrying will upload the leg. '
+    + 'Three ways out, in the order they are usually easiest: open this app over http from the same '
+    + 'network instead of https; or give the sync server a certificate and use https:// (a Cloudflare '
+    + 'Tunnel does this without opening a port); or use the Android app, which is allowed cleartext. '
+    + 'If the URL already says https://, something in front of the server is redirecting to http — '
+    + 'check the proxy\'s redirect rules.';
+}
+
+/**
+ * Say it on the field, as it is typed, not only when a sync is attempted.
+ * This is the one screen where the engineer can actually do something about it.
+ */
+function renderSyncUrlSchemeWarning(){
+  const el = document.getElementById('syncUrlSchemeWarn');
+  if (!el) return;
+  const raw = normalizeSyncServerUrl(syncFormFieldValue('sync_serverUrl'));
+  const problem = raw ? syncMixedContentProblem(raw) : '';
+  el.hidden = !problem;
+  el.textContent = problem || '';
+  /* --alert is the token the sync status box already uses for a failure, so
+     this reads the same in every theme. */
+  el.style.color = problem ? 'var(--alert)' : '';
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const el = document.getElementById('sync_serverUrl');
+  if (!el) return;
+  el.addEventListener('input', renderSyncUrlSchemeWarning);
+  el.addEventListener('change', renderSyncUrlSchemeWarning);
+  renderSyncUrlSchemeWarning();
+});
+
+/** Refuse early, with the reason, rather than part-way through a leg upload. */
+function assertSyncUrlUsable(base){
+  const problem = syncMixedContentProblem(base);
+  if (problem) throw new Error(problem);
+  return base;
+}
+
 function syncFormFieldValue(id){
   const el = document.getElementById(id);
   return el ? String(el.value || '') : '';
@@ -25279,6 +25359,10 @@ async function fetchSyncJson(url, options = {}){
   const own = !activityIsActive();
   if (own) beginActivity('sync-http', 'Contacting the sync server…', { source: 'server' });
   try{
+  /* Decided before the request, because the browser will refuse it and the
+     rejection it gives back is an unexplained "Failed to fetch". */
+  const blocked = syncMixedContentProblem(url);
+  if (blocked) throw new Error(blocked);
   let res;
   try{
     res = await fetch(url, opts);
@@ -25286,7 +25370,20 @@ async function fetchSyncJson(url, options = {}){
     if (!navigator.onLine) throw new Error('No network connection');
     const msg = err && err.message ? err.message : String(err);
     if (/Failed to fetch|NetworkError|Load failed/i.test(msg)){
-      throw new Error('Could not reach sync server. Check the URL, HTTPS mixed-content, and that voyage-sync/nginx are running.');
+      /* A mixed-content refusal arrives here too when the downgrade is on a
+         REDIRECT the server issued -- the URL we were given was https, so the
+         check above passed, and only the browser saw the http hop. Say so,
+         rather than sending the engineer to look at a server that is running. */
+      const onHttps = (() => { try{ return location.protocol === 'https:'; }catch(_){ return false; } })();
+      if (onHttps){
+        throw new Error(
+          'Could not reach sync server, and this app is open over https. Either the server is down, '
+          + 'or it answered with a redirect to plain http, which the browser blocks before the request '
+          + 'completes — open the Sync Server URL in a browser tab and watch whether the address bar '
+          + 'drops to http://. Otherwise check the URL and that voyage-sync/nginx are running.'
+        );
+      }
+      throw new Error('Could not reach sync server. Check the URL, and that voyage-sync/nginx are running.');
     }
     throw err;
   }
@@ -26713,6 +26810,10 @@ async function syncNow(options = {}){
   await applyMirroredSyncCredentials();
   const base = syncApiBase();
   if (!base) throw new Error('Enter a Sync Server URL on the Setup tab first.');
+  /* Before the pull, the merge and the archive, not part-way through the
+     upload: a blocked request cannot succeed, and the engineer should not
+     spend ten minutes on a leg to be told so at the end. */
+  assertSyncUrlUsable(base);
   if (syncInFlight) return syncInFlight;
 
   /* A background push must leave the screen alone: no progress overlay, no
