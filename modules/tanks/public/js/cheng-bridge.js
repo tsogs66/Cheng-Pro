@@ -177,12 +177,19 @@
           ? window.flushUnsavedTankWork()
           : Promise.resolve();
         Promise.resolve(run).then(() => {
-          try { window.parent.postMessage({ type: 'chengaio-unsaved-flushed', program: 'tanks' }, '*'); } catch { /* ignore */ }
+          try {
+            window.parent.postMessage({
+              type: 'chengaio-unsaved-flushed',
+              program: 'tanks',
+              nonce: msg.nonce || '',
+            }, '*');
+          } catch { /* ignore */ }
         }).catch((err) => {
           try {
             window.parent.postMessage({
               type: 'chengaio-unsaved-flushed',
               program: 'tanks',
+              nonce: msg.nonce || '',
               error: err && err.message,
             }, '*');
           } catch { /* ignore */ }
