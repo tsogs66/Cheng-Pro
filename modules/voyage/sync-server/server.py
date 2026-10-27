@@ -26,6 +26,13 @@ API:
   GET    /api/voyage/<v>/<voyage>/<B|L>/upload/<id>            — which chunks are held
   POST   /api/voyage/<v>/<voyage>/<B|L>/upload/<id>/complete   — assemble, verify the digest, then merge exactly as PUT does
   DELETE /api/voyage/<v>/<voyage>/<B|L>/upload/<id>            — abandon and delete the parts
+
+  Scanned files travel separately, so a dropped link resumes the one file
+  that was in flight instead of the whole leg:
+  GET    /api/blob/<vessel>/<sha256>/status
+  PUT    /api/blob/<vessel>/<sha256>/part/<index>
+  POST   /api/blob/<vessel>/<sha256>/complete
+  GET    /api/blob/<vessel>/<sha256>/part/<index>
   GET  /api/vessel-library                               — list vessels (name + IMO) across user DBs
   POST /api/vessel-library/import                        — copy particulars + latest leg into caller DB
   GET  /api/admin/inventory                              — admin: users, vessels, voyage legs
@@ -265,7 +272,7 @@ def send_cors(handler: BaseHTTPRequestHandler) -> None:
     handler.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
     handler.send_header(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token, X-License-Email, X-License-Master, X-Act-As-User, X-License-Entitlement",
+        "Authorization, Content-Type, If-None-Match, X-Device-Id, X-Device-Name, X-Session-Token, X-License-Email, X-License-Master, X-Act-As-User, X-License-Entitlement, X-Voyage-Compact, X-Blob-Total-Bytes, X-Blob-Chunk-Bytes, X-Blob-Total-Chunks",
     )
     handler.send_header("Access-Control-Expose-Headers", "ETag")
     handler.send_header("Access-Control-Max-Age", "86400")
@@ -742,6 +749,16 @@ MAX_CHUNK_BYTES = 8 * 1024 * 1024
 # between useful connections, so this is generous.
 UPLOAD_STALE_SECONDS = 14 * 24 * 3600
 
+# A scanned requisition or photo lives in the leg as a data: URL. Sent inside
+# the leg JSON, one dropped upload throws away every scan that had already
+# arrived. Stored here by sha256, each file is uploaded once and a later sync
+# skips the ones this server already holds.
+BLOB_DIR_NAME = ".blobs"
+BLOB_MIN_CHARS = 2048
+# Small enough that one part is cheap to lose, and under the size a single
+# IndexedDB value is allowed to be on the Android WebView.
+BLOB_CHUNK_BYTES = 120 * 1024
+
 
 def sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -861,6 +878,120 @@ def delete_upload(folder: Path) -> None:
         folder.rmdir()
     except OSError:
         pass
+
+
+def _blob_digest_ok(digest: str) -> bool:
+    return bool(re.fullmatch(r"[0-9a-f]{64}", digest or ""))
+
+
+def blob_dir(vessel: str) -> Path:
+    return vessel_dir(vessel) / BLOB_DIR_NAME
+
+
+def blob_file(vessel: str, digest: str) -> Path:
+    if not _blob_digest_ok(digest):
+        raise ValueError("invalid blob id")
+    return blob_dir(vessel) / digest
+
+
+def blob_incoming_dir(vessel: str, digest: str) -> Path:
+    if not _blob_digest_ok(digest):
+        raise ValueError("invalid blob id")
+    return blob_dir(vessel) / (digest + ".incoming")
+
+
+def store_blob_bytes(vessel: str, digest: str, raw: bytes) -> None:
+    """Write a finished blob. The same bytes are not written twice."""
+    if hashlib.sha256(raw).hexdigest() != digest:
+        raise ValueError("blob does not match its sha256")
+    path = blob_file(vessel, digest)
+    if path.exists() and path.stat().st_size == len(raw):
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(raw)
+    tmp.replace(path)
+
+
+def read_blob_bytes(vessel: str, digest: str) -> bytes | None:
+    try:
+        path = blob_file(vessel, digest)
+    except ValueError:
+        return None
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _is_blob_ref(node: object) -> bool:
+    return (
+        isinstance(node, dict)
+        and set(node.keys()) == {"$blob"}
+        and isinstance(node.get("$blob"), str)
+        and _blob_digest_ok(node["$blob"])
+    )
+
+
+def detach_data_urls(vessel: str, value):
+    """Pull long data: URLs out into the blob store. Returns (value, changed).
+
+    The leg JSON then carries {"$blob": "<sha256>"} where the scan was. A
+    later sync sends the id, and the bytes stay where they already landed.
+    """
+    changed = False
+
+    def walk(node):
+        nonlocal changed
+        if isinstance(node, str):
+            if len(node) >= BLOB_MIN_CHARS and node.startswith("data:"):
+                raw = node.encode("utf-8")
+                digest = hashlib.sha256(raw).hexdigest()
+                store_blob_bytes(vessel, digest, raw)
+                changed = True
+                return {"$blob": digest}
+            return node
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if isinstance(node, dict):
+            if _is_blob_ref(node):
+                return node
+            return {key: walk(item) for key, item in node.items()}
+        return node
+
+    return walk(value), changed
+
+
+def expand_blob_refs(vessel: str, value):
+    """Put the stored scans back, for a client that does not understand refs."""
+    def walk(node):
+        if _is_blob_ref(node):
+            raw = read_blob_bytes(vessel, node["$blob"])
+            if raw is None:
+                return node
+            try:
+                return raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return node
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if isinstance(node, dict):
+            return {key: walk(item) for key, item in node.items()}
+        return node
+
+    return walk(value)
+
+
+def blob_chunk_count(size: int, chunk: int) -> int:
+    if size <= 0:
+        return 1
+    return (size + chunk - 1) // chunk
+
+
+def read_blob_slice(path: Path, index: int, chunk: int) -> bytes:
+    with path.open("rb") as handle:
+        handle.seek(index * chunk)
+        return handle.read(chunk)
 
 
 class SyncHandler(BaseHTTPRequestHandler):
@@ -1113,11 +1244,26 @@ class SyncHandler(BaseHTTPRequestHandler):
                         "maxChunks": MAX_UPLOAD_CHUNKS,
                         "maxChunkBytes": MAX_CHUNK_BYTES,
                     },
+                    # Long data: URLs (scans, photos) are stored once by sha256
+                    # and the leg JSON only carries the id. A client reads this
+                    # rather than guessing: an older server has no blob routes.
+                    "blobStore": {
+                        "supported": True,
+                        "chunkBytes": BLOB_CHUNK_BYTES,
+                        "minChars": BLOB_MIN_CHARS,
+                    },
+                    "resumableDownload": {
+                        "supported": True,
+                        "chunkBytes": BLOB_CHUNK_BYTES,
+                    },
                 },
             )
             return
 
         parts = [p for p in parsed.path.strip("/").split("/") if p]
+        blob = self._blob_route(parts)
+        if blob:
+            return self._blob_get(blob)
 
         try:
             upload_route = self._upload_route(parts)
@@ -1308,7 +1454,7 @@ class SyncHandler(BaseHTTPRequestHandler):
                         path = resolve_leg_path(
                             vessel, legacy.group("voyage"), legacy.group("cond")
                         )
-                        return self._send_leg_file(path)
+                        return self._send_leg_file(path, vessel)
                     json_response(
                         self,
                         HTTPStatus.OK,
@@ -1323,7 +1469,7 @@ class SyncHandler(BaseHTTPRequestHandler):
                     return
                 if len(parts) == 5:
                     path = resolve_leg_path(parts[2], parts[3], parts[4])
-                    return self._send_leg_file(path)
+                    return self._send_leg_file(path, safe_slug(parts[2]))
             except ValueError:
                 json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid path"})
                 return
@@ -1333,7 +1479,10 @@ class SyncHandler(BaseHTTPRequestHandler):
 
         json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
-    def _send_leg_file(self, path: Path) -> None:
+    def _wants_compact(self) -> bool:
+        return (self.headers.get("X-Voyage-Compact") or "") == "1"
+
+    def _send_leg_file(self, path: Path, vessel: str) -> None:
         if not path.exists():
             json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
             return
@@ -1344,7 +1493,17 @@ class SyncHandler(BaseHTTPRequestHandler):
             send_cors(self)
             self.end_headers()
             return
-        body = json.dumps(data, indent=2).encode("utf-8")
+        # A client that understands refs gets the small form. The scans are
+        # pulled one file at a time, and each file resumes on its own. The
+        # first such pull also rewrites a legacy fat leg so the next one is
+        # already small.
+        if self._wants_compact():
+            data, changed = detach_data_urls(vessel, data)
+            if changed:
+                path.write_text(json.dumps(data), encoding="utf-8")
+        else:
+            data = expand_blob_refs(vessel, data)
+        body = json.dumps(data).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -1397,6 +1556,10 @@ class SyncHandler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid JSON body"})
             return
+
+        blob = self._blob_route(parts)
+        if blob:
+            return self._blob_post(blob)
 
         try:
             # Resumable leg upload: begin or resume, and complete.
@@ -1879,6 +2042,9 @@ class SyncHandler(BaseHTTPRequestHandler):
         bind_request_license_email(self)
         parsed = urlparse(self.path)
         parts = [p for p in parsed.path.strip("/").split("/") if p]
+        blob = self._blob_route(parts)
+        if blob:
+            return self._blob_put(blob)
         if not (parts and parts[0] == "api" and parts[1] == "voyage"):
             json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
             return
@@ -1942,6 +2108,239 @@ class SyncHandler(BaseHTTPRequestHandler):
             parts[2] if len(parts) >= 3 else vessel, voyage, condition, path, incoming
         )
         json_response(self, HTTPStatus.OK, merged)
+
+    # ---- blob store ------------------------------------------------------
+
+    def _discard_body(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except (TypeError, ValueError):
+            return
+        remaining = length
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 65536))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+
+    def _blob_route(self, parts: list[str]):
+        """Parse /api/blob/<vessel>/<sha256>/status|complete|part/<index>.
+
+        Returns (vessel, digest, tail) or None when this is not a blob route.
+        """
+        if len(parts) < 4 or parts[0] != "api" or parts[1] != "blob":
+            return None
+        return parts[2], parts[3], parts[4:]
+
+    def _blob_checked(self, vessel_part: str, digest: str, write: bool):
+        try:
+            vessel = safe_slug(vessel_part)
+            if not _blob_digest_ok(digest):
+                raise ValueError("invalid blob id")
+        except ValueError:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid blob id"})
+            return None
+        if self._authorize_vessel(vessel, write=write) is None:
+            return None
+        return vessel
+
+    def _blob_status_payload(self, vessel: str, digest: str) -> dict | None:
+        final = blob_file(vessel, digest)
+        if final.exists():
+            size = final.stat().st_size
+            total = blob_chunk_count(size, BLOB_CHUNK_BYTES)
+            return {
+                "ok": True,
+                "complete": True,
+                "sha256": digest,
+                "totalBytes": size,
+                "chunkBytes": BLOB_CHUNK_BYTES,
+                "totalChunks": total,
+                "received": list(range(total)),
+                "receivedCount": total,
+            }
+        folder = blob_incoming_dir(vessel, digest)
+        manifest = read_upload_manifest(folder)
+        if not manifest:
+            return None
+        total = int(manifest.get("totalChunks") or 0)
+        received = upload_received(folder, total)
+        return {
+            "ok": True,
+            "complete": False,
+            "sha256": digest,
+            "totalBytes": int(manifest.get("totalBytes") or 0),
+            "chunkBytes": int(manifest.get("chunkBytes") or 0),
+            "totalChunks": total,
+            "received": received,
+            "receivedCount": len(received),
+        }
+
+    def _blob_get(self, route) -> None:
+        vessel_part, digest, tail = route
+        vessel = self._blob_checked(vessel_part, digest, write=False)
+        if vessel is None:
+            return
+        if tail == ["status"]:
+            payload = self._blob_status_payload(vessel, digest)
+            if payload is None:
+                json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+                return
+            json_response(self, HTTPStatus.OK, payload)
+            return
+        if len(tail) == 2 and tail[0] == "part":
+            try:
+                index = int(tail[1])
+            except (TypeError, ValueError):
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk index must be a number"})
+                return
+            final = blob_file(vessel, digest)
+            if not final.exists():
+                json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+                return
+            if index < 0 or index >= blob_chunk_count(final.stat().st_size, BLOB_CHUNK_BYTES):
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk index is outside the file"})
+                return
+            raw = read_blob_slice(final, index, BLOB_CHUNK_BYTES)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(raw)))
+            send_cors(self)
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+        json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _blob_put(self, route) -> None:
+        """Store one part of a scan. Re-sending a part replaces it."""
+        vessel_part, digest, tail = route
+        vessel = self._blob_checked(vessel_part, digest, write=True)
+        if vessel is None:
+            return
+        if not (len(tail) == 2 and tail[0] == "part"):
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "PUT a blob part as /part/<index>"})
+            return
+        try:
+            index = int(tail[1])
+        except (TypeError, ValueError):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk index must be a number"})
+            return
+        final = blob_file(vessel, digest)
+        if final.exists():
+            # The body still has to be consumed, or the next request on this
+            # connection is read as the tail of this one.
+            self._discard_body()
+            json_response(self, HTTPStatus.OK, {"ok": True, "complete": True, "sha256": digest, "index": index})
+            return
+        try:
+            total_bytes = int(self.headers.get("X-Blob-Total-Bytes") or 0)
+            chunk_bytes = int(self.headers.get("X-Blob-Chunk-Bytes") or 0)
+            total_chunks = int(self.headers.get("X-Blob-Total-Chunks") or 0)
+        except (TypeError, ValueError):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "blob size headers must be numbers"})
+            return
+        if total_bytes <= 0 or chunk_bytes <= 0 or total_chunks <= 0:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "X-Blob-Total-Bytes, X-Blob-Chunk-Bytes and X-Blob-Total-Chunks are required"})
+            return
+        if chunk_bytes > MAX_CHUNK_BYTES or total_bytes > MAX_UPLOAD_BYTES or total_chunks > MAX_UPLOAD_CHUNKS:
+            json_response(self, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "blob part exceeds the server limit"})
+            return
+        if index < 0 or index >= total_chunks:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"chunk index {index} is outside 0..{total_chunks - 1}"})
+            return
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        if length <= 0 or length > MAX_CHUNK_BYTES:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "empty or oversized blob part"})
+            return
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "chunk was cut short — send it again"})
+            return
+        folder = blob_incoming_dir(vessel, digest)
+        folder.mkdir(parents=True, exist_ok=True)
+        manifest = read_upload_manifest(folder)
+        if manifest and (
+            int(manifest.get("totalBytes") or 0) != total_bytes
+            or int(manifest.get("chunkBytes") or 0) != chunk_bytes
+            or int(manifest.get("totalChunks") or 0) != total_chunks
+        ):
+            # The client is sending this file on a different split. The old
+            # parts describe a different cutting, so they cannot be mixed in.
+            delete_upload(folder)
+            folder.mkdir(parents=True, exist_ok=True)
+            manifest = None
+        if manifest is None:
+            manifest = {
+                "sha256": digest,
+                "totalBytes": total_bytes,
+                "chunkBytes": chunk_bytes,
+                "totalChunks": total_chunks,
+            }
+        tmp = folder / f"{index:06d}.part.tmp"
+        try:
+            tmp.write_bytes(raw)
+            tmp.replace(chunk_path(folder, index))
+            write_upload_manifest(folder, manifest)
+        except OSError as err:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            json_response(self, HTTPStatus.INSUFFICIENT_STORAGE, {"error": f"could not store the chunk: {err}"})
+            return
+        received = upload_received(folder, total_chunks)
+        json_response(self, HTTPStatus.OK, {
+            "ok": True,
+            "sha256": digest,
+            "index": index,
+            "receivedCount": len(received),
+            "totalChunks": total_chunks,
+            "complete": False,
+        })
+
+    def _blob_post(self, route) -> None:
+        vessel_part, digest, tail = route
+        vessel = self._blob_checked(vessel_part, digest, write=True)
+        if vessel is None:
+            return
+        if tail != ["complete"]:
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "POST /complete to finish a blob"})
+            return
+        final = blob_file(vessel, digest)
+        if final.exists():
+            json_response(self, HTTPStatus.OK, {"ok": True, "complete": True, "sha256": digest, "totalBytes": final.stat().st_size})
+            return
+        folder = blob_incoming_dir(vessel, digest)
+        manifest = read_upload_manifest(folder)
+        if not manifest:
+            json_response(self, HTTPStatus.NOT_FOUND, {"error": "no such upload — begin it again"})
+            return
+        total = int(manifest.get("totalChunks") or 0)
+        try:
+            missing = [i for i in range(total) if i not in set(upload_received(folder, total))]
+            if missing:
+                raise ValueError(f"{len(missing)} chunk(s) still missing")
+            out = bytearray()
+            for i in range(total):
+                out.extend(chunk_path(folder, i).read_bytes())
+            if len(out) != int(manifest.get("totalBytes") or 0):
+                raise ValueError("assembled size does not match the declared size")
+            if hashlib.sha256(out).hexdigest() != digest:
+                raise ValueError("the assembled file does not match its sha256 — the parts are kept, send the chunks again")
+            store_blob_bytes(vessel, digest, bytes(out))
+        except ValueError as err:
+            json_response(self, HTTPStatus.CONFLICT, {
+                "error": str(err),
+                "sha256": digest,
+                "received": upload_received(folder, total),
+                "totalChunks": total,
+            })
+            return
+        except OSError as err:
+            json_response(self, HTTPStatus.CONFLICT, {"error": f"could not read the uploaded parts: {err}"})
+            return
+        delete_upload(folder)
+        json_response(self, HTTPStatus.OK, {"ok": True, "complete": True, "sha256": digest, "totalBytes": len(out)})
 
     # ---- resumable upload ------------------------------------------------
 
@@ -2233,9 +2632,15 @@ class SyncHandler(BaseHTTPRequestHandler):
         merged["condition"] = condition
         merged["voyageKey"] = f"{voyage}-{condition}"
         merged["serverUpdatedAt"] = utc_now()
+        # The copy on disk does not carry the scans inline. They live in the
+        # blob store, so the next pull is the leg plus only the files this
+        # device does not already have.
+        stored, _changed = detach_data_urls(vessel_part, merged)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
-        return merged
+        path.write_text(json.dumps(stored), encoding="utf-8")
+        if self._wants_compact():
+            return stored
+        return expand_blob_refs(vessel_part, stored)
 
 
 def merge_snapshots(server: dict | None, client: dict) -> dict:

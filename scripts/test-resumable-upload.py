@@ -63,7 +63,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def request(url: str, method: str = "GET", payload=None, raw: bytes | None = None, token=TOKEN):
+def request(url: str, method: str = "GET", payload=None, raw: bytes | None = None, token=TOKEN, headers=None):
     """(status, body). An auth or validation failure is a status, not an exception."""
     data = raw if raw is not None else (json.dumps(payload).encode() if payload is not None else None)
     req = urllib.request.Request(url, data=data, method=method)
@@ -71,6 +71,8 @@ def request(url: str, method: str = "GET", payload=None, raw: bytes | None = Non
         req.add_header("Authorization", f"Bearer {token}")
     if data is not None:
         req.add_header("Content-Type", "application/octet-stream" if raw is not None else "application/json")
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
             return res.status, json.loads(res.read().decode())
@@ -180,6 +182,8 @@ def main() -> None:
         _, health = request(f"{srv.base}/api/health")
         check("resumableUpload is advertised", (health.get("resumableUpload") or {}).get("supported"), True)
         check("with a byte ceiling", isinstance((health.get("resumableUpload") or {}).get("maxBytes"), int), True)
+        check("blobStore is advertised", (health.get("blobStore") or {}).get("supported"), True)
+        check("resumableDownload is advertised", (health.get("resumableDownload") or {}).get("supported"), True)
 
         print("\nbegin")
         status, body = request(leg + "/upload", "POST", manifest)
@@ -295,6 +299,66 @@ def main() -> None:
         request(f"{leg44}/upload/{gone}/0", "PUT", raw=chunks_c[0])
         check("abandon returns 200", request(f"{leg44}/upload/{gone}", "DELETE")[0], 200)
         check("and the upload is gone", request(f"{leg44}/upload/{gone}")[0], 404)
+
+        print("\na scan is its own resumable upload, and the leg only carries the id")
+        scan = "data:text/plain;base64," + ("QUJD" * 800)
+        raw_scan = scan.encode()
+        digest = hashlib.sha256(raw_scan).hexdigest()
+        blob_url = f"{srv.base}/api/blob/{VESSEL}/{digest}"
+        part_size = 1000
+        nparts = (len(raw_scan) + part_size - 1) // part_size
+        check("the scan is more than one part, so resume has something to skip", nparts > 1, True)
+        blob_headers = {
+            "X-Blob-Total-Bytes": str(len(raw_scan)),
+            "X-Blob-Chunk-Bytes": str(part_size),
+            "X-Blob-Total-Chunks": str(nparts),
+        }
+        check("nothing is stored yet", request(blob_url + "/status")[0], 404)
+        for i in range(nparts - 1):
+            piece = raw_scan[i * part_size:(i + 1) * part_size]
+            check(f"blob part {i} stored",
+                  request(f"{blob_url}/part/{i}", "PUT", raw=piece, headers=blob_headers)[0], 200)
+        status, body = request(blob_url + "/status")
+        check("the parts already sent are reported", body.get("receivedCount"), nparts - 1)
+        check("and the file is not complete", body.get("complete"), False)
+        check("finishing early is refused", request(blob_url + "/complete", "POST", {})[0], 409)
+        last = raw_scan[(nparts - 1) * part_size:]
+        check("the last part resumes it",
+              request(f"{blob_url}/part/{nparts - 1}", "PUT", raw=last, headers=blob_headers)[0], 200)
+        check("complete stores the scan", request(blob_url + "/complete", "POST", {})[0], 200)
+        check("a second complete is the same file, not an error",
+              request(blob_url + "/complete", "POST", {})[0], 200)
+        status, body = request(blob_url + "/status")
+        check("status now says the file is whole", body.get("complete"), True)
+        req = urllib.request.Request(blob_url + "/part/0")
+        req.add_header("Authorization", f"Bearer {TOKEN}")
+        with urllib.request.urlopen(req, timeout=30) as res:
+            downloaded = res.read()
+        check("the downloaded part is the scan itself", downloaded, raw_scan)
+
+        leg_payload = {
+            "vesselId": VESSEL, "voyageNumber": "50", "condition": "B",
+            "updatedAt": "2026-10-20T00:00:00Z", "deviceId": "dev1",
+            "data": {
+                "setup": {"sync": {"lastModifiedAt": "2026-10-20T00:00:00Z"}},
+                "entries": [{"id": "e1", "updatedAt": "2026-10-20T00:00:00Z", "note": "n"}],
+                "documents": [{"id": "doc1", "updatedAt": "2026-10-20T00:00:00Z", "dataUrl": scan}],
+                "receipts": [], "abstracts": [], "printHistory": [], "deletedIds": {},
+            },
+        }
+        leg50 = f"{srv.base}/api/voyage/{VESSEL}/50/B"
+        status, body = request(leg50, "PUT", leg_payload, headers={"X-Voyage-Compact": "1"})
+        check("a compact push is accepted", status, 200)
+        doc = ((body.get("data") or {}).get("documents") or [{}])[0].get("dataUrl")
+        check("the push answer carries the blob id", (doc or {}).get("$blob") if isinstance(doc, dict) else None, digest)
+        check("and not the scan", scan not in json.dumps(body), True)
+        _, pulled = request(leg50, headers={"X-Voyage-Compact": "1"})
+        pulled_doc = ((pulled.get("data") or {}).get("documents") or [{}])[0].get("dataUrl")
+        check("a compact pull is the same id", pulled_doc, {"$blob": digest})
+        _, fat = request(leg50)
+        fat_doc = ((fat.get("data") or {}).get("documents") or [{}])[0].get("dataUrl")
+        check("a pull without the header still returns the scan", fat_doc, scan)
+        check("blob routes refuse a missing token", request(blob_url + "/status", token=None)[0], 401)
 
     print(f"\n{'FAILED — ' + str(len(failures)) + ' of ' + str(checks) if failures else 'PASSED — ' + str(checks)} checks")
     if failures:

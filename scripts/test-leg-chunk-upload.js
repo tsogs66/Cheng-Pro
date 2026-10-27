@@ -52,7 +52,7 @@ function extract(name) {
   return HTML.slice(start, i + 1);
 }
 
-const sb = { console, Math, Number, String, Array, Uint8Array, TextEncoder, TextDecoder };
+const sb = { console, Math, Number, String, Array, Uint8Array, Uint32Array, TextEncoder, TextDecoder, Object, Map };
 vm.createContext(sb);
 /* legUploadSessionKey reads the prefix constant, so it has to come across too. */
 const PREFIX = (HTML.match(/const LEG_UPLOAD_SESSION_PREFIX = '[^']*';/) || [])[0];
@@ -114,7 +114,7 @@ check('and the reason is written down',
 check('a stored session is only reused when it describes this same leg',
   /stored\.digest === digest && stored\.digestAlgo === digestAlgo/.test(upload), true);
 check('the session is written before any chunk goes up, so a crash is resumable',
-  upload.indexOf('writeLegUploadSession') < upload.indexOf('for (let i = 0; i < chunks.length'), true);
+  upload.indexOf('writeLegUploadSession') < upload.indexOf('for (let i = 0; i < totalChunks'), true);
 check('and cleared only once the server has the whole leg',
   /if \(sessionKey\) await clearLegUploadSession\(sessionKey\);/.test(upload), true);
 check('the session lives in IndexedDB, so it survives the app closing',
@@ -123,24 +123,66 @@ check('the session lives in IndexedDB, so it survives the app closing',
 check('a chunk is retried before the leg is given up', /LEG_UPLOAD_CHUNK_TRIES/.test(upload), true);
 check('with a backoff rather than a hot loop', /1000 \* Math\.pow\(2, attempt - 1\)/.test(upload), true);
 check('a retry sends a fresh view of the chunk',
-  /body: chunks\[i\]\.slice\(\)/.test(upload), true);
+  /body: encoded\.slice\(\)/.test(upload), true);
 check('and a failure tells the engineer the work is not lost',
   /already sent are kept on the server/.test(upload)
   && /continues from here rather than starting over/.test(upload), true);
 check('progress is reported per chunk, which is what feeds the watchdog',
-  /Uploading voyage leg: chunk \$\{sent\} of \$\{chunks\.length\}/.test(upload), true);
+  /Uploading voyage leg: chunk \$\{sent\} of \$\{totalChunks\}/.test(upload), true);
 
 /* Only sha256 is declared; the server cannot check the FNV fallback. */
 check('the digest algorithm is narrowed to what the server can verify',
-  /const digestAlgo = algo === 'sha256' \? 'sha256' : 'none';/.test(upload), true);
+  /digestAlgo = 'sha256'/.test(upload), true);
 check('and the reason that FNV is not offered is recorded on the server side',
   /exceeds 2\^53 in JavaScript/.test(SERVER), true);
+
+/* ---- the bytes of an interrupted upload, and the scans ---------------- */
+
+const MIN = (HTML.match(/const SYNC_BLOB_MIN_CHARS = \d+;/) || [])[0];
+if (!MIN) throw new Error('SYNC_BLOB_MIN_CHARS not found');
+vm.runInContext([
+  MIN,
+  extract('createSha256'),
+  extract('sha256HexUtf8'),
+  extract('isDataUrlWorthSplitting'),
+  extract('syncPayloadFingerprint'),
+  extract('collectSyncBlobs'),
+  extract('sealSyncBlobRefs'),
+].join('\n'), sb);
+
+check('sha256("abc") matches the value the server will check',
+  sb.sha256HexUtf8('abc'),
+  'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+
+const sameA = { updatedAt: '2026-01-01T00:00:00Z', data: { entries: [{ id: 'e', updatedAt: 'u', note: 'n' }] } };
+const sameB = { updatedAt: '2026-10-27T01:00:00Z', data: { entries: [{ id: 'e', updatedAt: 'u', note: 'n' }] } };
+const edited = { updatedAt: '2026-10-27T01:00:00Z', data: { entries: [{ id: 'e', updatedAt: 'changed', note: 'n' }] } };
+check('a new wrapper updatedAt is still the same leg',
+  sb.syncPayloadFingerprint(sameA, null) === sb.syncPayloadFingerprint(sameB, null), true);
+check('an edited row is not',
+  sb.syncPayloadFingerprint(sameA, null) === sb.syncPayloadFingerprint(edited, null), false);
+
+const scan = 'data:text/plain;base64,' + 'A'.repeat(3000);
+const live = { updatedAt: 't', data: { documents: [{ id: 'd', dataUrl: scan }] } };
+const ext = sb.collectSyncBlobs(live, null);
+ext.blobs[0].hash = 'abc123';
+const wire = sb.sealSyncBlobRefs(ext.wire, ext.blobs);
+check('the wire leg does not carry the scan', JSON.stringify(wire).includes('AAAA'), false);
+check('it carries the blob id instead', wire.data.documents[0].dataUrl.$blob, 'abc123');
+check('the leg still open on this device is left untouched', live.data.documents[0].dataUrl === scan, true);
+
+check('an interrupted upload resumes the pieces saved on this device',
+  /payloadText is null when resuming/.test(HTML), true);
+check('those pieces are written before the server is asked to begin',
+  upload.indexOf('storeLegUploadPieces') < upload.indexOf('fetchSyncJson'), true);
+check('an attachment is asked of the server before it is sent again',
+  /\/status`/.test(extract('uploadSyncBlobs')), true);
 
 /* ---- when chunking is used at all ------------------------------------- */
 
 const syncNow = extract('syncNow');
 check('a small leg still goes in one request',
-  /if \(payloadBytes >= LEG_UPLOAD_MIN_BYTES\)\{/.test(syncNow), true);
+  /if \(payloadText\.length >= LEG_UPLOAD_MIN_BYTES\)\{/.test(syncNow), true);
 check('an older server still gets the single PUT',
   /chunked = await serverSupportsResumableUpload\(base, headers\);/.test(syncNow), true);
 check('the capability is read from health, not probed',

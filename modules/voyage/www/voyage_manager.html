@@ -6123,7 +6123,7 @@ let dbOpenPromise = null;
 function openDB(){
   if (dbOpenPromise) return dbOpenPromise;
   dbOpenPromise = new Promise((resolve,reject)=>{
-    const req = indexedDB.open('noonReportDB', 10);
+    const req = indexedDB.open('noonReportDB', 11);
     req.onupgradeneeded = (e)=>{
       const d = e.target.result;
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', {keyPath:'key'});
@@ -6160,6 +6160,14 @@ function openDB(){
          Also local-only: it is this device's account of its own syncs, which a
          restore from another device has no business overwriting. */
       if (!d.objectStoreNames.contains('syncLog')) d.createObjectStore('syncLog', {keyPath:'id'});
+      /* Pieces of an upload or a download that is still in progress. One
+         piece is small on purpose: a single IndexedDB value the size of a
+         whole leg is what closes the Android WebView. This store is not part
+         of a backup — it is this transfer, not the ship's records. */
+      if (!d.objectStoreNames.contains('syncPieces')){
+        const syncPieces = d.createObjectStore('syncPieces', {keyPath:'id'});
+        syncPieces.createIndex('group', 'group', {unique:false});
+      }
     };
     req.onsuccess = (e)=>{ db = e.target.result; db.onversionchange = ()=>{ db.close(); db = null; dbOpenPromise = null; }; resolve(db); };
     req.onerror = (e)=>{ dbOpenPromise = null; reject(req.error || new Error('IndexedDB failed to open')); };
@@ -25364,8 +25372,18 @@ function syncTooLargeMessage(opts){
    So the leg goes up as numbered chunks. Each chunk is a small request that
    either lands or does not, the server holds what has arrived, and an upload
    resumes from the chunk after the last one it accepted -- after a dropped
-   connection, and after the app has been closed and reopened, because the
-   session is kept in IndexedDB rather than in memory.
+   connection, and after the app has been closed and reopened.
+
+   Closing the app used to throw the rest away anyway. The next try built a
+   new payload (its updatedAt is "now"), the digest no longer matched, and the
+   server started a fresh upload. The bytes of THIS attempt are therefore
+   written to IndexedDB, in small pieces, before the first chunk is sent. A
+   later try sends those same pieces. It does not build the leg again.
+
+   Scans and photos are not part of that leg body. Each data: URL is stored
+   on the server under its sha256, once. A sync that dies at attachment 150
+   of 520 continues at 151, because the server already has the first 150 and
+   is asked, rather than the tablet guessing.
 
    Two rules keep this honest:
 
@@ -25387,10 +25405,20 @@ const LEG_UPLOAD_CHUNK_BYTES = 256 * 1024;
 const LEG_UPLOAD_MIN_BYTES = 512 * 1024;
 const LEG_UPLOAD_CHUNK_TRIES = 4;
 const LEG_UPLOAD_SESSION_PREFIX = 'legUpload:';
+/* One piece stays under the size that crashes the Android WebView when it is
+   handed across as a single IndexedDB value. */
+const LEG_UPLOAD_PIECE_CHARS = 100000;
+/* A data: URL shorter than this is not worth a round trip of its own. */
+const SYNC_BLOB_MIN_CHARS = 2048;
+const SYNC_BLOB_CHUNK_BYTES = 120 * 1024;
 
 /** Where a half-finished upload is remembered, per vessel and leg. */
 function legUploadSessionKey(vessel, voyage, condition){
   return `${LEG_UPLOAD_SESSION_PREFIX}${vessel}/${voyage}/${condition}`;
+}
+
+function legUploadPieceGroup(sessionKey){
+  return 'legup:' + sessionKey;
 }
 
 async function readLegUploadSession(key){
@@ -25408,6 +25436,14 @@ async function writeLegUploadSession(key, value){
 
 async function clearLegUploadSession(key){
   try{ await dbDelete('meta', key); }catch(_){}
+}
+
+async function clearSyncPieces(group){
+  if (!group) return;
+  let keys = [];
+  try{ keys = await dbIndexKeys('syncPieces', 'group', group); }
+  catch(_){ keys = []; }
+  for (const key of keys) await dbDelete('syncPieces', key);
 }
 
 /** Does this server take chunked uploads? Read, not probed. */
@@ -25444,41 +25480,499 @@ function sleepMs(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/* SHA-256 without crypto.subtle. A tablet on plain http has no subtle, and
+   that is how a ship reaches its sync server. The server checks this hash. */
+function createSha256(){
+  const K = Uint32Array.from([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ]);
+  let h0=0x6a09e667, h1=0xbb67ae85, h2=0x3c6ef372, h3=0xa54ff53a;
+  let h4=0x510e527f, h5=0x9b05688c, h6=0x1f83d9ab, h7=0x5be0cd19;
+  let lenHi = 0, lenLo = 0;
+  const buf = new Uint8Array(64);
+  let n = 0;
+  const w = new Uint32Array(64);
+  function rotr(x, s){ return ((x >>> s) | (x << (32 - s))) >>> 0; }
+  function process(){
+    for (let i = 0; i < 16; i++){
+      const j = i * 4;
+      w[i] = ((buf[j] << 24) | (buf[j+1] << 16) | (buf[j+2] << 8) | buf[j+3]) >>> 0;
+    }
+    for (let i = 16; i < 64; i++){
+      const x = w[i - 15], y = w[i - 2];
+      const s0 = (rotr(x, 7) ^ rotr(x, 18) ^ (x >>> 3)) >>> 0;
+      const s1 = (rotr(y, 17) ^ rotr(y, 19) ^ (y >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let a=h0, b=h1, c=h2, d=h3, e=h4, f=h5, g=h6, h=h7;
+    for (let i = 0; i < 64; i++){
+      const S1 = (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ ((~e) & g)) >>> 0;
+      const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+      const S0 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (S0 + maj) >>> 0;
+      h=g; g=f; f=e; e=(d + t1)>>>0; d=c; c=b; b=a; a=(t1 + t2)>>>0;
+    }
+    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0;
+    h4=(h4+e)>>>0; h5=(h5+f)>>>0; h6=(h6+g)>>>0; h7=(h7+h)>>>0;
+  }
+  return {
+    update(bytes){
+      const sum = lenLo + bytes.length;
+      lenHi = (lenHi + Math.floor(sum / 0x100000000)) >>> 0;
+      lenLo = sum >>> 0;
+      for (let i = 0; i < bytes.length; i++){
+        buf[n++] = bytes[i];
+        if (n === 64){ process(); n = 0; }
+      }
+    },
+    hex(){
+      const bitLo = (lenLo << 3) >>> 0;
+      const bitHi = ((lenHi << 3) | (lenLo >>> 29)) >>> 0;
+      buf[n++] = 0x80;
+      if (n > 56){
+        while (n < 64) buf[n++] = 0;
+        process(); n = 0;
+      }
+      while (n < 56) buf[n++] = 0;
+      buf[56]=bitHi>>>24; buf[57]=bitHi>>>16; buf[58]=bitHi>>>8; buf[59]=bitHi;
+      buf[60]=bitLo>>>24; buf[61]=bitLo>>>16; buf[62]=bitLo>>>8; buf[63]=bitLo;
+      process();
+      return [h0,h1,h2,h3,h4,h5,h6,h7].map(v => v.toString(16).padStart(8, '0')).join('');
+    }
+  };
+}
+
+function sha256HexUtf8(text){
+  const hasher = createSha256();
+  hasher.update(new TextEncoder().encode(text));
+  return hasher.hex();
+}
+
+function isDataUrlWorthSplitting(value){
+  return typeof value === 'string' && value.length >= SYNC_BLOB_MIN_CHARS && value.startsWith('data:');
+}
+
+/**
+ * Identity of a leg that ignores the wrapper updatedAt.
+ * That field is "now" on every attempt, and treating it as part of the leg
+ * is why a resumed upload never matched the one that was interrupted.
+ */
+function syncPayloadFingerprint(payload, byText){
+  const bits = [];
+  function walk(value, path){
+    if (typeof value === 'string'){
+      if (isDataUrlWorthSplitting(value)){
+        const known = byText && byText.get(value);
+        bits.push(path + '#' + (known || sha256HexUtf8(value)));
+      }
+      return;
+    }
+    if (Array.isArray(value)){
+      for (let i = 0; i < value.length; i++) walk(value[i], path + '/' + i);
+      return;
+    }
+    if (value && typeof value === 'object'){
+      if (typeof value.$blob === 'string' && Object.keys(value).length === 1){
+        bits.push(path + '#blob=' + value.$blob);
+        return;
+      }
+      if (value.id != null){
+        bits.push('id:' + path + ':' + value.id + '@' + (value.updatedAt || value.savedAt || value.datetime || ''));
+      }
+      Object.keys(value).sort().forEach(k => {
+        if (path === '' && k === 'updatedAt') return;
+        walk(value[k], path + '/' + k);
+      });
+    }
+  }
+  walk(payload, '');
+  return sha256HexUtf8(bits.join('\n'));
+}
+
+function collectSyncBlobs(payload, byText){
+  const blobs = [];
+  const seen = new Map();
+  function walk(value){
+    if (typeof value === 'string'){
+      if (isDataUrlWorthSplitting(value)){
+        let idx = seen.get(value);
+        if (idx == null){
+          idx = blobs.length;
+          blobs.push({ text: value, hash: (byText && byText.get(value)) || '' });
+          seen.set(value, idx);
+        }
+        return { $blobPending: idx };
+      }
+      return value;
+    }
+    if (Array.isArray(value)) return value.map(walk);
+    if (value && typeof value === 'object'){
+      const out = {};
+      Object.keys(value).forEach(k => { out[k] = walk(value[k]); });
+      return out;
+    }
+    return value;
+  }
+  return { wire: walk(payload), blobs };
+}
+
+function sealSyncBlobRefs(wire, blobs){
+  function walk(value){
+    if (value && typeof value === 'object' && !Array.isArray(value)
+        && typeof value.$blobPending === 'number' && Object.keys(value).length === 1){
+      return { $blob: blobs[value.$blobPending].hash };
+    }
+    if (Array.isArray(value)) return value.map(walk);
+    if (value && typeof value === 'object'){
+      const out = {};
+      Object.keys(value).forEach(k => { out[k] = walk(value[k]); });
+      return out;
+    }
+    return value;
+  }
+  return walk(wire);
+}
+
+async function indexDataUrlBlobs(update){
+  const found = [];
+  function walk(value){
+    if (typeof value === 'string'){
+      if (isDataUrlWorthSplitting(value)) found.push(value);
+      return;
+    }
+    if (Array.isArray(value)){ value.forEach(walk); return; }
+    if (value && typeof value === 'object') Object.keys(value).forEach(k => walk(value[k]));
+  }
+  walk({
+    setup: state.setup, entries: state.entries, receipts: state.receipts,
+    documents: state.documents, abstracts: state.abstracts,
+    printHistory: state.printHistory, orbEntries: state.orbEntries
+  });
+  const byText = new Map();
+  const byHash = new Map();
+  const unique = [];
+  for (const text of found){
+    if (byText.has(text)) continue;
+    byText.set(text, '');
+    unique.push(text);
+  }
+  for (let i = 0; i < unique.length; i++){
+    const hash = sha256HexUtf8(unique[i]);
+    byText.set(unique[i], hash);
+    byHash.set(hash, unique[i]);
+    if (update && (i & 3) === 3){
+      update({
+        label: `Checking attachment ${i + 1} of ${unique.length}…`,
+        current: i + 1, total: unique.length, source: 'server'
+      });
+      await sleepMs(0);
+    }
+  }
+  return { byText, byHash };
+}
+
+async function reinflateSyncBlobs(value, fetchBlob){
+  async function walk(node){
+    if (node && typeof node === 'object' && !Array.isArray(node)
+        && typeof node.$blob === 'string' && Object.keys(node).length === 1){
+      return fetchBlob(node.$blob);
+    }
+    if (Array.isArray(node)){
+      for (let i = 0; i < node.length; i++) node[i] = await walk(node[i]);
+      return node;
+    }
+    if (node && typeof node === 'object'){
+      const keys = Object.keys(node);
+      for (let i = 0; i < keys.length; i++) node[keys[i]] = await walk(node[keys[i]]);
+      return node;
+    }
+    return node;
+  }
+  await walk(value);
+  return value;
+}
+
+async function fetchSyncBytes(url, options){
+  const opts = Object.assign({ cache: 'no-store' }, options || {});
+  const blocked = syncMixedContentProblem(url);
+  if (blocked) throw new Error(blocked);
+  let res;
+  try{
+    res = await fetch(url, opts);
+  }catch(err){
+    if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('No network connection');
+    throw new Error('Could not reach sync server. Check the URL, and that voyage-sync/nginx are running.');
+  }
+  if (!res.ok){
+    let detail = 'HTTP ' + res.status;
+    try{
+      const text = await res.text();
+      const body = JSON.parse(text);
+      if (body && body.error) detail = String(body.error);
+    }catch(_){}
+    throw new Error(detail);
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/**
+ * One scan, in parts. The server says which parts it holds. A part whose
+ * reply was lost is not sent again if it is already there.
+ */
+async function uploadSyncBlobs(base, vessel, blobs, headers, update, byHash){
+  const chunkBytes = SYNC_BLOB_CHUNK_BYTES;
+  let held = 0;
+  for (let i = 0; i < blobs.length; i++){
+    const text = blobs[i].text;
+    const hash = blobs[i].hash || sha256HexUtf8(text);
+    blobs[i].hash = hash;
+    if (byHash && text) byHash.set(hash, text);
+    let status = null;
+    try{
+      status = (await fetchSyncJson(
+        `${base}/api/blob/${encodeURIComponent(vessel)}/${hash}/status`,
+        { headers }
+      )).body;
+    }catch(err){
+      const msg = err && err.message ? err.message : String(err);
+      if (!/not found/i.test(msg)) throw err;
+    }
+    if (status && status.complete){
+      held++;
+      blobs[i].text = null;
+      update({
+        label: `Attachment ${i + 1} of ${blobs.length} is already on the server.`,
+        current: i + 1, total: blobs.length, source: 'server'
+      });
+      continue;
+    }
+    const bytes = new TextEncoder().encode(text);
+    const totalChunks = Math.max(1, Math.ceil(bytes.length / chunkBytes));
+    const sameSplit = status && !status.complete
+      && status.totalBytes === bytes.length && status.chunkBytes === chunkBytes;
+    const have = new Set(sameSplit && Array.isArray(status.received) ? status.received : []);
+    if (have.size){
+      update({
+        label: `Resuming attachment ${i + 1} of ${blobs.length}: the server holds ${have.size} of ${totalChunks} chunk(s).`,
+        current: i, total: blobs.length, source: 'server'
+      });
+    }
+    let sent = have.size;
+    for (let c = 0; c < totalChunks; c++){
+      if (have.has(c)) continue;
+      const slice = bytes.subarray(c * chunkBytes, Math.min(bytes.length, (c + 1) * chunkBytes));
+      let lastErr = null;
+      for (let attempt = 1; attempt <= LEG_UPLOAD_CHUNK_TRIES; attempt++){
+        try{
+          await fetchSyncJson(
+            `${base}/api/blob/${encodeURIComponent(vessel)}/${hash}/part/${c}`,
+            {
+              method: 'PUT',
+              headers: {
+                ...headers,
+                'Content-Type': 'application/octet-stream',
+                'X-Blob-Total-Bytes': String(bytes.length),
+                'X-Blob-Chunk-Bytes': String(chunkBytes),
+                'X-Blob-Total-Chunks': String(totalChunks)
+              },
+              body: slice.slice()
+            }
+          );
+          lastErr = null;
+          break;
+        }catch(err){
+          lastErr = err;
+          if (attempt < LEG_UPLOAD_CHUNK_TRIES){
+            const wait = 1000 * Math.pow(2, attempt - 1);
+            update({
+              label: `Attachment ${i + 1} chunk ${c + 1} failed — retrying in ${wait / 1000}s…`,
+              current: i, total: blobs.length, source: 'server'
+            });
+            await sleepMs(wait);
+          }
+        }
+      }
+      if (lastErr){
+        throw new Error(
+          `Upload stopped at attachment ${i + 1} of ${blobs.length}, chunk ${c + 1} of ${totalChunks} (${lastErr.message}). `
+          + `The ${sent} chunk(s) of this attachment already sent are kept on the server — run the sync again `
+          + 'and it continues from here rather than starting over.'
+        );
+      }
+      sent++;
+      update({
+        label: `Uploading attachment ${i + 1} of ${blobs.length}, chunk ${sent} of ${totalChunks}…`,
+        current: i, total: blobs.length, source: 'server'
+      });
+      await sleepMs(0);
+    }
+    await fetchSyncJson(
+      `${base}/api/blob/${encodeURIComponent(vessel)}/${hash}/complete`,
+      { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}' }
+    );
+    blobs[i].text = null;
+    update({
+      label: `Uploaded attachment ${i + 1} of ${blobs.length}.`,
+      current: i + 1, total: blobs.length, source: 'server'
+    });
+  }
+  if (held){
+    update({
+      label: `Resuming: the server already holds ${held} of ${blobs.length} attachment(s).`,
+      current: held, total: blobs.length, source: 'server'
+    });
+  }
+}
+
+async function downloadSyncBlob(base, vessel, hash, headers, update){
+  const status = (await fetchSyncJson(
+    `${base}/api/blob/${encodeURIComponent(vessel)}/${hash}/status`,
+    { headers }
+  )).body;
+  if (!status || !status.complete){
+    throw new Error('An attachment is missing on the server (' + String(hash).slice(0, 8) + ').');
+  }
+  const totalChunks = Number(status.totalChunks) || 1;
+  const chunkBytes = Number(status.chunkBytes) || SYNC_BLOB_CHUNK_BYTES;
+  const totalBytes = Number(status.totalBytes) || 0;
+  const group = 'blobdl:' + hash;
+  const parts = new Uint8Array(totalBytes);
+  let at = 0;
+  let fetched = 0;
+  for (let i = 0; i < totalChunks; i++){
+    let bytes = null;
+    const saved = await dbGet('syncPieces', group + '::' + i);
+    if (saved && saved.bytes){
+      bytes = saved.bytes instanceof Uint8Array ? saved.bytes : new Uint8Array(saved.bytes);
+    }
+    if (!bytes || !bytes.length){
+      bytes = await fetchSyncBytes(
+        `${base}/api/blob/${encodeURIComponent(vessel)}/${hash}/part/${i}`,
+        { headers }
+      );
+      await dbPut('syncPieces', { id: group + '::' + i, group, i, bytes });
+      fetched++;
+      update({
+        label: `Downloading attachment chunk ${i + 1} of ${totalChunks}…`,
+        current: i + 1, total: totalChunks, source: 'server'
+      });
+    }
+    if (at + bytes.length > parts.length){
+      await clearSyncPieces(group);
+      throw new Error('Attachment download is larger than the server declared. It will be fetched again.');
+    }
+    parts.set(bytes, at);
+    at += bytes.length;
+    if ((i & 3) === 3) await sleepMs(0);
+  }
+  if (at !== totalBytes){
+    await clearSyncPieces(group);
+    throw new Error('Attachment download is the wrong size. It will be fetched again.');
+  }
+  const check = createSha256();
+  check.update(parts);
+  if (check.hex() !== hash){
+    await clearSyncPieces(group);
+    throw new Error('Attachment download did not match its check. It will be fetched again.');
+  }
+  const text = new TextDecoder().decode(parts);
+  await clearSyncPieces(group);
+  if (fetched && totalChunks > 1){
+    update({
+      label: `Attachment downloaded (${totalChunks} chunk(s)).`,
+      current: totalChunks, total: totalChunks, source: 'server'
+    });
+  }
+  return text;
+}
+
+/**
+ * Write the exact upload, piece by piece, then forget the big string.
+ * The pieces are what a later attempt sends. Rebuilding the leg would give
+ * it a new updatedAt and the server would treat it as a different upload.
+ */
+async function storeLegUploadPieces(group, text, update){
+  await clearSyncPieces(group);
+  const encoder = new TextEncoder();
+  const hasher = createSha256();
+  let totalBytes = 0;
+  let n = 0;
+  for (let i = 0; i < text.length;){
+    let end = Math.min(text.length, i + LEG_UPLOAD_PIECE_CHARS);
+    if (end > i && end < text.length){
+      const tail = text.charCodeAt(end - 1);
+      if (tail >= 0xD800 && tail <= 0xDBFF) end -= 1;
+    }
+    if (end <= i) end = Math.min(text.length, i + LEG_UPLOAD_PIECE_CHARS);
+    const slice = text.slice(i, end);
+    const encoded = encoder.encode(slice);
+    hasher.update(encoded);
+    totalBytes += encoded.length;
+    await dbPut('syncPieces', { id: group + '::' + n, group, i: n, text: slice });
+    i = end;
+    n++;
+    if ((n & 7) === 0){
+      update({ label: `Saving this upload on the device, piece ${n}…`, source: 'server' });
+      await sleepMs(0);
+    }
+  }
+  return { digest: hasher.hex(), totalBytes, totalChunks: n || 1 };
+}
+
 /**
  * Upload one leg as resumable chunks. Returns the merged snapshot the server
  * sends back from the completion call, exactly as the single PUT would.
+ *
+ * payloadText is null when resuming: the pieces already on this device are
+ * the upload, and building the leg again would not be the same bytes.
  */
 async function uploadLegInChunks(legUrl, payloadText, opts){
   const o = opts || {};
   const headers = o.headers || {};
   const update = typeof o.update === 'function' ? o.update : () => {};
   const sessionKey = o.sessionKey;
+  const pieceGroup = o.pieceGroup || (sessionKey ? legUploadPieceGroup(sessionKey) : '');
+  const resume = o.resume || null;
 
-  const bytes = new TextEncoder().encode(payloadText);
-  const chunkBytes = o.chunkBytes || LEG_UPLOAD_CHUNK_BYTES;
-  const chunks = sliceUtf8(bytes, chunkBytes);
-  const { algo, hex } = await digestText(payloadText);
-  /* The server only verifies sha256. Where crypto.subtle is absent -- a tablet
-     on plain http -- it is told so rather than being handed a digest it cannot
-     check, and it then verifies length and chunk completeness only. */
-  const digestAlgo = algo === 'sha256' ? 'sha256' : 'none';
-  const digest = digestAlgo === 'sha256' ? hex : '';
-
-  const manifest = {
-    totalBytes: bytes.length,
-    totalChunks: chunks.length,
-    chunkBytes,
-    digest,
-    digestAlgo
-  };
-
-  const stored = sessionKey ? await readLegUploadSession(sessionKey) : null;
-  if (stored && stored.digest === digest && stored.digestAlgo === digestAlgo
-      && stored.totalBytes === bytes.length && stored.totalChunks === chunks.length){
-    manifest.uploadId = stored.uploadId;
+  let digest, digestAlgo, totalBytes, totalChunks, chunkBytes;
+  if (resume){
+    digest = resume.digest;
+    digestAlgo = resume.digestAlgo || 'sha256';
+    totalBytes = resume.totalBytes;
+    totalChunks = resume.totalChunks;
+    chunkBytes = resume.chunkBytes || LEG_UPLOAD_CHUNK_BYTES;
+  }else{
+    update({ label: 'Saving this upload on the device so it can continue if the app closes…', source: 'server' });
+    const built = await storeLegUploadPieces(pieceGroup, payloadText, update);
+    digest = built.digest;
+    digestAlgo = 'sha256';
+    totalBytes = built.totalBytes;
+    totalChunks = built.totalChunks;
+    chunkBytes = LEG_UPLOAD_CHUNK_BYTES;
+    payloadText = null;
   }
 
-  update({ label: `Preparing ${chunks.length} chunk(s) for the server…`, source: 'server' });
+  const manifest = { totalBytes, totalChunks, chunkBytes, digest, digestAlgo };
+  if (resume && resume.uploadId){
+    manifest.uploadId = resume.uploadId;
+  }else if (sessionKey){
+    const stored = await readLegUploadSession(sessionKey);
+    if (stored && stored.digest === digest && stored.digestAlgo === digestAlgo
+        && stored.totalBytes === totalBytes && stored.totalChunks === totalChunks){
+      manifest.uploadId = stored.uploadId;
+    }
+  }
+
+  update({ label: `Preparing ${totalChunks} chunk(s) for the server…`, source: 'server' });
   const begun = await fetchSyncJson(`${legUrl}/upload`, {
     method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(manifest)
@@ -25492,20 +25986,32 @@ async function uploadLegInChunks(legUrl, payloadText, opts){
   if (sessionKey){
     await writeLegUploadSession(sessionKey, {
       uploadId, digest, digestAlgo,
-      totalBytes: bytes.length, totalChunks: chunks.length,
-      startedAt: new Date().toISOString()
+      totalBytes, totalChunks, chunkBytes,
+      fingerprint: (resume && resume.fingerprint) || o.fingerprint || '',
+      updatedAt: (resume && resume.updatedAt) || o.updatedAt || '',
+      startedAt: (resume && resume.startedAt) || new Date().toISOString()
     });
   }
   if (have.size){
     update({
-      label: `Resuming: the server already holds ${have.size} of ${chunks.length} chunk(s).`,
-      source: 'server'
+      label: `Resuming: the server already holds ${have.size} of ${totalChunks} chunk(s).`,
+      current: have.size, total: totalChunks, source: 'server'
     });
   }
 
   let sent = have.size;
-  for (let i = 0; i < chunks.length; i++){
+  for (let i = 0; i < totalChunks; i++){
     if (have.has(i)) continue;
+    const row = await dbGet('syncPieces', pieceGroup + '::' + i);
+    if (!row || typeof row.text !== 'string'){
+      await clearSyncPieces(pieceGroup);
+      if (sessionKey) await clearLegUploadSession(sessionKey);
+      throw new Error(
+        `Saved upload piece ${i + 1} of ${totalChunks} is missing on this device. `
+        + 'Run the sync again — it rebuilds the leg, and attachments the server already has are not sent again.'
+      );
+    }
+    const encoded = new TextEncoder().encode(row.text);
     let lastErr = null;
     for (let attempt = 1; attempt <= LEG_UPLOAD_CHUNK_TRIES; attempt++){
       try{
@@ -25514,7 +26020,7 @@ async function uploadLegInChunks(legUrl, payloadText, opts){
           headers: { ...headers, 'Content-Type': 'application/octet-stream' },
           /* A fresh view per attempt: a retried body must not be a buffer the
              previous attempt may still be reading from. */
-          body: chunks[i].slice()
+          body: encoded.slice()
         });
         lastErr = null;
         break;
@@ -25525,27 +26031,28 @@ async function uploadLegInChunks(legUrl, payloadText, opts){
              whole leg on the first blip is what this change exists to stop. */
           const wait = 1000 * Math.pow(2, attempt - 1);
           update({
-            label: `Chunk ${i + 1} of ${chunks.length} failed — retrying in ${wait / 1000}s…`,
-            current: sent, total: chunks.length, source: 'server'
+            label: `Chunk ${i + 1} of ${totalChunks} failed — retrying in ${wait / 1000}s…`,
+            current: sent, total: totalChunks, source: 'server'
           });
           await sleepMs(wait);
         }
       }
     }
     if (lastErr){
-      /* Everything already uploaded stays on the server, and the session is on
+      /* Everything already uploaded stays on the server, and the pieces are on
          this device, so running the sync again continues from here. */
       throw new Error(
-        `Upload stopped at chunk ${i + 1} of ${chunks.length} (${lastErr.message}). `
+        `Upload stopped at chunk ${i + 1} of ${totalChunks} (${lastErr.message}). `
         + `The ${sent} chunk(s) already sent are kept on the server — run the sync again `
         + 'and it continues from here rather than starting over.'
       );
     }
     sent++;
     update({
-      label: `Uploading voyage leg: chunk ${sent} of ${chunks.length}…`,
-      current: sent, total: chunks.length, source: 'server'
+      label: `Uploading voyage leg: chunk ${sent} of ${totalChunks}…`,
+      current: sent, total: totalChunks, source: 'server'
     });
+    await sleepMs(0);
   }
 
   update({ label: 'Server is reassembling and checking the leg…', source: 'server' });
@@ -25553,7 +26060,42 @@ async function uploadLegInChunks(legUrl, payloadText, opts){
     method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}'
   });
   if (sessionKey) await clearLegUploadSession(sessionKey);
+  await clearSyncPieces(pieceGroup);
   return done.body;
+}
+
+/**
+ * Continue an upload that was already cut into pieces on this device.
+ * Returns the merged snapshot, or null when there is nothing to continue
+ * (no session, the leg changed, or the pieces are gone).
+ */
+async function resumeStoredLegUpload(o){
+  const stored = await readLegUploadSession(o.sessionKey);
+  if (!stored || !stored.fingerprint || !stored.totalChunks || !stored.digest || !stored.uploadId) return null;
+  const payload = buildSyncPayload();
+  if (syncPayloadFingerprint(payload) !== stored.fingerprint){
+    await clearSyncPieces(o.pieceGroup);
+    await clearLegUploadSession(o.sessionKey);
+    return null;
+  }
+  const piece0 = await dbGet('syncPieces', o.pieceGroup + '::0');
+  if (!piece0 || typeof piece0.text !== 'string') return null;
+  const health = await o.loadHealth();
+  if (!(health && health.resumableUpload && health.resumableUpload.supported)) return null;
+  o.update({
+    label: `Resuming voyage upload — ${stored.totalChunks} chunk(s) are saved on this device.`,
+    current: 0, total: stored.totalChunks, source: 'server'
+  });
+  const headers = (health.blobStore && health.blobStore.supported)
+    ? { ...o.headers, 'X-Voyage-Compact': '1' }
+    : o.headers;
+  return uploadLegInChunks(o.legUrl, null, {
+    headers,
+    update: o.update,
+    sessionKey: o.sessionKey,
+    pieceGroup: o.pieceGroup,
+    resume: stored
+  });
 }
 
 async function fetchSyncJson(url, options = {}){
@@ -27035,18 +27577,58 @@ async function syncNow(options = {}){
     const legUrl = `${base}/api/voyage/${encodeURIComponent(vessel)}/${encodeURIComponent(voyage)}/${encodeURIComponent(condition)}`;
     const legLabel = `${voyage} ${condition}`;
 
+    const sessionKey = legUploadSessionKey(vessel, voyage, condition);
+    const pieceGroup = legUploadPieceGroup(sessionKey);
+    const policy = forcePolicy || syncBefore.conflictPolicy || 'merge';
+    let healthBody = null;
+    const loadHealth = async () => {
+      if (healthBody) return healthBody;
+      try{
+        const { body } = await fetchSyncJson(`${base}/api/health`, { headers });
+        healthBody = body || {};
+      }catch(_){ healthBody = {}; }
+      return healthBody;
+    };
+    const blobsOn = async () => {
+      const h = await loadHealth();
+      return !!(h && h.blobStore && h.blobStore.supported);
+    };
+    const fillBlobs = async (snapshot, known) => {
+      if (!snapshot || !(await blobsOn())) return snapshot;
+      const map = known || await indexDataUrlBlobs(update);
+      await reinflateSyncBlobs(snapshot, (hash) => map.byHash.has(hash)
+        ? map.byHash.get(hash)
+        : downloadSyncBlob(base, vessel, hash, headers, update));
+      return snapshot;
+    };
+
+    /* An upload that the app closed on is finished BEFORE a pull. A pull
+       merges and would rebuild the leg, and the chunks already on the server
+       would no longer match. */
+    let merged = !pullOnly ? await resumeStoredLegUpload({
+      legUrl, headers, update, sessionKey, pieceGroup, loadHealth
+    }) : null;
+    if (merged){
+      await fillBlobs(merged, null);
+      if (policy !== 'local'){
+        update({ label: 'Saving the merged copy on this device…' });
+        applyRemoteSnapshot(merged, 'merge');
+        await persistAllToDb();
+      }
+    }else{
     let remote = null;
+    const pullHeaders = (await blobsOn()) ? { ...headers, 'X-Voyage-Compact': '1' } : headers;
     try {
       update({ label: `Pulling voyage ${legLabel} from the server…`, source: 'server' });
-      const { body } = await fetchSyncJson(legUrl, { headers });
+      const { body } = await fetchSyncJson(legUrl, { headers: pullHeaders });
       remote = body;
     } catch (e){
       const msg = e && e.message ? e.message : String(e);
       if (/^not found$/i.test(msg) || /\b404\b/.test(msg)) remote = null;
       else throw e;
     }
+    if (remote) await fillBlobs(remote, null);
 
-    const policy = forcePolicy || syncBefore.conflictPolicy || 'merge';
     if (pullOnly && !remote) throw new Error('No remote voyage snapshot found on server for ' + vessel + '/' + voyage + '/' + condition + '. Use List Remote Voyages, then Pull Selected Voyage Leg.');
 
     /* Always merge remote peers before push so multi-device offline edits are not lost.
@@ -27072,32 +27654,48 @@ async function syncNow(options = {}){
     if (!pullOnly){
       update({ label: `Uploading voyage ${legLabel} to the server…`, source: 'server' });
       const payload = buildSyncPayload();
-      const payloadText = JSON.stringify(payload);
-      const payloadBytes = new TextEncoder().encode(payloadText).length;
-      let merged = null;
+      const useBlobs = await blobsOn();
+      const known = useBlobs ? await indexDataUrlBlobs(update) : null;
+      const fingerprint = syncPayloadFingerprint(payload, known && known.byText);
+      let wire = payload;
+      if (known){
+        const ext = collectSyncBlobs(payload, known.byText);
+        if (ext.blobs.length){
+          await uploadSyncBlobs(base, vessel, ext.blobs, headers, update, known.byHash);
+        }
+        wire = sealSyncBlobRefs(ext.wire, ext.blobs);
+      }
+      const payloadText = JSON.stringify(wire);
+      const pushHeaders = known ? { ...headers, 'X-Voyage-Compact': '1' } : headers;
+      let mergedPush = null;
       /* A big leg goes up in resumable chunks where the server takes them. A
          small one does not: the handshake would cost more than the leg. */
       let chunked = false;
-      if (payloadBytes >= LEG_UPLOAD_MIN_BYTES){
+      if (payloadText.length >= LEG_UPLOAD_MIN_BYTES){
         chunked = await serverSupportsResumableUpload(base, headers);
       }
       if (chunked){
-        merged = await uploadLegInChunks(legUrl, payloadText, {
-          headers,
+        mergedPush = await uploadLegInChunks(legUrl, payloadText, {
+          headers: pushHeaders,
           update,
-          sessionKey: legUploadSessionKey(vessel, voyage, condition)
+          sessionKey,
+          pieceGroup,
+          fingerprint,
+          updatedAt: payload.updatedAt
         });
       } else {
         const res = await fetchSyncJson(legUrl, {
-          method: 'PUT', headers, body: payloadText
+          method: 'PUT', headers: pushHeaders, body: payloadText
         });
-        merged = res.body;
+        mergedPush = res.body;
       }
+      if (known) await fillBlobs(mergedPush, known);
       if (policy !== 'local'){
         update({ label: 'Saving the merged copy on this device…' });
-        applyRemoteSnapshot(merged, 'merge');
+        applyRemoteSnapshot(mergedPush, 'merge');
         await persistAllToDb();
       }
+    }
     }
 
     update({ label: 'Refreshing the program…', source: 'program' });
@@ -27507,7 +28105,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v334';
+let androidInstallCacheName = 'noon-report-v335';
 
 /*
  * What the program is called.
