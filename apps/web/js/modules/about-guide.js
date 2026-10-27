@@ -218,7 +218,7 @@ window.ChengProAboutGuide = (function () {
         'Fill Name and IMO. Add the Chief Engineer name if it should print on sheets.',
         'Press Create vessel the first time, or Save vessel after that.',
         'In Fleet register, press Activate on the ship you are standing. The top bar changes to that name.',
-        'Or choose the ship in the Vessel list in the top bar, then press Load vessel data. That opens its latest voyage log, its tank readings, and the notes and other records kept for that ship.',
+        'Or choose the ship in the Vessel list in the top bar, then press Load vessel data. The ship you leave is saved first, including a log line you had started but not yet added. That opens the selected ship’s latest voyage log, its tank readings, and the notes and other records kept for that ship.',
         'Open Voyage or Tanks. The bar above the program shows the same ship.'
       ],
       buttons: [
@@ -240,7 +240,7 @@ window.ChengProAboutGuide = (function () {
       purpose: 'Each ship keeps its own voyage log, voyage library, tanks, and spares. Only one ship is active at a time.',
       steps: [
         'Create the second ship with New vessel, then Create vessel.',
-        'Choose the ship in the Vessel list in the top bar, then press Load vessel data. Voyage Chief opens that ship’s latest saved voyage leg, Tank Chief opens its tank readings, and notes and the other records follow that ship.',
+        'Choose the ship in the Vessel list in the top bar, then press Load vessel data. The open ship is saved first. A log line that was not finished stays with that ship and is put back on the form when you open it again. Voyage Chief then opens the selected ship’s latest saved voyage leg, Tank Chief opens its tank readings, and notes and the other records follow that ship.',
         'Activate in the fleet register also makes that row the ship the suite is on.',
         'Check the ship name on the bar above Voyage or Tanks before you type a log or a sounding.'
       ],

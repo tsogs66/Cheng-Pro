@@ -8226,6 +8226,7 @@ async function loadSelectedVoyageLeg(vn, cond, opts){
     prefillFromLastEntry();
     renderSyncUi();
     await renderVoyageLibrary();
+    try { await restoreOpenWorkDraft(state.activeVesselId); } catch (_) {}
     if (opts && opts.goSummary) switchTab('summary');
     if (opts && opts.successAlert){
       alert(`Loaded voyage ${vn} · ${cond} (${state.entries.length} entries).`);
@@ -8296,6 +8297,7 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
      unless the library-load warning already asked and the user chose not to. */
   const persistCurrent = !opts || opts.persistCurrent !== false;
   if (persistCurrent && state.activeVesselId === vid && (state.setup.voyageNumber || '').trim()){
+    await preserveOpenWorkBeforeVesselSave();
     await archiveActiveVoyageLeg();
     await saveSetup();
   }
@@ -8570,8 +8572,218 @@ async function loadVesselFromDb(vesselId){
   }
 }
 
+function openWorkDraftKey(vesselId){
+  return 'openWorkDraft:' + (vesselId || '');
+}
+
+function readFormFields(root, accept){
+  const fields = {};
+  if (!root) return fields;
+  root.querySelectorAll('input, select, textarea').forEach((el) => {
+    if (!el.id) return;
+    if (accept && !accept(el)) return;
+    if (el.type === 'radio' && !el.checked) return;
+    fields[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? !!el.checked : el.value;
+  });
+  return fields;
+}
+
+function applyFormFields(fields){
+  if (!fields) return;
+  Object.keys(fields).forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!fields[id];
+    else el.value = fields[id] == null ? '' : String(fields[id]);
+  });
+}
+
+function draftHasWork(fields, ignore){
+  return Object.keys(fields || {}).some((id) => {
+    if (ignore && ignore.has(id)) return false;
+    const v = fields[id];
+    return v !== '' && v !== false && v != null;
+  });
+}
+
+/* Voyage Setup fields stay in the inputs until Update Voyage Details. Copy them
+   into the working setup so a vessel change archives the voyage number on screen. */
+function applyVisibleVoyageSetupForm(){
+  if (!state.setup || !document.getElementById('s_voyageNumber')) return;
+  const text = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+  };
+  const numOrNull = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === '') return null;
+    const n = parseFloat(el.value);
+    return Number.isFinite(n) ? n : null;
+  };
+  state.setup.vesselName = text('s_vesselName');
+  state.setup.chEng = text('s_chEng');
+  state.setup.dwt = numOrNull('s_dwt');
+  state.setup.grossTonnage = numOrNull('s_grossTonnage');
+  state.setup.netTonnage = numOrNull('s_netTonnage');
+  state.setup.auxPowerKw = numOrNull('s_auxPowerKw');
+  state.setup.imoNo = text('s_imoNo');
+  state.setup.company = text('s_company');
+  state.setup.flag = text('s_flag') || state.setup.flag || '';
+  if (state.setup.orb) state.setup.orb.flag = state.setup.flag || state.setup.orb.flag;
+  state.setup.voyageNumber = text('s_voyageNumber');
+  state.setup.shipCondition = normalizeCondition(text('s_shipCondition'));
+  state.setup.departPort = text('s_departPort');
+  state.setup.arrivePort = text('s_arrivePort');
+  state.setup.initDateTime = text('s_initDateTime');
+  try { state.setup.tzOffsetMin = formVoyageTzOffsetMin(); } catch (_) {}
+  state.setup.voyageDistance = numOrNull('s_voyageDistance');
+  const v = activeVessel();
+  if (v) v.name = text('s_vesselName').trim() || v.name;
+  if (!(state.entries || []).length){
+    document.querySelectorAll('[data-setup-fuel-rob]').forEach(inp => { state.setup.rob[inp.dataset.setupFuelRob] = parseFloat(inp.value)||0; });
+    document.querySelectorAll('[data-setup-lube-rob]').forEach(inp => { state.setup.robLube[inp.dataset.setupLubeRob] = parseFloat(inp.value)||0; });
+    document.querySelectorAll('[data-setup-fw-rob]').forEach(inp => { state.setup.robLube[inp.dataset.setupFwRob] = parseFwM3Field(inp.value)||0; });
+  }
+}
+
+function logEntryFormReady(){
+  const dt = document.getElementById('in_datetime');
+  if (!dt || !dt.value) return false;
+  const arr = (state.setup && state.setup.flowArr) || 'SINGLE';
+  const meDual = arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
+  const geDual = arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+  const numOk = (id) => {
+    const el = document.getElementById(id);
+    return !!(el && el.value !== '' && !isNaN(parseFloat(el.value)));
+  };
+  if (meDual){ if (!numOk('me_meter_in') || !numOk('me_meter_out')) return false; }
+  else if (!numOk('me_meter')) return false;
+  if (geDual){ if (!numOk('ge_meter_in') || !numOk('ge_meter_out')) return false; }
+  else if (!numOk('ge_meter')) return false;
+  return numOk('blr_meter');
+}
+
+async function forgetOpenWorkDraft(vesselId){
+  const vid = vesselId || state.activeVesselId;
+  if (!vid) return;
+  try { await dbDelete('meta', openWorkDraftKey(vid)); } catch (_) {}
+}
+
+async function clearLogFromOpenWorkDraft(vesselId){
+  const vid = vesselId || state.activeVesselId;
+  if (!vid) return;
+  let row = null;
+  try { row = await dbGet('meta', openWorkDraftKey(vid)); } catch (_) { return; }
+  const draft = row && row.value;
+  if (!draft) return;
+  if (!draft.orb){ await forgetOpenWorkDraft(vid); return; }
+  delete draft.log;
+  await dbPut('meta', { key: openWorkDraftKey(vid), value: draft });
+}
+
+async function stashOpenWorkDraft(vesselId, payload){
+  if (!vesselId) return;
+  if (!payload || (!payload.log && !payload.orb)){
+    await forgetOpenWorkDraft(vesselId);
+    return;
+  }
+  payload.savedAt = new Date().toISOString();
+  await dbPut('meta', { key: openWorkDraftKey(vesselId), value: payload });
+}
+
+function openLogDraftMatchesLeg(log){
+  if (!log) return false;
+  const vn = (state.setup && state.setup.voyageNumber || '').trim();
+  const cond = normalizeCondition(state.setup && state.setup.shipCondition);
+  const dv = String(log.voyageNumber || '').trim();
+  const dc = normalizeCondition(log.condition || cond);
+  if (!dv) return true;
+  return dv === vn && dc === cond;
+}
+
+async function restoreOpenWorkDraft(vesselId){
+  const vid = vesselId || state.activeVesselId;
+  if (!vid) return false;
+  let row = null;
+  try { row = await dbGet('meta', openWorkDraftKey(vid)); } catch (_) { return false; }
+  const draft = row && row.value;
+  if (!draft) return false;
+  let keptLog = false;
+  if (draft.log && draft.log.fields && openLogDraftMatchesLeg(draft.log)){
+    if (draft.log.editingId && (state.entries || []).some(e => e.id === draft.log.editingId)){
+      editingId = draft.log.editingId;
+    }
+    applyFormFields(draft.log.fields);
+    logFormDirty = true;
+    try { updateLivePreview(); } catch (_) {}
+    keptLog = true;
+  }
+  if (draft.orb){
+    applyFormFields(draft.orb);
+    orbFormDirty = true;
+  }
+  return keptLog;
+}
+
+/* Enter Flowmeters writes the log only on Accept. If that dialog is still open,
+   fold its readings into the log form before the ship is saved. */
+function absorbOpenFlowmeterDialog(){
+  const overlay = document.getElementById('fmQuickOverlay');
+  if (!overlay || overlay.hidden || !overlay.classList.contains('open')) return false;
+  try { acceptFmQuickDialog(); }
+  catch (_) { return false; }
+  logFormDirty = true;
+  return true;
+}
+
+/* Write the open summary, a finished log line, and the voyage setup, then keep
+   a half-typed log or oil-record form with this ship until it is opened again. */
+async function preserveOpenWorkBeforeVesselSave(){
+  absorbOpenFlowmeterDialog();
+  const vid = state.activeVesselId;
+  const logSnap = {
+    editingId: (typeof editingId !== 'undefined' ? editingId : null) || null,
+    fields: readFormFields(document.getElementById('logEntryFormPanel'))
+  };
+  const orbFields = readFormFields(document.getElementById('page-orb'), (el) => el.id.indexOf('orb_') === 0);
+  applyVisibleVoyageSetupForm();
+  logSnap.voyageNumber = (state.setup && state.setup.voyageNumber || '').trim();
+  logSnap.condition = normalizeCondition(state.setup && state.setup.shipCondition);
+  if (typeof isVoyageSummaryOpen === 'function' && isVoyageSummaryOpen()){
+    try { await saveOpenVoyageSummary({ close: false }); }
+    catch (err) { console.warn('Saving the open summary before a vessel change:', err && err.message); }
+  }
+  const logIgnore = new Set(['in_datetime']);
+  const logWork = !!(logFormDirty && (logSnap.editingId || draftHasWork(logSnap.fields, logIgnore)));
+  let logCommitted = false;
+  if (logWork){
+    if (logSnap.editingId) editingId = logSnap.editingId;
+    applyFormFields(logSnap.fields);
+    if (logEntryFormReady()){
+      try { logCommitted = !!(await saveLogEntryFromForm({ interactive: false })); }
+      catch (err) { console.warn('Saving the open log entry before a vessel change:', err && err.message); }
+    }
+  }
+  const orbIgnore = new Set(['orb_from', 'orb_to', 'orb_entryDate', 'orb_officerSignDate']);
+  const orbWork = !!(orbFormDirty && draftHasWork(orbFields, orbIgnore));
+  const keptLog = !!(logWork && !logCommitted);
+  window.__chengKeptLogDraft = keptLog;
+  await stashOpenWorkDraft(vid, {
+    log: keptLog ? logSnap : null,
+    orb: orbWork ? orbFields : null
+  });
+}
+
+let vesselSaveTail = Promise.resolve();
 async function saveCurrentVesselState(){
+  const run = vesselSaveTail.then(() => saveCurrentVesselStateBody());
+  vesselSaveTail = run.catch(() => {});
+  return run;
+}
+
+async function saveCurrentVesselStateBody(){
   if (!state.activeVesselId) return;
+  await preserveOpenWorkBeforeVesselSave();
   const own = !activityIsActive();
   if (own) beginActivity('save-vessel', 'Saving this vessel on the device…', { source: 'program' });
   try{
@@ -8585,7 +8797,8 @@ async function saveCurrentVesselState(){
     ['receipts', state.receipts],
     ['documents', state.documents],
     ['abstracts', state.abstracts],
-    ['printHistory', state.printHistory]
+    ['printHistory', state.printHistory],
+    ['orbEntries', state.orbEntries]
   ];
   const total = groups.reduce((n, [, arr]) => n + (arr || []).length, 0);
   let done = 0;
@@ -8607,6 +8820,10 @@ async function saveCurrentVesselState(){
   }
 }
 
+window.addEventListener('pagehide', () => {
+  saveCurrentVesselState().catch(() => {});
+});
+
 async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
@@ -8622,6 +8839,7 @@ async function switchVessel(vesselId, opts){
     render();
     applyEntryDefaults();
     prefillFromLastEntry();
+    await restoreOpenWorkDraft(vesselId);
     renderSyncUi();
     const lbl = document.getElementById('activeVesselLabel');
     if (lbl) lbl.textContent = `${state.setup.vesselName || target.name} — Voyage Log & Performance`;
@@ -24681,13 +24899,19 @@ document.getElementById('in_datetime')?.addEventListener('change', refreshFmEntr
 document.getElementById('in_datetime')?.addEventListener('input', refreshFmEntryButtonVisibility);
 document.getElementById('in_operation')?.addEventListener('change', refreshFmEntryButtonVisibility);
 
-document.getElementById('logEntryFormPanel').addEventListener('input', ()=>{ updateLivePreview(); updateVsRunCalcDisplays(); });
-document.getElementById('logEntryFormPanel').addEventListener('change', ()=>{ updateLivePreview(); updateVsRunCalcDisplays(); updateVsRobLiveFromCons(); });
+let logFormDirty = false;
+let orbFormDirty = false;
+document.getElementById('logEntryFormPanel').addEventListener('input', ()=>{ logFormDirty = true; updateLivePreview(); updateVsRunCalcDisplays(); });
+document.getElementById('logEntryFormPanel').addEventListener('change', ()=>{ logFormDirty = true; updateLivePreview(); updateVsRunCalcDisplays(); updateVsRobLiveFromCons(); });
+document.getElementById('page-orb')?.addEventListener('input', ()=>{ orbFormDirty = true; });
+document.getElementById('page-orb')?.addEventListener('change', ()=>{ orbFormDirty = true; });
 
 /* ---------------- entry form handlers ---------------- */
-document.getElementById('btnAdd').addEventListener('click', async ()=>{
-  const dtVal = document.getElementById('in_datetime').value;
-  if (!dtVal){ alert('Please set the date & time for this entry.'); return; }
+async function saveLogEntryFromForm(opts){
+  const interactive = !opts || opts.interactive !== false;
+  const dtEl = document.getElementById('in_datetime');
+  const dtVal = dtEl ? dtEl.value : '';
+  if (!dtVal){ if (interactive) alert('Please set the date & time for this entry.'); return false; }
 
   const arr = state.setup.flowArr || 'SINGLE';
   const meDual = arr==='DUAL_ME' || arr==='DUAL_BOTH';
@@ -24697,11 +24921,11 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   if (meDual){
     const meterIn = parseFloat(document.getElementById('me_meter_in').value);
     const meterOut = parseFloat(document.getElementById('me_meter_out').value);
-    if (isNaN(meterIn) || isNaN(meterOut)){ alert('Please enter both Main Engine Inlet and Outlet flowmeter readings.'); return; }
+    if (isNaN(meterIn) || isNaN(meterOut)){ if (interactive) alert('Please enter both Main Engine Inlet and Outlet flowmeter readings.'); return false; }
     meField = { meterIn, meterOut, type: document.getElementById('me_type').value, sg: parseFloat(document.getElementById('me_sg').value)||0 };
   } else {
     const meter = parseFloat(document.getElementById('me_meter').value);
-    if (isNaN(meter)){ alert('Please enter the Main Engine fuel meter reading.'); return; }
+    if (isNaN(meter)){ if (interactive) alert('Please enter the Main Engine fuel meter reading.'); return false; }
     meField = { meter, type: document.getElementById('me_type').value, sg: parseFloat(document.getElementById('me_sg').value)||0 };
   }
 
@@ -24709,16 +24933,16 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   if (geDual){
     const meterIn = parseFloat(document.getElementById('ge_meter_in').value);
     const meterOut = parseFloat(document.getElementById('ge_meter_out').value);
-    if (isNaN(meterIn) || isNaN(meterOut)){ alert('Please enter both Generator Inlet and Outlet flowmeter readings.'); return; }
+    if (isNaN(meterIn) || isNaN(meterOut)){ if (interactive) alert('Please enter both Generator Inlet and Outlet flowmeter readings.'); return false; }
     geField = { meterIn, meterOut, type: document.getElementById('ge_type').value, sg: parseFloat(document.getElementById('ge_sg').value)||0 };
   } else {
     const meter = parseFloat(document.getElementById('ge_meter').value);
-    if (isNaN(meter)){ alert('Please enter the Generator fuel meter reading.'); return; }
+    if (isNaN(meter)){ if (interactive) alert('Please enter the Generator fuel meter reading.'); return false; }
     geField = { meter, type: document.getElementById('ge_type').value, sg: parseFloat(document.getElementById('ge_sg').value)||0 };
   }
 
   const blrMeter = parseFloat(document.getElementById('blr_meter').value);
-  if (isNaN(blrMeter)){ alert('Please enter the Boiler fuel meter reading.'); return; }
+  if (isNaN(blrMeter)){ if (interactive) alert('Please enter the Boiler fuel meter reading.'); return false; }
 
   const existing = editingId ? state.entries.find(x=>x.id===editingId) : null;
   const lastRef = existing || sortedEntries().filter(e=>e.datetime < dtVal).slice(-1)[0] || effectiveCarryover();
@@ -24822,13 +25046,22 @@ document.getElementById('btnAdd').addEventListener('click', async ()=>{
   }
 
   markPendingSync();
-  render();
-  /* Stay on the watch just saved. exitEditMode() + prefillFromLastEntry() used to
-     flip the selector to "— New Entry —" and leave Voyage Summary describing a
-     different (blank) watch than the one the engineer just added — so Received /
-     distance / report edits looked like they belonged to the next entry. */
-  loadEntryIntoForm(entry.id);
-  updateEntryActionButtons();
+  try { await clearLogFromOpenWorkDraft(); } catch (_) {}
+  editingId = entry.id;
+  logFormDirty = false;
+  if (interactive){
+    render();
+    /* Stay on the watch just saved. exitEditMode() + prefillFromLastEntry() used to
+       flip the selector to "— New Entry —" and leave Voyage Summary describing a
+       different (blank) watch than the one the engineer just added — so Received /
+       distance / report edits looked like they belonged to the next entry. */
+    loadEntryIntoForm(entry.id);
+    updateEntryActionButtons();
+  }
+  return true;
+}
+document.getElementById('btnAdd').addEventListener('click', ()=>{
+  saveLogEntryFromForm({ interactive: true }).catch((err) => alert(err && err.message ? err.message : err));
 });
 
 function exitEditMode(){
@@ -24958,6 +25191,8 @@ function prefillFromLastEntry(){
 
 document.getElementById('btnClearForm').addEventListener('click', ()=>{
   /* Back to a blank new entry — nothing is selected, so drop the summary. */
+  clearLogFromOpenWorkDraft().catch(() => {});
+  logFormDirty = false;
   closeVoyageSummaryPanel();
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -34037,6 +34272,17 @@ async function loadLatestVoyageDataForActiveVessel(){
   const curVn = (state.setup && state.setup.voyageNumber || '').trim();
   const curCond = normalizeCondition(state.setup && state.setup.shipCondition);
   if (!vid) return { loaded: 'empty', voyageNumber: curVn, condition: curCond, entryCount: 0 };
+  /* An unfinished log line belongs to this leg. Do not replace the leg and
+     hide the line; put the line back on the form. */
+  if (await restoreOpenWorkDraft(vid)){
+    return {
+      loaded: 'working',
+      voyageNumber: curVn,
+      condition: curCond,
+      entryCount: (state.entries || []).length,
+      keptLog: true
+    };
+  }
   const choice = pickLatestVoyageLeg(await getVoyageLibraryIndex(vid), {
     voyageNumber: curVn,
     condition: curCond,
@@ -34085,6 +34331,21 @@ function installChengAioVesselSync(){
   window.addEventListener('message', (ev) => {
     const msg = ev && ev.data;
     if (!msg) return;
+    if (msg.type === 'chengaio-flush-unsaved'){
+      saveCurrentVesselState().then(() => {
+        try {
+          window.parent.postMessage({
+            type: 'chengaio-unsaved-flushed',
+            program: 'voyage',
+            keptLog: !!window.__chengKeptLogDraft
+          }, '*');
+        } catch (_) {}
+      }).catch((err) => {
+        console.warn('Save before vessel change:', err && err.message);
+        try { window.parent.postMessage({ type: 'chengaio-unsaved-flushed', program: 'voyage', error: err && err.message }, '*'); } catch (_) {}
+      });
+      return;
+    }
     if (msg.type === 'chengaio-load-vessel-data'){
       runChengAioLatestLoad(msg.vessel).then((result) => {
         /* null means a load is already in progress and that load reports. */
@@ -35201,6 +35462,8 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
         console.error('Auto recalculation failed:', recalcErr);
       }
     }
+
+    try { await restoreOpenWorkDraft(state.activeVesselId); } catch (_) {}
 
     /* Last, so a stored session can switch the active vessel over a loaded app. */
     try{ await initLoginGate(); }

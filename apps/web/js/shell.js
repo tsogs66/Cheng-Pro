@@ -8,6 +8,7 @@
   const backdrop = document.getElementById('sidebarBackdrop');
   const toastEl = document.getElementById('toast');
   let current = 'home';
+  let unfinishedLogKept = false;
   let toastTimer = null;
   let booted = false;
   const BOTTOM_PRIMARY = new Set(['voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb', 'performance']);
@@ -124,6 +125,15 @@
       setFullscreenEmbed(embedded);
       syncThemeChrome();
       return;
+    }
+    /* The voyage log form is only in this iframe. Write it down before the
+       frame is removed, or an entry that was not yet added is gone. */
+    if (isSoftEmbedModule(current)) {
+      showToast('Saving this ship…', 4000);
+      try {
+        const flushed = await flushOpenProgramFrames();
+        if (flushed.some((row) => row && row.keptLog)) unfinishedLogKept = true;
+      } catch { /* the switch still continues */ }
     }
     current = next;
     setNavActive(current);
@@ -533,6 +543,57 @@
     return activateTankVessel(vessel);
   }
 
+  function programFrames() {
+    return [...document.querySelectorAll('iframe')].filter((frame) => {
+      const src = frame.getAttribute('src') || '';
+      return /voyage_manager\.html|\/voyage\/|\/tanks\//i.test(src);
+    });
+  }
+
+  function flushOpenProgramFrames() {
+    const frames = programFrames();
+    if (!frames.length) return Promise.resolve([]);
+    return Promise.all(frames.map((frame) => new Promise((resolve) => {
+      const timer = setTimeout(finish, 90000);
+      function onMsg(e) {
+        const data = e && e.data;
+        if (!data || data.type !== 'chengaio-unsaved-flushed') return;
+        if (e.source !== frame.contentWindow) return;
+        finish(data);
+      }
+      function finish(data) {
+        clearTimeout(timer);
+        window.removeEventListener('message', onMsg);
+        resolve(data || {});
+      }
+      window.addEventListener('message', onMsg);
+      try {
+        if (!frame.contentWindow) { finish(); return; }
+        frame.contentWindow.postMessage({ type: 'chengaio-flush-unsaved' }, '*');
+      } catch {
+        finish();
+      }
+    })));
+  }
+
+  async function saveOpenShellDrafts() {
+    const noteForm = document.getElementById('noteForm');
+    const noteTitle = document.getElementById('noteTitle');
+    const noteBody = document.getElementById('noteBody');
+    if (noteForm && ((noteTitle && noteTitle.value.trim()) || (noteBody && noteBody.value.trim()))) {
+      noteForm.requestSubmit();
+    }
+    if (typeof window.ChengProFlushVesselForm === 'function') {
+      await window.ChengProFlushVesselForm();
+    }
+  }
+
+  window.ChengProFlushBeforeVesselChange = async function () {
+    await saveOpenShellDrafts();
+    const flushed = await flushOpenProgramFrames();
+    if (flushed.some((row) => row && row.keptLog)) unfinishedLogKept = true;
+  };
+
   async function loadSelectedVesselData() {
     const id = activeSelect.value;
     if (!id) {
@@ -543,10 +604,12 @@
     const name = (known && known.name) || 'this ship';
     const btn = document.getElementById('btnLoadVesselData');
     if (btn) btn.disabled = true;
-    showToast('Loading ' + name + '…', 8000);
+    showToast('Saving this ship, then loading ' + name + '…', 8000);
     try { sessionStorage.setItem('chengAioLoadInProgress', '1'); } catch { /* ignore */ }
     try {
       await ChengPro.vessel.setActive(id);
+      const keptLog = unfinishedLogKept;
+      unfinishedLogKept = false;
       const vessel = ChengPro.vessel.getActive() || known || { id, name };
       const [voyage, tank] = await Promise.all([
         loadVoyageForVessel(vessel),
@@ -569,6 +632,9 @@
       }
       lines.push(tank && tank.ok ? 'Tank Chief is on this ship.' : ((tank && tank.note) || 'Tank Chief was not updated.'));
       lines.push('Notes and the other records for this ship are the ones now in use.');
+      if (keptLog) {
+        lines.push('The unfinished log line stays with the ship you left. Open that ship and it is back on the form.');
+      }
       showToast(lines.join(' '), 7000);
     } catch (err) {
       showToast(err.message || 'Could not load vessel data', 5000);

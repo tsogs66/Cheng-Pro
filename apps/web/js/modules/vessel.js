@@ -137,6 +137,34 @@ window.ChengProModules.vessel = {
     }
 
 
+    window.ChengProFlushVesselForm = async () => {
+      if (!active || root._forceNew) return;
+      const form = root.querySelector('#vesselForm');
+      if (!form) return;
+      const raw = Object.fromEntries(new FormData(form).entries());
+      const data = {
+        name: raw.name,
+        imo: raw.imo,
+        callSign: raw.callSign,
+        flag: window.ChengFlagRegistry ? ChengFlagRegistry.normalizeCode(raw.flag) : raw.flag,
+        company: raw.company,
+        type: raw.type,
+        dwt: raw.dwt,
+        notes: raw.notes,
+        chiefEngineer: String(raw.chiefEngineer || '').trim(),
+      };
+      for (const key of ENGINE_FIELDS) data[key] = parseOptionalNumber(raw[key]);
+      const same = (a, b) => String(a == null || a === '' ? '' : a) === String(b == null || b === '' ? '' : b);
+      const keys = ['name', 'imo', 'callSign', 'flag', 'company', 'type', 'dwt', 'notes', 'chiefEngineer', ...ENGINE_FIELDS];
+      if (!String(data.name || '').trim()) return;
+      if (keys.every((key) => same(data[key], active[key]))) return;
+      if (active.voyageRegistryId) data.voyageRegistryId = active.voyageRegistryId;
+      if (active.voyageSlug) data.voyageSlug = active.voyageSlug;
+      await ChengPro.api.fetch('/api/shell/vessels/' + encodeURIComponent(active.id), {
+        method: 'PUT', body: JSON.stringify(data),
+      });
+    };
+
     root.querySelector('#saveVessel').addEventListener('click', async () => {
       const form = root.querySelector('#vesselForm');
       const raw = Object.fromEntries(new FormData(form).entries());

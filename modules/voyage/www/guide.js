@@ -49,7 +49,7 @@
         'Bright — daylight colours. Press it again to walk the themes. The log is unchanged'
       ],
       undo: [
-        'Changing tabs does not delete a watch. Typing is kept only after Add Entry or that page’s Save.'
+        'Changing tabs does not delete a watch. A log line you have started is kept with this ship when you load another ship, and it is put back on the form when you return. Add Entry stores it in the log.'
       ]
     },
     {

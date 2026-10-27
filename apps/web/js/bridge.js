@@ -75,6 +75,9 @@
   }
 
   async function setActive(id) {
+    if (typeof root.ChengProFlushBeforeVesselChange === 'function') {
+      try { await root.ChengProFlushBeforeVesselChange(); } catch (err) { console.warn(err); }
+    }
     await ChengProApi.api('/api/shell/vessels/active', {
       method: 'POST',
       body: JSON.stringify({ id: id || null }),
