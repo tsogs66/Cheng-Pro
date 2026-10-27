@@ -3148,6 +3148,26 @@ html.astrolabe body::before { opacity: 0.26; }
       <div>
         <h1>Voyage Chief</h1>
         <div class="subtitle" id="activeVesselLabel">Engine Department — Voyage Log &amp; Performance</div>
+        <script>
+          (function () {
+            try {
+              var name = '';
+              var parentWin = window.parent && window.parent !== window ? window.parent : null;
+              var active = parentWin && parentWin.ChengPro && parentWin.ChengPro.vessel && parentWin.ChengPro.vessel.getActive
+                ? parentWin.ChengPro.vessel.getActive() : null;
+              if (active && active.name) name = active.name;
+              if (!name) name = new URLSearchParams(location.search).get('aioVessel') || '';
+              if (!name) {
+                var raw = localStorage.getItem('chengProActiveVesselHint');
+                if (raw) name = (JSON.parse(raw) || {}).name || '';
+              }
+              if (name) {
+                var el = document.getElementById('activeVesselLabel');
+                if (el) el.textContent = name + ' — Voyage Log & Performance';
+              }
+            } catch (e) {}
+          })();
+        </script>
         <div class="byline" id="appByline"></div>
       </div>
     </div>
@@ -9134,10 +9154,44 @@ window.addEventListener('pagehide', () => {
   saveCurrentVesselState().catch(() => {});
 });
 
+function chengAioShellVesselName(){
+  if (typeof isChengAioEmbedded !== 'function' || !isChengAioEmbedded()) return '';
+  try {
+    const parentWin = window.parent && window.parent !== window ? window.parent : null;
+    const active = parentWin && parentWin.ChengPro && parentWin.ChengPro.vessel
+      && typeof parentWin.ChengPro.vessel.getActive === 'function'
+      ? parentWin.ChengPro.vessel.getActive() : null;
+    if (active && active.name) return String(active.name).trim();
+  } catch (_) {}
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('aioVessel');
+    if (fromUrl) return String(fromUrl).trim();
+  } catch (_) {}
+  try {
+    const raw = localStorage.getItem('chengProActiveVesselHint');
+    if (raw) {
+      const hint = JSON.parse(raw);
+      if (hint && hint.name) return String(hint.name).trim();
+    }
+  } catch (_) {}
+  return '';
+}
+
+/** Header follows the ship the suite has open, including while this copy is still switching. */
+function paintActiveVesselLabel(fallback){
+  const lbl = document.getElementById('activeVesselLabel');
+  if (!lbl) return;
+  const shellName = chengAioShellVesselName();
+  const setupName = (state.setup && state.setup.vesselName) ? String(state.setup.vesselName).trim() : '';
+  const name = shellName || (fallback || '') || setupName;
+  if (name) lbl.textContent = name + ' — Voyage Log & Performance';
+}
+
 async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
   if (!target) return;
+  paintActiveVesselLabel(target.name);
   const fromName = vesselStatusName();
   return withActivity('switch-vessel', `Switching to ${target.name}…`, async ({ update })=>{
     update({ kicker: target.name, pct: 6, source: 'program' });
@@ -9155,8 +9209,7 @@ async function switchVessel(vesselId, opts){
     prefillFromLastEntry();
     await restoreOpenWorkDraft(vesselId);
     renderSyncUi();
-    const lbl = document.getElementById('activeVesselLabel');
-    if (lbl) lbl.textContent = `${state.setup.vesselName || target.name} — Voyage Log & Performance`;
+    paintActiveVesselLabel(target.name);
     update({ label: `${readyName} is ready`, kicker: readyName, pct: 100 });
   }, { source: 'program', kicker: target.name, pct: 4 });
 }
@@ -9260,8 +9313,7 @@ function renderVesselSelector(){
     const n = state.entries.length;
     hint.textContent = `Each vessel keeps its own records in this browser. Active vessel has ${n} log entries and ${state.receipts.length} receipts. Select another vessel and click Load, or pull from the sync server using that vessel's slug.`;
   }
-  const lbl = document.getElementById('activeVesselLabel');
-  if (lbl && state.setup.vesselName) lbl.textContent = `${state.setup.vesselName} — Voyage Log & Performance`;
+  paintActiveVesselLabel();
 }
 
 async function clearVesselStore(storeName, vesselId){
@@ -34453,6 +34505,7 @@ async function syncActiveVesselFromChengAio(forceVessel){
     } catch (_) { /* ignore */ }
   }
   if (!hint || (!hint.imo && !hint.name && !hint.vesselName && !hint.id)) return false;
+  paintActiveVesselLabel(hint.name || hint.vesselName || '');
   if (!Array.isArray(state.vessels) || !state.vessels.length) return false;
 
   const imo = normalizeImoForAio(hint.imo);
@@ -34514,13 +34567,16 @@ async function syncActiveVesselFromChengAio(forceVessel){
       /* importVesselExport writes activeVesselId and calls loadVesselFromDb
          itself, so the ship is already open; switching again would load it
          a second time. */
-      return !!(created && created.vessel);
+      const createdOk = !!(created && created.vessel);
+      paintActiveVesselLabel(createName);
+      return createdOk;
     } catch (err) {
       console.warn('AIO vessel sync could not add the shell vessel:', err && err.message);
       return false;
     }
   }
   if (match.id !== state.activeVesselId) await switchVessel(match.id);
+  paintActiveVesselLabel((match && match.name) || hint.name || hint.vesselName || '');
   return true;
 }
 
@@ -34657,12 +34713,13 @@ function installChengAioVesselSync(){
           window.parent.postMessage({
             type: 'chengaio-unsaved-flushed',
             program: 'voyage',
+            nonce: msg.nonce || '',
             keptLog: !!window.__chengKeptLogDraft
           }, '*');
         } catch (_) {}
       }).catch((err) => {
         console.warn('Save before vessel change:', err && err.message);
-        try { window.parent.postMessage({ type: 'chengaio-unsaved-flushed', program: 'voyage', error: err && err.message }, '*'); } catch (_) {}
+        try { window.parent.postMessage({ type: 'chengaio-unsaved-flushed', program: 'voyage', nonce: msg.nonce || '', error: err && err.message }, '*'); } catch (_) {}
       });
       return;
     }
@@ -35759,6 +35816,18 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
         const to = document.getElementById('orb_to'); if (to && !to.value) to.value = iso;
       }
     }catch(orbErr){ console.warn('e-ORB init', orbErr); }
+
+    /* Switch to the suite's ship before the first paint. Doing it afterwards
+       left the previous ship's name in the header until a long save finished. */
+    if (isChengAioEmbedded()) {
+      try {
+        installChengAioVesselSync();
+        await syncActiveVesselFromChengAio();
+        paintActiveVesselLabel();
+      } catch (syncErr) {
+        console.warn('AIO vessel sync before first paint:', syncErr);
+      }
+    }
 
     /* First paint with loaded vessel data — defer one-time formula rebuild so the
        UI is usable while older voyages catch up in the background. */

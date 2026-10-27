@@ -158,6 +158,10 @@
       const q = new URLSearchParams({ chengaio: '1' });
       if (opts && opts.page) q.set('page', String(opts.page));
       if (opts && opts.eorbEmbed) q.set('eorbEmbed', String(opts.eorbEmbed));
+      /* The iframe paints this name before its own database opens, so the
+         header does not keep the ship that was on screen last time. */
+      if (active && active.name) q.set('aioVessel', active.name);
+      if (active && active.imo) q.set('aioImo', active.imo);
       return url + (url.includes('?') ? '&' : '?') + q.toString();
     },
     openVoyage: (opts) => {

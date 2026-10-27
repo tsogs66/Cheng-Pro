@@ -2143,3 +2143,63 @@ html.aio-suite .main .panel {
   html.aio-suite body::before { display: none !important; }
 }
 
+/* Off-screen, still running. display:none would freeze the save. */
+/* Off to the side, still in the page. Moving the iframe reloads it and
+   drops the save. display:none would freeze the script. */
+.aio-embed-wrap.aio-background-save {
+  position: fixed !important;
+  left: -2400px !important;
+  top: 0 !important;
+  width: 800px !important;
+  height: 600px !important;
+  margin: 0 !important;
+  pointer-events: none !important;
+}
+#aioPageHost {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.aio-vessel-load-hold {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 12, 20, 0.55);
+}
+.aio-vessel-load-hold[hidden] { display: none !important; }
+.aio-vessel-load-card {
+  width: min(440px, 100%);
+  background: var(--panel-solid, #122238);
+  color: var(--text, #fff8ee);
+  border: 1px solid var(--line-strong, rgba(201, 154, 83, 0.45));
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.aio-vessel-load-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brass, #c99a53);
+}
+.aio-vessel-load-name {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.aio-vessel-load-note {
+  margin: 10px 0 0;
+  color: var(--muted, #c5d0dc);
+  font-size: 14px;
+  line-height: 1.4;
+}
+html.bright .aio-vessel-load-card { background: #fff; }
+

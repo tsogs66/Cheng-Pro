@@ -24,12 +24,17 @@ assert.match(page, /class="vessel-switcher-row"[\s\S]*id="activeVessel"[\s\S]*id
 
 assert.match(shell, /async function loadSelectedVesselData/);
 assert.match(shell, /function flushOpenProgramFrames/);
+assert.match(shell, /function flushFrames/);
+assert.match(shell, /function startBackgroundSave/);
+assert.match(shell, /aio-vessel-load-hold/);
+assert.match(shell, /allowDuringLoad/);
 assert.match(shell, /chengaio-flush-unsaved/);
 assert.match(shell, /ChengProFlushBeforeVesselChange/);
 assert.match(shell, /chengAioLoadInProgress/);
 assert.match(shell, /aioLoadLatest=1/);
 assert.match(shell, /\/tanks\/api\/vessels\/active/);
 assert.doesNotMatch(shell, /activeSelect\.addEventListener\('change'/);
+assert.doesNotMatch(shell, /Saving this ship…/);
 
 assert.match(html, /function pickLatestVoyageLeg/);
 assert.match(html, /function preserveOpenWorkBeforeVesselSave/);
@@ -39,6 +44,10 @@ assert.match(html, /openLogDraftMatchesLeg/);
 assert.match(html, /logFormDirty/);
 assert.match(html, /chengaio-load-vessel-data/);
 assert.match(html, /aioLoadLatest/);
+assert.match(html, /function paintActiveVesselLabel/);
+assert.match(html, /function chengAioShellVesselName/);
+assert.match(html, /aioVessel/);
+assert.match(html, /nonce: msg\.nonce/);
 assert.match(tank, /chengaio-load-vessel-data/);
 assert.match(tank, /chengaio-flush-unsaved/);
 assert.match(tank, /flushUnsavedTankWork/);
