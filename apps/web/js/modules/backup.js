@@ -544,6 +544,10 @@
     return !!(payload && payload.format === SUITE_FORMAT);
   }
 
+  function extraApi() {
+    return window.ChengBackupExtra || null;
+  }
+
   function suiteSummary(payload) {
     const tankVessels = payload.tank && payload.tank.vessels
       ? Object.keys(payload.tank.vessels).length : 0;
@@ -552,6 +556,23 @@
     const parts = [];
     parts.push(`Tank Chief: ${payload.tank ? `${tankVessels} vessel(s)` : 'not in this file'}`);
     parts.push(`Voyage Chief: ${payload.voyage ? `${voyageVessels} vessel(s)` : 'not in this file'}`);
+    const extra = extraApi();
+    if (extra && payload.voyage) {
+      const counts = extra.miscCountsFromVoyage(payload.voyage);
+      const bits = [];
+      if (counts.requisitions) bits.push(`${counts.requisitions} requisition${counts.requisitions === 1 ? '' : 's'}`);
+      if (counts.plans || counts.planSnapshots) {
+        bits.push(`${counts.plans} consumption plan${counts.plans === 1 ? '' : 's'}, ${counts.planSnapshots} snapshot${counts.planSnapshots === 1 ? '' : 's'}`);
+      }
+      if (counts.orbEntries || counts.orbBooks) {
+        bits.push(`${counts.orbEntries} e-ORB entr${counts.orbEntries === 1 ? 'y' : 'ies'}`);
+      }
+      if (bits.length) parts.push(bits.join(', '));
+    }
+    if (extra && payload.companion) {
+      const line = extra.companionSummary(payload.companion);
+      if (line) parts.push(line);
+    }
     if (payload.exportedAt) parts.push(`exported ${payload.exportedAt}`);
     return parts.join(' · ');
   }
@@ -683,7 +704,7 @@
 
           <div class="form-panel backup-section">
             <div class="backup-section-head"><span class="backup-section-title">Entire suite</span></div>
-            <p class="hint">One file with Tank Chief + Voyage Chief from this device/server.</p>
+            <p class="hint">One file with Tank Chief, Voyage Chief, and the records the other programs need from this device: notes, the ship clock, sync and license-server addresses, spare and store requisitions, the consumption plan and its snapshots, and the oil record book. The license key and the sign-in session stay on this device.</p>
             <div class="btn-row">
               <button type="button" class="btn primary" id="bk-suite-all">Export entire program</button>
               <button type="button" class="btn" id="bk-suite-restore">Restore entire program…</button>
@@ -691,6 +712,18 @@
               <input type="file" id="bk-suite-file" accept="application/json,.json" hidden>
             </div>
             <p class="hint" id="bk-suite-status">Ready.</p>
+          </div>
+
+          <div class="form-panel backup-section">
+            <div class="backup-section-head"><span class="backup-section-title">Miscellaneous data</span></div>
+            <p class="hint">A separate file for the lists that are not a log line or a tank sounding: spare and store requisitions, the consumption plan and its saved snapshots, the oil record book, plus this device’s theme, dashboard layout, and Tank Chief screen choices.</p>
+            <div class="btn-row">
+              <button type="button" class="btn primary" id="bk-misc-export">Export miscellaneous data</button>
+              <button type="button" class="btn" id="bk-misc-restore">Restore miscellaneous data…</button>
+              <button type="button" class="btn" id="bk-misc-merge">Merge miscellaneous data…</button>
+              <input type="file" id="bk-misc-file" accept="application/json,.json" hidden>
+            </div>
+            <p class="hint" id="bk-misc-status">Ready.</p>
           </div>
 
           <div class="form-panel backup-section">
@@ -732,9 +765,11 @@
       const tankStatus = root.querySelector('#bk-tank-status');
       const voyageStatus = root.querySelector('#bk-voyage-status');
       const suiteStatus = root.querySelector('#bk-suite-status');
+      const miscStatus = root.querySelector('#bk-misc-status');
       const setTank = (t) => { if (tankStatus) tankStatus.textContent = t; };
       const setVoyage = (t) => { if (voyageStatus) voyageStatus.textContent = t; };
       const setSuite = (t) => { if (suiteStatus) suiteStatus.textContent = t; };
+      const setMisc = (t) => { if (miscStatus) miscStatus.textContent = t; };
 
       /* Keep server blocks open after save so URL / token fields stay editable.
        * The summary line still shows which host is configured. */
@@ -828,6 +863,7 @@
               throw new Error([tankError, voyageError].filter(Boolean).join(' · ') || 'Nothing to export');
             }
 
+            const extra = extraApi();
             const suite = {
               format: SUITE_FORMAT,
               exportedAt: new Date().toISOString(),
@@ -837,14 +873,20 @@
               voyage: (voyageMsg && voyageMsg.payload) || null,
               voyageFilename: (voyageMsg && voyageMsg.filename) || null,
               voyageError: voyageError || null,
+              companion: extra ? extra.collectCompanion(localStorage) : null,
             };
             progressSet(90, 'Saving the file…');
             await progressYield();
             const saved = await downloadJson(`cheng-aio-suite-${Date.now()}.json`, suite);
             const partial = [tankError && 'Tank', voyageError && 'Voyage'].filter(Boolean).join(' + ');
+            const covered = extra ? extra.companionSummary(suite.companion) : '';
+            const miscBits = extra && suite.voyage ? extra.miscCountsFromVoyage(suite.voyage) : null;
+            const miscLine = miscBits
+              ? `${miscBits.requisitions} requisition${miscBits.requisitions === 1 ? '' : 's'}, ${miscBits.planSnapshots} consumption-plan snapshot${miscBits.planSnapshots === 1 ? '' : 's'}, ${miscBits.orbEntries} e-ORB entr${miscBits.orbEntries === 1 ? 'y' : 'ies'}`
+              : '';
             const line = partial
               ? `Entire program ${downloadWhereLabel(saved)} — ${partial} could not be read (${[tankError, voyageError].filter(Boolean).join(' · ')}).`
-              : `Entire program ${downloadWhereLabel(saved)}.`;
+              : `Entire program ${downloadWhereLabel(saved)}${covered ? ` — ${covered}` : ''}${miscLine ? `. ${miscLine}.` : '.'}`;
             setSuite(line);
             toast(`Entire program ${downloadWhereLabel(saved)}`);
             return line;
@@ -909,6 +951,24 @@
             }
           }
 
+          if (payload.companion && extraApi()) {
+            progressSet(92, 'Restoring notes and program settings…');
+            setSuite('Restoring notes and program settings…');
+            await progressYield();
+            try {
+              const applied = extraApi().applyCompanion(localStorage, payload.companion, merge);
+              if (payload.companion.voyageSync) {
+                try {
+                  sessionStorage.setItem('noonReportSyncCredentials', JSON.stringify(payload.companion.voyageSync));
+                } catch (_) { /* ignore */ }
+              }
+              const line = extraApi().companionSummary(payload.companion);
+              done.push(line || `notes and program settings (${applied.notes} note${applied.notes === 1 ? '' : 's'})`);
+            } catch (e) {
+              failed.push('Notes and program settings: ' + (e.message || 'import failed'));
+            }
+          }
+
           progressSet(94, 'Refreshing the vessel list…');
           try { await ChengPro.vessel.refresh(); } catch { /* ignore */ }
 
@@ -939,6 +999,116 @@
           await suiteImport(file, mode === 'merge');
         } catch (e) {
           setSuite(e.message || 'Restore failed');
+          toast(e.message || 'Restore failed');
+        }
+      };
+
+      root.querySelector('#bk-misc-export').onclick = async () => {
+        try {
+          await withProgress('Exporting miscellaneous data…', 'Reading Voyage Chief…', async () => {
+            setMisc('Reading requisitions, consumption plans, and the oil record book…');
+            let voyagePayload = null;
+            let voyageError = null;
+            try {
+              watchVoyage(8, 80);
+              const msg = await voyagePost('export-misc', {}, root);
+              voyagePayload = msg && msg.payload;
+            } catch (e) {
+              voyageError = e.message || 'Voyage miscellaneous data could not be read';
+            }
+            const extra = extraApi();
+            const file = {
+              format: (extra && extra.MISC_FORMAT) || 'cheng-aio-misc-v1',
+              exportedAt: new Date().toISOString(),
+              ships: (voyagePayload && voyagePayload.ships) || [],
+              orbEntries: (voyagePayload && voyagePayload.orbEntries) || [],
+              preferences: extra ? extra.collectPreferences(localStorage) : {},
+            };
+            const prefCount = Object.keys(file.preferences).length;
+            if (!file.ships.length && !file.orbEntries.length && !prefCount) {
+              throw new Error(voyageError || 'Nothing miscellaneous to export');
+            }
+            progressSet(90, 'Saving the file…');
+            await progressYield();
+            const saved = await downloadJson(`cheng-aio-misc-${Date.now()}.json`, file);
+            const summary = extra ? extra.miscFileSummary(file) : 'saved';
+            const line = voyageError
+              ? `Miscellaneous data ${downloadWhereLabel(saved)} — Voyage Chief could not be read (${voyageError}). Display settings were saved.`
+              : `Miscellaneous data ${downloadWhereLabel(saved)} — ${summary}.`;
+            setMisc(line);
+            toast(`Miscellaneous data ${downloadWhereLabel(saved)}`);
+            return line;
+          });
+        } catch (e) {
+          setMisc(e.message || 'Export failed');
+          toast(e.message || 'Export failed');
+        }
+      };
+
+      const miscImport = async (file, merge) => {
+        const verbTitle = merge ? 'Merging miscellaneous data…' : 'Restoring miscellaneous data…';
+        return withProgress(verbTitle, `Reading ${file.name}…`, async () => {
+          const payload = await readFileJson(file, (pct) => {
+            progressSet(slicePct(0, 20, pct), `Reading ${file.name}…`);
+          });
+          const extra = extraApi();
+          const format = (extra && extra.MISC_FORMAT) || 'cheng-aio-misc-v1';
+          if (!payload || payload.format !== format) {
+            throw new Error(`This is not a miscellaneous data file (expected format ${format}).`);
+          }
+          const summary = extra ? extra.miscFileSummary(payload) : file.name;
+          if (!confirm(`${merge ? 'Merge into' : 'REPLACE on'} this device from the miscellaneous file?\n\n${summary}\n\n${
+            merge
+              ? 'A requisition or plan snapshot with the same id keeps the newer time. Display settings in the file replace the ones on this device. Log entries and tank soundings are left as they are.'
+              : 'On each ship named in the file, the requisitions, consumption plan, and oil record book are replaced by the file. Other ships, log entries, and tank soundings stay. Display settings in the file replace the ones on this device.'
+          }`)) {
+            setMisc('Restore cancelled — nothing was changed.');
+            return false;
+          }
+          const done = [];
+          const failed = [];
+          if (extra && payload.preferences) {
+            const written = extra.applyPreferences(localStorage, payload.preferences);
+            if (written.length) done.push(`${written.length} display setting${written.length === 1 ? '' : 's'}`);
+          }
+          if ((payload.ships && payload.ships.length) || (payload.orbEntries && payload.orbEntries.length)) {
+            progressSet(30, 'Restoring Voyage Chief lists…');
+            watchVoyage(30, 90);
+            setMisc('Restoring requisitions, consumption plans, and the oil record book…');
+            try {
+              const msg = await voyagePost('import-misc', { payload, merge: !!merge }, root);
+              done.push(msg.message || 'Voyage Chief lists');
+            } catch (e) {
+              failed.push(e.message || 'Voyage Chief lists could not be restored');
+            }
+          }
+          if (!done.length) throw new Error(failed.join(' · ') || 'Nothing was restored');
+          const line = `${done.join(' · ')}${failed.length ? ` — but ${failed.join(' · ')}` : ''}`;
+          setMisc(line);
+          toast(failed.length ? 'Miscellaneous data restored with errors — see status' : 'Miscellaneous data restored');
+          return line;
+        });
+      };
+
+      root.querySelector('#bk-misc-restore').onclick = () => {
+        const input = root.querySelector('#bk-misc-file');
+        input.dataset.mode = 'restore';
+        input.click();
+      };
+      root.querySelector('#bk-misc-merge').onclick = () => {
+        const input = root.querySelector('#bk-misc-file');
+        input.dataset.mode = 'merge';
+        input.click();
+      };
+      root.querySelector('#bk-misc-file').onchange = async (ev) => {
+        const file = ev.target.files && ev.target.files[0];
+        const mode = ev.target.dataset.mode || 'restore';
+        ev.target.value = '';
+        if (!file) return;
+        try {
+          await miscImport(file, mode === 'merge');
+        } catch (e) {
+          setMisc(e.message || 'Restore failed');
           toast(e.message || 'Restore failed');
         }
       };

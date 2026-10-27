@@ -712,14 +712,18 @@ window.ChengProAboutGuide = (function () {
       purpose: 'A backup is a file on this device or a USB stick. Restore replaces what this device has with the file. Merge keeps local records and copies in anything newer or missing. Export of one leg or one ship is smaller than the whole program.',
       steps: [
         'Open Backup.',
-        'Whole suite, this device: Export entire program. That file is Tank Chief and Voyage Chief together.',
+        'Whole suite, this device: Export entire program. That file is Tank Chief, Voyage Chief, notes, the ship clock, the server addresses, spare and store requisitions, the consumption plan and its snapshots, and the oil record book.',
+        'Miscellaneous data: Export miscellaneous data. That file is the requisitions, the consumption plan, the oil record book, and this device’s theme and screen layout, without the voyage log or the tank soundings.',
         'One ship, tanks: Export active vessel. One ship, voyage: Export selected vessel.',
         'The voyage log alone, the working leg: inside Voyage → Setup, Export Active Leg (JSON). Export Setup Only is the ship setup without the watches.',
         'To put a file back: Restore replaces this device’s copy of that store. Read the confirm text. Merge combines. The same id keeps the newer time. Records that exist on only one side are kept. Merge does not delete your local-only rows.',
         'Inside Voyage → Setup, Backup Entire Database, Restore Database, and Merge Database Backup are the voyage database on their own. Deleted Entry Backup is the accident list for log lines, not a full backup.'
       ],
       buttons: [
-        'Export entire program — one file for the suite on this device',
+        'Export entire program — Tank Chief, Voyage Chief, notes, the ship clock, server addresses, requisitions, the consumption plan, and the oil record book',
+        'Export miscellaneous data — requisitions, the consumption plan, the oil record book, and display settings, without the log or the soundings',
+        'Restore miscellaneous data… — those lists on the ships named in the file become the file',
+        'Merge miscellaneous data… — combines those lists; the same id keeps the newer time',
         'Restore entire program… — replaces the suite data with the file',
         'Merge entire program… — combines the file with this device',
         'Download full backup / Import backup — Tank Chief’s own file',
@@ -739,7 +743,7 @@ window.ChengProAboutGuide = (function () {
       q: 'How do I hand the ship to the relief Chief Engineer?',
       purpose: 'The relief needs the records and a seat. The records travel as a backup file. The seat is the license, which is not inside the backup.',
       steps: [
-        'On your device, open Backup and Export entire program. Copy the file to a USB stick or to the ship server. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
+        'On your device, open Backup and Export entire program. Copy the file to a USB stick or to the ship server. Export miscellaneous data as well when the relief needs the requisitions, the consumption plan, and the oil record book called out on their own. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
         'On the relief’s device, activate License with the office key. If your device still holds the only seat, use Request seat transfer or ask the office to clear it.',
         'Create or activate the same ship (same IMO) under Vessel Setup.',
         'Open Backup and Merge entire program from the file if the new device should keep anything already on it, or Restore if the new device should become a copy of yours.',
