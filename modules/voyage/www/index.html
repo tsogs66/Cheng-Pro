@@ -1912,7 +1912,7 @@
   .nv-leg-dialog .field-dest input{
     min-height:56px !important; font-size:18px !important; padding:16px !important;
   }
-  html.compact-phone .btn-row > button{min-height:38px; padding:7px 10px; font-size:11px;}
+  html.compact-phone .btn-row > button{min-height:44px; padding:8px 8px; font-size:12px;}
   html.compact-phone .status-row .theme-toggle{padding:4px 8px; font-size:10px;}
 
   /* ---- Landscape phone / short viewports: maximize vertical content ----
@@ -2925,6 +2925,101 @@ table button{background-image:none; box-shadow:none;}
   border-left-width: 3px;
   border-left-color: var(--brass);
   background-image: linear-gradient(90deg, color-mix(in srgb, var(--brass) 16%, transparent), transparent 62%);
+}
+
+/* Phone portrait: each bunker leg is a labeled card, so a column is never
+   cut off the edge. Result cards in a row stay the same height. */
+@media (max-width: 700px) and (orientation: portrait) {
+  .bunker-side .table-scroll { overflow: visible; max-width: 100%; margin: 0; }
+  .bunker-table { min-width: 0 !important; display: block; width: 100%; }
+  .bunker-table thead { display: none; }
+  .bunker-table tbody { display: block; }
+  .bunker-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+    margin: 0 0 10px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.16);
+  }
+  html.bright .bunker-table tr { background: rgba(18,34,56,0.04); }
+  .bunker-table td {
+    display: flex; flex-direction: column; gap: 4px;
+    width: auto !important; padding: 0; min-width: 0;
+  }
+  .bunker-table td.col-from,
+  .bunker-table td.col-to { grid-column: 1 / -1; }
+  .bunker-table td::before {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--paper-dim); font-weight: 650;
+  }
+  .bunker-table td:nth-child(1)::before { content: "Port / anchor"; }
+  .bunker-table td:nth-child(2)::before { content: "From"; }
+  .bunker-table td:nth-child(3)::before { content: "To"; }
+  .bunker-table td:nth-child(4)::before { content: "Distance nm"; }
+  .bunker-table td:nth-child(5)::before { content: "Speed kn"; }
+  .bunker-table td:nth-child(6)::before { content: "Daily cons"; }
+  .bunker-table td:nth-child(7)::before { content: "Days"; }
+  .bunker-table td:nth-child(8)::before { content: "Quantity MT"; }
+  .bunker-table td:nth-child(9)::before { content: "Margin %"; }
+  .bunker-results { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .bp-result { height: 100%; }
+  .bunker-results .bp-result:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .bunker-plan-head .btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .bunker-plan-head .btn-row button { width: 100%; min-height: 44px; padding: 8px 6px; }
+}
+@media (min-width: 701px) and (max-width: 1100px) and (orientation: portrait) {
+  .bunker-results { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .bp-result { height: 100%; min-height: 88px; }
+  .bp-result-value { font-size: 24px; }
+  .bunker-plan-head .btn-row button { min-height: 48px; flex: 1 1 0; }
+  .gauge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (pointer: coarse) and (max-width: 700px) {
+  :root { --nav-label: 11px; --nav-item-h: 56px; }
+  button:not(.bn-item):not(.small) { min-height: 44px; }
+  html.compact-phone .bn-item {
+    font-size: 11px;
+    letter-spacing: 0;
+    min-height: 56px;
+    overflow: hidden;
+    line-height: 1.05;
+  }
+  .bunker-leg-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bunker-leg-actions button { width: 100%; min-height: 44px; justify-content: center; }
+}
+@media (pointer: coarse) and (min-width: 700px) and (min-height: 700px) {
+  :root { --nav-label: 12px; --nav-item-h: 64px; }
+  button:not(.bn-item):not(.small),
+  html.compact-phone .btn-row > button { min-height: 48px; }
+  table button:not(.bn-item):not(.small) { min-height: var(--ctl-h-sm); }
+  .bunker-leg-actions { display: grid; grid-template-columns: 1fr 1fr; width: min(100%, 520px); gap: 8px; }
+  .bunker-leg-actions button { width: 100%; min-height: 48px; justify-content: center; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  :root { --nav-label: 11px; --nav-item-h: 52px; }
+  html.short-viewport.landscape-view .bn-item {
+    font-size: 11px;
+    letter-spacing: 0;
+    min-height: 52px;
+    overflow: hidden;
+    line-height: 1.05;
+  }
+  .panel { padding: 12px 14px; }
+  .bunker-results { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .bunker-plan-head .btn-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: min(100%, 560px);
+    gap: 8px;
+  }
+  .bunker-plan-head .btn-row button { width: 100%; }
+  html.short-viewport.landscape-view .bunker-plan-head .btn-row > button { min-height: 44px; }
+  .bunker-leg-actions { display: grid; grid-template-columns: 1fr 1fr; width: min(100%, 520px); gap: 8px; }
+  .bunker-leg-actions button { width: 100%; min-height: 44px; justify-content: center; }
 }
 
 </style>
