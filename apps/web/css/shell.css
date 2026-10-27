@@ -828,7 +828,7 @@ html.bright .home-voyage-strip .stat { background: transparent; }
 .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; }
 .gauge-box { text-align: center; padding: 8px 2px 2px; }
 .gauge-box svg.analog-gauge { width: 100%; max-width: 170px; height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28)); }
-.gauge-value { font-family: var(--mono); font-size: 16px; color: var(--brass); font-weight: 600; }
+.gauge-value { font-family: var(--mono); font-size: 16px; color: var(--gauge-ink, var(--brass)); font-weight: 600; }
 .gauge-value .unit,
 .home-voyage-strip .stat .num .unit,
 .stat .num .unit {
@@ -1871,5 +1871,36 @@ table .btn {
   }
   /* Uppercase tracked labels need the room the extra pixels ask for. */
   .field label, .cards-row .card .label, .gauge-label { letter-spacing: 0.05em; }
+}
+
+/* Windows desktop: Segoe UI and flatter controls. Theme colour tokens stay. */
+@media (min-width: 1181px) {
+  html:not(.use-bottom-nav):not(.aio-android-nav) {
+    --display: "Segoe UI", "Segoe UI Variable Text", system-ui, sans-serif;
+    --font: "Segoe UI", "Segoe UI Variable Text", system-ui, sans-serif;
+  }
+  html:not(.use-bottom-nav):not(.aio-android-nav) .btn,
+  html:not(.use-bottom-nav):not(.aio-android-nav) button,
+  html:not(.use-bottom-nav):not(.aio-android-nav) .brand-text strong,
+  html:not(.use-bottom-nav):not(.aio-android-nav) .panel.hero h1,
+  html:not(.use-bottom-nav):not(.aio-android-nav) .nav-item {
+    font-family: "Segoe UI", "Segoe UI Variable Text", system-ui, sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  html:not(.use-bottom-nav):not(.aio-android-nav) .btn,
+  html:not(.use-bottom-nav):not(.aio-android-nav) button {
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  html:not(.use-bottom-nav):not(.aio-android-nav) .panel {
+    border-radius: 6px;
+  }
+  html:not(.use-bottom-nav):not(.aio-android-nav) .field input,
+  html:not(.use-bottom-nav):not(.aio-android-nav) .field select,
+  html:not(.use-bottom-nav):not(.aio-android-nav) .field textarea {
+    border-radius: 4px;
+    font-family: "Segoe UI", "Segoe UI Variable Text", system-ui, sans-serif;
+  }
 }
 

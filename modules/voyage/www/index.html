@@ -1035,7 +1035,7 @@
   .gauge-grid.large .gauge-label{font-size:12px;}
   .gauge-grid.large .gauge-cap{font-size:11px;}
   .gauge-label{font-family:'Oswald',sans-serif; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:2px;}
-  .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--brass); font-weight:800;}
+  .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--gauge-ink, var(--brass)); font-weight:800;}
   .gauge-value .unit,.stat .num .unit,.cii-card .val .unit{
     font-size:0.72em; font-weight:500; color:var(--paper-dim); margin-left:0.28em; letter-spacing:0.02em;
   }
@@ -1455,19 +1455,23 @@
      being fixed. It stays on the unit suffix, where it carries the accent
      without costing the number any contrast. */
   .bp-result-value{
-    font-family:'IBM Plex Mono',monospace; font-weight:500; font-size:22px; line-height:1.15;
-    font-variant-numeric:tabular-nums; letter-spacing:0;
+    font-family:'Segoe UI','Segoe UI Variable Text',sans-serif; font-weight:700; font-size:26px; line-height:1.05;
+    font-variant-numeric:tabular-nums; letter-spacing:-0.02em;
     color:var(--paper);
   }
   .bp-result-value b{font-weight:800;}
   .bp-result-unit{
-    font-weight:500; font-size:13px; margin-left:6px; letter-spacing:.04em;
+    font-weight:600; font-size:12px; margin-left:5px; letter-spacing:.02em;
     color:var(--brass);
   }
+  /* Title ink is a cooler, quieter shade than the figure in every theme. */
   .bp-result-title{
-    font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.07em;
-    text-transform:uppercase; line-height:1.25; color:var(--paper-dim); opacity:1;
+    font-family:'Segoe UI',sans-serif; font-size:10px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; line-height:1.2; color:#8ea0b8; opacity:1;
   }
+  html.bright .bp-result-title{color:#5c6b80;}
+  html.prism .bp-result-title{color:#6f9e96;}
+  html.astrolabe .bp-result-title{color:#9a866c;}
   /* An empty card should not present a bright dash as if it were a figure. */
   .bp-result-value:not(:has(.bp-result-unit)){color:var(--paper-dim);}
   html.bright .bp-result{
@@ -1540,7 +1544,7 @@
     .bunker-totals .field.full{grid-column:auto;}
     .bunker-results{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px;}
     .bp-result{min-height:72px; padding:10px 10px 8px;}
-    .bp-result-value{font-size:18px;}
+    .bp-result-value{font-size:22px;}
     .bp-result-unit{font-size:12px;}
     .bunker-plan-footer{grid-template-columns:1fr;}
     .bunker-remarks{grid-column:auto;}
@@ -2389,6 +2393,37 @@
     html:not(.use-top-tabs) body{
       padding-bottom:calc(var(--nav-bar-h) + env(safe-area-inset-bottom, 0px));
     }
+  }
+  /* Windows desktop keeps the theme colours and drops the display face for
+     Segoe UI, the system face, with ordinary button and field shapes. */
+  html.use-top-tabs body,
+  html.use-top-tabs button,
+  html.use-top-tabs input,
+  html.use-top-tabs select,
+  html.use-top-tabs textarea,
+  html.use-top-tabs h1,
+  html.use-top-tabs .panel h2,
+  html.use-top-tabs .panel h3.sub,
+  html.use-top-tabs .tab,
+  html.use-top-tabs .subtitle{
+    font-family:"Segoe UI","Segoe UI Variable Text",system-ui,sans-serif;
+    letter-spacing:0;
+    text-transform:none;
+  }
+  html.use-top-tabs h1{font-weight:600; font-size:20px;}
+  html.use-top-tabs .panel h2{font-size:15px; font-weight:600;}
+  html.use-top-tabs .panel h3.sub{font-size:13px; font-weight:600; color:var(--teal);}
+  html.use-top-tabs button{
+    font-size:13px; font-weight:600; padding:6px 14px; border-radius:4px;
+  }
+  html.use-top-tabs .tab{font-size:13px; font-weight:600; border-radius:4px;}
+  html.use-top-tabs .field input,
+  html.use-top-tabs .field select,
+  html.use-top-tabs textarea{border-radius:4px; font-size:13px;}
+  html.use-top-tabs .panel{border-radius:6px;}
+  html.use-top-tabs .gauge-value,
+  html.use-top-tabs .bp-result-value{
+    font-family:"Segoe UI","Segoe UI Variable Text",system-ui,sans-serif;
   }
   .bn-item{
     flex:1 1 0; min-width:0; max-width:none;
@@ -5687,11 +5722,14 @@ const PERF_ROWS = [
   ['avgPower','Average Power (KW)'], ['avgLoad','Average Load (%)'],
   ['runTime','Run Time (hrs)']
 ];
+/* ISO 14726 pipe colours. Residual fuel stays brown, diesel is the yellow
+   yards paint on distillate lines, lube is orange (oils other than fuel),
+   fresh water is blue. */
 const GAUGE_COLORS = {
-  'HFO': '#7a1f2b', 'LSFO': '#7a1f2b',
-  'MDO/MGO': '#e0679a', 'LSMGO': '#e0679a',
-  'CYL HIGH': '#d9b64e', 'CYL LOW': '#d9b64e', 'ME SYS OIL': '#d9b64e', 'GE SYS OIL': '#d9b64e',
-  'FRESH WATER': '#3fc8dc'
+  'HFO': '#6B3A1F', 'LSFO': '#8A5530',
+  'MDO/MGO': '#E6A817', 'LSMGO': '#F0C14A',
+  'CYL HIGH': '#E8771A', 'CYL LOW': '#E8771A', 'ME SYS OIL': '#E8771A', 'GE SYS OIL': '#E8771A',
+  'FRESH WATER': '#1F6FB2'
 };
 const GE_ARR_LABELS = { SINGLE:'Single Generator', PARALLEL_2:'2 Generators in Parallel', PARALLEL_3:'3 Generators in Parallel' };
 const GE_ARR_COUNTS = { SINGLE:1, PARALLEL_2:2, PARALLEL_3:3 };
@@ -5790,6 +5828,43 @@ function tankGaugeColor(tank, fallback){
   if (tank.grade && GAUGE_COLORS[tank.grade]) return GAUGE_COLORS[tank.grade];
   if (tank.kind && LUBE_KIND_LABELS[tank.kind] && GAUGE_COLORS[LUBE_KIND_LABELS[tank.kind]]) return GAUGE_COLORS[LUBE_KIND_LABELS[tank.kind]];
   return fallback || GAUGE_COLORS['FRESH WATER'];
+}
+/** Raise lightness and keep the hue, so a thin arc stays the pipe colour and still reads. */
+function pipeInk(hex, liftAmt){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m || !liftAmt) return hex;
+  const n = parseInt(m[1], 16);
+  let r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  let l = (max + min) / 2;
+  const d = max - min;
+  if (d){
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0));
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  const target = 0.58;
+  l = l + (target - l) * liftAmt;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const ch = (t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const hex2 = (v) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
+  return '#' + hex2(ch(h + 1 / 3)) + hex2(ch(h)) + hex2(ch(h - 1 / 3));
+}
+function gaugeArcColor(hex){ return pipeInk(hex, 0.72); }
+function gaugeTextColor(hex){
+  if (document.documentElement.classList.contains('bright')) return hex;
+  return pipeInk(hex, 0.78);
 }
 function lubeKindToLabel(kind){ return LUBE_KIND_LABELS[kind] || kind; }
 function totalLubeRob(robLube){
@@ -6459,6 +6534,8 @@ function beginActivity(id, label, opts){
   if ('pct' in o) item.pct = o.pct;
   if ('current' in o) item.current = o.current;
   if ('total' in o) item.total = o.total;
+  if ('kicker' in o) item.kicker = o.kicker;
+  if ('detail' in o) item.detail = o.detail;
   if (!item.shownAt) item.shownAt = Date.now();
   paintActivity(true);
   return item.id;
@@ -6473,6 +6550,8 @@ function updateActivity(id, patch){
   if ('pct' in patch) item.pct = patch.pct;
   if ('current' in patch) item.current = patch.current;
   if ('total' in patch) item.total = patch.total;
+  if ('kicker' in patch) item.kicker = patch.kicker;
+  if ('detail' in patch) item.detail = patch.detail;
   paintActivity(labelChanged);
 }
 function endActivity(id){
@@ -6587,7 +6666,8 @@ function paintActivity(force){
 
   const pct = activityItemPct(top);
   const fromServer = top.source === 'server';
-  const kicker = fromServer ? 'Server' : 'This device';
+  const kicker = top.kicker || (fromServer ? 'Server' : 'This device');
+  const detail = top.detail || '';
   const countBit = (top.total > 0 && top.current != null)
     ? ` (${top.current}/${top.total})`
     : '';
@@ -6608,7 +6688,8 @@ function paintActivity(force){
 
   if (typeof LoadingSplash !== 'undefined' && LoadingSplash){
     LoadingSplash.show('activity', label, {
-      kicker: kicker,
+      kicker: top.kicker || '',
+      detail: detail,
       pct: pct,
     });
   }
@@ -8500,6 +8581,30 @@ async function saveVesselPack(vesselId, pack){
   return prefer;
 }
 
+function vesselStatusName(fallback){
+  const setupName = (typeof state !== 'undefined' && state.setup && state.setup.vesselName)
+    ? String(state.setup.vesselName).trim() : '';
+  if (setupName) return setupName;
+  try {
+    const v = typeof activeVessel === 'function' ? activeVessel() : null;
+    if (v && v.name) return String(v.name).trim();
+  } catch (_) {}
+  const named = (state.vessels || []).find(v => v && fallback && (v.id === fallback || v.name === fallback));
+  if (named && named.name) return String(named.name).trim();
+  return String(fallback || '').trim();
+}
+function reportVesselLoad(label, pct, ship){
+  const top = _activityStack[_activityStack.length - 1];
+  if (!top) return;
+  const name = vesselStatusName(ship);
+  updateActivity(top.id, {
+    label: label,
+    pct: pct,
+    kicker: name || top.kicker || '',
+    source: top.source || 'program'
+  });
+}
+
 async function loadVesselFromDb(vesselId){
   /* A different ship has different legs: drop the cached pool and fall back to
      this-voyage-only rather than leaving another vessel's legs on offer. */
@@ -8509,14 +8614,21 @@ async function loadVesselFromDb(vesselId){
     const box = document.getElementById('rangeIncludeArchived');
     if (box) box.checked = false;
   }catch(_){}
+  const listed = (state.vessels || []).find(v => v && v.id === vesselId);
+  const shipHint = listed && listed.name ? listed.name : '';
   const own = !activityIsActive();
-  if (own) beginActivity('load-vessel', 'Loading vessel data on this device…', { source: 'program' });
+  if (own) beginActivity('load-vessel', shipHint ? `Opening ${shipHint}…` : 'Opening the ship…', {
+    source: 'program', kicker: shipHint, pct: 8
+  });
   try{
+  reportVesselLoad(shipHint ? `Reading ${shipHint} particulars…` : 'Reading ship particulars…', 16, shipHint);
   state.activeVesselId = vesselId;
   const metaAll = await dbGetAll('meta');
   const setupRow = metaAll.find(m=>m.key===`setup:${vesselId}`) || metaAll.find(m=>m.key==='setup');
   state.setup = migrateSetup(setupRow ? setupRow.value : defaultSetupTemplate());
   ensureTankStores();
+  const ship = vesselStatusName(shipHint);
+  reportVesselLoad(`Reading ${ship} log entries and receipts…`, 34, ship);
   const [allEntries, allReceipts, allDocs, allAbstracts, allPrint] = await Promise.all([
     dbGetAll('entries'), dbGetAll('receipts'), dbGetAll('documents'), dbGetAll('abstracts'), dbGetAll('printHistory')
   ]);
@@ -8538,6 +8650,11 @@ async function loadVesselFromDb(vesselId){
     const allOrb = await dbGetAll('orbEntries');
     state.orbEntries = (allOrb || []).filter(match);
   }catch(_){ state.orbEntries = []; }
+  reportVesselLoad(
+    `${ship} · ${state.entries.length} log entries, ${state.receipts.length} receipts, ${state.documents.length} documents`,
+    62,
+    ship
+  );
 
   /* Keep the working set on one voyage number + B|L leg — voyage cumulatives
      must not sum the entire vessel database. Prefer a library leg when the
@@ -8578,8 +8695,10 @@ async function loadVesselFromDb(vesselId){
     }
   }
   exitEditMode();
+  reportVesselLoad(`${ship} · voyage library`, 84, ship);
   await applyMirroredSyncCredentials();
   await renderVoyageLibrary();
+  if (own) reportVesselLoad(`${ship} is ready`, 100, ship);
   } finally {
     if (own) endActivity('load-vessel');
   }
@@ -8841,14 +8960,18 @@ async function switchVessel(vesselId, opts){
   if (!vesselId || vesselId === state.activeVesselId) return;
   const target = state.vessels.find(v=>v.id===vesselId);
   if (!target) return;
+  const fromName = vesselStatusName();
   return withActivity('switch-vessel', `Switching to ${target.name}…`, async ({ update })=>{
+    update({ kicker: target.name, pct: 6, source: 'program' });
     if (!opts || opts.persistCurrent !== false){
-      update({ label: `Saving ${state.setup.vesselName || 'current vessel'}…`, source: 'program' });
+      update({ label: `Saving ${fromName || 'the open ship'}…`, kicker: target.name, pct: 12, source: 'program' });
       await saveCurrentVesselState();
     }
-    update({ label: `Loading ${target.name}…` });
+    update({ label: `Opening ${target.name}…`, kicker: target.name, pct: 22 });
     await loadVesselFromDb(vesselId);
     await dbPut('meta', { key:'activeVesselId', value: vesselId });
+    const readyName = vesselStatusName(target.name);
+    update({ label: `Drawing ${readyName}…`, kicker: readyName, pct: 94 });
     render();
     applyEntryDefaults();
     prefillFromLastEntry();
@@ -8856,7 +8979,8 @@ async function switchVessel(vesselId, opts){
     renderSyncUi();
     const lbl = document.getElementById('activeVesselLabel');
     if (lbl) lbl.textContent = `${state.setup.vesselName || target.name} — Voyage Log & Performance`;
-  }, { source: 'program' });
+    update({ label: `${readyName} is ready`, kicker: readyName, pct: 100 });
+  }, { source: 'program', kicker: target.name, pct: 4 });
 }
 
 async function createNewVessel(name){
@@ -15071,13 +15195,13 @@ function render(){
     const cap = tankCapValue(state.setup.capacity, t)||1;
     const val = rob[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${withUnit(fmtFuel(val), 'MT')}</div><div class="gauge-cap">of ${withUnit(fmtFuel(cap), 'MT')}</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(tankGaugeColor(t))}">${gaugeSVG(pct, gaugeArcColor(tankGaugeColor(t)))}<div class="gauge-value">${withUnit(fmtFuel(val), 'MT')}</div><div class="gauge-cap">of ${withUnit(fmtFuel(cap), 'MT')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   document.getElementById('lubeGauges').innerHTML = lubeTankList().map(t=>{
     const cap = tankCapValue(state.setup.capacityLube, t)||1;
     const val = robLube[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, tankGaugeColor(t))}<div class="gauge-value">${withUnit(fmtLube(val), 'L')}</div><div class="gauge-cap">of ${withUnit(fmtLube(cap), 'L')}</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(tankGaugeColor(t))}">${gaugeSVG(pct, gaugeArcColor(tankGaugeColor(t)))}<div class="gauge-value">${withUnit(fmtLube(val), 'L')}</div><div class="gauge-cap">of ${withUnit(fmtLube(cap), 'L')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   const totalLube = totalLubeRob(robLube);
   document.getElementById('lubeTotalStrip').innerHTML = `
@@ -15086,7 +15210,7 @@ function render(){
     const cap = tankCapValue(state.setup.capacityLube, t)||1;
     const val = robLube[t.id] ?? 0;
     const pct = val/cap;
-    return `<div class="gauge-box">${gaugeSVG(pct, GAUGE_COLORS['FRESH WATER'])}<div class="gauge-value">${withUnit(fmtFw(val), 'm³')}</div><div class="gauge-cap">of ${withUnit(fmtFw(cap), 'm³')}</div><div class="gauge-label">${t.name}</div></div>`;
+    return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(GAUGE_COLORS['FRESH WATER'])}">${gaugeSVG(pct, gaugeArcColor(GAUGE_COLORS['FRESH WATER']))}<div class="gauge-value">${withUnit(fmtFw(val), 'm³')}</div><div class="gauge-cap">of ${withUnit(fmtFw(cap), 'm³')}</div><div class="gauge-label">${t.name}</div></div>`;
   }).join('');
   const fwTotalEl = document.getElementById('fwTotalStrip');
   if (fwTotalEl){
@@ -15264,7 +15388,7 @@ function render(){
     const corrBit = (corr != null && Math.abs(corr) >= 1e-9)
       ? ` · corr ${corr > 0 ? '+' : '−'}${fmtFuel(Math.abs(corr))}`
       : '';
-    return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
+    return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(tankGaugeColor(t))}">${dualGaugeSVG(startVal/cap, curVal/cap, gaugeArcColor(tankGaugeColor(t)))}
       <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
       <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(usedVal), 'MT')}${corrBit}</div>
       <div class="gauge-label">${t.name}</div></div>`;
@@ -15275,7 +15399,7 @@ function render(){
     const row = calcById[t.id];
     const curVal = row ? row.present : 0;
     const usedVal = row ? row.consumed : 0;
-    return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, tankGaugeColor(t))}
+    return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(tankGaugeColor(t))}">${dualGaugeSVG(startVal/cap, curVal/cap, gaugeArcColor(tankGaugeColor(t)))}
       <div class="gauge-value">${withUnit(fmtLube(curVal), 'L')}</div>
       <div class="gauge-cap">start ${withUnit(fmtLube(startVal), 'L')} · used ${withUnit(fmtLube(usedVal), 'L')}</div>
       <div class="gauge-label">${t.name}</div></div>`;
@@ -15291,7 +15415,7 @@ function render(){
       const row = calcById[t.id];
       const curVal = row ? row.present : 0;
       const usedBit = fwTanks.length===1 ? ` · used ${withUnit(fmtFw(row ? row.consumed : 0), 'm³')}` : '';
-      return `<div class="gauge-box">${dualGaugeSVG(startVal/cap, curVal/cap, GAUGE_COLORS['FRESH WATER'])}
+      return `<div class="gauge-box" style="--gauge-ink:${gaugeTextColor(GAUGE_COLORS['FRESH WATER'])}">${dualGaugeSVG(startVal/cap, curVal/cap, gaugeArcColor(GAUGE_COLORS['FRESH WATER']))}
         <div class="gauge-value">${withUnit(fmtFw(curVal), 'm³')}</div>
         <div class="gauge-cap">start ${withUnit(fmtFw(startVal), 'm³')}${usedBit}</div>
         <div class="gauge-label">${t.name}</div></div>`;
@@ -26176,9 +26300,12 @@ async function uploadSyncBlobs(base, vessel, blobs, headers, update, byHash){
         );
       }
       sent++;
+      const sentBytes = Math.min(bytes.length, sent * chunkBytes);
       update({
-        label: `Uploading attachment ${i + 1} of ${blobs.length}, chunk ${sent} of ${totalChunks}…`,
-        current: i, total: blobs.length, source: 'server'
+        label: `Uploading attachment ${i + 1} of ${blobs.length} — ${formatBytes(sentBytes)} of ${formatBytes(bytes.length)}`,
+        current: i, total: blobs.length, source: 'server',
+        kicker: vesselStatusName(),
+        pct: blobs.length ? Math.round(((i + (sent / totalChunks)) / blobs.length) * 100) : null
       });
       await sleepMs(0);
     }
@@ -26229,8 +26356,10 @@ async function downloadSyncBlob(base, vessel, hash, headers, update){
       await dbPut('syncPieces', { id: group + '::' + i, group, i, bytes });
       fetched++;
       update({
-        label: `Downloading attachment chunk ${i + 1} of ${totalChunks}…`,
-        current: i + 1, total: totalChunks, source: 'server'
+        label: `Downloading attachment — ${formatBytes(at + bytes.length)} of ${formatBytes(totalBytes || (at + bytes.length))}`,
+        current: i + 1, total: totalChunks, source: 'server',
+        kicker: vesselStatusName(),
+        pct: totalChunks ? Math.round(((i + 1) / totalChunks) * 100) : null
       });
     }
     if (at + bytes.length > parts.length){
@@ -35412,9 +35541,15 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       await applyMirroredSyncCredentials();
       renderSyncUi();
     }catch(_){}
-    updateActivity('boot', { label: 'Loading this vessel…' });
+    updateActivity('boot', { label: 'Reading the ship list…', pct: 18 });
     const metaAll = await dbGetAll('meta');
     await migrateToMultiVessel(metaAll);
+    const bootName = vesselStatusName();
+    updateActivity('boot', {
+      label: bootName ? `Opening ${bootName}…` : 'Opening the ship…',
+      kicker: bootName,
+      pct: 30
+    });
     await loadVesselFromDb(state.activeVesselId);
     ensureTankStores();
 

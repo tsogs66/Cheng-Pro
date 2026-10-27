@@ -518,11 +518,16 @@
     if (!tank || !rob) return 0;
     return Number(rob[tank.id]) || 0;
   }
+  /* Same pipe hues as Voyage Chief ROB: brown fuel, yellow diesel, orange lube, blue water.
+     Lightened just enough for a thin arc on the dark gauge face. */
   function gaugeColor(tank) {
     const g = String(tank.grade || tank.name || '').toUpperCase();
-    if (g.includes('DO') || g.includes('MGO') || g.includes('MDO') || g.includes('LSMGO')) return '#5f9e6e';
-    if (g.includes('LS')) return '#57b3ab';
-    return '#c99a53';
+    if (g.includes('LSMGO')) return '#efbd3e';
+    if (g.includes('MGO') || g.includes('MDO') || g.includes('DO')) return '#eab331';
+    if (g.includes('CYL') || g.includes('LUBE') || g.includes('SYS')) return '#ea8633';
+    if (g.includes('WATER') || g.includes('FW')) return '#348fdc';
+    if (g.includes('LS')) return '#c07a49';
+    return '#c36a39';
   }
 
   function renderFuelGauges(el, snap) {
@@ -543,7 +548,8 @@
       const corrBit = (corr != null && Math.abs(Number(corr)) >= 1e-9)
         ? ` · corr ${Number(corr) > 0 ? '+' : '−'}${fmtFuel(Math.abs(Number(corr)))}`
         : '';
-      return `<div class="gauge-box">${dualGaugeSVG(startVal / cap, curVal / cap, gaugeColor(t))}
+      const ink = gaugeColor(t);
+      return `<div class="gauge-box" style="--gauge-ink:${ink}">${dualGaugeSVG(startVal / cap, curVal / cap, ink)}
         <div class="gauge-value">${withUnit(fmtFuel(curVal), 'MT')}</div>
         <div class="gauge-cap">start ${withUnit(fmtFuel(startVal), 'MT')} · used ${withUnit(fmtFuel(used), 'MT')}${corrBit}</div>
         <div class="gauge-label">${esc(t.name || t.id)}</div></div>`;
