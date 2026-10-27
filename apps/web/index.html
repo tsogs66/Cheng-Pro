@@ -102,8 +102,11 @@
         </div>
       </div>
       <div class="vessel-switcher" id="vesselSwitcher">
-        <label for="activeVessel">Active vessel</label>
-        <select id="activeVessel" aria-label="Active vessel"></select>
+        <label for="activeVessel">Vessel</label>
+        <div class="vessel-switcher-row">
+          <select id="activeVessel" aria-label="Vessel list"></select>
+          <button type="button" class="btn primary" id="btnLoadVesselData" title="Open the selected ship's latest voyage log, tank readings, notes, and other records">Load vessel data</button>
+        </div>
       </div>
       <div class="topbar-meta" id="topbarMeta">
         <span id="healthDot" class="health-dot" title="Server"></span>

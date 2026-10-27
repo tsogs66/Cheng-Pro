@@ -202,6 +202,13 @@ html.bright .watch-strip { background: rgba(18, 34, 56, 0.04); }
 }
 .brand-text > span { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .vessel-switcher { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vessel-switcher-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vessel-switcher-row select { flex: 1 1 auto; min-width: 0; max-width: none; }
+.vessel-switcher-row .btn { flex: 0 0 auto; white-space: nowrap; }
+.vessel-load-frame {
+  position: absolute; width: 1px; height: 1px; left: -10000px; top: 0;
+  border: 0; opacity: 0; pointer-events: none;
+}
 .vessel-switcher label {
   font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
 }
@@ -635,6 +642,8 @@ html.use-bottom-nav .bn-more-item.active:hover { color: var(--brass); }
   .topbar-meta { grid-column: 3; grid-row: 1; justify-self: end; }
   .vessel-switcher { grid-column: 1 / -1; grid-row: 2; }
   .vessel-switcher select { max-width: none; }
+  .vessel-switcher-row { flex-wrap: wrap; }
+  .vessel-switcher-row .btn { width: 100%; }
   .body { grid-template-columns: 1fr; }
   .sidebar {
     position: fixed; inset: 0 auto 0 0; width: min(280px, 86vw); z-index: 50;

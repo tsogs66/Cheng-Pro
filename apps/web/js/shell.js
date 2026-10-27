@@ -361,11 +361,11 @@
     }
   }
 
-  function showToast(msg) {
+  function showToast(msg, ms) {
     toastEl.hidden = false;
     toastEl.textContent = msg;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms || 3200);
   }
 
   function escapeHtml(s) {
@@ -430,15 +430,158 @@
   });
   document.getElementById('aioHomeFab')?.addEventListener('click', () => navigate('home'));
 
-  activeSelect.addEventListener('change', async () => {
+  function conditionWord(cond) {
+    return String(cond || '').toUpperCase() === 'L' ? 'laden' : 'ballast';
+  }
+
+  function frameBySrc(pattern) {
+    return [...document.querySelectorAll('iframe')].find((frame) => pattern.test(frame.getAttribute('src') || ''));
+  }
+
+  function vesselPayload(vessel) {
+    if (!vessel) return null;
+    return {
+      id: vessel.id,
+      imo: vessel.imo || '',
+      name: vessel.name || '',
+      slug: vessel.voyageSlug || vessel.slug || vessel.id || '',
+    };
+  }
+
+  function waitForProgramLoad(program, ms) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        window.removeEventListener('message', onMsg);
+        resolve(null);
+      }, ms);
+      function onMsg(ev) {
+        const data = ev && ev.data;
+        if (!data || data.type !== 'chengaio-vessel-data-loaded' || data.program !== program) return;
+        clearTimeout(timer);
+        window.removeEventListener('message', onMsg);
+        resolve(data);
+      }
+      window.addEventListener('message', onMsg);
+    });
+  }
+
+  function postVesselLoad(frame, vessel) {
     try {
-      await ChengPro.vessel.setActive(activeSelect.value || null);
-      showToast(activeSelect.value ? 'Active vessel updated' : 'No active vessel');
-      await navigate(current, { force: true });
-    } catch (e) {
-      showToast(e.message);
-      await fillVesselSelect();
+      frame.contentWindow.postMessage({
+        type: 'chengaio-load-vessel-data',
+        loadLatest: true,
+        vessel: vesselPayload(vessel),
+      }, '*');
+    } catch { /* ignore */ }
+  }
+
+  async function activateTankVessel(vessel) {
+    let status;
+    try {
+      status = await ChengProApi.api('/tanks/api/status');
+    } catch {
+      return { ok: false, note: 'Tank Chief data is not available on this device yet' };
     }
+    const list = (status && status.vessels) || [];
+    const match = window.ChengProVoyageBridge && typeof ChengProVoyageBridge.resolveFromList === 'function'
+      ? ChengProVoyageBridge.resolveFromList(list, vessel)
+      : list.find((row) => row.id === vessel.id);
+    if (!match || !match.id) return { ok: false, note: 'Tank Chief has no record for this ship yet' };
+    await ChengProApi.api('/tanks/api/vessels/active', {
+      method: 'POST',
+      body: JSON.stringify({ id: match.id }),
+    });
+    return { ok: true, name: match.name || vessel.name || 'this ship' };
+  }
+
+  async function loadVoyageForVessel(vessel) {
+    const open = frameBySrc(/voyage_manager\.html|\/voyage\//i);
+    if (open) {
+      const pending = waitForProgramLoad('voyage', 90000);
+      postVesselLoad(open, vessel);
+      return pending;
+    }
+    try { sessionStorage.setItem('chengAioLoadLatest', '1'); } catch { /* ignore */ }
+    const frame = document.createElement('iframe');
+    frame.className = 'vessel-load-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    const pending = waitForProgramLoad('voyage', 90000);
+    const url = ChengPro.voyageEmbedUrl();
+    frame.src = url + (url.includes('?') ? '&' : '?') + 'aioLoadLatest=1';
+    document.body.appendChild(frame);
+    try {
+      return await pending;
+    } finally {
+      try { sessionStorage.removeItem('chengAioLoadLatest'); } catch { /* ignore */ }
+      frame.remove();
+    }
+  }
+
+  async function loadTankForVessel(vessel) {
+    const open = frameBySrc(/\/tanks\//i);
+    if (open) {
+      const pending = waitForProgramLoad('tanks', 20000);
+      postVesselLoad(open, vessel);
+      const fromFrame = await pending;
+      if (fromFrame) {
+        return fromFrame.ok === false
+          ? { ok: false, note: fromFrame.error || 'Tank Chief has no record for this ship yet' }
+          : { ok: true, name: vessel.name || 'this ship' };
+      }
+    }
+    return activateTankVessel(vessel);
+  }
+
+  async function loadSelectedVesselData() {
+    const id = activeSelect.value;
+    if (!id) {
+      showToast('Select a vessel first', 4000);
+      return;
+    }
+    const known = ChengPro.vessel.getListSync().find((row) => row.id === id);
+    const name = (known && known.name) || 'this ship';
+    const btn = document.getElementById('btnLoadVesselData');
+    if (btn) btn.disabled = true;
+    showToast('Loading ' + name + '…', 8000);
+    try { sessionStorage.setItem('chengAioLoadInProgress', '1'); } catch { /* ignore */ }
+    try {
+      await ChengPro.vessel.setActive(id);
+      const vessel = ChengPro.vessel.getActive() || known || { id, name };
+      const [voyage, tank] = await Promise.all([
+        loadVoyageForVessel(vessel),
+        loadTankForVessel(vessel),
+      ]);
+      if (!isSoftEmbedModule(current)) await navigate(current, { force: true });
+      if (window.ChengWatchStrip && ChengWatchStrip.refresh) ChengWatchStrip.refresh();
+      const lines = ['Loaded ' + (vessel.name || name) + '.'];
+      if (voyage && voyage.loaded === 'error') {
+        lines.push('Voyage Chief could not open (' + (voyage.error || 'failed') + ').');
+      } else if (voyage && voyage.voyageNumber && (voyage.loaded === 'working' || voyage.loaded === 'latest')) {
+        lines.push(
+          'Voyage ' + voyage.voyageNumber + ' ' + conditionWord(voyage.condition)
+          + ' is the current log (' + (Number(voyage.entryCount) || 0) + ' entries).'
+        );
+      } else if (!voyage) {
+        lines.push('Voyage Chief did not finish opening. Open Voyage Chief once if this ship is new on this device.');
+      } else {
+        lines.push('Voyage Chief has no saved log for this ship yet.');
+      }
+      lines.push(tank && tank.ok ? 'Tank Chief is on this ship.' : ((tank && tank.note) || 'Tank Chief was not updated.'));
+      lines.push('Notes and the other records for this ship are the ones now in use.');
+      showToast(lines.join(' '), 7000);
+    } catch (err) {
+      showToast(err.message || 'Could not load vessel data', 5000);
+      try { await fillVesselSelect(); } catch { /* ignore */ }
+    } finally {
+      try { sessionStorage.removeItem('chengAioLoadInProgress'); } catch { /* ignore */ }
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /* The list only chooses a ship. Load vessel data is what opens its records. */
+  document.getElementById('btnLoadVesselData')?.addEventListener('click', () => {
+    loadSelectedVesselData().catch((e) => showToast(e.message || 'Could not load vessel data', 5000));
   });
 
   /* The vessel on screen must be the active one, whichever route changed it.
