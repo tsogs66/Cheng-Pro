@@ -261,6 +261,11 @@
     const onHome = current === 'home';
     document.documentElement.classList.toggle('aio-on-home', onHome);
     document.body.classList.toggle('aio-on-home', onHome);
+    /* Voyage, Tank, and the other program embeds carry their own look.
+       Pages that exist only in the suite get the whole-ship plate. */
+    const suite = !isSoftEmbedModule(current);
+    document.documentElement.classList.toggle('aio-suite', suite);
+    document.body.classList.toggle('aio-suite', suite);
   }
 
   /**
