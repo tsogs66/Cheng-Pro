@@ -291,9 +291,22 @@
   html.chengaio-embed .subtitle,
   html.chengaio-embed .byline{
     grid-column:2;
+    justify-self:start;
+    text-align:left;
     align-self:center;
     margin-top:0;
     min-width:0;
+  }
+  /* The backup line used to sit in the logo column. That column then grew to
+     the width of the sentence and pushed the title off the mark. It is its
+     own row under the logo and the title. */
+  html.chengaio-embed #dataHealthStrip{
+    grid-column:1 / -1;
+    grid-row:4;
+    justify-self:stretch;
+    align-self:center;
+    min-width:0;
+    margin-top:4px;
   }
   html.chengaio-embed .subtitle,
   html.chengaio-embed.short-viewport .subtitle,
