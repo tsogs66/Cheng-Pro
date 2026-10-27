@@ -123,6 +123,9 @@
       }
       const already = st.activeVesselId === resolved;
       if (already && !force) return;
+      if (!already && typeof window.flushUnsavedTankWork === 'function') {
+        try { await window.flushUnsavedTankWork(); } catch (err) { console.warn(err); }
+      }
       Api._chengApplying = true;
       try {
         if (!already) await Api.setActive(resolved);
@@ -169,6 +172,23 @@
     window.addEventListener('message', (ev) => {
       const msg = ev && ev.data;
       if (!msg) return;
+      if (msg.type === 'chengaio-flush-unsaved') {
+        const run = typeof window.flushUnsavedTankWork === 'function'
+          ? window.flushUnsavedTankWork()
+          : Promise.resolve();
+        Promise.resolve(run).then(() => {
+          try { window.parent.postMessage({ type: 'chengaio-unsaved-flushed', program: 'tanks' }, '*'); } catch { /* ignore */ }
+        }).catch((err) => {
+          try {
+            window.parent.postMessage({
+              type: 'chengaio-unsaved-flushed',
+              program: 'tanks',
+              error: err && err.message,
+            }, '*');
+          } catch { /* ignore */ }
+        });
+        return;
+      }
       if (msg.type === 'chengaio-load-vessel-data') {
         applyFromShell(true);
         return;

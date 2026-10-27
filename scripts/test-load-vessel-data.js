@@ -23,15 +23,25 @@ assert.ok(selectAt > 0 && buttonAt > selectAt, 'Load vessel data sits beside the
 assert.match(page, /class="vessel-switcher-row"[\s\S]*id="activeVessel"[\s\S]*id="btnLoadVesselData"/);
 
 assert.match(shell, /async function loadSelectedVesselData/);
+assert.match(shell, /function flushOpenProgramFrames/);
+assert.match(shell, /chengaio-flush-unsaved/);
+assert.match(shell, /ChengProFlushBeforeVesselChange/);
 assert.match(shell, /chengAioLoadInProgress/);
 assert.match(shell, /aioLoadLatest=1/);
 assert.match(shell, /\/tanks\/api\/vessels\/active/);
 assert.doesNotMatch(shell, /activeSelect\.addEventListener\('change'/);
 
 assert.match(html, /function pickLatestVoyageLeg/);
+assert.match(html, /function preserveOpenWorkBeforeVesselSave/);
+assert.match(html, /function absorbOpenFlowmeterDialog/);
+assert.match(html, /chengaio-flush-unsaved/);
+assert.match(html, /openLogDraftMatchesLeg/);
+assert.match(html, /logFormDirty/);
 assert.match(html, /chengaio-load-vessel-data/);
 assert.match(html, /aioLoadLatest/);
 assert.match(tank, /chengaio-load-vessel-data/);
+assert.match(tank, /chengaio-flush-unsaved/);
+assert.match(tank, /flushUnsavedTankWork/);
 assert.match(tank, /pendingForceReload/);
 
 const start = html.indexOf('function voyageLegEntryTime');
