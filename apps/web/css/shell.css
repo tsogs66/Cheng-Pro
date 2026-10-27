@@ -2091,6 +2091,9 @@ html.aio-suite .main .calc-result {
     font-size: 14px;
   }
 }
+@media (pointer: coarse) and (max-width: 700px) {
+  :root { --nav-label: 11px; --nav-item-h: 56px; }
+}
 @media (pointer: coarse) and (min-width: 700px) and (min-height: 700px) {
   .toggle-row button,
   html.aio-suite .main .btn {
@@ -2099,6 +2102,10 @@ html.aio-suite .main .calc-result {
     font-size: 15px;
   }
   html.use-bottom-nav .bottom-item { font-size: 12px; }
+  :root { --nav-label: 12px; --nav-item-h: 64px; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  :root { --nav-label: 11px; --nav-item-h: 52px; }
 }
 
 /* A ship under the suite pages, drawn in the theme's brass. It stays behind

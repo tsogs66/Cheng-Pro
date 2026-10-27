@@ -1465,14 +1465,11 @@
     font-weight:600; font-size:12px; margin-left:5px; letter-spacing:.02em;
     color:var(--brass);
   }
-  /* Title ink is a cooler, quieter shade than the figure in every theme. */
+  /* Title ink is the theme's dim paper, a quieter shade than the figure. */
   .bp-result-title{
     font-family:'Segoe UI',sans-serif; font-size:10px; font-weight:600; letter-spacing:.08em;
-    text-transform:uppercase; line-height:1.2; color:#8ea0b8; opacity:1;
+    text-transform:uppercase; line-height:1.2; color:var(--paper-dim); opacity:1;
   }
-  html.bright .bp-result-title{color:#5c6b80;}
-  html.prism .bp-result-title{color:#6f9e96;}
-  html.astrolabe .bp-result-title{color:#9a866c;}
   /* An empty card should not present a bright dash as if it were a figure. */
   .bp-result-value:not(:has(.bp-result-unit)){color:var(--paper-dim);}
   html.bright .bp-result{
