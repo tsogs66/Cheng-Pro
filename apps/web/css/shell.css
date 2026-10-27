@@ -851,7 +851,10 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
 .cards-row .card .unit { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 4px; }
 .cards-row .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.cat-fuel { background: #8a5a1a; }
+.cat-fuel { background: #c36a39; }
+.cat-diesel { background: #e6a817; }
+html.bright .cat-fuel { background: #6b3a1f; }
+html.bright .cat-diesel { background: #8a5a1a; }
 /* Vessel tank overview — Tank Chief graphical style (4-column schematic) */
 .tg-schematic {
   display: grid;
@@ -1902,5 +1905,112 @@ table .btn {
     border-radius: 4px;
     font-family: "Segoe UI", "Segoe UI Variable Text", system-ui, sans-serif;
   }
+}
+
+/* ChEng AIO pages that are not a Voyage or Tank embed: one plate for the
+   whole ship. Course ticks along the top (the voyage), a sight glass of
+   every liquid down the side (the tanks), brass and fuel on the buttons. */
+html.aio-suite .main .panel {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--brass) 48%, var(--line));
+}
+html.aio-suite .main .panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--brass) 0 12px, transparent 12px 18px);
+}
+html.aio-suite .main .panel::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.45), transparent 46%, rgba(0,0,0,.22)),
+    linear-gradient(180deg,
+      rgba(255,255,255,.12) 0 6%,
+      #7ec8ff 6% 8%,
+      #1f6fb2 8% 30%,
+      #f0c14a 30% 33%,
+      #c8960a 33% 54%,
+      #6b3a1f 54% 76%,
+      #e8771a 76% 100%);
+}
+html.bright.aio-suite .main .panel::after {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.85), transparent 48%, rgba(18,34,56,.12)),
+    linear-gradient(180deg,
+      #efe6d6 0 6%,
+      #7ec8ff 6% 8%,
+      #1f6fb2 8% 30%,
+      #f0c14a 30% 33%,
+      #c8960a 33% 54%,
+      #6b3a1f 54% 76%,
+      #e8771a 76% 100%);
+}
+html.aio-suite .main .btn,
+html.aio-suite .main .toggle-row button {
+  box-shadow: inset 4px 0 0 #6b3a1f, inset 0 2px 0 var(--brass);
+}
+html.aio-suite .main .btn.primary,
+html.aio-suite .main .toggle-row button.on {
+  box-shadow: inset 4px 0 0 #1a1208, inset 0 -3px 0 #1f6fb2;
+}
+html.aio-suite .main .card,
+html.aio-suite .main .calc-card,
+html.aio-suite .main .stat {
+  position: relative;
+  overflow: hidden;
+}
+html.aio-suite .main .card,
+html.aio-suite .main .calc-card {
+  padding-left: 22px;
+}
+html.aio-suite .main .card::before,
+html.aio-suite .main .calc-card::before,
+html.aio-suite .main .stat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.4), transparent 50%, rgba(0,0,0,.18)),
+    linear-gradient(180deg, #7ec8ff 0 18%, #1f6fb2 18% 40%, #e6a817 40% 62%, #6b3a1f 62% 84%, #e8771a 84% 100%);
+}
+html.aio-suite .main .card::after,
+html.aio-suite .main .calc-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 0;
+  height: 3px;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--brass) 0 8px, transparent 8px 13px);
+}
+html.aio-suite .home-voyage-strip .stat {
+  padding-left: 10px;
+  overflow: visible;
+}
+html.aio-suite .home-voyage-strip .stat::before { content: none; }
+html.aio-suite .main .calc-result {
+  border-top: none;
+  background-image:
+    repeating-linear-gradient(90deg, var(--brass) 0 8px, transparent 8px 13px),
+    linear-gradient(180deg, rgba(31,111,178,.14), transparent 80%);
+  background-size: 100% 3px, 100% 100%;
+  background-repeat: no-repeat;
+  background-position: top left, 0 0;
 }
 

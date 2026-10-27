@@ -437,7 +437,8 @@
   .page.active{display:block;}
 
   .panel{background:linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line); border-radius:6px; padding:20px 22px; margin-bottom:20px; position:relative;}
-  .panel::before{content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg, var(--brass), transparent); border-radius:6px 6px 0 0;}
+  .panel::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; pointer-events:none; background:repeating-linear-gradient(90deg, var(--brass) 0 14px, transparent 14px 20px);}
+  .panel::after{content:''; position:absolute; top:7px; left:14px; right:14px; height:8px; pointer-events:none; background:radial-gradient(circle at 4px 4px, var(--brass) 2.4px, transparent 3.1px), radial-gradient(circle at calc(100% - 4px) 4px, var(--brass) 2.4px, transparent 3.1px);}
   .panel h2{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:0.1em; text-transform:uppercase; color:var(--brass); margin:0 0 16px; display:flex; align-items:center; gap:8px;}
   .panel h2::after{content:''; flex:1; height:1px; background:var(--line);}
   .panel h3.sub{font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--teal); margin:18px 0 10px;}
@@ -2874,6 +2875,57 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
 .fo-password .btn-row{margin-top:10px;}
 
 #fleetOfficePanel h3.sub{margin-top:22px;}
+
+/* Voyage Chief reads as a chart and an engine plate: course ticks on panels
+   and the active tab, rivets on the buttons, a gauge bezel on each result. */
+button:not(.bn-item):not(.small):not(.theme-toggle){
+  background-image:
+    radial-gradient(circle at 8px 50%, var(--brass) 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 8px) 50%, var(--brass) 2px, transparent 2.7px);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--brass) 65%, transparent);
+}
+button.primary:not(.bn-item):not(.small){
+  background-color: var(--brass);
+  background-image:
+    radial-gradient(circle at 8px 50%, var(--ink) 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 8px) 50%, var(--ink) 2px, transparent 2.7px),
+    linear-gradient(180deg, var(--brass-bright), var(--brass) 48%, var(--brass-dim));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.28);
+}
+button.primary:hover:not(.bn-item):not(.small){
+  background-color: var(--brass-bright);
+  background-image:
+    radial-gradient(circle at 8px 50%, var(--ink) 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 8px) 50%, var(--ink) 2px, transparent 2.7px),
+    linear-gradient(180deg, var(--brass-bright), var(--brass) 40%, var(--brass-dim));
+}
+table button{background-image:none; box-shadow:none;}
+.tab.active{
+  border-bottom-color: transparent;
+  background-image: repeating-linear-gradient(90deg, var(--brass) 0 8px, transparent 8px 13px);
+  background-size: 100% 3px;
+  background-repeat: no-repeat;
+  background-position: left bottom;
+}
+.bp-result{position:relative;}
+.bp-result::before{
+  content:''; position:absolute; top:0; left:12px; right:12px; height:4px; pointer-events:none;
+  background: repeating-linear-gradient(90deg, var(--brass) 0 2px, transparent 2px 6px);
+}
+.bp-result::after{
+  content:''; position:absolute; inset:5px; pointer-events:none; border-radius:10px;
+  border: 1px solid color-mix(in srgb, var(--brass) 55%, transparent);
+}
+.gauge-box{
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--brass) 24%, transparent), transparent 62%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brass) 40%, transparent);
+}
+.stat{
+  border-left-width: 3px;
+  border-left-color: var(--brass);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--brass) 16%, transparent), transparent 62%);
+}
 
 </style>
 </head>

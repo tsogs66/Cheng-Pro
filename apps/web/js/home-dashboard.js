@@ -1025,7 +1025,7 @@
           <div class="sub">${fam.heavy.withReading}/${fam.heavy.count} logged · ${fmtNum(pct(fam.heavy), 1)}% full</div></div>
         <div class="card"><div class="label">HFO / VLSFO Weight (air)</div>
           <div class="value">${fmtNum(fam.heavy.weight, 1)}<span class="unit">MT</span></div></div>
-        <div class="card"><div class="label"><span class="cat-dot cat-fuel"></span>MDO / MGO / LSMGO Volume</div>
+        <div class="card"><div class="label"><span class="cat-dot cat-diesel"></span>MDO / MGO / LSMGO Volume</div>
           <div class="value">${fmtNum(fam.distillate.volume, 1)}<span class="unit">m³ / ${fmtNum(fam.distillate.capacity, 0)}</span></div>
           <div class="sub">${fam.distillate.withReading}/${fam.distillate.count} logged · ${fmtNum(pct(fam.distillate), 1)}% full</div></div>
         <div class="card"><div class="label">MDO / MGO / LSMGO Weight (air)</div>
