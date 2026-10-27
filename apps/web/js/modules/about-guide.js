@@ -23,7 +23,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Where do I start the first time I open ChEng AIO?',
       purpose: 'ChEng AIO is the menu for the whole suite. One license and one active ship are shared by Voyage Chief, Tank Chief, the bunker plans, e-ORB, Spares, and Performance.',
       steps: [
-        'Open the app. On a phone the menu is along the bottom. More holds Home, Notes, Spares, Setup, Backup, License, and About. On a wide desktop the same items are in the left sidebar.',
+        'Open the app. On a phone the menu is along the bottom. More puts Notes directly above Setup, with Home, Spares, Backup & Restore, License, and About beside them. On a wide desktop the left sidebar runs Home, Voyage, Tanks, the plans, e-ORB, Performance, then Spares, Notes, Vessel Setup, and Backup & Restore.',
         'Open License. If the Android app asks for a server, enter the ship ChEng AIO address (usually http://the-server:8080), then Save server URL and Test connection.',
         'Enter the email and the key from the office, then Activate this device.',
         'Open Vessel Setup. Type the ship name and IMO, then Create vessel. That ship becomes the active vessel in the top bar.',
@@ -54,7 +54,7 @@ window.ChengProAboutGuide = (function () {
         'Perf — performance between two times: slip, consumption, run hours.',
         'Spares (under More on a phone) — spare and store requisitions: sent and received.',
         'Setup — Vessel Setup for the suite.',
-        'Backup — files and the server: export, restore, merge, and the comparison of voyage legs and tank reports.',
+        'Backup & Restore — files and the server: export, restore, merge, and the comparison of voyage legs and tank reports.',
         'License — activate, pair the PC, or move a lost seat.',
         'About — this guide, and Check for latest release.'
       ],
@@ -476,7 +476,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Push or Pull replaced a voyage, or the server and this device disagree.',
       purpose: 'Push active leg and Pull active leg copy one leg and overwrite that same leg on the other side. They are the wrong tool when several voyages moved while the ship was offline. Keep data persistent and the consistency check look at every leg.',
       steps: [
-        'Open Backup in the AIO menu.',
+        'Open Backup & Restore in the AIO menu.',
         'Under the Voyage Chief server, Save & connect and Test connection first.',
         'For one leg you mean to overwrite: Push active leg sends this device’s active leg. Pull active leg replaces this device’s active leg with the server’s. Read the confirm text before you accept.',
         'For many legs: press Keep data persistent. The first press lists the legs that differ and ticks them. Untick any leg that should not be copied. The second press confirms and merges. Both sides then hold the selected legs. The newest leg opens in Voyage Chief (newest log time, then the higher voyage number).',
@@ -711,7 +711,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Which backup do I use, and what does restore do compared with merge?',
       purpose: 'A backup is a file on this device or a USB stick. Restore replaces what this device has with the file. Merge keeps local records and copies in anything newer or missing. Export of one leg or one ship is smaller than the whole program.',
       steps: [
-        'Open Backup.',
+        'Open Backup & Restore.',
         'Whole suite, this device: Export entire program. That file is Tank Chief, Voyage Chief, notes, the ship clock, the server addresses, spare and store requisitions, the consumption plan and its snapshots, and the oil record book.',
         'Miscellaneous data: Export miscellaneous data. That file is the requisitions, the consumption plan, the oil record book, and this device’s theme and screen layout, without the voyage log or the tank soundings.',
         'One ship, tanks: Export active vessel. One ship, voyage: Export selected vessel.',
@@ -743,10 +743,10 @@ window.ChengProAboutGuide = (function () {
       q: 'How do I hand the ship to the relief Chief Engineer?',
       purpose: 'The relief needs the records and a seat. The records travel as a backup file. The seat is the license, which is not inside the backup.',
       steps: [
-        'On your device, open Backup and Export entire program. Copy the file to a USB stick or to the ship server. Export miscellaneous data as well when the relief needs the requisitions, the consumption plan, and the oil record book called out on their own. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
+        'On your device, open Backup & Restore and Export entire program. Copy the file to a USB stick or to the ship server. Export miscellaneous data as well when the relief needs the requisitions, the consumption plan, and the oil record book called out on their own. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
         'On the relief’s device, activate License with the office key. If your device still holds the only seat, use Request seat transfer or ask the office to clear it.',
         'Create or activate the same ship (same IMO) under Vessel Setup.',
-        'Open Backup and Merge entire program from the file if the new device should keep anything already on it, or Restore if the new device should become a copy of yours.',
+        'Open Backup & Restore and Merge entire program from the file if the new device should keep anything already on it, or Restore if the new device should become a copy of yours.',
         'Open Voyage and confirm the latest leg. Open Tanks and confirm the latest readings and the latest sounding report.',
         'On Voyage → Vessel Data, Save Current Leg to Library on the machine that will stay in use.'
       ],
@@ -786,7 +786,7 @@ window.ChengProAboutGuide = (function () {
       purpose: 'The working copy is on the device. A server copy exists only after you push, sync, or save to the ship server. The license email is the folder for that user. A master key can open user folders on the host.',
       steps: [
         'Day to day, assume the phone or the PC is the record. Export a file before a handover, a reinstall, or a long stay offline if the server might be behind.',
-        'Voyage server and tank peer sync are separate. Set each under Backup, Save & connect, and Test connection.',
+        'Voyage server and tank peer sync are separate. Set each under Backup & Restore, Save & connect, and Test connection.',
         'Push to peer / Pull from peer move Tank Chief. Flush offline queue sends tank changes that were made while offline.',
         'Voyage push and pull of the active leg overwrite that one leg. Use Keep data persistent when more than the active leg may differ.'
       ],

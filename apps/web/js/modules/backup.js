@@ -579,7 +579,7 @@
 
   window.ChengProModules = window.ChengProModules || {};
   window.ChengProModules.backup = {
-    title: 'Backup / Restore',
+    title: 'Backup & Restore',
     async render(root) {
       const ent = typeof ChengLicense !== 'undefined' ? ChengLicense.loadEntitlement() : null;
       const isMaster = ent && ChengLicense.isMaster && ChengLicense.isMaster(ent);
@@ -2031,38 +2031,50 @@
           }
 
           const mine = licensedEmail();
+          /* One card per ship, the same on a phone, a tablet, and a Windows PC.
+             The old table put the leg list and Pull voyage only on rows the
+             Voyage fleet register had answered. A PC whose Voyage sign-in had
+             not come back yet drew Tank rows with no leg control at all, and
+             on a tablet the buttons sat on a different baseline from the ship
+             name. The leg control uses the Voyage id when that register has
+             the ship, and the Tank id otherwise — they are the same slug. */
           libList.innerHTML = `${notes.length ? `<p class="hint">${notes.join('<br>')}</p>` : ''}
-          <div style="overflow:auto"><table class="data-table" style="width:100%;font-size:13px">
-            <thead><tr><th>Vessel</th><th>IMO</th><th>Data in</th><th>Uploaded by</th><th></th></tr></thead>
-            <tbody>${rows.map((row, rowIndex) => {
-              const tankSrc = row.sources.find((x) => x.source === 'tank');
-              const voySrc = row.sources.find((x) => x.source === 'voyage');
-              const isMine = row.sources.some((x) => ownedByLicensee(x, mine));
-              const programs = [tankSrc ? 'Tank' : null, voySrc ? 'Voyage' : null].filter(Boolean).join(' + ');
-              const owners = [...new Set(row.sources.map(ownerLabel))].join(', ');
-              /* The number as written, not as validated. ChengVesselKey.isValidImo
-                 can tell a typo from a real IMO, but matching uses the digits
-                 either way, so a badge here would fire on every row of a demo
-                 seed and buy the engineer nothing he can act on. */
-              const imoTxt = row.imo ? esc(row.imo) : '—';
-              return `<tr${isMine ? ' style="font-weight:600"' : ''}>
-                <td>${esc(row.name || '—')}${isMine ? ' <span class="hint" style="font-weight:400">· yours</span>' : ''}</td>
-                <td>${imoTxt}</td>
-                <td>${esc(programs || '—')}</td>
-                <td>${esc(owners)}</td>
-                <td class="backup-lib-actions"><button type="button" class="btn" data-lib-adopt="${rowIndex}">Add to my list</button>${tankSrc
-                  ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}" style="margin-left:6px">Import particulars + latest leg</button>`
-                  : ''}${voySrc
-                  ? `<label class="hint" style="display:inline-flex;gap:4px;align-items:center;margin-left:6px">
-                       <select data-voy-mode="${esc(voySrc.vesselId)}">
-                         <option value="latest">Latest leg</option>
-                         <option value="all">All legs</option>
-                       </select>
-                       <button type="button" class="btn" data-voy-pull="${esc(voySrc.vesselId)}">Pull voyage</button>
-                     </label>`
-                  : ''}</td>
-              </tr>`;
-            }).join('')}</tbody></table></div>`;
+          <div class="backup-lib">${rows.map((row, rowIndex) => {
+            const tankSrc = row.sources.find((x) => x.source === 'tank');
+            const voySrc = row.sources.find((x) => x.source === 'voyage');
+            const pullId = (voySrc && voySrc.vesselId) || (tankSrc && tankSrc.vesselId) || '';
+            const isMine = row.sources.some((x) => ownedByLicensee(x, mine));
+            const programs = [tankSrc ? 'Tank' : null, voySrc ? 'Voyage' : null].filter(Boolean).join(' + ');
+            const owners = [...new Set(row.sources.map(ownerLabel))].join(', ');
+            /* The number as written, not as validated. ChengVesselKey.isValidImo
+               can tell a typo from a real IMO, but matching uses the digits
+               either way, so a badge here would fire on every row of a demo
+               seed and buy the engineer nothing he can act on. */
+            const imoTxt = row.imo ? esc(row.imo) : '—';
+            return `<article class="backup-lib-row">
+              <div class="backup-lib-meta">
+                <div class="backup-lib-name">${esc(row.name || '—')}${isMine ? ' <span class="backup-lib-yours">· yours</span>' : ''}</div>
+                <div class="backup-lib-facts">
+                  <span>IMO ${imoTxt}</span>
+                  <span>${esc(programs || '—')}</span>
+                  <span>${esc(owners)}</span>
+                </div>
+              </div>
+              <div class="backup-lib-actions">
+                <button type="button" class="btn" data-lib-adopt="${rowIndex}">Add to my list</button>${tankSrc
+                ? `<button type="button" class="btn" data-lib-import="${esc(tankSrc.vesselId)}" data-lib-owner="${esc(tankSrc.ownerSlug || '')}">Import particulars + latest leg</button>`
+                : ''}${pullId
+                ? `<div class="backup-lib-pull">
+                     <select data-voy-mode="${esc(pullId)}" aria-label="Which legs to pull for ${esc(row.name || pullId)}">
+                       <option value="latest">Latest leg</option>
+                       <option value="all">All legs</option>
+                     </select>
+                     <button type="button" class="btn" data-voy-pull="${esc(pullId)}">Pull voyage</button>
+                   </div>`
+                : ''}
+              </div>
+            </article>`;
+          }).join('')}</div>`;
           /* Pull one ship's voyage data: the latest leg, or every leg.
            *
            * Orchestrated here from the two bridge actions Voyage Chief already
@@ -2291,7 +2303,7 @@
                 || 'this vessel';
               if (!confirm(`Add ${label} to your own vessel list in Tank Chief and Voyage Chief?\n\n`
                 + 'Ship particulars are copied into your account. Tank readings and voyage '
-                + 'legs are not — use the pull buttons beside this one for those.')) return;
+                + 'legs are not — use Pull voyage on this row for those.')) return;
 
               setLib(`Adding ${label} to your list…`);
               working(true);

@@ -668,6 +668,12 @@ html.use-bottom-nav .bn-more-item {
 }
 html.bright.use-bottom-nav .bn-more-item { background: rgba(18,34,56,0.06); }
 html.use-bottom-nav .bn-more-item .bn-ic { font-size: 24px; line-height: 1; }
+html.use-bottom-nav .bn-more-item > span:last-child {
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
+  line-height: 1.15;
+}
 html.use-bottom-nav .bn-more-item.active {
   color: var(--brass);
   border-color: var(--brass);
@@ -1506,6 +1512,65 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
 .backup-page .btn-row { margin-top: 10px; }
 .backup-page .field.span2 { grid-column: 1 / -1; }
 .backup-page .backup-lib-list { margin-top: 10px; }
+/* Vessel library. A table cell's baseline put the ship name below the
+   buttons on a tablet, and overflow:hidden on the suite panel clipped the
+   leg control off the right edge of a Windows window. Each ship is one
+   row: the name on the left, the same three actions on the right, tops
+   lined up. Under 1180px (phone and tablet, where the bottom bar is the
+   menu) the actions sit under the name, full width. */
+.backup-lib-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
+  gap: 8px 16px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line, rgba(255,255,255,0.08));
+}
+.backup-lib-row:last-child { border-bottom: 0; }
+.backup-lib-meta { min-width: 0; }
+.backup-lib-name { font-weight: 650; line-height: 1.35; }
+.backup-lib-yours {
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.backup-lib-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.backup-lib-facts span { min-width: 0; overflow-wrap: anywhere; }
+.backup-lib-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+.backup-lib-actions .btn {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+.backup-lib-pull {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.backup-lib-pull select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: var(--ctl-h-sm);
+}
+@media (max-width: 1180px) {
+  .backup-lib-row { grid-template-columns: minmax(0, 1fr); }
+}
+html.aio-suite .main .panel.backup-page { overflow: auto; }
 .backup-page .backup-remote-list {
   margin-top: 10px;
   padding: 10px 12px;
