@@ -974,29 +974,26 @@
     const role = tankRoleOf(tank);
     const meaning = (typeof TankGraphics !== 'undefined' && TankGraphics.ROLE_MEANING && TankGraphics.ROLE_MEANING[role]) || role;
     const moved = reportMeta && (reportMeta.row.moved || reportMeta.row.sectionMismatch);
-    const svg = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.tankSvg === 'function')
-      ? TankGraphics.tankSvg(tank, pct, { safeFill: 85 })
-      : '';
-    const chipColour = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.liquidColour === 'function')
-      ? TankGraphics.liquidColour(tank)
-      : '#c99a53';
     const content = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.contentLabel === 'function')
       ? TankGraphics.contentLabel(tank)
       : (reportMeta && reportMeta.distillate ? 'MGO' : 'HFO');
-    const temp = r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + ' °C' : '– °C';
+    const details = {
+      grade: content,
+      pct: pct != null ? Math.round(pct) + '%' : '—',
+      volume: vol != null ? fmtNum(vol, 1) + ' m³' : '',
+      weight: mt != null ? fmtNum(mt, 2) + ' MT' : '',
+      temp: r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + '°C' : '',
+    };
+    const svg = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.tankSvg === 'function')
+      ? TankGraphics.tankSvg(tank, pct, { safeFill: 85, details })
+      : '';
     const grip = rearrange
       ? '<span class="tg-card-grip" title="Drag to move" aria-hidden="true">⋮⋮</span>'
       : '';
     return `<div class="tg-card" data-tank-id="${esc(tank.id)}" title="${esc(tank.name || tank.id)} — ${esc(meaning)}${moved ? ' · counted under distillate this voyage' : ''}">
       ${grip}
       <div class="tg-name">${esc(tank.name || tank.id)}${moved ? '<span class="hint"> · moved</span>' : ''}</div>
-      <div class="tg-art">${svg}<div class="tg-pct">${pct != null ? Math.round(pct) + '%' : '—'}</div></div>
-      <div class="tg-stats">
-        <span class="tg-chip" style="--tg-chip:${chipColour}">${esc(String(content))}</span>
-        <span>${vol != null ? fmtNum(vol, 1) : '–'} m³</span>
-        <span>${temp}</span>
-        <span>${mt != null ? fmtNum(mt, 2) + ' MT' : '– MT'}</span>
-      </div>
+      <div class="tg-art">${svg}</div>
     </div>`;
   }
 
