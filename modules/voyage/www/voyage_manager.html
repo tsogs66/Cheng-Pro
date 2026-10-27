@@ -3022,6 +3022,40 @@ table button{background-image:none; box-shadow:none;}
   .bunker-leg-actions button { width: 100%; min-height: 44px; justify-content: center; }
 }
 
+/* A chart compass behind the page, turning very slowly in the theme's brass.
+   Panels stay opaque enough that the figures are not drawn over. */
+body::before {
+  content: "";
+  position: fixed;
+  width: min(640px, 92vw);
+  height: min(640px, 92vw);
+  right: -6vw;
+  top: 10vh;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--brass);
+  -webkit-mask: url("icons/wash-compass.svg") center / contain no-repeat;
+  mask: url("icons/wash-compass.svg") center / contain no-repeat;
+  opacity: 0.3;
+  animation: vm-compass 160s linear infinite;
+}
+html.bright body::before { opacity: 0.16; }
+html.prism body::before,
+html.astrolabe body::before { opacity: 0.26; }
+.wrap { position: relative; z-index: 1; }
+.panel {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--panel) 86%, transparent),
+    color-mix(in srgb, var(--panel2) 86%, transparent));
+}
+@keyframes vm-compass { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+@media print {
+  body::before { display: none !important; }
+}
+
 </style>
 </head>
 <body>

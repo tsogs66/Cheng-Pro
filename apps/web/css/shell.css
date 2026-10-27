@@ -2101,3 +2101,38 @@ html.aio-suite .main .calc-result {
   html.use-bottom-nav .bottom-item { font-size: 12px; }
 }
 
+/* A ship under the suite pages, drawn in the theme's brass. It stays behind
+   the app, so the figures keep a clear card. The hull only ghosts through. */
+html.aio-suite body::before {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64vh;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--brass);
+  -webkit-mask: url("../icons/wash-ship.svg") center bottom / min(1100px, 168vw) auto no-repeat;
+  mask: url("../icons/wash-ship.svg") center bottom / min(1100px, 168vw) auto no-repeat;
+  opacity: 0.32;
+  animation: aio-swell 34s ease-in-out infinite;
+}
+html.bright.aio-suite body::before { opacity: 0.18; }
+html.prism.aio-suite body::before,
+html.astrolabe.aio-suite body::before { opacity: 0.28; }
+html.aio-suite .app { position: relative; z-index: 1; }
+html.aio-suite .main .panel {
+  background: color-mix(in srgb, var(--panel-solid) 86%, transparent);
+}
+@keyframes aio-swell {
+  0%, 100% { transform: translate3d(0, 12px, 0); }
+  50% { transform: translate3d(-20px, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.aio-suite body::before { animation: none; }
+}
+@media print {
+  html.aio-suite body::before { display: none !important; }
+}
+
