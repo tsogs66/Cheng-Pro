@@ -15100,7 +15100,13 @@ async function savePmsAndRender(){
 }
 
 document.getElementById('btnPmsAddUnit')?.addEventListener('click', async ()=>{
-  const name = prompt('Unit name.\n\nName a generator "A/E #1" (or "D/G 1") and the main engine "M/E" — the log can then offer the hours it has run since the last reading. Anything else is kept by hand.');
+  const name = await askText({
+    title: 'Add a unit',
+    message: 'Name a generator "A/E #1" (or "D/G 1") and the main engine "M/E" — the log can then offer the hours it has run since the last reading. Anything else is kept by hand.',
+    label: 'Unit name',
+    placeholder: 'e.g. A/E #1',
+    okLabel: 'Add unit',
+  });
   if (name == null) return;
   const trimmed = String(name).trim();
   if (!trimmed) return;
@@ -15115,9 +15121,21 @@ document.getElementById('pmsUnitBody')?.addEventListener('click', async (ev)=>{
   if (addTask){
     const unit = pmsUnits().find(u => u.id === addTask);
     if (!unit) return;
-    const name = prompt('Task, e.g. "Fuel injector overhaul" or "Lube oil change".');
+    const name = await askText({
+      title: 'Add a maintenance task',
+      label: 'Task',
+      placeholder: 'e.g. Fuel injector overhaul',
+      okLabel: 'Next',
+    });
     if (name == null) return;
-    const every = prompt('Interval in running hours, e.g. 2000.');
+    const every = await askText({
+      title: 'Add a maintenance task',
+      message: `Interval for "${String(name).trim()}".`,
+      label: 'Interval (running hours)',
+      type: 'number',
+      placeholder: 'e.g. 2000',
+      okLabel: 'Add task',
+    });
     if (every == null) return;
     unit.tasks = unit.tasks || [];
     unit.tasks.push(pmsNewTask(String(name).trim(), Number(every)));
@@ -20476,7 +20494,12 @@ document.getElementById('s_vesselSelect').addEventListener('change', ()=>{
 });
 
 document.getElementById('btnAddVessel').addEventListener('click', async ()=>{
-  const name = prompt('New vessel name (e.g. M/V PACIFIC HARMONY):');
+  const name = await askText({
+    title: 'Add a vessel',
+    label: 'Vessel name',
+    placeholder: 'e.g. M/V PACIFIC HARMONY',
+    okLabel: 'Add vessel',
+  });
   if (!name) return;
   const vessel = await createNewVessel(name);
   if (!vessel) return;
@@ -31826,21 +31849,35 @@ document.getElementById('fileImportSetup').addEventListener('change', (ev)=>{
   ev.target.value = '';
 });
 
-function downloadCSV(filename, header, lines){
+/* A blob anchor is a no-op in the Android WebView and in Electron: the click
+   returns, nothing is written, and the page has no way to tell. ChengSaveFile
+   owns the per-platform routes the JSON backups already use, so the CSV
+   exports go the same way and can say where the file landed. */
+async function downloadCSV(filename, header, lines){
   const csv = [header.join(","), ...lines.map(l=>l.join(","))].join("\n");
+  if (window.ChengSaveFile){
+    const saved = await ChengSaveFile.saveJson(filename, csv, { mime: 'text/csv' });
+    return ChengSaveFile.whereLabel(saved);
+  }
   const blob = new Blob([csv], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch(_){} }, 10000);
+  return '';
 }
 document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
   const suggested = new Date().getUTCFullYear() - 1;   /* the year a verifier asks about */
-  const answer = prompt(
-    'Compile IMO DCS / EU MRV figures for a calendar year.\n\n'
-    + 'Every saved voyage leg on this device is walked, plus the one open, and the reports '
-    + 'falling in that year are totalled. Each leg is worked from its own setup.\n\n'
-    + 'Year:', String(suggested));
+  const answer = await askText({
+    title: 'Compile IMO DCS / EU MRV year',
+    message: 'Every saved voyage leg on this device is walked, plus the one open, and the reports '
+      + 'falling in that year are totalled. Each leg is worked from its own setup.',
+    label: 'Calendar year',
+    type: 'number',
+    value: String(suggested),
+    okLabel: 'Compile',
+  });
   if (answer == null) return;
   const year = parseInt(String(answer).trim(), 10);
   if (!Number.isFinite(year) || year < 2000 || year > 2100){
@@ -31857,10 +31894,12 @@ document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
       return;
     }
     const rows = dcsReportCsvRows(rep);
-    downloadCSV(`dcs-mrv-${rep.particulars.imo || 'vessel'}-${year}.csv`,
+    const savedWhere = await downloadCSV(`dcs-mrv-${rep.particulars.imo || 'vessel'}-${year}.csv`,
       rows[0].map(csvEscape), rows.slice(1).map(r => r.map(csvEscape)));
 
     const lines = [
+      savedWhere ? `Saved ${savedWhere}.` : 'CSV downloaded.',
+      '',
       `${year}: ${rep.reports} reports across ${rep.legsUsed.length} voyage leg(s).`,
       `Distance ${fmt(rep.distanceNm, 2)} nm · under way ${fmt(rep.hoursUnderWay, 1)} hrs · fuel ${fmt(rep.fuelTotalMt, FUEL_DECIMALS)} MT · CO₂ ${rep.co2Tonnes == null ? '—' : fmt(rep.co2Tonnes, 2)} t`
     ];
@@ -31879,7 +31918,7 @@ document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
   }
 });
 
-document.getElementById('btnExportCSVLog').addEventListener('click', ()=>{
+document.getElementById('btnExportCSVLog').addEventListener('click', async ()=>{
   const {rows} = computeDerived();
   const header = ["DateTime","Operation","Condition","Hours","DistShip","RPM","RevCounter","DailyRevs","MECons","GECons","BlrCons",
     ...FUEL_CONS_GROUPS.map(g=>g.csv),
@@ -31887,9 +31926,15 @@ document.getElementById('btnExportCSVLog').addEventListener('click', ()=>{
   const lines = rows.map(r=>[r.datetime,r.operation,r.condition,fmtNum(r.hrs,2),fmtNum(r.distanceShip,2),fmtNum(r.rpm,2),fmtNum(r.revCounter,2),fmtNum(r.dailyRevs,2),fmtNum(r.meCons,3),fmtNum(r.geCons,3),fmtNum(r.blrCons,3),
     ...FUEL_CONS_GROUPS.map(g=>fmtNum(sumFuelGroup(r.consByType, g), FUEL_DECIMALS)),
     fmtNum(r.cylCons,0),r.tbn,fmtNum(r.meLoCons,0),fmtNum(r.geLoCons,0),fmtNum(r.fwProd,2),fmtNum(litresToM3(r.fwProdD),2),fmtNum(litresToM3(r.fwRob),2),fmtNum(litresToM3(r.fwConsD),2)]);
-  downloadCSV('voyage-log.csv', header, lines);
+  try{
+    const where = await downloadCSV('voyage-log.csv', header, lines);
+    if (where) setLocalVesselBackupStatus(`Saved ${where}.`);
+  }catch(e){
+    console.error(e);
+    alert('Could not save the CSV: ' + e.message);
+  }
 });
-document.getElementById('btnExportCSVCons').addEventListener('click', ()=>{
+document.getElementById('btnExportCSVCons').addEventListener('click', async ()=>{
   const {rows} = computeDerived();
   const header = ["DateTime","Operation","METype","MECons","GEType","GECons","BlrType","BlrCons",
     ...FUEL_CONS_GROUPS.map(g=>g.csv),
@@ -31897,7 +31942,13 @@ document.getElementById('btnExportCSVCons').addEventListener('click', ()=>{
   const lines = rows.map(r=>[r.datetime,r.operation,r.me.type,fmtNum(r.meCons,3),r.ge.type,fmtNum(r.geCons,3),r.blr.type,fmtNum(r.blrCons,3),
     ...FUEL_CONS_GROUPS.map(g=>fmtNum(sumFuelGroup(r.consByType, g), FUEL_DECIMALS)),
     fmtNum(litresToM3(r.fwConsD),2)]);
-  downloadCSV('consumption.csv', header, lines);
+  try{
+    const where = await downloadCSV('consumption.csv', header, lines);
+    if (where) setLocalVesselBackupStatus(`Saved ${where}.`);
+  }catch(e){
+    console.error(e);
+    alert('Could not save the CSV: ' + e.message);
+  }
 });
 document.getElementById('btnRecalculateAllData')?.addEventListener('click', async ()=>{
   const btn = document.getElementById('btnRecalculateAllData');
@@ -34057,7 +34108,12 @@ document.getElementById('btnOrbVerify')?.addEventListener('click', async ()=>{
 document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
   const ids = [...document.querySelectorAll('.orb-browse-check:checked')].map(c=>c.value);
   if (!ids.length){ alert('Select the entry to void.'); return; }
-  const reason = prompt('Void / correct: reason for striking through the selected ORB line(s).\n\nThe line stays in the book (MARPOL does not allow deleting). Record a new correct entry afterwards.');
+  const reason = await askText({
+    title: 'Void / correct ORB line(s)',
+    message: 'The line stays in the book (MARPOL does not allow deleting). Record a new correct entry afterwards.',
+    label: 'Reason for striking through',
+    okLabel: 'Void line(s)',
+  });
   if (reason == null) return;
   const note = String(reason).trim();
   if (!note){ alert('A reason is required to void an ORB entry.'); return; }
@@ -36106,6 +36162,88 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
     alert('This app could not open its local database on startup: ' + e.message + '\n\nTry closing any other tabs/windows with this same file open, then reload this page. (Check the browser console for full details.)');
   }
 })();
+</script>
+    <div id="askTextOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="askTextTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="askTextTitle">Enter a value</h3>
+        <p class="hint" id="askTextMessage"></p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="askTextInput" id="askTextLabel">Value</label>
+            <input id="askTextInput" type="text" autocomplete="off">
+          </div>
+        </div>
+        <div class="nv-leg-actions">
+          <button type="button" class="ghost small" id="askTextCancel">Cancel</button>
+          <button type="button" class="primary small" id="askTextAccept">OK</button>
+        </div>
+      </div>
+    </div>
+<script>
+/* ---- askText: the program's own text prompt --------------------------------
+   window.prompt() is not available everywhere this program runs. Electron
+   THROWS "prompt() is not supported." rather than returning null, and because
+   these call sites sit in async click handlers the throw became a rejected
+   promise nobody saw: the button did nothing at all, with no error on screen.
+   The Android WebView has no prompt of its own either.
+
+   So the program asks for itself, in its own dialog, which also lets a question
+   carry a label and a number keypad instead of one run-on string. Returns the
+   trimmed text, or null when the user cancels -- the same contract the call
+   sites already expect from prompt(). */
+function askText(opts){
+  const o = opts || {};
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('askTextOverlay');
+    const input   = document.getElementById('askTextInput');
+    const okBtn   = document.getElementById('askTextAccept');
+    const cancel  = document.getElementById('askTextCancel');
+    if (!overlay || !input || !okBtn || !cancel){
+      /* No dialog in the document: better a working prompt than a dead button. */
+      try { resolve(window.prompt(o.message || o.title || '', o.value == null ? '' : String(o.value))); }
+      catch (_){ resolve(null); }
+      return;
+    }
+    document.getElementById('askTextTitle').textContent = o.title || 'Enter a value';
+    const msg = document.getElementById('askTextMessage');
+    msg.textContent = o.message || '';
+    msg.hidden = !o.message;
+    document.getElementById('askTextLabel').textContent = o.label || 'Value';
+    okBtn.textContent = o.okLabel || 'OK';
+    input.type = o.type === 'number' ? 'number' : 'text';
+    if (o.type === 'number') input.inputMode = 'numeric'; else input.removeAttribute('inputmode');
+    input.placeholder = o.placeholder || '';
+    input.value = o.value == null ? '' : String(o.value);
+
+    let done = false;
+    function close(result){
+      if (done) return;
+      done = true;
+      overlay.classList.remove('open');
+      overlay.hidden = true;
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      overlay.removeEventListener('mousedown', onBackdrop);
+      document.removeEventListener('keydown', onKey, true);
+      resolve(result);
+    }
+    function onOk(){ close(input.value); }
+    function onCancel(){ close(null); }
+    function onBackdrop(ev){ if (ev.target === overlay) close(null); }
+    function onKey(ev){
+      if (ev.key === 'Escape'){ ev.preventDefault(); close(null); }
+      else if (ev.key === 'Enter' && !ev.shiftKey){ ev.preventDefault(); close(input.value); }
+    }
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    overlay.addEventListener('mousedown', onBackdrop);
+    document.addEventListener('keydown', onKey, true);
+
+    overlay.hidden = false;
+    overlay.classList.add('open');
+    setTimeout(() => { try { input.focus(); input.select(); } catch(_){} }, 0);
+  });
+}
 </script>
 <script>try{ if(window.ChengClockPicker) ChengClockPicker.install(); }catch(_e){}</script>
 </body>
