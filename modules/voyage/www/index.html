@@ -3920,7 +3920,7 @@ html.bright .login-gate{background:rgba(18,34,56,.55);}
     <details class="panel vs-fold">
       <summary>Print History <span class="vs-fold-hint">optional</span></summary>
       <div class="vs-fold-body">
-        <div class="hint">A copy is saved here automatically every time you print from Log Entry — this is this browser's local equivalent of a "reports" folder, since a web page can't write files directly to a folder on your computer. Click "Download" to save an actual file, or use your browser's "Print to PDF" from the Print button above to get a real PDF on disk.</div>
+        <div class="hint">A print is saved here as the report line itself: the figures, and a type that says which sheet it is. The ship's stamp and the Chief Engineer's signature are not kept in that file. View prints the sheet again and fills those in from this vessel, leaving the space blank when they are not here. Download saves the text file.</div>
         <div class="table-scroll" style="margin-top:10px;">
           <table>
             <thead><tr><th>Printed</th><th>Entry Date/Time</th><th>Operation</th><th></th></tr></thead>
@@ -8045,7 +8045,7 @@ function captureActiveLegPack(){
     receipts: state.receipts.map(r => JSON.parse(JSON.stringify(r))),
     documents: state.documents.map(d => JSON.parse(JSON.stringify(d))),
     abstracts: state.abstracts.map(a => JSON.parse(JSON.stringify(a))),
-    printHistory: state.printHistory.map(p => JSON.parse(JSON.stringify(p)))
+    printHistory: state.printHistory.map(p => slimPrintRecord(p))
   };
 }
 
@@ -8074,7 +8074,12 @@ async function saveVoyageLegToLibrary(vesselId, voyageNumber, condition, pack){
     receipts: (pack.receipts || []).map(r => ({ ...r, vesselId: vid, voyageNumber: vn })),
     documents: (pack.documents || []).map(d => ({ ...d, vesselId: vid, voyageNumber: vn })),
     abstracts: (pack.abstracts || []).map(a => ({ ...a, vesselId: vid, voyageNumber: vn })),
-    printHistory: (pack.printHistory || []).map(p => ({ ...p, vesselId: vid, voyageNumber: vn }))
+    printHistory: (pack.printHistory || []).map(p => {
+      const slim = slimPrintRecord(p, pack.entries);
+      slim.vesselId = vid;
+      slim.voyageNumber = vn;
+      return slim;
+    })
   };
   await putVoyageLeg(leg);
   return leg;
@@ -8335,7 +8340,7 @@ async function activateVoyageLeg(vesselId, voyageNumber, condition, opts){
   state.receipts = leg.receipts || [];
   state.documents = leg.documents || [];
   state.abstracts = leg.abstracts || [];
-  state.printHistory = leg.printHistory || [];
+  state.printHistory = (leg.printHistory || []).map(p => slimPrintRecord(p, state.entries));
 
   await dbPut('meta', { key:`setup:${vid}`, value: state.setup });
   for (const e of state.entries) await dbPut('entries', tagVesselId(e));
@@ -8509,7 +8514,11 @@ async function loadVesselFromDb(vesselId){
   state.receipts = allReceipts.filter(match);
   state.documents = allDocs.filter(match);
   state.abstracts = allAbstracts.filter(match);
-  state.printHistory = allPrint.filter(match);
+  const minePrints = allPrint.filter(match);
+  state.printHistory = minePrints.map(p => slimPrintRecord(p));
+  for (let i = 0; i < minePrints.length; i++){
+    if (minePrints[i] && minePrints[i].html) await dbPut('printHistory', state.printHistory[i]);
+  }
   try{
     const allOrb = await dbGetAll('orbEntries');
     state.orbEntries = (allOrb || []).filter(match);
@@ -22332,15 +22341,132 @@ document.getElementById('btnSaveVoyageSummary').addEventListener('click', async 
   if (saved) alert('Report saved — distance, RPM, consumption, freshwater, misc., and machinery data updated. Later entries recalculated.');
 });
 /* ---------------- print history (Log Entry) ---------------- */
-async function recordPrintHistory(label, entry, htmlContent){
-  const fullDoc = buildPrintDocumentHtml(htmlContent).replace('<title>Print</title>', `<title>${escPrint(label)}</title>`);
-  const record = {
-    id: uid(), printedAt: new Date().toISOString(), label,
+/* A saved print is the report line, as text, plus the sheet type. The stamp and
+   the signature stay on the vessel and are looked up when the sheet is printed
+   again. A page that was saved the old way (the whole web page, pictures
+   included) is rewritten to this text the next time it is loaded. */
+function omitPrintDataUrls(value){
+  if (typeof value === 'string') return value.startsWith('data:') ? '' : value;
+  if (Array.isArray(value)) return value.map(omitPrintDataUrls);
+  if (value && typeof value === 'object'){
+    const out = {};
+    Object.keys(value).forEach(k=>{
+      if (k === 'html' || k === 'photo') return;
+      out[k] = omitPrintDataUrls(value[k]);
+    });
+    return out;
+  }
+  return value;
+}
+
+function findPrintEntry(p, entries){
+  const list = entries || (typeof state !== 'undefined' && state.entries) || [];
+  if (!p) return null;
+  if (p.entryId){
+    const hit = list.find(e => e && e.id === p.entryId);
+    if (hit) return hit;
+  }
+  if (!p.entryDatetime) return null;
+  return list.find(e => e && e.datetime === p.entryDatetime && (!p.operation || e.operation === p.operation)) || null;
+}
+
+function printReportText(type, entry, prior){
+  return JSON.stringify({
+    type: type,
+    entryId: (entry && entry.id) || (prior && prior.entryId) || '',
+    datetime: (entry && entry.datetime) || (prior && prior.entryDatetime) || '',
+    operation: (entry && entry.operation) || (prior && prior.operation) || '',
+    condition: (entry && entry.condition) || '',
+    chiefEngineer: (entry && entry.chEng) || (prior && prior.chEng) || '',
+    line: entry ? omitPrintDataUrls(entry) : null
+  }, null, 2);
+}
+
+function slimPrintRecord(p, entries){
+  if (!p || typeof p !== 'object') return p;
+  const type = p.type || p.label || 'voyage-summary';
+  if (p.text && p.type && !p.html){
+    const keep = Object.assign({}, p, { type: type, label: p.label || type });
+    delete keep.html;
+    return keep;
+  }
+  const entry = findPrintEntry(p, entries);
+  return {
+    id: p.id,
+    printedAt: p.printedAt || new Date().toISOString(),
+    label: type,
+    type: type,
+    vesselId: p.vesselId,
+    voyageNumber: p.voyageNumber,
+    entryId: (entry && entry.id) || p.entryId || '',
+    entryDatetime: p.entryDatetime || (entry && entry.datetime) || null,
+    operation: p.operation || (entry && entry.operation) || null,
+    chEng: (entry && entry.chEng) || p.chEng || '',
+    text: printReportText(type, entry, p)
+  };
+}
+
+function sheetHtmlForPrintType(type, entry){
+  if (!entry) return '';
+  if (type === 'noon-report' || type === 'voyage-summary') return buildVoyageNoonSheetHTML(entry);
+  return '';
+}
+
+function printHistoryFileName(p){
+  const type = String((p && (p.type || p.label)) || 'report').replace(/[^a-zA-Z0-9-_]/g, '_');
+  const stamp = p && p.printedAt ? String(p.printedAt).slice(0, 19).replace(/[:T]/g, '') : '';
+  return type + (stamp ? '_' + stamp : '') + '.txt';
+}
+
+function downloadPrintHistoryText(p){
+  if (!p) return;
+  const blob = new Blob([p.text || ''], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = printHistoryFileName(p);
+  a.click();
+}
+
+/* Open the sheet for this type. The stamp and signature are read from this
+   vessel at this moment; a missing one is left blank. Nothing here is saved. */
+function viewPrintHistoryRecord(p){
+  if (!p) return;
+  const type = p.type || p.label || 'voyage-summary';
+  const entry = findPrintEntry(p);
+  const sheet = sheetHtmlForPrintType(type, entry);
+  if (!sheet){
+    const blob = new Blob([p.text || ''], { type: 'text/plain;charset=utf-8' });
+    window.open(URL.createObjectURL(blob), '_blank');
+    return;
+  }
+  const bodyInner = `<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${sheet}</div></div>`;
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(buildPrintDocumentHtmlPortrait(bodyInner).replace('<title>Print</title>', `<title>${escPrint(type)}</title>`));
+  doc.close();
+  fitPrintPortraitRoot(doc);
+  const html = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  try { iframe.remove(); } catch (_e) {}
+  window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+}
+
+async function recordPrintHistory(label, entry){
+  const type = label || 'voyage-summary';
+  const record = slimPrintRecord({
+    id: uid(),
+    printedAt: new Date().toISOString(),
+    label: type,
+    type: type,
     vesselId: state.activeVesselId,
+    entryId: entry ? entry.id : '',
     entryDatetime: entry ? entry.datetime : null,
     operation: entry ? entry.operation : null,
-    html: fullDoc
-  };
+    chEng: entry ? entry.chEng : ''
+  }, entry ? [entry] : state.entries);
   state.printHistory.push(record);
   await dbPut('printHistory', record);
   renderPrintHistoryList();
@@ -22369,20 +22495,13 @@ function renderPrintHistoryList(){
   body.querySelectorAll('[data-view-print]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const p = state.printHistory.find(x=>x.id===b.dataset.viewPrint);
-      if (!p) return;
-      const blob = new Blob([p.html], {type:'text/html'});
-      window.open(URL.createObjectURL(blob), '_blank');
+      viewPrintHistoryRecord(p);
     });
   });
   body.querySelectorAll('[data-dl-print]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const p = state.printHistory.find(x=>x.id===b.dataset.dlPrint);
-      if (!p) return;
-      const blob = new Blob([p.html], {type:'text/html'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${p.label.replace(/[^a-zA-Z0-9-_]/g,'_')}_${p.printedAt.slice(0,19).replace(/[:T]/g,'')}.html`;
-      a.click();
+      downloadPrintHistoryText(p);
     });
   });
   body.querySelectorAll('[data-del-print]').forEach(b=>{
@@ -22691,8 +22810,8 @@ function printVoyageSummary(entryId){
     entry: e, sheetHtml: buildVoyageNoonSheetHTML(e)
   }));
   const noonOp = isNoonReportOp(entry.operation);
-  const fittedHtml = printPortraitSinglePage(sheetHtml);
-  recordPrintHistory(noonOp ? 'noon-report' : 'voyage-summary', entry, fittedHtml);
+  printPortraitSinglePage(sheetHtml);
+  recordPrintHistory(noonOp ? 'noon-report' : 'voyage-summary', entry);
 }
 /*
  * Print used to leave the report unsaved: the sheet was built from the open form,
@@ -27005,7 +27124,7 @@ function buildSyncPayload(){
       receipts: state.receipts,
       documents: state.documents,
       abstracts: state.abstracts,
-      printHistory: state.printHistory,
+      printHistory: (state.printHistory || []).map(p => slimPrintRecord(p)),
       orbEntries: state.orbEntries,
       deletedIds: sync.deletedIds || { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] }
     }
@@ -27258,7 +27377,7 @@ function applyRemoteSnapshot(remote, policy){
     state.receipts = (remoteData.receipts || []).map(r=> tagVesselId({...r}));
     state.documents = (remoteData.documents || []).map(d=> tagVesselId({...d}));
     state.abstracts = (remoteData.abstracts || []).map(a=> tagVesselId({...a}));
-    state.printHistory = (remoteData.printHistory || []).map(p=> tagVesselId({...p}));
+    state.printHistory = (remoteData.printHistory || []).map(p=> slimPrintRecord(tagVesselId({...p})));
     state.orbEntries = (remoteData.orbEntries || []).map(o=> tagVesselId({...o}));
     /* Entries from the server are in the server's order; book order here will
        differ, so the chain is rebuilt after this returns (see the caller). */
@@ -27293,7 +27412,8 @@ function applyRemoteSnapshot(remote, policy){
   state.receipts = filterDeleted(mergeListsById(remoteData.receipts, state.receipts), deleted.receipts);
   state.documents = filterDeleted(mergeListsById(remoteData.documents, state.documents), deleted.documents);
   state.abstracts = filterDeleted(mergeListsById(remoteData.abstracts, state.abstracts), deleted.abstracts);
-  state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), deleted.printHistory);
+  state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), deleted.printHistory)
+    .map(p => slimPrintRecord(p));
   state.orbEntries = mergeListsById(remoteData.orbEntries, state.orbEntries).map(o => tagVesselId({...o}));
   /* A merge interleaves two devices' entries by date, so every line after the
      first incoming one follows a different predecessor. */
