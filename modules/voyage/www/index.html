@@ -27974,6 +27974,146 @@ function miscVesselDataCounts(){
   };
 }
 
+/* Lists the miscellaneous file carries for one ship's setup. The working
+   consumption plan is one object; the snapshots are the saved record. */
+function miscShipFromSetup(vesselId, setup){
+  const sync = (setup && setup.sync) || {};
+  const deleted = sync.deletedIds || {};
+  return {
+    vesselId: vesselId,
+    vesselName: (setup && setup.vesselName) || '',
+    imo: (setup && (setup.imo || setup.vesselImo)) || '',
+    requisitions: (setup && Array.isArray(setup.requisitions)) ? setup.requisitions : [],
+    bunkerPlan: (setup && setup.bunkerPlan && typeof setup.bunkerPlan === 'object') ? setup.bunkerPlan : null,
+    bunkerPlanHistory: (setup && Array.isArray(setup.bunkerPlanHistory)) ? setup.bunkerPlanHistory : [],
+    orb: (setup && setup.orb && typeof setup.orb === 'object') ? setup.orb : null,
+    tombstones: {
+      requisitions: deleted.requisitions || [],
+      bunkerPlanHistory: deleted.bunkerPlanHistory || [],
+      orbTanks: deleted.orbTanks || [],
+    },
+  };
+}
+
+/** Every ship's requisitions, consumption plan, and oil-record-book setup. */
+async function buildMiscDataExport(){
+  await ensureDB();
+  await saveCurrentVesselState();
+  const meta = await dbGetAll('meta');
+  const ships = [];
+  for (const row of (meta || [])){
+    if (!row || typeof row.key !== 'string' || row.key.indexOf('setup:') !== 0) continue;
+    ships.push(miscShipFromSetup(row.key.slice('setup:'.length), row.value || {}));
+  }
+  let orbEntries = [];
+  try { orbEntries = await dbGetAll('orbEntries'); }
+  catch (_) { orbEntries = []; }
+  return {
+    format: 'cheng-aio-misc-v1',
+    exportedAt: new Date().toISOString(),
+    ships,
+    orbEntries: orbEntries || [],
+  };
+}
+
+/**
+ * Put a miscellaneous file back onto ships this device already has.
+ * A ship that is not on this device is skipped — the file does not create
+ * a hull. Merge unions the lists by id. Restore writes the file's lists
+ * onto the matching ships and leaves every other ship alone.
+ */
+async function importMiscVesselData(payload, merge){
+  if (!payload || payload.format !== 'cheng-aio-misc-v1'){
+    throw new Error('This is not a miscellaneous data file (expected cheng-aio-misc-v1).');
+  }
+  await ensureDB();
+  await saveCurrentVesselState();
+  const ships = Array.isArray(payload.ships) ? payload.ships : [];
+  let matched = 0;
+  let skipped = 0;
+  for (const ship of ships){
+    if (!ship || !ship.vesselId) continue;
+    const key = 'setup:' + ship.vesselId;
+    const row = await dbGet('meta', key);
+    if (!row || !row.value || typeof row.value !== 'object'){ skipped += 1; continue; }
+    const setup = row.value;
+    const tombs = ship.tombstones || {};
+    if (!setup.sync || typeof setup.sync !== 'object') setup.sync = {};
+    if (!setup.sync.deletedIds || typeof setup.sync.deletedIds !== 'object') setup.sync.deletedIds = {};
+    ['requisitions', 'bunkerPlanHistory', 'orbTanks'].forEach((name) => {
+      const prior = Array.isArray(setup.sync.deletedIds[name]) ? setup.sync.deletedIds[name] : [];
+      const incoming = Array.isArray(tombs[name]) ? tombs[name] : [];
+      setup.sync.deletedIds[name] = [...new Set(prior.concat(incoming))].slice(-500);
+    });
+    if (merge){
+      setup.requisitions = mergeMiscList(
+        setup.requisitions, ship.requisitions, setup.sync.deletedIds.requisitions, 0);
+      setup.bunkerPlanHistory = mergeMiscList(
+        setup.bunkerPlanHistory, ship.bunkerPlanHistory, setup.sync.deletedIds.bunkerPlanHistory, 50);
+      if (ship.bunkerPlan && typeof ship.bunkerPlan === 'object'){
+        const localTs = setup.bunkerPlan ? (setup.bunkerPlan.savedAt || setup.bunkerPlan.date || '') : '';
+        const inTs = ship.bunkerPlan.savedAt || ship.bunkerPlan.date || '';
+        if (!setup.bunkerPlan || String(inTs) >= String(localTs)) setup.bunkerPlan = ship.bunkerPlan;
+      }
+      if (ship.orb && typeof ship.orb === 'object'){
+        if (!setup.orb) setup.orb = ship.orb;
+        else mergeOrbTanks(setup.orb, ship.orb, setup.sync.deletedIds);
+      }
+    } else {
+      if (Array.isArray(ship.requisitions)) setup.requisitions = ship.requisitions;
+      if (Array.isArray(ship.bunkerPlanHistory)) setup.bunkerPlanHistory = ship.bunkerPlanHistory;
+      if (ship.bunkerPlan && typeof ship.bunkerPlan === 'object') setup.bunkerPlan = ship.bunkerPlan;
+      if (ship.orb && typeof ship.orb === 'object') setup.orb = ship.orb;
+    }
+    await dbPut('meta', { key, value: setup });
+    matched += 1;
+  }
+  const shipIds = new Set(ships.map((ship) => ship && ship.vesselId).filter(Boolean));
+  const incomingOrb = Array.isArray(payload.orbEntries) ? payload.orbEntries : [];
+  if (shipIds.size){
+    const localOrb = await dbGetAll('orbEntries');
+    if (!merge){
+      for (const row of (localOrb || [])){
+        if (row && shipIds.has(row.vesselId)){
+          try { await dbDelete('orbEntries', row.id); } catch (_) {}
+        }
+      }
+    }
+    const localById = new Map();
+    if (merge){
+      for (const row of (localOrb || [])){
+        if (row && row.id != null) localById.set(row.id, row);
+      }
+    }
+    for (const row of incomingOrb){
+      if (!row || row.id == null) continue;
+      if (merge){
+        const prev = localById.get(row.id);
+        if (prev && miscRowTs(prev) > miscRowTs(row)) continue;
+      }
+      await dbPut('orbEntries', row);
+    }
+  }
+  if (state.activeVesselId && shipIds.has(state.activeVesselId)){
+    await loadVesselFromDb(state.activeVesselId);
+    try { render(); } catch (_) {}
+  }
+  if (!matched && ships.length){
+    throw new Error('None of the ships in this file are on this device. Load those ships first, then restore the miscellaneous data.');
+  }
+  const reqs = ships.reduce((n, ship) => n + ((ship && ship.requisitions && ship.requisitions.length) || 0), 0);
+  const snaps = ships.reduce((n, ship) => n + ((ship && ship.bunkerPlanHistory && ship.bunkerPlanHistory.length) || 0), 0);
+  return {
+    matched,
+    skipped,
+    message: 'Miscellaneous data ' + (merge ? 'merged' : 'restored')
+      + ' for ' + matched + ' ship' + (matched === 1 ? '' : 's')
+      + ' (' + reqs + ' requisition' + (reqs === 1 ? '' : 's')
+      + ', ' + snaps + ' consumption-plan snapshot' + (snaps === 1 ? '' : 's')
+      + ', ' + incomingOrb.length + ' e-ORB entr' + (incomingOrb.length === 1 ? 'y' : 'ies') + ').',
+  };
+}
+
 function applyRemoteSnapshot(remote, policy){
   const localSync = localSyncCredentialSnapshot();
   const remoteData = remote.data || remote;
@@ -31149,6 +31289,12 @@ async function onVoyageBackupMessage(ev){
       } else {
         reply({ counts: null, message: 'No vessel is open in Voyage Chief on this device.' });
       }
+    } else if (msg.action === 'export-misc') {
+      const payload = await buildMiscDataExport();
+      reply({ payload });
+    } else if (msg.action === 'import-misc') {
+      const result = await importMiscVesselData(msg.payload, !!msg.merge);
+      reply(result);
     } else if (msg.action === 'list-remote') {
       if (msg.settings) {
         const incoming = msg.settings;
