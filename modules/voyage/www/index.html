@@ -33969,12 +33969,148 @@ async function syncActiveVesselFromChengAio(forceVessel){
   return true;
 }
 
+/** Last real log time on an entry. A fresh updatedAt from opening the leg does not count. */
+function voyageLegEntryTime(item){
+  if (!item) return '';
+  return String(item.datetime || item.updatedAt || item.savedAt || '');
+}
+
+/** Newest saved content on a library leg, ignoring a fresh archive timestamp. */
+function voyageLegContentStamp(leg){
+  if (!leg) return '';
+  let best = '';
+  if (Array.isArray(leg.entries) && leg.entries.length){
+    for (const item of leg.entries){
+      const t = voyageLegEntryTime(item);
+      if (t > best) best = t;
+    }
+  }
+  if (best) return best;
+  if (leg.contentAt) return String(leg.contentAt);
+  return String(leg.updatedAt || '');
+}
+
+/**
+ * Choose the current log, or the newest saved voyage leg when the working log
+ * is older or empty. Ranking uses the last entry time, so saving the leg you
+ * are leaving does not make that older voyage look newest.
+ */
+function pickLatestVoyageLeg(index, working){
+  let best = null;
+  let bestStamp = '';
+  for (const row of index || []){
+    for (const cond of ['B', 'L']){
+      const leg = row[cond];
+      if (!leg) continue;
+      const stamp = voyageLegContentStamp(leg);
+      const better = !best
+        || stamp > bestStamp
+        || (stamp === bestStamp && cond === 'L' && best.condition !== 'L');
+      if (better){
+        best = { voyageNumber: row.voyageNumber, condition: cond };
+        bestStamp = stamp;
+      }
+    }
+  }
+  const curVn = String(working && working.voyageNumber || '').trim();
+  const curCond = String(working && working.condition || '').toUpperCase() === 'L' ? 'L' : 'B';
+  const entries = (working && working.entries) || [];
+  let workingStamp = '';
+  for (const entry of entries){
+    const t = voyageLegEntryTime(entry);
+    if (t > workingStamp) workingStamp = t;
+  }
+  const onBest = !!(best && curVn === best.voyageNumber && curCond === best.condition && entries.length);
+  if (onBest || (entries.length && workingStamp && (!bestStamp || workingStamp >= bestStamp))){
+    return { action: 'keep', voyageNumber: curVn, condition: curCond };
+  }
+  if (!best) return { action: 'empty', voyageNumber: curVn, condition: curCond };
+  return { action: 'open', voyageNumber: best.voyageNumber, condition: best.condition };
+}
+
+/**
+ * Open this ship's current log, or the newest saved voyage leg when the
+ * working log is older or empty.
+ */
+async function loadLatestVoyageDataForActiveVessel(){
+  const vid = state.activeVesselId;
+  const curVn = (state.setup && state.setup.voyageNumber || '').trim();
+  const curCond = normalizeCondition(state.setup && state.setup.shipCondition);
+  if (!vid) return { loaded: 'empty', voyageNumber: curVn, condition: curCond, entryCount: 0 };
+  const choice = pickLatestVoyageLeg(await getVoyageLibraryIndex(vid), {
+    voyageNumber: curVn,
+    condition: curCond,
+    entries: state.entries
+  });
+  if (choice.action !== 'open'){
+    return {
+      loaded: choice.action === 'keep' ? 'working' : 'empty',
+      voyageNumber: choice.voyageNumber,
+      condition: choice.condition,
+      entryCount: state.entries.length
+    };
+  }
+  await activateVoyageLeg(vid, choice.voyageNumber, choice.condition);
+  render();
+  applyEntryDefaults();
+  prefillFromLastEntry();
+  renderSyncUi();
+  await renderVoyageLibrary();
+  return {
+    loaded: 'latest',
+    voyageNumber: choice.voyageNumber,
+    condition: choice.condition,
+    entryCount: state.entries.length
+  };
+}
+
+let chengAioLatestLoadBusy = false;
+async function runChengAioLatestLoad(vessel){
+  if (chengAioLatestLoadBusy) return null;
+  chengAioLatestLoadBusy = true;
+  try {
+    const switched = await syncActiveVesselFromChengAio(vessel);
+    if (vessel && switched === false){
+      return { loaded: 'empty', voyageNumber: '', condition: 'B', entryCount: 0 };
+    }
+    return await loadLatestVoyageDataForActiveVessel();
+  } finally {
+    chengAioLatestLoadBusy = false;
+  }
+}
+
 function installChengAioVesselSync(){
   if (!isChengAioEmbedded() || window._chengAioVesselSyncInstalled) return;
   window._chengAioVesselSyncInstalled = true;
   window.addEventListener('message', (ev) => {
     const msg = ev && ev.data;
-    if (!msg || msg.type !== 'chengaio-vessel-changed') return;
+    if (!msg) return;
+    if (msg.type === 'chengaio-load-vessel-data'){
+      runChengAioLatestLoad(msg.vessel).then((result) => {
+        /* null means a load is already in progress and that load reports. */
+        if (!result) return;
+        try {
+          window.parent.postMessage(Object.assign({
+            type: 'chengaio-vessel-data-loaded',
+            program: 'voyage'
+          }, result), '*');
+        } catch (_) {}
+      }).catch((err) => {
+        console.warn('AIO load vessel data:', err && err.message);
+        try {
+          window.parent.postMessage({
+            type: 'chengaio-vessel-data-loaded',
+            program: 'voyage',
+            loaded: 'error',
+            error: err && err.message
+          }, '*');
+        } catch (_) {}
+      });
+      return;
+    }
+    if (msg.type !== 'chengaio-vessel-changed') return;
+    /* Load vessel data performs its own switch. A parallel notice would open the ship twice. */
+    try { if (sessionStorage.getItem('chengAioLoadInProgress') === '1') return; } catch (_) {}
     syncActiveVesselFromChengAio(msg.vessel).catch((err) => {
       console.warn('AIO vessel sync:', err && err.message);
     });
@@ -35115,12 +35251,36 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
          and ?page=data is exactly how the AIO Backup screen opens this app. */
       applyConsumptionPlanVisibility();
       if (isChengAioEmbedded()) {
+        const wantLatest = /[?&]aioLoadLatest=1\b/.test(location.search || '')
+          || (function(){ try { return sessionStorage.getItem('chengAioLoadLatest') === '1'; } catch (_) { return false; } })();
         try { window.parent.postMessage({ type: 'chengaio-voyage-ready' }, '*'); } catch (_) {}
         try {
           installChengAioVesselSync();
-          await syncActiveVesselFromChengAio();
+          const switched = await syncActiveVesselFromChengAio();
+          if (wantLatest){
+            try { sessionStorage.removeItem('chengAioLoadLatest'); } catch (_) {}
+            const result = switched === false
+              ? { loaded: 'empty', voyageNumber: '', condition: 'B', entryCount: 0 }
+              : await loadLatestVoyageDataForActiveVessel();
+            try {
+              window.parent.postMessage(Object.assign({
+                type: 'chengaio-vessel-data-loaded',
+                program: 'voyage'
+              }, result || { loaded: 'empty', entryCount: 0 }), '*');
+            } catch (_) {}
+          }
         } catch (syncErr) {
           console.warn('AIO vessel sync on boot:', syncErr);
+          if (wantLatest){
+            try {
+              window.parent.postMessage({
+                type: 'chengaio-vessel-data-loaded',
+                program: 'voyage',
+                loaded: 'error',
+                error: syncErr && syncErr.message
+              }, '*');
+            } catch (_) {}
+          }
         }
       }
     } catch (_) {}

@@ -218,12 +218,14 @@ window.ChengProAboutGuide = (function () {
         'Fill Name and IMO. Add the Chief Engineer name if it should print on sheets.',
         'Press Create vessel the first time, or Save vessel after that.',
         'In Fleet register, press Activate on the ship you are standing. The top bar changes to that name.',
+        'Or choose the ship in the Vessel list in the top bar, then press Load vessel data. That opens its latest voyage log, its tank readings, and the notes and other records kept for that ship.',
         'Open Voyage or Tanks. The bar above the program shows the same ship.'
       ],
       buttons: [
         'Create vessel / Save vessel — writes the form to this device',
         'New vessel — clears the form so you can add another ship. It does not delete the current one',
         'Activate — makes that row the ship every program uses',
+        'Load vessel data — opens the ship chosen in the top bar: its latest voyage leg, tank readings, notes, and the other records for that ship',
         'Take photo / Sign on screen — the Chief Engineer signature stored under the name in the form',
         'Remove background now — drops a white paper background so the stamp or signature prints cleanly'
       ],
@@ -238,12 +240,13 @@ window.ChengProAboutGuide = (function () {
       purpose: 'Each ship keeps its own voyage log, voyage library, tanks, and spares. Only one ship is active at a time.',
       steps: [
         'Create the second ship with New vessel, then Create vessel.',
-        'Use the Active vessel list in the top bar, or Activate in the fleet register, before you open Voyage or Tanks.',
+        'Choose the ship in the Vessel list in the top bar, then press Load vessel data. Voyage Chief opens that ship’s latest saved voyage leg, Tank Chief opens its tank readings, and notes and the other records follow that ship.',
+        'Activate in the fleet register also makes that row the ship the suite is on.',
         'Check the ship name on the bar above Voyage or Tanks before you type a log or a sounding.'
       ],
       buttons: [
-        'Active vessel — switches the suite',
-        'Activate — the same switch from the fleet table'
+        'Load vessel data — loads the selected ship’s latest voyage, tanks, and other records into the suite',
+        'Activate — the same ship, from the fleet table'
       ],
       undo: [
         'If you logged an entry on the wrong ship, switch back to that ship, open Voyage, and use Delete Entry or the Deleted Entry Backup. See Fix a voyage mistake. Do not delete the vessel to undo one entry.'
