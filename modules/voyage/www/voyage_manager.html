@@ -13292,6 +13292,153 @@ function dcsReportCsvRows(rep){
   return rows;
 }
 
+/** PDF literal. Office punctuation is folded to ASCII so the file stays a real PDF on every save path. */
+function dcsPdfLiteral(value){
+  const folded = String(value == null ? '' : value)
+    .replace(/\u2014|\u2013|\u2212/g, '-')
+    .replace(/\u00b7/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[^\x20-\x7E]/g, '?');
+  return '(' + folded.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)') + ')';
+}
+
+function dcsPdfWrap(text, maxChars){
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  words.forEach(word => {
+    const next = cur ? cur + ' ' + word : word;
+    if (next.length > maxChars && cur){
+      lines.push(cur);
+      cur = word;
+    } else cur = next;
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** Assemble page content streams into one ASCII PDF. */
+function dcsAssemblePdf(pages){
+  const bodies = [null];
+  const add = (body) => { bodies.push(body); return bodies.length - 1; };
+  const catalogId = add('');
+  const pagesId = add('');
+  const kids = [];
+  pages.forEach(ops => {
+    const stream = 'BT\n' + ops.join('\n') + '\nET\n';
+    const contentId = add('<< /Length ' + stream.length + ' >>\nstream\n' + stream + 'endstream');
+    const pageId = add('');
+    kids.push({ pageId, contentId });
+  });
+  const regular = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const bold = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  bodies[catalogId] = '<< /Type /Catalog /Pages ' + pagesId + ' 0 R >>';
+  bodies[pagesId] = '<< /Type /Pages /Kids [' + kids.map(k => k.pageId + ' 0 R').join(' ') + '] /Count ' + kids.length + ' >>';
+  kids.forEach(k => {
+    bodies[k.pageId] = '<< /Type /Page /Parent ' + pagesId + ' 0 R /MediaBox [0 0 595 842] /Contents ' + k.contentId + ' 0 R /Resources << /Font << /F1 ' + regular + ' 0 R /F2 ' + bold + ' 0 R >> >> >>';
+  });
+  let out = '%PDF-1.4\n';
+  const offsets = [0];
+  for (let i = 1; i < bodies.length; i++){
+    offsets[i] = out.length;
+    out += i + ' 0 obj\n' + bodies[i] + '\nendobj\n';
+  }
+  const xref = out.length;
+  out += 'xref\n0 ' + bodies.length + '\n';
+  out += '0000000000 65535 f \n';
+  for (let i = 1; i < bodies.length; i++){
+    out += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+  out += 'trailer\n<< /Size ' + bodies.length + ' /Root ' + catalogId + ' 0 R >>\n';
+  out += 'startxref\n' + xref + '\n%%EOF\n';
+  return out;
+}
+
+/**
+ * The same compilation as a PDF the office can file or print.
+ * ASCII only, so Android and Windows save it through the same text path as the CSV.
+ */
+function dcsReportPdf(rep){
+  const opsPages = [[]];
+  let y = 800;
+  const page = () => opsPages[opsPages.length - 1];
+  function ensure(height){
+    if (y - height >= 46) return;
+    opsPages.push([]);
+    y = 800;
+  }
+  function draw(str, x, yy, size, font){
+    page().push(font + ' ' + size + ' Tf');
+    page().push('1 0 0 1 ' + x + ' ' + yy + ' Tm');
+    page().push(dcsPdfLiteral(str) + ' Tj');
+  }
+  function heading(str, size, gap){
+    ensure(gap);
+    draw(str, 40, y, size, '/F2');
+    y -= gap;
+  }
+  heading('IMO DCS / EU MRV compilation ' + rep.year, 16, 22);
+  heading(rep.particulars.shipName || 'Vessel', 12, 16);
+  ensure(14);
+  draw('For the office file. This is a compilation, not a submission.', 40, y, 9, '/F1');
+  y -= 18;
+
+  dcsReportCsvRows(rep).slice(1).forEach(row => {
+    const label = row[0] || '';
+    const value = row[1] == null ? '' : String(row[1]);
+    const unit = row[2] || '';
+    const note = row[3] || '';
+    if (!label && !value && !unit && !note){
+      y -= 6;
+      return;
+    }
+    const warn = label === 'GAP' || label === 'NOTE' || /PARTIAL/.test(note);
+    ensure(13);
+    draw(label, 40, y, 9, warn ? '/F2' : '/F1');
+    draw((value + (unit ? ' ' + unit : '')).trim(), 250, y, 9, '/F2');
+    y -= 12;
+    dcsPdfWrap(note, 100).forEach(line => {
+      ensure(11);
+      draw(line, 40, y, 8, '/F1');
+      y -= 11;
+    });
+  });
+
+  const count = opsPages.length;
+  opsPages.forEach((ops, index) => {
+    ops.push('/F1 8 Tf');
+    ops.push('1 0 0 1 40 28 Tm');
+    ops.push(dcsPdfLiteral('Page ' + (index + 1) + ' of ' + count) + ' Tj');
+  });
+  return dcsAssemblePdf(opsPages);
+}
+
+/** Printable sheets of the same compilation, one A4 page per slice. */
+function dcsReportPrintPages(rep){
+  const rows = dcsReportCsvRows(rep).slice(1).filter(row => row.some(cell => String(cell || '').trim()));
+  const slices = [];
+  const pageSize = 24;
+  for (let i = 0; i < rows.length; i += pageSize) slices.push(rows.slice(i, i + pageSize));
+  if (!slices.length) slices.push([]);
+  return slices.map((slice, index) => {
+    const body = slice.map(row => {
+      const warn = row[0] === 'GAP' || row[0] === 'NOTE' || /PARTIAL/.test(String(row[3] || ''));
+      return `<tr${warn ? ' style="font-weight:700"' : ''}>`
+        + `<td>${escPrint(row[0])}</td><td>${escPrint(row[1])}</td>`
+        + `<td>${escPrint(row[2])}</td><td>${escPrint(row[3])}</td></tr>`;
+    }).join('');
+    const banner = index === 0
+      ? `<h1 style="font-size:16px;margin:0 0 2mm">IMO DCS / EU MRV compilation ${escPrint(rep.year)}</h1>
+        <p style="margin:0 0 2mm">${escPrint(rep.particulars.shipName || 'Vessel')} · IMO ${escPrint(rep.particulars.imo || '-')}</p>
+        ${rep.partial ? `<p style="margin:0 0 2mm"><strong>Partial year.</strong> This device holds ${escPrint(rep.periodFrom)} to ${escPrint(rep.periodTo)}, not ${escPrint(rep.yearStart)} to ${escPrint(rep.yearEnd)}.</p>` : ''}
+        <p style="margin:0 0 3mm">For the office file. This is a compilation, not a submission.</p>`
+      : `<p style="margin:0 0 3mm">IMO DCS / EU MRV compilation ${escPrint(rep.year)} — continued</p>`;
+    return `<div class="pr-sheet pr-dense">${banner}
+      <table class="pr-table" style="width:100%"><thead><tr><th>Data item</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead>
+      <tbody>${body}</tbody></table></div>`;
+  });
+}
+
 /* ---- Running hours and maintenance ----------------------------------------
    The thing every Chief keeps in a separate notebook. Hours per unit against
    the intervals the maker set, and what that means for next week.
@@ -28995,7 +29142,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v340';
+let androidInstallCacheName = 'noon-report-v341';
 
 /*
  * What the program is called.
@@ -31867,6 +32014,20 @@ async function downloadCSV(filename, header, lines){
   setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch(_){} }, 10000);
   return '';
 }
+/** Same handover as the CSV, for the PDF the office prints or files. */
+async function downloadNamedFile(filename, text, mime){
+  if (window.ChengSaveFile){
+    const saved = await ChengSaveFile.saveJson(filename, text, { mime: mime || 'application/octet-stream' });
+    return ChengSaveFile.whereLabel(saved);
+  }
+  const blob = new Blob([text], { type: mime || 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch(_){} }, 10000);
+  return '';
+}
 document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
   const suggested = new Date().getUTCFullYear() - 1;   /* the year a verifier asks about */
   const answer = await askText({
@@ -31894,24 +32055,35 @@ document.getElementById('btnExportDcs')?.addEventListener('click', async ()=>{
       return;
     }
     const rows = dcsReportCsvRows(rep);
-    const savedWhere = await downloadCSV(`dcs-mrv-${rep.particulars.imo || 'vessel'}-${year}.csv`,
+    const fileBase = `dcs-mrv-${rep.particulars.imo || 'vessel'}-${year}`;
+    const savedWhere = await downloadCSV(`${fileBase}.csv`,
       rows[0].map(csvEscape), rows.slice(1).map(r => r.map(csvEscape)));
+    let pdfWhere = '';
+    try{
+      pdfWhere = await downloadNamedFile(`${fileBase}.pdf`, dcsReportPdf(rep), 'application/pdf');
+    }catch(err){
+      if (!(err && /cancel/i.test(String(err.message || err)))) throw err;
+    }
 
     const lines = [
-      savedWhere ? `Saved ${savedWhere}.` : 'CSV downloaded.',
+      savedWhere ? `CSV ${savedWhere}.` : 'CSV downloaded.',
+      pdfWhere ? `PDF ${pdfWhere}.` : 'PDF was not saved.',
       '',
       `${year}: ${rep.reports} reports across ${rep.legsUsed.length} voyage leg(s).`,
       `Distance ${fmt(rep.distanceNm, 2)} nm · under way ${fmt(rep.hoursUnderWay, 1)} hrs · fuel ${fmt(rep.fuelTotalMt, FUEL_DECIMALS)} MT · CO₂ ${rep.co2Tonnes == null ? '—' : fmt(rep.co2Tonnes, 2)} t`
     ];
     if (rep.partial){
       lines.push('', `⚠ PARTIAL YEAR. This device holds ${rep.periodFrom} to ${rep.periodTo}, not ${rep.yearStart} to ${rep.yearEnd}.`,
-        'The CSV says so too. Merge the missing legs from the other device before handing this over.');
+        'The CSV and the PDF say so too. Merge the missing legs from the other device before handing this over.');
     }
     if (rep.gaps.length){
       lines.push('', 'Still to fill in:', ...rep.gaps.map(g => '  • ' + g));
     }
     lines.push('', 'This is a compilation, not a submission: IMO DCS goes to the flag or an RO under a verified SEEMP Part II, EU MRV through an accredited verifier.');
+    lines.push('', 'The PDF is the copy to email the office or to print for the file. A print window follows this message.');
     alert(lines.join('\n'));
+    try{ printPortraitPages(dcsReportPrintPages(rep)); }
+    catch(err){ console.warn('DCS print', err); }
   }catch(e){
     console.error(e);
     alert('Could not compile the year: ' + e.message);
