@@ -9091,6 +9091,11 @@ function absorbOpenFlowmeterDialog(){
    a half-typed log or oil-record form with this ship until it is opened again. */
 async function preserveOpenWorkBeforeVesselSave(){
   absorbOpenFlowmeterDialog();
+  /* The consumption plan lives in the inputs until the debounced setup write.
+     A server check that reads the library before that timer fires would upload
+     the previous plan and then replace the screen with it. */
+  try { readBunkerPlanFromDom(); } catch (_) {}
+  try { clearTimeout(_bpSaveTimer); } catch (_) {}
   const vid = state.activeVesselId;
   const logSnap = {
     editingId: (typeof editingId !== 'undefined' ? editingId : null) || null,
@@ -23098,6 +23103,9 @@ async function saveOpenVoyageSummary({ close = true } = {}){
   }
   markPendingSync();
   render();
+  /* Save only used to leave the watch in the working set. The library copy is
+     what a server check compares, so the leg is filed here with the watch. */
+  try { await archiveActiveVoyageLeg(); } catch (err) { console.warn('Saving the voyage leg:', err && err.message); }
   if (!close) return entry;
   closeVoyageSummaryPanel();
   /* Reset next-watch distance/RPM bridges so the last summary does not leak into the new log entry */
@@ -23114,7 +23122,7 @@ async function saveOpenVoyageSummary({ close = true } = {}){
 
 document.getElementById('btnSaveVoyageSummary').addEventListener('click', async ()=>{
   const saved = await saveOpenVoyageSummary({ close: true });
-  if (saved) alert('Report saved — distance, RPM, consumption, freshwater, misc., and machinery data updated. Later entries recalculated.');
+  if (saved) alert('Report saved — distance, RPM, consumption, freshwater, misc., and machinery data updated. Later entries recalculated. This voyage leg is in the library, so a server update includes it.');
 });
 /* ---------------- print history (Log Entry) ---------------- */
 /* A saved print is the report line, as text, plus the sheet type. The stamp and
@@ -29173,7 +29181,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v341';
+let androidInstallCacheName = 'noon-report-v342';
 
 /*
  * What the program is called.
@@ -31042,13 +31050,15 @@ async function listLocalLegSummaries(){
   return [...byKey.values()];
 }
 
-/** Load one leg, or an empty working copy when it exists only on the server. */
+/** Load one leg, or an empty working copy when it exists only on the server.
+ *  The leg on screen is written into the library first. */
 async function openLegForReconcile(voyage, condition){
   const vid = state.activeVesselId;
   const vn = String(voyage || '').trim();
   const cond = normalizeCondition(condition);
+  await commitOpenWorkBeforeSync();
   try {
-    await activateVoyageLeg(vid, vn, cond, { persistCurrent: false });
+    await activateVoyageLeg(vid, vn, cond);
     return;
   } catch (e) {
     if (!/No .* records for voyage/i.test(String(e && e.message || ''))) throw e;
@@ -31122,8 +31132,15 @@ function adviseLegPair(local, remote){
   return { action: 'same', reason: 'Same entry count', checked: false };
 }
 
-/** Every local leg against every server leg. Does not write either side. */
+/** Write open forms and the working voyage leg before any server comparison. */
+async function commitOpenWorkBeforeSync(){
+  if (!state.activeVesselId) return;
+  await saveCurrentVesselState();
+}
+
+/** Every local leg against every server leg. The open voyage is filed first. */
 async function compareLocalAndServerLegs(){
+  await commitOpenWorkBeforeSync();
   const base = syncApiBase();
   if (!base) throw new Error('Enter a Sync Server URL first.');
   const localLegs = await listLocalLegSummaries();
@@ -31162,6 +31179,7 @@ async function compareLocalAndServerLegs(){
 
 /** The leg with the newest log entry. A higher voyage number breaks a tie. */
 async function openLatestVoyageLeg(){
+  await commitOpenWorkBeforeSync();
   const legs = await listVoyageLegsForVessel(state.activeVesselId);
   let best = null;
   for (const leg of legs){
@@ -31173,7 +31191,7 @@ async function openLatestVoyageLeg(){
     }
   }
   if (!best) return null;
-  await activateVoyageLeg(state.activeVesselId, best.leg.voyageNumber, best.leg.condition, { persistCurrent: false });
+  await activateVoyageLeg(state.activeVesselId, best.leg.voyageNumber, best.leg.condition);
   render();
   applyEntryDefaults();
   prefillFromLastEntry();
@@ -31220,7 +31238,7 @@ async function reconcileVoyageLegs(legs, opts){
     if (openLatest){
       try { opened = await openLatestVoyageLeg(); } catch (_) {}
     } else if (prevVn){
-      try { await activateVoyageLeg(state.activeVesselId, prevVn, prevCond, { persistCurrent: false }); }
+      try { await activateVoyageLeg(state.activeVesselId, prevVn, prevCond); }
       catch (_) {}
     }
   }
@@ -31303,6 +31321,7 @@ async function onVoyageBackupMessage(ev){
   }
   try {
     if (msg.action === 'export-db') {
+      await commitOpenWorkBeforeSync();
       const payload = await buildFullDatabaseBackup();
       const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
       reply({ payload, filename: `voyage-chief-db-backup_${stamp}.json` });
@@ -31319,6 +31338,7 @@ async function onVoyageBackupMessage(ev){
         if (v) vesselId = v.id;
       }
       if (!vesselId) throw new Error('No vessel selected in Voyage Chief');
+      await commitOpenWorkBeforeSync();
       const payload = await buildVesselExport(vesselId);
       const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
       reply({
@@ -31418,9 +31438,11 @@ async function onVoyageBackupMessage(ev){
         vessel,
       });
     } else if (msg.action === 'push-active') {
+      await commitOpenWorkBeforeSync();
       await syncNow({ policy: 'local' });
       reply({ message: 'Push completed. Server active leg was overwritten with this device’s data.' });
     } else if (msg.action === 'pull-active') {
+      await commitOpenWorkBeforeSync();
       await syncNow({ pullOnly: true, policy: 'remote' });
       reply({ message: 'Pull completed. Local active leg was overwritten with server data.' });
     } else if (msg.action === 'persist-merge') {
@@ -31601,7 +31623,7 @@ async function onVoyageBackupMessage(ev){
           if (localVessel.id !== state.activeVesselId) await switchVessel(localVessel.id);
           _syncSlugOverride = sanitizeSyncSlug(askedVessel) || vesselOwnSyncSlug(localVessel.id);
         }
-        await archiveActiveVoyageLeg();
+        await commitOpenWorkBeforeSync();
         state.setup.voyageNumber = voyage;
         state.setup.shipCondition = condition;
         await syncNow({ pullOnly: true, policy: 'merge' });
@@ -35113,7 +35135,7 @@ function installChengAioVesselSync(){
     const msg = ev && ev.data;
     if (!msg) return;
     if (msg.type === 'chengaio-flush-unsaved'){
-      saveCurrentVesselState().then(() => {
+      commitOpenWorkBeforeSync().then(() => {
         try {
           window.parent.postMessage({
             type: 'chengaio-unsaved-flushed',
