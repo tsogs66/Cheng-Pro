@@ -128,6 +128,24 @@ const rootAgain = store.getVesselBundle(id).bunkerHistory;
 is(rootAgain.plans.some((p) => p.id === 'plan-local'), true, 'the saved bunker plan survives the peer download');
 is(rootAgain.plans.some((p) => p.id === 'plan-peer'), true, 'the peer bunker plan is stored after download');
 
+const userRootOffice = path.join(dataDir, 'users', 'office');
+const officeOther = path.join(userRootOffice, 'vessels', 'office-flag');
+fs.mkdirSync(officeOther, { recursive: true });
+fs.writeFileSync(path.join(userRootOffice, 'vessels-index.json'), JSON.stringify({
+  vessels: [{ id: 'office-flag', name: 'MV Live Parts', imo: '' }],
+}));
+fs.writeFileSync(path.join(officeOther, 'vessel.json'), JSON.stringify({ id: 'office-flag', name: 'MV Live Parts' }));
+fs.writeFileSync(path.join(officeOther, 'meta.json'), JSON.stringify({ revision: 1 }));
+fs.writeFileSync(path.join(officeOther, 'report-history.json'), JSON.stringify([]));
+store.saveVesselPart(id, 'reportHistory', [{
+  id: 'mon-save',
+  savedAt: '2026-10-21T00:00:00.000Z',
+  reportType: 'Monitoring',
+  title: 'Monitoring',
+}]);
+const officeReports = JSON.parse(fs.readFileSync(path.join(officeOther, 'report-history.json'), 'utf8'));
+is(officeReports.some((r) => r.id === 'mon-save' && r.reportType === 'Monitoring'), true, 'saving a monitoring report reaches the office copy of the same ship');
+
 const roundTrip = store.exportBackup();
 const freshDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tank-live-restore-'));
 process.env.TMS_DATA_DIR = freshDir;

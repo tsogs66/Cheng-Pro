@@ -52,7 +52,12 @@ assert.match(backup, /function pushOpenShipTankReports/);
 assert.match(backup, /function ensureServerTankVessel/);
 assert.match(backup, /tankHullSame/);
 assert.match(backup, /uploaded with the open leg/);
+assert.match(backup, /chengaio-tank-saved-reports/);
+assert.match(backup, /const mergedIds = \[\]/);
 assert.doesNotMatch(backup, /openLatest: true/);
+const readReports = between(backup, 'function readOpenTankReports', 'async function pushReportBundleToServer');
+assert.match(readReports, /setTimeout\(finish, 8000\)/);
+assert.doesNotMatch(readReports, /setTimeout\(finish, 90000\)/);
 
 const checkVoyage = between(backup, "querySelector('#bk-check-voyage')", 'querySelector(\'#bk-check-tanks\')');
 assert.match(checkVoyage, /flushTankFrames/);
@@ -67,6 +72,12 @@ assert.match(bunker, /bs-save'\)\.onclick = \(\) => saveChainPart\([\s\S]{0,240}
 assert.match(bunker, /async function flushOpenForms[\s\S]{0,900}snapshot: true/);
 assert.match(app, /fileVoyageReportSnapshot/);
 assert.match(app, /fileTankSummarySnapshot/);
+assert.match(app, /async function persistVisibleSavedReports/);
+assert.match(app, /async function uploadVisibleReportsToServer/);
+const flushWork = between(app, 'async function flushUnsavedTankWork', 'window.flushUnsavedTankWork');
+assert.match(flushWork, /Api\.flushQueue/);
+assert.match(flushWork, /persistVisibleSavedReports/);
+assert.match(flushWork, /uploadVisibleReportsToServer/);
 assert.match(app, /showToast\('Voyage report saved'\)/);
 assert.match(app, /showToast\('Tank summary saved'\)/);
 assert.doesNotMatch(app, /showToast\('Draft saved'\)/);

@@ -1702,15 +1702,89 @@
         await gatewayTankApi(serverPath, { method: 'POST', body: JSON.stringify(localBundle) });
       }
 
+      function reportBundleHasRows(bundle) {
+        if (!bundle) return false;
+        const bunker = bundle.bunkerHistory || {};
+        const bunkerCount = (bunker.plans || []).length + (bunker.after || []).length + (bunker.summaries || []).length;
+        return !!((bundle.reportHistory || []).length
+          || (bundle.voyageHistory || []).length
+          || (bundle.tankSummaryHistory || []).length
+          || bunkerCount
+          || bundle.fuelReport);
+      }
+
+      function readOpenTankReports() {
+        const frames = [];
+        document.querySelectorAll('iframe').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0) return;
+            if (frame.contentWindow) frames.push(frame);
+          } catch (_) { /* ignore */ }
+        });
+        if (!frames.length) return Promise.resolve([]);
+        const nonce = 'reports-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        return new Promise((resolve) => {
+          const bundles = [];
+          const pending = new Set(frames);
+          const timer = setTimeout(finish, 8000);
+          function finish() {
+            clearTimeout(timer);
+            window.removeEventListener('message', onMsg);
+            resolve(bundles);
+          }
+          function onMsg(ev) {
+            const msg = ev && ev.data;
+            if (!msg || msg.type !== 'chengaio-tank-saved-reports' || msg.nonce !== nonce) return;
+            if (msg.bundle) bundles.push(msg.bundle);
+            pending.forEach((frame) => {
+              try { if (ev.source === frame.contentWindow) pending.delete(frame); } catch (_) { /* ignore */ }
+            });
+            if (!pending.size) finish();
+          }
+          window.addEventListener('message', onMsg);
+          frames.forEach((frame) => {
+            try { frame.contentWindow.postMessage({ type: 'chengaio-tank-saved-reports', nonce }, '*'); }
+            catch (_) { pending.delete(frame); }
+          });
+          if (!pending.size) finish();
+        });
+      }
+
+      async function pushReportBundleToServer(bundle, profile) {
+        const vessel = profile || bundle.vessel || {
+          id: bundle.vesselId,
+          name: bundle.name || '',
+          imo: bundle.imo || '',
+        };
+        if (!vessel.id && bundle.vesselId) vessel.id = bundle.vesselId;
+        if (!vessel.id) return false;
+        const serverHit = await ensureServerTankVessel(vessel);
+        await gatewayTankApi(
+          '/api/vessels/' + encodeURIComponent(serverHit.id) + '/saved-reports/merge',
+          { method: 'POST', body: JSON.stringify(bundle) },
+        );
+        return true;
+      }
+
       async function pushOpenShipTankReports() {
-        if (!usingLocalTank()) return '';
-        const active = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive()) || null;
-        if (!active) return '';
-        const localVessels = await listTankVesselIds('local');
-        const localHit = localVessels.find((v) => v.id === active.id || tankHullSame(v, active));
-        if (!localHit) return '';
-        const serverHit = await ensureServerTankVessel(localHit);
-        await mergeTankReportPair(localHit.id, serverHit.id);
+        let sent = 0;
+        const screenBundles = await readOpenTankReports();
+        for (const bundle of screenBundles) {
+          if (!reportBundleHasRows(bundle)) continue;
+          if (await pushReportBundleToServer(bundle)) sent += 1;
+        }
+        if (usingLocalTank() || canUseLocalTank()) {
+          let localVessels = [];
+          try { localVessels = await listTankVesselIds('local'); } catch (_) { localVessels = []; }
+          for (const local of localVessels) {
+            let localBundle = null;
+            try { localBundle = await readTankReportBundle('local', local.id); } catch (_) { localBundle = null; }
+            if (!reportBundleHasRows(localBundle)) continue;
+            if (await pushReportBundleToServer(localBundle, local)) sent += 1;
+          }
+        }
+        if (!sent) return '';
         return ' Saved tank reports, including monitoring, are on the server.';
       }
 
@@ -1939,6 +2013,7 @@
               seenShips.add(key);
               return true;
             });
+            const mergedIds = [];
             for (let i = 0; i < shipRows.length; i++) {
               const row = shipRows[i];
               const localId = row.localVesselId || row.vesselId;
@@ -1952,9 +2027,13 @@
                 serverId = server.id;
               }
               await mergeTankReportPair(localId, serverId);
+              mergedIds.push(serverId);
             }
-            const sounded = await loadLatestSounding(vesselIds, true);
-            const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}`;
+            let screenNote = '';
+            try { screenNote = await pushOpenShipTankReports(); }
+            catch (err) { screenNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
+            const sounded = await loadLatestSounding(mergedIds, true);
+            const line = `Saved reports merged for ${mergedIds.length} vessel${mergedIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}${screenNote}`;
             setConsistency(line);
             setConsistencySummary('updated');
             toast('Saved reports merged');

@@ -50,6 +50,9 @@ assert.match(html, /aioVessel/);
 assert.match(html, /nonce: msg\.nonce/);
 assert.match(tank, /chengaio-load-vessel-data/);
 assert.match(tank, /chengaio-flush-unsaved/);
+assert.match(tank, /chengaio-tank-saved-reports/);
+assert.match(tank, /typeof STATE !== 'undefined'/);
+assert.doesNotMatch(tank, /window\.STATE && STATE\.bundle/);
 assert.match(tank, /flushUnsavedTankWork/);
 assert.match(tank, /pendingForceReload/);
 

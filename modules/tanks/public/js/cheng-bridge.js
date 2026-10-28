@@ -172,6 +172,56 @@
     window.addEventListener('message', (ev) => {
       const msg = ev && ev.data;
       if (!msg) return;
+      if (msg.type === 'chengaio-tank-saved-reports') {
+        const run = (async () => {
+          const state = typeof STATE !== 'undefined' ? STATE : null;
+          const b = (state && state.bundle) || {};
+          const vessel = b.vessel || {};
+          const bunker = b.bunkerHistory && typeof b.bunkerHistory === 'object' ? b.bunkerHistory : {};
+          return {
+            vesselId: (state && state.activeVesselId) || vessel.id || '',
+            name: vessel.name || '',
+            imo: vessel.imo || vessel.imoNo || '',
+            vessel: {
+              id: (state && state.activeVesselId) || vessel.id || '',
+              name: vessel.name || '',
+              imo: vessel.imo || vessel.imoNo || '',
+            },
+            reportHistory: Array.isArray(b.reportHistory) ? b.reportHistory : [],
+            voyageHistory: Array.isArray(b.voyageHistory) ? b.voyageHistory : [],
+            tankSummaryHistory: Array.isArray(b.tankSummaryHistory) ? b.tankSummaryHistory : [],
+            bunkerHistory: {
+              plans: Array.isArray(bunker.plans) ? bunker.plans : [],
+              after: Array.isArray(bunker.after) ? bunker.after : [],
+              summaries: Array.isArray(bunker.summaries) ? bunker.summaries : [],
+            },
+            readings: b.readings && typeof b.readings === 'object' ? b.readings : {},
+            fuelReport: b.fuelReport || null,
+            tankSummaryDraft: b.tankSummaryDraft || null,
+            bunkerPlan: b.bunkerPlan || null,
+            bunkerAfter: b.bunkerAfter || null,
+            bunkerSummary: b.bunkerSummary || null,
+          };
+        })();
+        Promise.resolve(run).then((bundle) => {
+          try {
+            window.parent.postMessage({
+              type: 'chengaio-tank-saved-reports',
+              nonce: msg.nonce || '',
+              bundle,
+            }, '*');
+          } catch { /* ignore */ }
+        }).catch((err) => {
+          try {
+            window.parent.postMessage({
+              type: 'chengaio-tank-saved-reports',
+              nonce: msg.nonce || '',
+              error: err && err.message,
+            }, '*');
+          } catch { /* ignore */ }
+        });
+        return;
+      }
       if (msg.type === 'chengaio-flush-unsaved') {
         const run = typeof window.flushUnsavedTankWork === 'function'
           ? window.flushUnsavedTankWork()
