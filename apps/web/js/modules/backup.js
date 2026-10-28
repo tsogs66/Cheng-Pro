@@ -1448,16 +1448,16 @@
         });
       }
 
-      /* Write the open sounding, the monitoring sheet and the bunker drafts
-         before a backup or a sync reads the database. The tank page answers
-         chengaio-flush-unsaved. If that page is not open there is nothing
-         in memory to write, and the wait ends. */
+      /* Write the open sounding, the monitoring sheet, bunker drafts and the
+         open voyage leg before a backup or a sync reads the database. Tank
+         Chief and Voyage Chief answer chengaio-flush-unsaved. If that page
+         is not open there is nothing in memory to write, and the wait ends. */
       function flushTankFrames() {
         const frames = [];
         document.querySelectorAll('iframe').forEach((frame) => {
           try {
             const src = frame.getAttribute('src') || '';
-            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0) return;
+            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0 && src.indexOf('/voyage') < 0 && src.indexOf('voyage_manager') < 0) return;
             if (frame.contentWindow) frames.push(frame);
           } catch (_) { /* ignore */ }
         });
@@ -1465,7 +1465,7 @@
         const nonce = 'flush-' + Date.now() + '-' + Math.random().toString(36).slice(2);
         return new Promise((resolve) => {
           const pending = new Set(frames);
-          const timer = setTimeout(finish, 4000);
+          const timer = setTimeout(finish, 90000);
           function finish() {
             clearTimeout(timer);
             window.removeEventListener('message', onMsg);
@@ -1582,7 +1582,8 @@
 
       root.querySelector('#bk-check-voyage').onclick = async () => {
         try {
-          await withProgress('Comparing voyage legs…', 'Reading this device…', async () => {
+          await withProgress('Comparing voyage legs…', 'Writing the open voyage leg…', async () => {
+            await flushTankFrames();
             const plan = await refreshVoyageConsistency();
             const differ = (plan.rows || []).filter((row) => row.action !== 'same').length;
             return differ
