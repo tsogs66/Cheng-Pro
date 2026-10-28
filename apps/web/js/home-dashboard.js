@@ -975,9 +975,13 @@
     const role = tankRoleOf(tank);
     const meaning = (typeof TankGraphics !== 'undefined' && TankGraphics.ROLE_MEANING && TankGraphics.ROLE_MEANING[role]) || role;
     const moved = reportMeta && (reportMeta.row.moved || reportMeta.row.sectionMismatch);
+    const carried = reportMeta && reportMeta.row ? reportMeta.row.fuelType : '';
+    const drawTank = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.withIdentity === 'function')
+      ? TankGraphics.withIdentity(tank, carried)
+      : tank;
     const content = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.contentLabel === 'function')
-      ? TankGraphics.contentLabel(tank)
-      : (reportMeta && reportMeta.distillate ? 'MGO' : 'HFO');
+      ? TankGraphics.contentLabel(drawTank)
+      : (carried === 'lsmgo' ? 'LSMGO' : (reportMeta && reportMeta.distillate ? 'MGO' : 'HFO'));
     const details = {
       grade: content,
       pct: pct != null ? Math.round(pct) + '%' : '—',
@@ -986,7 +990,7 @@
       temp: r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + '°C' : '',
     };
     const svg = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.tankSvg === 'function')
-      ? TankGraphics.tankSvg(tank, pct, { safeFill: 85, details })
+      ? TankGraphics.tankSvg(drawTank, pct, { safeFill: 85, details })
       : '';
     const grip = rearrange
       ? '<span class="tg-card-grip" title="Drag to move" aria-hidden="true">⋮⋮</span>'
