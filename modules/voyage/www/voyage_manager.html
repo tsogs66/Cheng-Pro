@@ -5079,7 +5079,7 @@ html.astrolabe body::before { opacity: 0.26; }
       </div>
       <div class="hint" id="syncMetaLine">Last sync: never</div>
       <div id="remoteVoyageList" class="hint" style="display:none; margin-top:8px;"></div>
-      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Two-way sync</strong> compares every voyage leg. Tick the ones both databases should hold — a leg that exists on only one side is copied across, and a leg on both sides keeps the newer watch. Nothing is deleted. The latest leg opens when the merge finishes.</div>
+      <div class="hint"><strong>Push Active Leg</strong> uploads this device’s active voyage+condition and <em>overwrites</em> the same leg on the server if it already exists. <strong>Pull Active Leg</strong> downloads that leg from the server and <em>overwrites</em> the local active leg. <strong>Two-way sync</strong> compares every voyage leg. Tick the ones both databases should hold — a leg that exists on only one side is copied across, and a leg on both sides keeps the newer watch. Nothing is deleted. The voyage you have open is saved and sent too, and it stays on screen.</div>
       <div class="hint">Server folders: <code>data/&lt;vessel&gt;/&lt;voyageNo&gt;/B.json</code> and <code>…/L.json</code> (B = ballast, L = laden).</div>
     </div>
 
@@ -27910,6 +27910,7 @@ function renderSyncUi(){
 }
 
 function buildSyncPayload(openDraft){
+  try { applyVesselMiscCarry(); } catch (_) {}
   const sync = ensureSyncConfig();
   const voyage = voyageSyncKey();
   const condition = voyageConditionKey();
@@ -28161,7 +28162,106 @@ function mergeMiscVesselData(setup, localSetup, remoteSetup, deleted, chosenIsRe
     const other = chosenIsRemote ? (localSetup || {}) : (remoteSetup || {});
     mergeOrbTanks(setup.orb, other.orb, deleted);
   }
+  /* The plan being drafted is one object. Keep the copy that was edited later,
+     so a newer setup stamp on the other side cannot drop this ship's plan. */
+  const plan = newerMiscDoc((localSetup || {}).bunkerPlan, (remoteSetup || {}).bunkerPlan);
+  if (plan) setup.bunkerPlan = plan;
   return setup;
+}
+
+function newerMiscDoc(a, b){
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return (b && typeof b === 'object' && !Array.isArray(b)) ? b : null;
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return a;
+  const ta = String(a.updatedAt || a.savedAt || '');
+  const tb = String(b.updatedAt || b.savedAt || '');
+  return ta >= tb ? a : b;
+}
+
+/* The ship's miscellaneous lists at the moment a database sync starts, and the
+   records on the leg being uploaded. Switching to another leg must not drop
+   them, and a newer setup on the server must not throw the open leg away. */
+let vesselMiscCarry = null;
+let legSyncHold = null;
+
+function rememberVesselMiscForSync(){
+  const setup = state.setup || {};
+  vesselMiscCarry = {
+    requisitions: Array.isArray(setup.requisitions) ? setup.requisitions.slice() : [],
+    bunkerPlanHistory: Array.isArray(setup.bunkerPlanHistory) ? setup.bunkerPlanHistory.slice() : [],
+    bunkerPlan: setup.bunkerPlan && typeof setup.bunkerPlan === 'object' ? setup.bunkerPlan : null,
+    orb: setup.orb && typeof setup.orb === 'object' ? setup.orb : null,
+    orbEntries: (state.orbEntries || []).slice(),
+  };
+}
+
+function applyVesselMiscCarry(){
+  if (!vesselMiscCarry || !state.setup) return;
+  const deleted = (typeof ensureSyncConfig === 'function' ? (ensureSyncConfig().deletedIds || {}) : {});
+  mergeMiscVesselData(state.setup, {
+    requisitions: vesselMiscCarry.requisitions,
+    bunkerPlanHistory: vesselMiscCarry.bunkerPlanHistory,
+    bunkerPlan: vesselMiscCarry.bunkerPlan,
+    orb: vesselMiscCarry.orb,
+  }, state.setup, deleted, false);
+  if (vesselMiscCarry.orbEntries && vesselMiscCarry.orbEntries.length){
+    const gone = new Set(deleted.orbEntries || []);
+    const kept = vesselMiscCarry.orbEntries.filter((row) => row && row.id && !gone.has(row.id));
+    state.orbEntries = mergeListsById(kept, state.orbEntries || []);
+  }
+}
+
+function takeLegSyncHold(){
+  const vn = (state.setup && state.setup.voyageNumber || '').trim();
+  const cond = normalizeCondition(state.setup && state.setup.shipCondition);
+  const entries = (state.entries || []).filter((entry) => {
+    if (!entry) return false;
+    const eVn = String(entry.voyageNumber || '').trim();
+    if (!eVn || !vn) return true;
+    const eCond = normalizeCondition(entry.condition != null && entry.condition !== '' ? entry.condition : cond);
+    return eVn === vn && eCond === cond;
+  });
+  legSyncHold = {
+    voyageNumber: vn,
+    condition: cond,
+    entries,
+    receipts: (state.receipts || []).slice(),
+    documents: (state.documents || []).slice(),
+    abstracts: (state.abstracts || []).slice(),
+    printHistory: (state.printHistory || []).slice(),
+    orbEntries: (state.orbEntries || []).slice(),
+  };
+}
+
+function restoreHeldLegRecords(){
+  const hold = legSyncHold;
+  if (!hold || !state.setup) return;
+  if (hold.voyageNumber){
+    state.setup.voyageNumber = hold.voyageNumber;
+    state.setup.shipCondition = hold.condition;
+  }
+  const deleted = (typeof ensureSyncConfig === 'function' ? (ensureSyncConfig().deletedIds || {}) : {});
+  const putBack = (key, tombKey) => {
+    const dead = new Set(deleted[tombKey] || []);
+    const have = new Set((state[key] || []).map((row) => row && row.id).filter(Boolean));
+    for (const row of hold[key] || []){
+      if (!row || !row.id || dead.has(row.id) || have.has(row.id)) continue;
+      if (key === 'entries'){
+        const eVn = String(row.voyageNumber || '').trim();
+        const eCond = normalizeCondition(row.condition != null && row.condition !== '' ? row.condition : hold.condition);
+        if (eVn && hold.voyageNumber && (eVn !== hold.voyageNumber || eCond !== hold.condition)) continue;
+      }
+      state[key].push(row);
+      have.add(row.id);
+    }
+  };
+  putBack('entries', 'entries');
+  putBack('receipts', 'receipts');
+  putBack('documents', 'documents');
+  putBack('abstracts', 'abstracts');
+  putBack('printHistory', 'printHistory');
+  putBack('orbEntries', 'orbEntries');
+  state.entries = (state.entries || []).slice().sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+  applyVesselMiscCarry();
 }
 
 /** What this device holds, for the backup page to report. */
@@ -28353,6 +28453,12 @@ function applyRemoteSnapshot(remote, policy){
   const deleted = mergeDeletedIds(localSync.deletedIds, remoteData.deletedIds);
   /* The chosen setup is one side's; its miscellaneous lists must be both. */
   mergeMiscVesselData(state.setup, localSetup, remoteSetup, deleted, chosen === remoteSetup);
+  /* A newer setup on the server used to replace the voyage number, and the
+     filter below then threw away every entry of the leg being synced. */
+  if (legSyncHold && legSyncHold.voyageNumber && state.setup){
+    state.setup.voyageNumber = legSyncHold.voyageNumber;
+    state.setup.shipCondition = legSyncHold.condition;
+  }
   state.entries = dedupeEntriesByContent(
     filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
     deleted
@@ -28376,6 +28482,7 @@ function applyRemoteSnapshot(remote, policy){
   }
   /* Chronological order for two-way sync / merge reviews. */
   state.entries = (state.entries || []).slice().sort((a,b)=> String(a.datetime||'').localeCompare(String(b.datetime||'')));
+  restoreHeldLegRecords();
 }
 
 function filterDeleted(items, deleted){
@@ -28644,6 +28751,9 @@ async function syncNow(options = {}){
     const headers = syncRequestHeaders({ 'Content-Type': 'application/json' });
     const legUrl = `${base}/api/voyage/${encodeURIComponent(vessel)}/${encodeURIComponent(voyage)}/${encodeURIComponent(condition)}`;
     const legLabel = `${voyage} ${condition}`;
+    /* Snapshot this leg before the pull. The merge keeps these records if the
+       server copy would otherwise replace them. */
+    takeLegSyncHold();
 
     const sessionKey = legUploadSessionKey(vessel, voyage, condition);
     const pieceGroup = legUploadPieceGroup(sessionKey);
@@ -28801,7 +28911,7 @@ async function syncNow(options = {}){
     sync.lastSyncError = err.message || String(err);
     renderSyncUi();
     throw err;
-  }).finally(()=>{ syncInFlight = null; });
+  }).finally(()=>{ syncInFlight = null; legSyncHold = null; });
 
   return syncInFlight;
 }
@@ -29081,10 +29191,11 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
       const serverNos = [...new Set(compared.rows.filter((row) => row.remoteEntryCount != null).map((row) => row.voyage))];
       const needs = renderPersistPicker(compared);
       if (!needs){
-        const opened = await openLatestVoyageLeg();
+        const outcome = await reconcileVoyageLegs([], { openLatest: false });
+        const opened = outcome && outcome.opened;
         const line = opened
-          ? `Both databases already have the same voyage legs. Voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is now open.`
-          : 'Both databases already have the same voyage legs.';
+          ? `The open voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is saved and on the server. It stays open.`
+          : 'Both databases already have the same voyage legs. The voyage you have open stays open.';
         if (meta) meta.textContent = line;
         alert(line);
         return;
@@ -29110,7 +29221,7 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
       'KEEP DATA PERSISTENT\n\n' +
       'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n' +
       lines +
-      '\n\nThe latest leg opens when this finishes. Continue?'
+      '\n\nThe voyage you have open is saved and sent as well, and it stays open. Continue?'
     )) return;
     const outcome = await withActivity('reconcile-legs', 'Updating voyage legs with the server…', () => {
       return reconcileVoyageLegs(picked, { openLatest: true });
@@ -29181,7 +29292,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v342';
+let androidInstallCacheName = 'noon-report-v343';
 
 /*
  * What the program is called.
@@ -31207,12 +31318,21 @@ async function openLatestVoyageLeg(){
 /**
  * Merge each named leg with the same leg on the server.
  * The server keeps the newer copy of a watch and does not drop records that
- * exist on only one side. Pass openLatest to leave the newest leg on screen.
+ * exist on only one side. The leg that was open stays open. openLatest is
+ * used only when no voyage was open.
  */
 async function reconcileVoyageLegs(legs, opts){
-  const list = (legs || []).filter((leg) => leg && String(leg.voyage || leg.voyageNumber || '').trim());
+  await commitOpenWorkBeforeSync();
+  rememberVesselMiscForSync();
   const prevVn = (state.setup.voyageNumber || '').trim();
   const prevCond = normalizeCondition(state.setup.shipCondition);
+  const list = (legs || []).filter((leg) => leg && String(leg.voyage || leg.voyageNumber || '').trim());
+  /* The leg on screen is always part of the sync, even when its log count
+     already matches, so the entry just saved and the miscellaneous lists go up. */
+  if (prevVn && !list.some((leg) => String(leg.voyage || leg.voyageNumber || '').trim() === prevVn
+      && normalizeCondition(leg.condition) === prevCond)){
+    list.unshift({ voyage: prevVn, condition: prevCond });
+  }
   const openLatest = !!(opts && opts.openLatest);
   const results = [];
   let opened = null;
@@ -31235,11 +31355,24 @@ async function reconcileVoyageLegs(legs, opts){
       results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
     }
   } finally {
-    if (openLatest){
-      try { opened = await openLatestVoyageLeg(); } catch (_) {}
-    } else if (prevVn){
-      try { await activateVoyageLeg(state.activeVesselId, prevVn, prevCond); }
-      catch (_) {}
+    try {
+      if (prevVn){
+        try {
+          await activateVoyageLeg(state.activeVesselId, prevVn, prevCond);
+          applyVesselMiscCarry();
+          await archiveActiveVoyageLeg();
+          try { await restoreOpenWorkDraft(state.activeVesselId); } catch (_) {}
+          opened = {
+            voyage: prevVn,
+            condition: prevCond,
+            entryCount: (state.entries || []).length,
+          };
+        } catch (_) {}
+      } else if (openLatest){
+        try { opened = await openLatestVoyageLeg(); } catch (_) {}
+      }
+    } finally {
+      vesselMiscCarry = null;
     }
   }
   return { results, opened };

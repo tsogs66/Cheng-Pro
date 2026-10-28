@@ -2739,9 +2739,22 @@ def apply_misc_to_setup(chosen, other, deleted) -> dict:
         out["orb"] = orb
     elif other_orb:
         out["orb"] = copy.deepcopy(other_orb)
-    if not isinstance(out.get("bunkerPlan"), dict) and isinstance(other.get("bunkerPlan"), dict):
-        out["bunkerPlan"] = copy.deepcopy(other["bunkerPlan"])
+    # The plan being drafted is one object. A newer setup stamp must not keep
+    # an older plan and drop the one edited on this device.
+    plan = _newer_misc_doc(out.get("bunkerPlan"), other.get("bunkerPlan"))
+    if isinstance(plan, dict):
+        out["bunkerPlan"] = plan
     return out
+
+
+def _newer_misc_doc(a, b):
+    if not isinstance(a, dict):
+        return copy.deepcopy(b) if isinstance(b, dict) else None
+    if not isinstance(b, dict):
+        return a
+    ta = str(a.get("updatedAt") or a.get("savedAt") or "")
+    tb = str(b.get("updatedAt") or b.get("savedAt") or "")
+    return a if ta >= tb else copy.deepcopy(b)
 
 
 def merge_open_work_draft(server_doc, client_doc):
