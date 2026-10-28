@@ -71,6 +71,7 @@ vm.runInContext([
   extract('mergeOrbTanks'),
   extract('miscRowTs'),
   extract('mergeMiscList'),
+  extract('newerMiscDoc'),
   extract('mergeMiscVesselData'),
   extract('miscVesselDataCounts'),
   extract('mergeDeletedIds'),
@@ -97,6 +98,19 @@ check('a requisition raised only on this device survives the merge',
   ids(chosen.requisitions).sort(), ['rq_a', 'rq_b', 'rq_c']);
 check('and is not duplicated where both sides hold it',
   chosen.requisitions.filter((r) => r.id === 'rq_a').length, 1);
+
+/* The working consumption plan is one object. A newer setup stamp on the
+   other side must not keep the older plan. */
+const planChosen = { bunkerPlan: { voyageNo: '08', updatedAt: '2026-10-01T00:00:00Z' } };
+mergeMiscVesselData(
+  planChosen,
+  { bunkerPlan: { voyageNo: '12', updatedAt: '2026-10-08T00:00:00Z' } },
+  { bunkerPlan: { voyageNo: '08', updatedAt: '2026-10-01T00:00:00Z' } },
+  {},
+  true,
+);
+check('a newer consumption plan is kept when the other setup stamp won',
+  planChosen.bunkerPlan.voyageNo, '12');
 
 /* ---- newest edit per row wins ----------------------------------------- */
 
