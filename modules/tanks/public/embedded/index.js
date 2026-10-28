@@ -442,7 +442,27 @@ function savedReportsOf(bundle) {
       after: bunker.after || [],
       summaries: bunker.summaries || [],
     },
+    readings: (bundle && bundle.readings) || {},
+    fuelReport: bundle.fuelReport || null,
+    tankSummaryDraft: bundle.tankSummaryDraft || null,
+    bunkerPlan: bundle.bunkerPlan || null,
+    bunkerAfter: bundle.bunkerAfter || null,
+    bunkerSummary: bundle.bunkerSummary || null,
   };
+}
+
+function readingBrief(readings) {
+  if (!readings || typeof readings !== 'object' || Array.isArray(readings)) return [];
+  return Object.keys(readings).map((id) => {
+    const reading = readings[id];
+    if (!reading || typeof reading !== 'object') return null;
+    return { id: String(id), savedAt: savedReportStamp(reading), label: String(id) };
+  }).filter(Boolean);
+}
+
+function draftBrief(doc, id, label) {
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc) || !Object.keys(doc).length) return [];
+  return [{ id, savedAt: savedReportStamp(doc), label: label || id }];
 }
 
 /** Fuel-oil, voyage-print, tank-summary and bunker reports for one vessel. */
@@ -461,6 +481,12 @@ app.get('/api/vessels/:id/saved-reports', (req, res) => {
         bunkerPlans: briefSavedList(reports.bunkerHistory.plans),
         bunkerAfter: briefSavedList(reports.bunkerHistory.after),
         bunkerSummaries: briefSavedList(reports.bunkerHistory.summaries),
+        readings: readingBrief(reports.readings),
+        fuelReport: draftBrief(reports.fuelReport, 'fuelReport', 'Sounding sheet'),
+        tankSummaryDraft: draftBrief(reports.tankSummaryDraft, 'tankSummaryDraft', 'Tank summary draft'),
+        bunkerPlan: draftBrief(reports.bunkerPlan, 'bunkerPlan', 'Bunker plan draft'),
+        bunkerAfterDraft: draftBrief(reports.bunkerAfter, 'bunkerAfter', 'Bunker delivery draft'),
+        bunkerSummary: draftBrief(reports.bunkerSummary, 'bunkerSummary', 'Bunker summary draft'),
       },
     });
   } catch (e) {
@@ -469,8 +495,10 @@ app.get('/api/vessels/:id/saved-reports', (req, res) => {
 });
 
 /**
- * Union saved reports into this vessel. A report id that exists on both sides
- * keeps the newer savedAt. Reports that exist on only one side are kept.
+ * Union saved reports, live tank gaugings and open drafts into this vessel.
+ * A report id or a tank that exists on both sides keeps the newer stamp.
+ * A record that exists on only one side is kept. A blank draft does not
+ * erase a draft the vessel already holds.
  * This does not replace tanks, calibrations or the rest of the vessel.
  */
 app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
@@ -491,6 +519,15 @@ app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
       });
       counts.bunkerHistory = ['plans', 'after', 'summaries']
         .reduce((n, key) => n + ((merged && merged[key] && merged[key].length) || 0), 0);
+    }
+    if (body.readings && typeof body.readings === 'object' && !Array.isArray(body.readings)) {
+      const merged = store.saveVesselPart(id, 'readings', body.readings);
+      counts.readings = merged && typeof merged === 'object' ? Object.keys(merged).length : 0;
+    }
+    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary']) {
+      if (body[part] == null) continue;
+      store.saveVesselPart(id, part, body[part]);
+      counts[part] = 1;
     }
     res.json({ ok: true, counts });
   } catch (e) {
@@ -1758,6 +1795,12 @@ function reportRowsForVessel(localBundle, peerBundle) {
     ['Bunker plans', local.bunkerHistory.plans, peer.bunkerHistory.plans],
     ['Bunker delivery reports', local.bunkerHistory.after, peer.bunkerHistory.after],
     ['Bunker summaries', local.bunkerHistory.summaries, peer.bunkerHistory.summaries],
+    ['Tank gaugings', readingBrief(local.readings), readingBrief(peer.readings)],
+    ['Sounding sheet', draftBrief(local.fuelReport, 'fuelReport', 'Sounding sheet'), draftBrief(peer.fuelReport, 'fuelReport', 'Sounding sheet')],
+    ['Tank summary draft', draftBrief(local.tankSummaryDraft, 'tankSummaryDraft', 'Tank summary draft'), draftBrief(peer.tankSummaryDraft, 'tankSummaryDraft', 'Tank summary draft')],
+    ['Bunker plan draft', draftBrief(local.bunkerPlan, 'bunkerPlan', 'Bunker plan draft'), draftBrief(peer.bunkerPlan, 'bunkerPlan', 'Bunker plan draft')],
+    ['Bunker delivery draft', draftBrief(local.bunkerAfter, 'bunkerAfter', 'Bunker delivery draft'), draftBrief(peer.bunkerAfter, 'bunkerAfter', 'Bunker delivery draft')],
+    ['Bunker summary draft', draftBrief(local.bunkerSummary, 'bunkerSummary', 'Bunker summary draft'), draftBrief(peer.bunkerSummary, 'bunkerSummary', 'Bunker summary draft')],
   ];
   return groups.map(([title, here, there]) => {
     const a = new Map(briefSavedList(here).map((row) => [row.id, row]));
@@ -1852,6 +1895,10 @@ app.post('/api/sync/saved-reports/merge', asyncHandler(async (req, res) => {
     store.saveVesselPart(id, 'voyageHistory', peerReports.voyageHistory);
     store.saveVesselPart(id, 'tankSummaryHistory', peerReports.tankSummaryHistory);
     store.saveVesselPart(id, 'bunkerHistory', peerReports.bunkerHistory);
+    store.saveVesselPart(id, 'readings', peerReports.readings || {});
+    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary']) {
+      if (peerReports[part]) store.saveVesselPart(id, part, peerReports[part]);
+    }
     let peerUpdated = false;
     let peerNote = '';
     try {

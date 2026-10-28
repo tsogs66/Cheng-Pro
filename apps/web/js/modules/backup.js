@@ -839,6 +839,7 @@
         try {
           await withProgress('Exporting the entire program…', 'Reading Tank Chief…', async () => {
             setSuite('Collecting Tank + Voyage databases…');
+            await flushTankFrames();
             let tankBackup = null;
             let tankError = null;
             try {
@@ -1117,6 +1118,7 @@
         try {
           await withProgress('Downloading Tank Chief…', `Reading tanks from ${tankSourceLabel()}…`, async () => {
             setTank(`Preparing Tank backup from ${tankSourceLabel()}…`);
+            await flushTankFrames();
             const backup = await tankBackupGet('/api/backup', (pct) => {
               progressSet(slicePct(6, 82, pct), `Reading Tank Chief from ${tankSourceLabel()}…`);
             });
@@ -1169,6 +1171,7 @@
         try {
           await withProgress('Exporting the active tank vessel…', `Reading ${active.name}…`, async () => {
             setTank('Exporting active vessel…');
+            await flushTankFrames();
             const backup = await tankBackupGet('/api/vessels/' + encodeURIComponent(active.id) + '/backup', (pct) => {
               progressSet(slicePct(6, 82, pct), `Reading ${active.name}…`);
             });
@@ -1445,6 +1448,46 @@
         });
       }
 
+      /* Write the open sounding, the monitoring sheet and the bunker drafts
+         before a backup or a sync reads the database. The tank page answers
+         chengaio-flush-unsaved. If that page is not open there is nothing
+         in memory to write, and the wait ends. */
+      function flushTankFrames() {
+        const frames = [];
+        document.querySelectorAll('iframe').forEach((frame) => {
+          try {
+            const src = frame.getAttribute('src') || '';
+            if (src.indexOf('/tanks') < 0 && src.indexOf('tank') < 0) return;
+            if (frame.contentWindow) frames.push(frame);
+          } catch (_) { /* ignore */ }
+        });
+        if (!frames.length) return Promise.resolve();
+        const nonce = 'flush-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        return new Promise((resolve) => {
+          const pending = new Set(frames);
+          const timer = setTimeout(finish, 4000);
+          function finish() {
+            clearTimeout(timer);
+            window.removeEventListener('message', onMsg);
+            resolve();
+          }
+          function onMsg(ev) {
+            const msg = ev && ev.data;
+            if (!msg || msg.type !== 'chengaio-unsaved-flushed' || msg.nonce !== nonce) return;
+            pending.forEach((frame) => {
+              try { if (ev.source === frame.contentWindow) pending.delete(frame); } catch (_) { /* ignore */ }
+            });
+            if (!pending.size) finish();
+          }
+          window.addEventListener('message', onMsg);
+          frames.forEach((frame) => {
+            try { frame.contentWindow.postMessage({ type: 'chengaio-flush-unsaved', nonce }, '*'); }
+            catch (_) { pending.delete(frame); }
+          });
+          if (!pending.size) finish();
+        });
+      }
+
       async function loadLatestSounding(vesselIds, bothSides) {
         const ids = [...new Set((vesselIds || []).filter(Boolean))];
         const active = ChengPro.vessel.getActive();
@@ -1562,6 +1605,12 @@
           ['bunkerPlans', 'Bunker plans', brief.bunkerPlans, full.bunkerHistory && full.bunkerHistory.plans],
           ['bunkerAfter', 'Bunker delivery reports', brief.bunkerAfter, full.bunkerHistory && full.bunkerHistory.after],
           ['bunkerSummaries', 'Bunker summaries', brief.bunkerSummaries, full.bunkerHistory && full.bunkerHistory.summaries],
+          ['readings', 'Tank gaugings', brief.readings, null],
+          ['fuelReport', 'Sounding sheet', brief.fuelReport, null],
+          ['tankSummaryDraft', 'Tank summary draft', brief.tankSummaryDraft, null],
+          ['bunkerPlan', 'Bunker plan draft', brief.bunkerPlan, null],
+          ['bunkerAfterDraft', 'Bunker delivery draft', brief.bunkerAfterDraft, null],
+          ['bunkerSummary', 'Bunker summary draft', brief.bunkerSummary, null],
         ];
       }
 
@@ -1620,7 +1669,8 @@
 
       root.querySelector('#bk-check-tanks').onclick = async () => {
         try {
-          await withProgress('Comparing saved tank reports…', 'Reading this device…', async () => {
+          await withProgress('Comparing saved tank reports…', 'Writing open gaugings and drafts…', async () => {
+            await flushTankFrames();
             const peerUrl = (root.querySelector('#bk-sync-url')?.value || '').trim();
             const peerToken = (root.querySelector('#bk-sync-token')?.value || '').trim();
             if (!usingLocalTank()) {
@@ -1772,7 +1822,7 @@
               summary: differ ? `${differ} report group${differ === 1 ? '' : 's'} differ` : 'reports match',
               status: (differ
                 ? `${differ} saved-report group${differ === 1 ? '' : 's'} differ. Updating copies the missing reports both ways and keeps the newer copy when both have the same report.`
-                : 'Saved tank reports on this device match the server.')
+                : 'Saved tank reports, gaugings and open drafts on this device match the server.')
                 + ` Checked: ${scope}.`,
             });
             return (differ ? `${differ} report groups differ` : 'Saved tank reports match')
@@ -1795,7 +1845,8 @@
           : `${picked.length} saved-report group${picked.length === 1 ? '' : 's'}`;
         if (!confirm(`Update ${noun} to the newest of both sides?\n\nRecords that exist on only one side are copied across. Where both sides have the same record, the newer copy is kept. Nothing is deleted.`)) return;
         try {
-          await withProgress('Updating to the newest copy…', 'Starting…', async () => {
+          await withProgress('Updating to the newest copy…', 'Writing open gaugings and drafts…', async () => {
+            await flushTankFrames();
             if (consistencyPlan.kind === 'voyage') {
               const settings = consistencyPlan.settings || readVoyageSyncForm(root);
               watchVoyage(8, 96);

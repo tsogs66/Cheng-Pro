@@ -518,16 +518,17 @@
     if (!tank || !rob) return 0;
     return Number(rob[tank.id]) || 0;
   }
-  /* Same pipe hues as Voyage Chief ROB: brown fuel, yellow diesel, orange lube, blue water.
-     Lightened just enough for a thin arc on the dark gauge face. */
+  /* Same pipe hues as the tank drawings and Voyage Chief ROB.
+     Residual fuel brown, distillate pale red / orange / pink, lube yellow, water blue. */
   function gaugeColor(tank) {
     const g = String(tank.grade || tank.name || '').toUpperCase();
-    if (g.includes('LSMGO')) return '#efbd3e';
-    if (g.includes('MGO') || g.includes('MDO') || g.includes('DO')) return '#eab331';
-    if (g.includes('CYL') || g.includes('LUBE') || g.includes('SYS')) return '#ea8633';
-    if (g.includes('WATER') || g.includes('FW')) return '#348fdc';
-    if (g.includes('LS')) return '#c07a49';
-    return '#c36a39';
+    if (g.includes('LSMGO')) return '#E8A8B8';
+    if (g.includes('MGO') && !g.includes('MDO')) return '#E8926A';
+    if (g.includes('MGO') || g.includes('MDO') || g.includes('DO')) return '#E07A7A';
+    if (g.includes('CYL') || g.includes('LUBE') || g.includes('SYS')) return '#F0C14A';
+    if (g.includes('WATER') || g.includes('FW')) return '#1F6FB2';
+    if (g.includes('LS')) return '#8A5530';
+    return '#6B3A1F';
   }
 
   function renderFuelGauges(el, snap) {

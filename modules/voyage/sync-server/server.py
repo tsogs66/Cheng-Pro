@@ -46,6 +46,7 @@ Auth: Authorization: Bearer <SYNC_API_TOKEN>
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import json
@@ -130,6 +131,13 @@ ACCOUNTS = AccountStore(ACCOUNTS_DB)
 SLUG_RE = re.compile(r"^[a-zA-Z0-9._-]{1,64}$")
 COND_RE = re.compile(r"^(B|L|BALLAST|LADEN|LOADED)$", re.IGNORECASE)
 LIST_KEYS = ("entries", "receipts", "documents", "abstracts", "printHistory")
+# Lists that live inside setup and must be unioned, not taken from one side.
+MISC_SETUP_LISTS = (("requisitions", 0), ("bunkerPlanHistory", 50))
+ORB_TANK_GROUPS = (
+    "sludge", "bilge", "bilgeWells", "fuel", "lube",
+    "dirtyBallast", "cargo", "slop", "cbt",
+)
+TOMBSTONE_KEYS = LIST_KEYS + ("requisitions", "bunkerPlanHistory", "orbEntries", "orbTanks")
 LEGACY_COND_SUFFIX = re.compile(
     r"^(?P<voyage>.+)-(?P<cond>B|L|BALLAST|LADEN|LOADED)$", re.IGNORECASE
 )
@@ -2643,6 +2651,118 @@ class SyncHandler(BaseHTTPRequestHandler):
         return expand_blob_refs(vessel_part, stored)
 
 
+def _misc_row_ts(item: dict) -> str:
+    return str(
+        item.get("updatedAt")
+        or item.get("savedAt")
+        or item.get("printedAt")
+        or item.get("createdAt")
+        or item.get("date")
+        or ""
+    )
+
+
+def merge_misc_list(server_items, client_items, tombstones, cap: int = 0) -> list:
+    """Union a setup list. Newest stamp per id wins. A row with no id is kept."""
+    dead = {str(x) for x in (tombstones or []) if x}
+    by_id: dict = {}
+    loose: list = []
+    for row in list(server_items or []) + list(client_items or []):
+        if not isinstance(row, dict):
+            continue
+        rid = row.get("id")
+        if rid is None or rid == "":
+            loose.append(row)
+            continue
+        if str(rid) in dead:
+            continue
+        prev = by_id.get(rid)
+        if prev is None or _misc_row_ts(row) >= _misc_row_ts(prev):
+            by_id[rid] = row
+    out = list(by_id.values()) + loose
+    out.sort(key=_misc_row_ts, reverse=True)
+    if cap and len(out) > cap:
+        out = out[:cap]
+    return out
+
+
+def merge_orb_tank_group(chosen_list, other_list, tombstones) -> list:
+    """Chosen side's tanks, then any tank only the other side has."""
+    dead = {str(x) for x in (tombstones or []) if x}
+    out: list = []
+    seen: set = set()
+    for row in chosen_list or []:
+        if not isinstance(row, dict):
+            continue
+        rid = row.get("id")
+        if rid is not None and str(rid) in dead:
+            continue
+        if rid is not None:
+            if rid in seen:
+                continue
+            seen.add(rid)
+        out.append(row)
+    for row in other_list or []:
+        if not isinstance(row, dict):
+            continue
+        rid = row.get("id")
+        if rid is None or rid == "" or str(rid) in dead or rid in seen:
+            continue
+        seen.add(rid)
+        out.append(row)
+    return out
+
+
+def apply_misc_to_setup(chosen, other, deleted) -> dict:
+    """Setup fields from the newer side; miscellaneous lists from both."""
+    out = copy.deepcopy(chosen) if isinstance(chosen, dict) else {}
+    other = other if isinstance(other, dict) else {}
+    deleted = deleted or {}
+    for key, cap in MISC_SETUP_LISTS:
+        if not isinstance(out.get(key), list) and not isinstance(other.get(key), list):
+            continue
+        # Chosen second, so an equal stamp keeps the side that won the setup.
+        out[key] = merge_misc_list(other.get(key), out.get(key), deleted.get(key), cap)
+    orb = out.get("orb")
+    other_orb = other.get("orb") if isinstance(other.get("orb"), dict) else {}
+    if isinstance(orb, dict):
+        tanks = dict(orb.get("tanks") or {})
+        other_tanks = other_orb.get("tanks") or {}
+        for group in ORB_TANK_GROUPS:
+            chosen_list = tanks.get(group)
+            other_list = other_tanks.get(group)
+            if not isinstance(chosen_list, list) and not isinstance(other_list, list):
+                continue
+            tanks[group] = merge_orb_tank_group(chosen_list, other_list, deleted.get("orbTanks"))
+        orb = dict(orb)
+        orb["tanks"] = tanks
+        out["orb"] = orb
+    elif other_orb:
+        out["orb"] = copy.deepcopy(other_orb)
+    if not isinstance(out.get("bunkerPlan"), dict) and isinstance(other.get("bunkerPlan"), dict):
+        out["bunkerPlan"] = copy.deepcopy(other["bunkerPlan"])
+    return out
+
+
+def merge_open_work_draft(server_doc, client_doc):
+    """The half-typed log or oil-record form. A blank side does not erase one."""
+    def blank(doc) -> bool:
+        if not isinstance(doc, dict) or not doc:
+            return True
+        return not (doc.get("log") or doc.get("orb"))
+
+    def stamp(doc) -> str:
+        return str(doc.get("savedAt") or doc.get("updatedAt") or "")
+
+    if blank(client_doc):
+        return None if blank(server_doc) else copy.deepcopy(server_doc)
+    if blank(server_doc):
+        return copy.deepcopy(client_doc)
+    if stamp(client_doc) >= stamp(server_doc):
+        return copy.deepcopy(client_doc)
+    return copy.deepcopy(server_doc)
+
+
 def merge_snapshots(server: dict | None, client: dict) -> dict:
     """Merge by record id, keeping the newest updatedAt per item. Honour delete tombstones."""
     if not server:
@@ -2675,7 +2795,7 @@ def merge_snapshots(server: dict | None, client: dict) -> dict:
         client_items = client_data.get(key)
 
         if key == "setup":
-            merged["data"]["setup"] = newer_setup(server_items, client_items)
+            merged["data"]["setup"] = newer_setup(server_items, client_items, deleted)
             continue
 
         if not isinstance(server_items, list) and not isinstance(client_items, list):
@@ -2695,17 +2815,32 @@ def merge_snapshots(server: dict | None, client: dict) -> dict:
         merged["data"][key] = items
 
     merged["data"]["deletedIds"] = deleted
+    for key in ("orbEntries",):
+        server_items = server_data.get(key)
+        client_items = client_data.get(key)
+        if not isinstance(server_items, list) and not isinstance(client_items, list):
+            if client_items is not None or server_items is not None:
+                merged["data"][key] = client_items if client_items is not None else server_items
+            continue
+        items = merge_lists_by_id(server_items or [], client_items or [])
+        gone = set(deleted.get(key) or [])
+        if gone:
+            items = [i for i in items if i.get("id") not in gone]
+        merged["data"][key] = items
+    draft = merge_open_work_draft(server_data.get("openWorkDraft"), client_data.get("openWorkDraft"))
+    if draft is not None:
+        merged["data"]["openWorkDraft"] = draft
     return merged
 
 
 def merge_deleted_maps(a: dict | None, b: dict | None) -> dict:
-    out: dict[str, list] = {k: [] for k in LIST_KEYS}
+    out: dict[str, list] = {k: [] for k in TOMBSTONE_KEYS}
     for src in (a or {}, b or {}):
-        for key in LIST_KEYS:
+        for key in TOMBSTONE_KEYS:
             vals = src.get(key) or []
             if isinstance(vals, list):
                 out[key].extend(str(v) for v in vals if v)
-    for key in LIST_KEYS:
+    for key in TOMBSTONE_KEYS:
         seen: list[str] = []
         for v in out[key]:
             if v not in seen:
@@ -2714,12 +2849,16 @@ def merge_deleted_maps(a: dict | None, b: dict | None) -> dict:
     return out
 
 
-def newer_setup(server_setup: dict | None, client_setup: dict | None) -> dict:
+def newer_setup(server_setup: dict | None, client_setup: dict | None, deleted: dict | None = None) -> dict:
     server_setup = server_setup or {}
     client_setup = client_setup or {}
     server_ts = (server_setup.get("sync") or {}).get("lastModifiedAt") or ""
     client_ts = (client_setup.get("sync") or {}).get("lastModifiedAt") or ""
-    return client_setup if client_ts >= server_ts else server_setup
+    if client_ts >= server_ts:
+        chosen, other = client_setup, server_setup
+    else:
+        chosen, other = server_setup, client_setup
+    return apply_misc_to_setup(chosen, other, deleted)
 
 
 def merge_lists_by_id(server_items: list, client_items: list) -> list:
