@@ -112,13 +112,19 @@ function bodyOf(src, decl) {
 
 const reconcile = bodyOf(VOY, 'async function reconcileVoyageLegs');
 const reconcileCode = reconcile.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/* The per-leg loop ends at the outer finally. What follows files the voyage
+   that was open, once, after every leg has been synced. */
+const reconcileLoop = reconcileCode.split('} finally {')[0];
 
 check('reconcile still syncs each leg', /await syncNow\(\{ policy: 'merge' \}\)/.test(reconcileCode), true);
 /* syncNow archives the active leg before returning, so the archive that used
    to follow it rewrote the whole leg to IndexedDB a second time — megabytes
-   per leg, for nothing. */
+   per leg, for nothing. The one archive after the loop files the restored
+   open voyage, which syncNow has already left. */
 check('but no longer archives each leg a second time',
-  /await archiveActiveVoyageLeg\(\);/.test(reconcileCode), false);
+  /await archiveActiveVoyageLeg\(\);/.test(reconcileLoop), false);
+check('the restored open voyage is filed once when the sync ends',
+  /await activateVoyageLeg\(state\.activeVesselId, prevVn, prevCond\);[\s\S]*?await archiveActiveVoyageLeg\(\);/.test(reconcileCode), true);
 check('syncNow is still the one doing the archiving',
   /await archiveActiveVoyageLeg\(\);/.test(bodyOf(VOY, 'async function syncNow')), true);
 check('and progress is still reported per leg, which is what feeds the heartbeat',

@@ -650,7 +650,7 @@
               <button type="button" class="btn" id="bk-voy-sync-pull">Pull active leg</button>
               <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
             </div>
-            <p class="hint">Keep data persistent compares every voyage leg. Tick the ones both databases should hold, then press it again. A leg on only one side is copied across. A leg on both sides keeps the newer watch. The latest leg opens afterwards, and Tank Chief loads the latest sounding report and tank readings.</p>
+            <p class="hint">Keep data persistent compares every voyage leg. Tick the ones both databases should hold, then press it again. A leg on only one side is copied across. A leg on both sides keeps the newer watch. The voyage you have open is saved and sent as well, and it stays open. Miscellaneous data goes with that leg. Saved tank reports, including monitoring, are copied to the server.</p>
             <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
 
             <div class="backup-subsection">
@@ -1554,11 +1554,11 @@
             miscRow = {
               kind: 'voyage-misc',
               action: 'same',
-              reason: 'Carried by the voyage legs above — nothing to tick',
+              reason: 'Sent with the open voyage leg when you update',
               checked: false,
               title: 'Miscellaneous vessel data',
               localText: held.join(' · '),
-              serverText: 'travels with each leg',
+              serverText: 'uploaded with the open leg',
             };
           }
         } catch (err) {
@@ -1668,6 +1668,52 @@
         return ((data && data.vessels) || []).filter((v) => v && v.id);
       }
 
+      function tankHullSame(a, b) {
+        const VK = window.ChengVesselKey;
+        if (VK && typeof VK.sameVessel === 'function') return VK.sameVessel(a, b);
+        const name = (v) => String((v && v.name) || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+        return !!name(a) && name(a) === name(b);
+      }
+
+      async function ensureServerTankVessel(localVessel) {
+        const serverVessels = await listTankVesselIds('server');
+        const hit = serverVessels.find((v) => v.id === localVessel.id || tankHullSame(v, localVessel));
+        if (hit) return hit;
+        const created = await gatewayTankApi('/api/vessels', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: localVessel.id,
+            name: localVessel.name || localVessel.id,
+            imo: localVessel.imo || '',
+            flag: localVessel.flag || '',
+          }),
+        });
+        return created && created.id ? created : { id: localVessel.id, name: localVessel.name || '', imo: localVessel.imo || '' };
+      }
+
+      async function mergeTankReportPair(localId, serverId) {
+        const [localBundle, serverBundle] = await Promise.all([
+          readTankReportBundle('local', localId),
+          readTankReportBundle('server', serverId),
+        ]);
+        const localPath = '/api/vessels/' + encodeURIComponent(localId) + '/saved-reports/merge';
+        const serverPath = '/api/vessels/' + encodeURIComponent(serverId) + '/saved-reports/merge';
+        await tankRequest(localPath, { method: 'POST', body: JSON.stringify(serverBundle) });
+        await gatewayTankApi(serverPath, { method: 'POST', body: JSON.stringify(localBundle) });
+      }
+
+      async function pushOpenShipTankReports() {
+        if (!usingLocalTank()) return '';
+        const active = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive()) || null;
+        if (!active) return '';
+        const localVessels = await listTankVesselIds('local');
+        const localHit = localVessels.find((v) => v.id === active.id || tankHullSame(v, active));
+        if (!localHit) return '';
+        const serverHit = await ensureServerTankVessel(localHit);
+        await mergeTankReportPair(localHit.id, serverHit.id);
+        return ' Saved tank reports, including monitoring, are on the server.';
+      }
+
       root.querySelector('#bk-check-tanks').onclick = async () => {
         try {
           await withProgress('Comparing saved tank reports…', 'Writing open gaugings and drafts…', async () => {
@@ -1741,71 +1787,67 @@
               listTankVesselIds('local'),
               listTankVesselIds('server'),
             ]);
-            const byId = new Map();
-            for (const vessel of localVessels) byId.set(vessel.id, { local: vessel });
-            for (const vessel of serverVessels) {
-              const slot = byId.get(vessel.id) || {};
-              slot.server = vessel;
-              byId.set(vessel.id, slot);
+            /* Pair by id, then by hull. The device and the server often keep
+               the same ship under different ids, and an id-only match left the
+               monitoring reports on the device. */
+            const pairs = [];
+            const usedServer = new Set();
+            for (const local of localVessels) {
+              let server = serverVessels.find((v) => v.id === local.id && !usedServer.has(v.id));
+              if (!server) server = serverVessels.find((v) => !usedServer.has(v.id) && tankHullSame(v, local));
+              if (server) usedServer.add(server.id);
+              pairs.push({ local, server: server || null });
             }
-            let ids = [...byId.keys()];
+            for (const server of serverVessels) {
+              if (!usedServer.has(server.id)) pairs.push({ local: null, server });
+            }
 
-            /* The ship in the switcher, not the whole fleet.
-            
-               This walked every vessel on both sides, and a vessel present on
-               only one of them produced a row naming just the ship -- so with
-               fleets that do not line up the screen filled with vessel names
-               and showed no reports at all. The engineer asked for the saved
-               reports of the ship he is working on.
-            
-               Matched by hull, the same way the rest of the suite matches:
-               the tank id is the tank database's own key and need not be the
-               shell's. Where the active ship cannot be found on either side
-               the full fleet is still compared, because showing nothing at all
-               would be worse than showing more than was asked for -- and the
-               status line says which of the two happened. */
             const activeVessel = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive()) || null;
-            const VK = window.ChengVesselKey;
+            let scoped = pairs;
             let scopedTo = null;
             if (activeVessel) {
-              const sameHull = (v) => (VK && VK.sameVessel
-                ? VK.sameVessel({ name: v.name, imo: v.imo }, { name: activeVessel.name, imo: activeVessel.imo })
-                : String(v.name || '').trim().toUpperCase() === String(activeVessel.name || '').trim().toUpperCase());
-              const hit = ids.find((id) => {
-                const slot = byId.get(id);
-                return (slot.local && sameHull(slot.local)) || (slot.server && sameHull(slot.server));
-              });
-              if (hit) {
-                ids = [hit];
-                scopedTo = activeVessel.name || hit;
+              const hit = pairs.filter((pair) => (
+                (pair.local && tankHullSame(pair.local, activeVessel))
+                || (pair.server && tankHullSame(pair.server, activeVessel))
+              ));
+              if (hit.length) {
+                scoped = hit;
+                scopedTo = activeVessel.name || (hit[0].local && hit[0].local.name) || (hit[0].server && hit[0].server.name);
               }
             }
             const rows = [];
-            for (let i = 0; i < ids.length; i++) {
-              const id = ids[i];
-              const slot = byId.get(id);
-              const name = (slot.local && slot.local.name) || (slot.server && slot.server.name) || id;
-              progressSet(20 + Math.round(70 * (i / Math.max(ids.length, 1))), `Reading reports for ${name}…`);
-              if (!slot.local || !slot.server) {
+            for (let i = 0; i < scoped.length; i++) {
+              const pair = scoped[i];
+              const name = (pair.local && pair.local.name) || (pair.server && pair.server.name) || 'vessel';
+              progressSet(20 + Math.round(70 * (i / Math.max(scoped.length, 1))), `Reading reports for ${name}…`);
+              if (!pair.local || !pair.server) {
                 rows.push({
                   kind: 'tank-reports',
-                  vesselId: id,
-                  action: 'same',
-                  reason: slot.local
-                    ? 'Only on this device — this check does not create the ship on the server'
+                  vesselId: (pair.local && pair.local.id) || (pair.server && pair.server.id),
+                  localVesselId: pair.local ? pair.local.id : null,
+                  serverVesselId: pair.server ? pair.server.id : null,
+                  action: pair.local ? 'push' : 'same',
+                  reason: pair.local
+                    ? 'Only on this device — updating saves its reports on the server'
                     : 'Only on the server — this check does not create the ship on this device',
-                  checked: false,
+                  checked: !!pair.local,
                   title: name,
-                  localText: slot.local ? 'vessel' : '—',
-                  serverText: slot.server ? 'vessel' : '—',
+                  localText: pair.local ? 'vessel' : '—',
+                  serverText: pair.server ? 'vessel' : '—',
                 });
                 continue;
               }
               const [localBundle, serverBundle] = await Promise.all([
-                readTankReportBundle('local', id),
-                readTankReportBundle('server', id),
+                readTankReportBundle('local', pair.local.id),
+                readTankReportBundle('server', pair.server.id),
               ]);
-              rows.push(...compareReportSides(localBundle, serverBundle, name));
+              const sideRows = compareReportSides(localBundle, serverBundle, name);
+              sideRows.forEach((row) => {
+                row.localVesselId = pair.local.id;
+                row.serverVesselId = pair.server.id;
+                row.vesselId = pair.server.id;
+              });
+              rows.push(...sideRows);
             }
             const differ = rows.filter((row) => row.checked).length;
             /* Say which ship this covers. Without it the engineer cannot tell
@@ -1854,7 +1896,7 @@
               const msg = await voyagePost('reconcile-legs', {
                 vessel: consistencyPlan.vessel,
                 settings,
-                openLatest: true,
+                openLatest: false,
                 legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
               }, root, 600000);
               reloadOpenVoyageFrame();
@@ -1862,7 +1904,10 @@
               const soundNote = sounded[0] && sounded[0].loaded
                 ? ` Latest sounding report loaded${sounded[0].voyageNo ? ' (voyage ' + sounded[0].voyageNo + ')' : ''}.`
                 : '';
-              const line = (msg.message || 'Voyage legs updated.') + soundNote;
+              let tankNote = '';
+              try { tankNote = await pushOpenShipTankReports(); }
+              catch (err) { tankNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
+              const line = (msg.message || 'Voyage legs updated.') + soundNote + tankNote;
               setConsistency(line);
               setConsistencySummary('updated');
               toast(line);
@@ -1887,17 +1932,26 @@
               toast('Saved reports merged');
               return line;
             }
-            const vesselIds = [...new Set(picked.map((row) => row.vesselId).filter(Boolean))];
-            for (let i = 0; i < vesselIds.length; i++) {
-              const id = vesselIds[i];
-              progressSet(Math.round(90 * (i / Math.max(vesselIds.length, 1))), `Merging reports for ${id}…`);
-              const [localBundle, serverBundle] = await Promise.all([
-                readTankReportBundle('local', id),
-                readTankReportBundle('server', id),
-              ]);
-              const path = '/api/vessels/' + encodeURIComponent(id) + '/saved-reports/merge';
-              await tankRequest(path, { method: 'POST', body: JSON.stringify(serverBundle) });
-              await gatewayTankApi(path, { method: 'POST', body: JSON.stringify(localBundle) });
+            const seenShips = new Set();
+            const shipRows = picked.filter((row) => {
+              const key = String(row.localVesselId || row.vesselId || '');
+              if (!key || seenShips.has(key)) return false;
+              seenShips.add(key);
+              return true;
+            });
+            for (let i = 0; i < shipRows.length; i++) {
+              const row = shipRows[i];
+              const localId = row.localVesselId || row.vesselId;
+              progressSet(Math.round(90 * (i / Math.max(shipRows.length, 1))), `Merging reports for ${localId}…`);
+              let serverId = row.serverVesselId;
+              if (!serverId) {
+                const locals = await listTankVesselIds('local');
+                const local = locals.find((v) => v.id === localId);
+                if (!local) continue;
+                const server = await ensureServerTankVessel(local);
+                serverId = server.id;
+              }
+              await mergeTankReportPair(localId, serverId);
             }
             const sounded = await loadLatestSounding(vesselIds, true);
             const line = `Saved reports merged for ${vesselIds.length} vessel${vesselIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}`;
@@ -2804,11 +2858,18 @@
             const box = root.querySelector('#bk-consistency');
             if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
             if (!differ.length) {
-              const opened = await voyagePost('open-latest-leg', { vessel: plan.vessel, settings }, root);
+              const opened = await voyagePost('reconcile-legs', {
+                vessel: plan.vessel,
+                settings,
+                openLatest: false,
+                legs: [],
+              }, root, 600000);
               reloadOpenVoyageFrame();
-              const sounded = await loadLatestSounding([plan.vessel], false);
-              const line = (opened.message || 'Voyage legs already match.')
-                + (sounded[0] && sounded[0].loaded ? ' Latest sounding report loaded.' : '');
+              let tankNote = '';
+              try { tankNote = await pushOpenShipTankReports(); }
+              catch (err) { tankNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
+              const line = (opened.message || 'The open voyage leg is saved on the server.')
+                + tankNote;
               setVoySync(line);
               setConsistency(line);
               toast(line);
@@ -2837,7 +2898,7 @@
           'KEEP DATA PERSISTENT\n\n'
           + 'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n'
           + lines
-          + '\n\nThe latest leg opens when this finishes. Continue?'
+          + '\n\nThe voyage you have open is saved and sent as well, and it stays open. Continue?'
         )) return;
         setVoySync('Copying the selected voyage legs…');
         try {
@@ -2846,14 +2907,18 @@
             const msg = await voyagePost('reconcile-legs', {
               vessel: consistencyPlan.vessel,
               settings,
-              openLatest: true,
+              openLatest: false,
               legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
             }, root, 600000);
+            let tankNote = '';
+            try { tankNote = await pushOpenShipTankReports(); }
+            catch (err) { tankNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
             reloadOpenVoyageFrame();
             progressSet(94, 'Loading the latest sounding report…');
             const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
             const line = (msg.message || 'Voyage legs updated.')
-              + (sounded[0] && sounded[0].loaded ? ' Latest sounding report and tank readings loaded.' : '');
+              + (sounded[0] && sounded[0].loaded ? ' Latest sounding report and tank readings loaded.' : '')
+              + tankNote;
             setVoySync(line);
             setConsistency(line);
             setConsistencySummary('updated');

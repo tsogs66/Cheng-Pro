@@ -258,7 +258,7 @@
       steps: [
         'Open Setup → Server Sync. Press Save Sync Settings and Test Connection.',
         'For one leg you mean to overwrite: Push Active Leg sends this device’s active leg. Pull Active Leg replaces this device’s active leg with the server’s. Read the confirm text.',
-        'For many legs: press Keep Data Persistent. The first press lists the legs and ticks the ones that differ. Untick any leg that should stay put. The second press merges. Both sides then hold the selected legs. Nothing is deleted. The latest leg opens when the merge finishes.',
+        'For many legs: press Keep Data Persistent. The first press lists the legs and ticks the ones that differ. Untick any leg that should stay put. The second press merges. Both sides then hold the selected legs. Nothing is deleted. The voyage you have open is saved and sent as well, and it stays open.',
         'List Remote Voyages and Pull Selected Voyage Leg fetch one named leg.'
       ],
       buttons: [
