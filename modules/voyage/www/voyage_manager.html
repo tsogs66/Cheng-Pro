@@ -5920,13 +5920,13 @@ const PERF_ROWS = [
   ['avgPower','Average Power (KW)'], ['avgLoad','Average Load (%)'],
   ['runTime','Run Time (hrs)']
 ];
-/* ISO 14726 pipe colours. Residual fuel stays brown, diesel is the yellow
-   yards paint on distillate lines, lube is orange (oils other than fuel),
-   fresh water is blue. */
+/* Engine-room pipe colours. Residual fuel stays brown. Distillate is pale
+   red (MDO/MGO) or pale pink (LSMGO). Lubricating oil is yellow. Fresh water
+   is blue. The same hexes fill the tank drawings. */
 const GAUGE_COLORS = {
   'HFO': '#6B3A1F', 'LSFO': '#8A5530',
-  'MDO/MGO': '#E6A817', 'LSMGO': '#F0C14A',
-  'CYL HIGH': '#E8771A', 'CYL LOW': '#E8771A', 'ME SYS OIL': '#E8771A', 'GE SYS OIL': '#E8771A',
+  'MDO/MGO': '#E07A7A', 'LSMGO': '#E8A8B8',
+  'CYL HIGH': '#F0C14A', 'CYL LOW': '#F0C14A', 'ME SYS OIL': '#F0C14A', 'GE SYS OIL': '#F0C14A',
   'FRESH WATER': '#1F6FB2'
 };
 const GE_ARR_LABELS = { SINGLE:'Single Generator', PARALLEL_2:'2 Generators in Parallel', PARALLEL_3:'3 Generators in Parallel' };
@@ -9053,6 +9053,27 @@ async function restoreOpenWorkDraft(vesselId){
     orbFormDirty = true;
   }
   return keptLog;
+}
+
+/* A half-typed log or oil-record form rides with the leg. The newer stamp
+   wins. A side that has no draft does not erase the side that does. */
+async function keepRemoteOpenWorkDraft(remote, replace){
+  const incoming = remote && remote.data && remote.data.openWorkDraft;
+  const vid = state.activeVesselId;
+  if (!vid) return;
+  const hasWork = (d) => !!(d && (d.log || d.orb));
+  if (!hasWork(incoming)){
+    if (replace){ try { await forgetOpenWorkDraft(vid); } catch (_) {} }
+    return;
+  }
+  if (!replace){
+    let row = null;
+    try { row = await dbGet('meta', openWorkDraftKey(vid)); } catch (_) {}
+    const local = row && row.value;
+    if (hasWork(local) && String(local.savedAt || '') > String(incoming.savedAt || '')) return;
+  }
+  await dbPut('meta', { key: openWorkDraftKey(vid), value: incoming });
+  try { await restoreOpenWorkDraft(vid); } catch (_) {}
 }
 
 /* Enter Flowmeters writes the log only on Accept. If that dialog is still open,
@@ -27733,13 +27754,24 @@ function renderSyncUi(){
   }
 }
 
-function buildSyncPayload(){
+function buildSyncPayload(openDraft){
   const sync = ensureSyncConfig();
   const voyage = voyageSyncKey();
   const condition = voyageConditionKey();
   /* Collapse same-watch duplicates before upload so peers do not re-download them. */
   if (!sync.deletedIds) sync.deletedIds = { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] };
   state.entries = dedupeEntriesByContent(state.entries, sync.deletedIds);
+  const data = {
+    setup: state.setup,
+    entries: state.entries,
+    receipts: state.receipts,
+    documents: state.documents,
+    abstracts: state.abstracts,
+    printHistory: (state.printHistory || []).map(p => slimPrintRecord(p)),
+    orbEntries: state.orbEntries,
+    deletedIds: sync.deletedIds || { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] }
+  };
+  if (openDraft && (openDraft.log || openDraft.orb)) data.openWorkDraft = openDraft;
   return {
     vesselId: vesselSyncSlug(),
     voyageNumber: voyage,
@@ -27748,16 +27780,7 @@ function buildSyncPayload(){
     updatedAt: new Date().toISOString(),
     deviceId: sync.deviceId,
     deviceName: sync.deviceName || '',
-    data: {
-      setup: state.setup,
-      entries: state.entries,
-      receipts: state.receipts,
-      documents: state.documents,
-      abstracts: state.abstracts,
-      printHistory: (state.printHistory || []).map(p => slimPrintRecord(p)),
-      orbEntries: state.orbEntries,
-      deletedIds: sync.deletedIds || { entries:[], receipts:[], documents:[], abstracts:[], printHistory:[] }
-    }
+    data
   };
 }
 
@@ -28531,11 +28554,13 @@ async function syncNow(options = {}){
       if (applyPolicy === 'remote'){
         update({ label: 'Replacing this device with server data…' });
         applyRemoteSnapshot(remote, 'remote');
+        await keepRemoteOpenWorkDraft(remote, true);
         await persistAllToDb();
         await persistSyncCredentialsMirror(ensureSyncConfig());
       } else if (applyPolicy === 'merge'){
         update({ label: 'Merging server data with this device…' });
         applyRemoteSnapshot(remote, 'merge');
+        await keepRemoteOpenWorkDraft(remote, false);
         await persistAllToDb();
       }
       /* policy === 'local': skip applying remote, still push below */
@@ -28543,7 +28568,13 @@ async function syncNow(options = {}){
 
     if (!pullOnly){
       update({ label: `Uploading voyage ${legLabel} to the server…`, source: 'server' });
-      const payload = buildSyncPayload();
+      try { await preserveOpenWorkBeforeVesselSave(); } catch (_) {}
+      let openDraft = null;
+      try {
+        const draftRow = await dbGet('meta', openWorkDraftKey(state.activeVesselId));
+        openDraft = draftRow && draftRow.value;
+      } catch (_) {}
+      const payload = buildSyncPayload(openDraft);
       const useBlobs = await blobsOn();
       const known = useBlobs ? await indexDataUrlBlobs(update) : null;
       const fingerprint = syncPayloadFingerprint(payload, known && known.byText);
@@ -28995,7 +29026,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v340';
+let androidInstallCacheName = 'noon-report-v341';
 
 /*
  * What the program is called.

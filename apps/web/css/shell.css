@@ -901,9 +901,9 @@ html:not(.bright) .cards-row .card { background: rgba(255,255,255,.03); }
 .cards-row .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .cat-fuel { background: #c36a39; }
-.cat-diesel { background: #e6a817; }
+.cat-diesel { background: #E07A7A; }
 html.bright .cat-fuel { background: #6b3a1f; }
-html.bright .cat-diesel { background: #8a5a1a; }
+html.bright .cat-diesel { background: #9A4048; }
 /* Vessel tank overview — Tank Chief graphical style (4-column schematic) */
 .tg-schematic {
   display: grid;

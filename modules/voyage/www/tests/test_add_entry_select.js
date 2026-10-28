@@ -19,12 +19,15 @@ function check(label, cond, detail) {
   if (!ok) failures++;
 }
 
-const marker = "document.getElementById('btnAdd').addEventListener('click', async ()=>{";
+const marker = "document.getElementById('btnAdd').addEventListener('click', ()=>{";
 const start = HTML.indexOf(marker);
 check('btnAdd click handler present', start >= 0);
-const end = HTML.indexOf('function exitEditMode()', start);
-check('exitEditMode follows btnAdd handler', end > start);
-const body = HTML.slice(start, end);
+const handler = HTML.slice(start, start + 280);
+check('Add Entry saves the form interactively', handler.includes('saveLogEntryFromForm({ interactive: true })'));
+const saveStart = HTML.indexOf('async function saveLogEntryFromForm(opts){');
+const saveEnd = HTML.indexOf('function exitEditMode()', saveStart);
+check('exitEditMode follows the save', saveEnd > saveStart);
+const body = HTML.slice(saveStart, saveEnd);
 
 check('post-save loads the saved entry into the form', body.includes('loadEntryIntoForm(entry.id)'));
 check('does not exit edit mode before selecting the saved entry',
