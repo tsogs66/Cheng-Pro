@@ -2711,6 +2711,10 @@
      reads as a sum rather than as one more reading. Declared after the stripe rule,
      which it ties with on specificity. */
   .pr-table tr.pr-total td{ background:#eef2f8; border-top:0.4mm solid #122238; }
+  /* Spares summary: the description is the line people read, so it takes the
+     width and keeps the engineer's own line breaks. */
+  .pr-table.pr-req-table td.pr-req-desc{ font-family:'Inter',sans-serif; text-align:left; white-space:pre-line; }
+  .pr-table.pr-req-table tr.pr-req-follow td{ font-weight:600; }
   /* Transposed ROB stock tables: tanks as columns, metric rows taller, larger type.
      Present R.O.B. row stays bold so the handover figure reads first. */
   /* Type sized so 4+3 decimal figures (e.g. 1234.567) fit without wrap. */
@@ -5657,6 +5661,9 @@ html.astrolabe body::before { opacity: 0.26; }
       <h2 id="reqFormTitle">Requisition</h2>
       <div class="hint">Spare requisitions and store requisitions for this ship. A line stays on the sent list while it is sent, for follow up, or for receiving. Mark it received and it moves to the received list. The photo or PDF stays with the line on this device.</div>
       <div class="stat-strip cols4" id="reqSummary"></div>
+      <div class="btn-row">
+        <button type="button" class="ghost small" id="btnReqPrint">Print summary</button>
+      </div>
       <div class="form-grid cols3" style="margin-top:14px;">
         <div class="field"><label>Kind</label>
           <select id="rq_kind">
@@ -16798,6 +16805,7 @@ function bindSparesUi(){
   document.getElementById('btnReqCancel')?.addEventListener('click', clearReqForm);
   document.getElementById('btnReqViewerClose')?.addEventListener('click', closeReqViewer);
   document.getElementById('btnReqDownload')?.addEventListener('click', downloadReqFile);
+  document.getElementById('btnReqPrint')?.addEventListener('click', printRequisitionSummary);
   if (typeof ChengCamera !== 'undefined') {
     ChengCamera.wireTakePictureButton(document.getElementById('btnReqPhoto'), {
       fileInput: document.getElementById('rq_file'),
@@ -17010,10 +17018,135 @@ function renderRequisitions(){
       return '<div class="stat"><div class="num"><b>' + n + '</b></div><div class="lbl">' + escHtml(s.label) + '</div></div>';
     }).join('');
   }
-  const sent = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') !== 'received'; }), 'sentDate');
-  const received = reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') === 'received'; }), 'receiveDate');
-  renderReqTable(document.getElementById('reqBody'), sent, 'Nothing on the sent list.');
-  renderReqTable(document.getElementById('reqReceivedBody'), received, 'Nothing on the received list.');
+  const lists = requisitionLists(rows);
+  renderReqTable(document.getElementById('reqBody'), lists.sent, 'Nothing on the sent list.');
+  renderReqTable(document.getElementById('reqReceivedBody'), lists.received, 'Nothing on the received list.');
+}
+/* One split for the page and the printout, so the sheet lists exactly what the
+   engineer sees on screen. */
+function requisitionLists(rows){
+  return {
+    sent: reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') !== 'received'; }), 'sentDate'),
+    received: reqSortByDate(rows.filter(function(r){ return (r.status || 'sent') === 'received'; }), 'receiveDate')
+  };
+}
+/* Counts per status and per kind. A status the app does not know is counted as
+   Sent, which is the list the line shows on. */
+function requisitionTally(rows){
+  const ids = REQ_STATUSES.map(function(s){ return s.id; });
+  const zero = function(){ const o = {}; ids.forEach(function(id){ o[id] = 0; }); return o; };
+  const tally = { total: rows.length, outstanding: 0, received: 0, byStatus: zero(), byKind: { spare: zero(), store: zero() } };
+  rows.forEach(function(r){
+    const status = ids.indexOf(r.status) >= 0 ? r.status : 'sent';
+    const kind = r.kind === 'store' ? 'store' : 'spare';
+    tally.byStatus[status]++;
+    tally.byKind[kind][status]++;
+    if (status === 'received') tally.received++;
+    else tally.outstanding++;
+  });
+  return tally;
+}
+/* Tally first, then the sent list (what still needs chasing), then the received
+   list. Both lists run through one paginator so a long log breaks across pages
+   at full size instead of being shrunk onto one. */
+function buildRequisitionPrintSheets(rows){
+  const tally = requisitionTally(rows);
+  const lists = requisitionLists(rows);
+  const items = lists.sent.map(function(r, i){ return { list: 'sent', no: i + 1, row: r }; })
+    .concat(lists.received.map(function(r, i){ return { list: 'received', no: i + 1, row: r }; }));
+  /* Rows in the order a line moves: the three sent-list statuses, their subtotal,
+     then Received — so the subtotal matches the sent list's own count below. */
+  const sumKind = function(kind, ids){
+    return ids.reduce(function(sum, id){ return sum + tally.byKind[kind][id]; }, 0);
+  };
+  const onSentIds = REQ_STATUSES.map(function(s){ return s.id; }).filter(function(id){ return id !== 'received'; });
+  const allIds = onSentIds.concat(['received']);
+  const tallyRow = function(label, ids, strong){
+    const cell = function(v){ return strong ? `<strong>${v}</strong>` : String(v); };
+    const both = sumKind('spare', ids) + sumKind('store', ids);
+    return `<tr${strong ? ' class="pr-total"' : ''}>
+        <td class="row-lbl">${strong ? `<strong>${escPrint(label)}</strong>` : escPrint(label)}</td>
+        <td>${cell(sumKind('spare', ids))}</td>
+        <td>${cell(sumKind('store', ids))}</td>
+        <td>${cell(both)}</td>
+      </tr>`;
+  };
+  const tallyTable = `<table class="pr-table">
+      <tr><th>Status</th><th>Spare</th><th>Store</th><th>Total</th></tr>
+      ${onSentIds.map(id => tallyRow(reqStatusLabel(id), [id], false)).join('')}
+      ${tallyRow('On sent list', onSentIds, true)}
+      ${tallyRow('Received', ['received'], false)}
+      ${tallyRow('All requisitions', allIds, true)}
+    </table>`;
+  const kpi = printKpiRow([
+    { label: 'Requisitions', value: String(tally.total) },
+    { label: 'On Sent List', value: String(tally.outstanding) },
+    { label: 'For Follow Up', value: String(tally.byStatus['follow-up']) },
+    { label: 'Received', value: String(tally.received) }
+  ]);
+  const asOf = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+  const metaCells = [
+    { label: 'Vessel', value: escPrint(state.setup.vesselName || '—') },
+    { label: 'Voyage No.', value: escPrint(state.setup.voyageNumber || '—') },
+    { label: 'As Of', value: escPrint(asOf) },
+    { label: 'Lines', value: String(tally.total) }
+  ];
+  const fileCount = function(row){ return Array.isArray(row.files) && row.files.length ? String(row.files.length) : '—'; };
+  const rowHtml = function(it){
+    const r = it.row;
+    return `<tr${r.status === 'follow-up' ? ' class="pr-req-follow"' : ''}>
+        <td>${it.no}</td>
+        <td>${escPrint(reqKindLabel(r.kind))}</td>
+        <td class="pr-req-desc">${escPrint(r.description || '')}</td>
+        <td>${escPrint(reqStatusLabel(r.status))}</td>
+        <td>${escPrint(r.sentDate || '—')}</td>
+        <td>${escPrint(r.receiveDate || '—')}</td>
+        <td>${fileCount(r)}</td>
+      </tr>`;
+  };
+  const listTable = function(rowsHtml){
+    return `<table class="pr-table pr-req-table">
+        <colgroup><col style="width:6%"><col style="width:9%"><col><col style="width:13%"><col style="width:12%"><col style="width:12%"><col style="width:7%"></colgroup>
+        <tr><th>No.</th><th>Kind</th><th>Description</th><th>Status</th><th>Sent</th><th>Received</th><th>Files</th></tr>
+        ${rowsHtml}
+      </table>`;
+  };
+  const emptyTable = function(text){ return listTable(`<tr><td colspan="7">${escPrint(text)}</td></tr>`); };
+  const LIST_TITLES = {
+    sent: `Sent — Still With The Supplier (${lists.sent.length})`,
+    received: `Received — On Board (${lists.received.length})`
+  };
+  return paginateRangeTotalSheets(items, function(slice, opts){
+    const subtitle = opts.pageCount > 1
+      ? `Spares & Stores Requisitions · Page ${opts.pageNo} of ${opts.pageCount}`
+      : 'Spares & Stores Requisitions';
+    const parts = [];
+    const sentHere = slice.filter(function(it){ return it.list === 'sent'; });
+    const recvHere = slice.filter(function(it){ return it.list === 'received'; });
+    if (opts.isFirst && !lists.sent.length) parts.push(printSection(LIST_TITLES.sent, emptyTable('Nothing on the sent list.')));
+    if (sentHere.length){
+      const cont = sentHere[0].no > 1 ? ' — Continued' : '';
+      parts.push(printSection(LIST_TITLES.sent + cont, listTable(sentHere.map(rowHtml).join(''))));
+    }
+    if (recvHere.length){
+      const cont = recvHere[0].no > 1 ? ' — Continued' : '';
+      parts.push(printSection(LIST_TITLES.received + cont, listTable(recvHere.map(rowHtml).join(''))));
+    }
+    if (opts.isLast && !lists.received.length) parts.push(printSection(LIST_TITLES.received, emptyTable('Nothing on the received list.')));
+    if (!opts.isLast) parts.push('<div class="pr-note">Continued on the next page.</div>');
+    return `<div class="pr-sheet">
+      ${printDocHeader({ title: 'Spares Summary', subtitle })}
+      ${printMetaGrid(metaCells, 4)}
+      ${opts.isFirst ? kpi + printSection('Tally', tallyTable) : ''}
+      ${parts.join('')}
+      ${opts.isLast ? printSignatory() : ''}
+    </div>`;
+  });
+}
+function printRequisitionSummary(){
+  const rows = ensureRequisitions();
+  if (!rows.length){ alert('No spare or store requisitions to print yet.'); return; }
+  printPortraitPages(buildRequisitionPrintSheets(rows));
 }
 function loadReqForEdit(id){
   const row = ensureRequisitions().find(function(r){ return r.id === id; });
