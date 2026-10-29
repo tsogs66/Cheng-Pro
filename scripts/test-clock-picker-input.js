@@ -47,6 +47,8 @@ for (const [label, file] of COPIES) {
     `${label}: the dial must not be a fixed pixel square`);
   assert(/state\.step === 'minute' \? \(state\.m \/ 60\) \* 30 : 0/.test(src),
     `${label}: the hour hand must sit on the hour numeral, not drift with the minutes`);
+  assert(/Opening on every focus painted a full-screen overlay/.test(src),
+    `${label}: time fields must not open the overlay on focus`);
   console.log('ok —', label);
 }
 

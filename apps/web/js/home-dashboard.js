@@ -634,9 +634,8 @@
   }
 
   /**
-   * Tank Monitoring section totals: measured volume and weight in air.
-   * A sounded tank's stored reading is not mixed in — that reading is what
-   * made the home cards disagree with the monitoring sheet.
+   * Prefer stored sounding results so Home matches Tank Summary. The monitoring
+   * sheet is used only to group tanks (moved HFO carrying distillate).
    */
   function fuelFamilyTotalsFromReport(fuelReport, readings, tanks) {
     const out = {
@@ -654,14 +653,19 @@
       sawSheet = true;
       const distillate = section.id === 'do' || section.id === 'distillate';
       const bucket = distillate ? out.distillate : out.heavy;
-      if (totals) {
-        bucket.count = totals.tanks != null ? totals.tanks : list.length;
-        bucket.capacity = Number(totals.capacity100M3) || 0;
-        bucket.volume = Number(totals.measuredM3) || 0;
-        bucket.weight = Number(totals.weightAirMT) || 0;
-        bucket.withReading = list.filter((r) => r && r.measuredM3 != null).length;
+      bucket.count += list.length || (totals && totals.tanks) || 0;
+      for (const raw of list) {
+        const fromReading = readingVolWt(readings, raw && raw.tankId);
+        const vol = fromReading.vol != null ? fromReading.vol : (raw && raw.measuredM3 != null ? Number(raw.measuredM3) : null);
+        const wt = fromReading.wt != null ? fromReading.wt : (raw && raw.weightAirMT != null ? Number(raw.weightAirMT) : null);
+        bucket.capacity += Number((raw && (raw.capacity100M3 != null ? raw.capacity100M3 : raw.capacityM3)) || 0);
+        if (vol != null || wt != null) {
+          bucket.volume += Number(vol) || 0;
+          bucket.weight += Number(wt) || 0;
+          bucket.withReading += 1;
+        }
+        rows.push({ row: raw, distillate });
       }
-      for (const raw of list) rows.push({ row: raw, distillate });
     }
     if (sawSheet) return { fam: out, rows };
     const form = fuelReport && fuelReport.form;
@@ -953,11 +957,11 @@
     const r = reading || {};
     const res = r.result || {};
     const sheet = reportMeta && reportMeta.row;
-    let fill = sheet ? null : res.fillPercent;
-    let vol = sheet ? null : res.volumeObserved;
-    let mt = sheet ? null : res.weightMT;
+    let fill = res.fillPercent;
+    let vol = res.volumeObserved;
+    let mt = res.weightMT;
     let temp = r.tempC;
-    if (sheet) {
+    if (sheet && (res.volumeObserved == null && res.weightMT == null)) {
       if (sheet.measuredM3 != null) vol = sheet.measuredM3;
       if (sheet.weightAirMT != null) mt = sheet.weightAirMT;
       if (sheet.volumePercent != null) fill = sheet.volumePercent;
@@ -1009,7 +1013,7 @@
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
     const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport, readings, tanks) : null;
-    const fam = (fromReport && fromReport.rows.length) ? fromReport.fam : fuelFamilyTotals(tanks, readings);
+    const fam = fuelFamilyTotals(tanks, readings);
     const withReading = fam.heavy.withReading + fam.distillate.withReading;
     const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {

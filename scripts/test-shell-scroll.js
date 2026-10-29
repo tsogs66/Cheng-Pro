@@ -237,5 +237,18 @@ check('and both wrapper classes are named in the pane rules',
   /html\.aio-fullscreen-embed \.main:has\(\.aio-embed-wrap\),/.test(CSS)
   && /html\.aio-fullscreen-embed \.main:has\(\.eorb-embed-wrap\)/.test(CSS), true);
 
+/* Leaving Consumption / Bunkering Plan used to leave the Bunker file bar on
+   Home, because startBackgroundSave parked the iframe wrap and left the bar
+   as a sibling in #main. The bar has to ride inside the wrap while parked. */
+check('parking an embed tucks the bunker file bar inside the wrap',
+  /function parkSuiteChrome/.test(JS) && /insertBefore\(el, wrap\.firstChild\)/.test(JS), true);
+check('reclaiming an embed puts the bunker file bar back above the wrap',
+  /function restoreSuiteChrome/.test(JS) && /insertBefore\(bar, wrap\)/.test(JS), true);
+check('Home drops a leftover bunker file bar that is not inside a parked wrap',
+  /function dropStraySuiteChrome/.test(JS)
+  && /current !== 'bunkerplan' && current !== 'bunkeringplan'/.test(JS), true);
+check('navigation dismisses a leftover clock overlay that would block typing',
+  /function dismissBlockingOverlays/.test(JS) && /ccp-overlay/.test(JS), true);
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);

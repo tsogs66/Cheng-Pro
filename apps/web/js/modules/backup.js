@@ -1750,24 +1750,66 @@
            setup, so the server copy is the ship rather than a bare record that
            a later pull would hand back to another device as an empty ship. */
         try {
-          const bundle = await readTankBundleForSetup(localVessel.id);
-          for (const part of ['tanks', 'assets', 'bunkering', 'transfers', 'bunkerOps', 'voyage']) {
-            if (bundle && bundle[part] != null) {
-              await gatewayTankApi('/api/vessels/' + encodeURIComponent(made.id) + '/' + part, {
-                method: 'PUT',
-                body: JSON.stringify(bundle[part]),
-              });
-            }
-          }
+          await pushTankSetupToServer(localVessel.id, made.id);
         } catch (err) {
           console.warn('Ship setup not copied to the new server record:', err && err.message ? err.message : err);
         }
         return made;
       }
 
+      const TANK_SETUP_PARTS = ['tanks', 'assets', 'bunkering', 'transfers', 'bunkerOps', 'voyage'];
+
+      async function readTankVesselBundle(via, vesselId) {
+        const path = '/api/vessels/' + encodeURIComponent(vesselId);
+        try {
+          return via === 'local' ? await tankRequest(path) : await gatewayTankApi(path);
+        } catch (_) {
+          return null;
+        }
+      }
+
       async function readTankBundleForSetup(localId) {
         if (!usingLocalTank()) return null;
-        try { return await tankRequest('/api/vessels/' + encodeURIComponent(localId)); } catch (_) { return null; }
+        return readTankVesselBundle('local', localId);
+      }
+
+      function tankSetupSignature(bundle) {
+        const tanks = (bundle && bundle.tanks) || {};
+        return Object.keys(tanks).sort().map((cat) => {
+          const list = tanks[cat] || [];
+          return cat + ':' + list.map((t) => [
+            t && t.id,
+            t && t.sortIndex,
+            t && t.capacity,
+            t && t.soundingMethod,
+            t && t.pipeHeight,
+            t && t.fuelGrade,
+            t && t.name,
+          ].join('/')).join(',');
+        }).join('|');
+      }
+
+      function tankSetupBrief(bundle) {
+        const tanks = (bundle && bundle.tanks) || {};
+        let n = 0;
+        Object.keys(tanks).forEach((k) => { n += (tanks[k] || []).length; });
+        const fuel = tanks.fuel || [];
+        const ordered = fuel.some((t) => t && Number.isFinite(Number(t.sortIndex)));
+        return n ? (n + ' tanks' + (ordered ? ' · custom order' : '')) : 'no tanks';
+      }
+
+      async function pushTankSetupToServer(localId, serverId) {
+        const bundle = await readTankBundleForSetup(localId);
+        if (!bundle || !serverId) return false;
+        for (const part of TANK_SETUP_PARTS) {
+          if (bundle[part] != null) {
+            await gatewayTankApi('/api/vessels/' + encodeURIComponent(serverId) + '/' + part, {
+              method: 'PUT',
+              body: JSON.stringify(bundle[part]),
+            });
+          }
+        }
+        return true;
       }
 
       async function mergeTankReportPair(localId, serverId) {
@@ -1998,6 +2040,25 @@
                 row.vesselId = pair.server.id;
               });
               rows.push(...sideRows);
+              const [localFull, serverFull] = await Promise.all([
+                readTankVesselBundle('local', pair.local.id),
+                readTankVesselBundle('server', pair.server.id),
+              ]);
+              const setupDiffer = tankSetupSignature(localFull) !== tankSetupSignature(serverFull);
+              rows.push({
+                kind: 'tank-setup',
+                localVesselId: pair.local.id,
+                serverVesselId: pair.server.id,
+                vesselId: pair.server.id,
+                action: setupDiffer ? 'merge' : 'same',
+                reason: setupDiffer
+                  ? 'Tank parameters or order differ — updating copies this device\'s tank book to the server as it is'
+                  : 'Tank parameters and order match',
+                checked: setupDiffer,
+                title: `${name} · Tank parameters & order`,
+                localText: tankSetupBrief(localFull),
+                serverText: tankSetupBrief(serverFull),
+              });
             }
             const differ = rows.filter((row) => row.checked).length;
             /* Say which ship this covers. Without it the engineer cannot tell
@@ -2115,6 +2176,8 @@
                 serverId = server.id;
               }
               await mergeTankReportPair(localId, serverId);
+              try { await pushTankSetupToServer(localId, serverId); }
+              catch (err) { console.warn('Tank setup not copied:', err && err.message ? err.message : err); }
               mergedIds.push(serverId);
             }
             let screenNote = '';

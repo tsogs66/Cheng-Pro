@@ -16170,9 +16170,9 @@ function bunkerResultCard(title, value, unit){
 }
 function bunkerResultCardsHtml(sum){
   return [
-    bunkerResultCard('Days at Port / Anchor', fmt(sum.daysPort, 3), 'days'),
-    bunkerResultCard('Days at Sea', fmt(sum.daysSea, 3), 'days'),
-    bunkerResultCard('Total Distance', fmt(sum.totalDist, 2), 'NM'),
+    bunkerResultCard('Days at Port / Anchor', fmt(sum.daysPort, 1), 'days'),
+    bunkerResultCard('Days at Sea', fmt(sum.daysSea, 1), 'days'),
+    bunkerResultCard('Total Distance', fmt(sum.totalDist, 0), 'NM'),
     bunkerResultCard('Total Consumption', fmtFuel(sum.totalCons), 'MT'),
     bunkerResultCard('Total Margin', fmtFuel(sum.margin), 'MT'),
     bunkerResultCard('Required Quantity', fmtFuel(sum.required), 'MT'),
@@ -16397,9 +16397,9 @@ function buildBunkerPlanPrintHtml(){
           ${printMetaGrid([
             {label:'Current ROB', value: side.currentRob==null ? '—' : fmtFuel(side.currentRob)+' MT'},
             {label:'Qty to Receive', value: side.qtyReceive==null ? '—' : fmtFuel(side.qtyReceive)+' MT'},
-            {label:'Days Port', value: fmt(sum.daysPort, 3)},
-            {label:'Days Sea', value: fmt(sum.daysSea, 3)},
-            {label:'Total Distance', value: fmt(sum.totalDist, 2)+' nm'},
+            {label:'Days Port', value: fmt(sum.daysPort, 1)},
+            {label:'Days Sea', value: fmt(sum.daysSea, 1)},
+            {label:'Total Distance', value: fmt(sum.totalDist, 0)+' nm'},
             {label:'Total Consumption', value: fmtFuel(sum.totalCons)+' MT'},
             {label:'Total Margin', value: fmtFuel(sum.margin)+' MT'},
             {label:'Required Quantity', value: fmtFuel(sum.required)+' MT'},
@@ -29556,7 +29556,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v349';
+let androidInstallCacheName = 'noon-report-v350';
 
 /*
  * What the program is called.

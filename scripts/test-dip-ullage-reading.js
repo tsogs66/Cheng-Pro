@@ -54,5 +54,9 @@ check('no saved database selection — the packaged app reads the device, the se
 check('an empty answer from one side falls through to the other',
   /for \(const source of order\) \{\n\s*const report = await source\(\);\n\s*if \(report\) return report;/.test(HOME));
 
+const CORE = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/fuel-report-core.js'), 'utf8').replace(/\r\n/g, '\n');
+check('monitoring default row uses the stored sounding method',
+  /method:\s*normalizeMethod\(r\.entryMethod \|\| r\.method \|\| tank\.soundingMethod\)/.test(CORE));
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

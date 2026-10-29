@@ -107,7 +107,41 @@
     return frame.closest('.aio-embed-wrap') || frame;
   }
 
+  function parkSuiteChrome(wrap) {
+    if (!wrap || !wrap.parentNode) return;
+    [...wrap.parentNode.children].forEach((el) => {
+      if (el !== wrap && el.classList && el.classList.contains('bunker-file-bar')) {
+        wrap.insertBefore(el, wrap.firstChild);
+      }
+    });
+  }
+
+  function restoreSuiteChrome(wrap) {
+    if (!wrap || !wrap.parentNode) return;
+    [...wrap.querySelectorAll(':scope > .bunker-file-bar')].forEach((bar) => {
+      wrap.parentNode.insertBefore(bar, wrap);
+    });
+  }
+
+  function dropStraySuiteChrome() {
+    [...main.children].forEach((el) => {
+      if (el.classList && el.classList.contains('bunker-file-bar')) el.remove();
+    });
+  }
+
+  function dismissBlockingOverlays() {
+    try {
+      document.querySelectorAll('.ccp-overlay, #tankSheetPopup, .tsp-overlay').forEach((n) => n.remove());
+    } catch { /* ignore */ }
+    const app = document.getElementById('app');
+    if (vesselLoadDepth <= 0 && app && app.inert) {
+      app.inert = false;
+      document.documentElement.classList.remove('aio-vessel-load-locked');
+    }
+  }
+
   function showReclaimedFrame(wrap) {
+    restoreSuiteChrome(wrap);
     wrap.classList.remove('aio-background-save');
     const host = document.getElementById('aioPageHost');
     if (host) host.remove();
@@ -129,7 +163,10 @@
       frame.dataset.aioModule = moduleId;
       frame.dataset.aioFamily = family;
     });
-    wraps.forEach((wrap) => wrap.classList.add('aio-background-save'));
+    wraps.forEach((wrap) => {
+      parkSuiteChrome(wrap);
+      wrap.classList.add('aio-background-save');
+    });
     const job = flushFrames(frames).then((flushed) => {
       if (flushed.some((row) => row && row.keptLog)) unfinishedLogKept = true;
       return flushed;
@@ -258,6 +295,7 @@
     }
     /* The open program keeps writing after the page has changed. Parking the
        iframe off-screen lets that save finish without holding the next page. */
+    dismissBlockingOverlays();
     const leavingEmbed = isSoftEmbedModule(current) && current !== next;
     const saveJob = leavingEmbed ? startBackgroundSave(current) : null;
     const parked = !force ? reclaimParkedFrame(next) : null;
@@ -308,6 +346,7 @@
       }
       const draw = pageHost();
       await mod.render(draw);
+      if (current !== 'bunkerplan' && current !== 'bunkeringplan') dropStraySuiteChrome();
       draw.querySelectorAll('iframe.aio-embed-frame').forEach((frame) => {
         frame.dataset.aioModule = current;
         frame.dataset.aioFamily = embedFamily(current);
