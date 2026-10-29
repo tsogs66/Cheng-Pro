@@ -26,6 +26,10 @@ function between(src, start, end) {
 }
 
 assert.match(html, /async function commitOpenWorkBeforeSync/);
+assert.match(html, /async function refreshOrbEntriesFromDb/);
+assert.match(html, /await refreshOrbEntriesFromDb\(\);\s*\n\s*takeLegSyncHold\(\)/);
+const commit = between(html, 'async function commitOpenWorkBeforeSync', 'async function compareLocalAndServerLegs');
+assert.match(commit, /refreshOrbEntriesFromDb/);
 assert.match(html, /readBunkerPlanFromDom\(\)/);
 const openLeg = between(html, 'async function openLegForReconcile', 'async function compareLocalAndServerLegs');
 assert.match(openLeg, /commitOpenWorkBeforeSync/);
@@ -43,7 +47,7 @@ const pullLeg = between(html, "msg.action === 'pull-voyage-leg'", 'reply({');
 assert.match(pullLeg, /commitOpenWorkBeforeSync[\s\S]{0,400}state\.setup\.voyageNumber = voyage/);
 const summary = between(html, 'async function saveOpenVoyageSummary', "document.getElementById('btnSaveVoyageSummary')");
 assert.match(summary, /archiveActiveVoyageLeg/);
-assert.match(html, /noon-report-v350/);
+assert.match(html, /noon-report-v351/);
 assert.match(html, /function takeLegSyncHold/);
 assert.match(html, /function restoreHeldLegRecords/);
 assert.match(html, /list\.unshift\(\{ voyage: prevVn, condition: prevCond \}\)/);

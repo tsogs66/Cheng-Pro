@@ -277,6 +277,22 @@ check('and removing a tank tombstones it',
 /* It all rides inside setup, which is what the sync and the file both carry. */
 check('setup is still what the sync payload sends',
   /setup: state\.setup,/.test(HTML), true);
+check('saving an e-ORB entry queues a sync',
+  /await saveSetup\(\);\s*\n\s*markPendingSync\(\);\s*\n\s*document\.getElementById\('orbEntryWizard'\)/.test(HTML), true);
+check('saving weekly inventory queues a sync',
+  /await saveSetup\(\);\s*\n\s*markPendingSync\(\);\s*\n\s*document\.getElementById\('orbWeeklyWizard'\)/.test(HTML), true);
+check('saving ORB setup queues a sync',
+  /btnOrbSaveSetup[\s\S]{0,220}await saveSetup\(\);\s*\n\s*markPendingSync\(\);/.test(HTML), true);
+check('voiding an e-ORB line queues a sync',
+  /await refreshOrbIntegrity\(\);\s*\n\s*markPendingSync\(\);\s*\n\s*renderOrbBrowse\(\);/.test(HTML), true);
+check('a sync reloads e-ORB entries from IndexedDB first',
+  /await refreshOrbEntriesFromDb\(\);\s*\n\s*takeLegSyncHold\(\);/.test(HTML), true);
+check('a server check reloads e-ORB entries before it files the leg',
+  /async function commitOpenWorkBeforeSync\(\)\{\s*\n\s*if \(!state\.activeVesselId\) return;\s*\n\s*await refreshOrbEntriesFromDb\(\);/.test(HTML), true);
+check('the backup count reloads e-ORB entries from IndexedDB',
+  /await refreshOrbEntriesFromDb\(\);\s*\n\s*reply\(\{ counts: miscVesselDataCounts\(\)/.test(HTML), true);
+check('miscellaneous update opens a voyage if none is open so the book can go up',
+  /if \(!vn\)\{\s*\n\s*try \{\s*\n\s*const opened = await openLatestVoyageLeg\(\);/.test(HTML), true);
 
 /* ---- and the shell's backup page shows it -------------------------------- */
 const BK = fs.readFileSync(path.join(__dirname, '..', 'apps/web/js/modules/backup.js'), 'utf8');
@@ -291,5 +307,29 @@ check('a module that cannot answer does not break the leg comparison',
 check('and the leg count in the status line excludes it',
   /rows\.length - \(miscRow \? 1 : 0\)/.test(BK), true);
 
-console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
-process.exit(fails ? 1 : 0);
+(async function testRefresh() {
+  const box = {
+    console, Object, String, Array, Set, Map, Number, Promise,
+    state: { activeVesselId: 'ship-a', orbEntries: [{ id: 'mem', vesselId: 'ship-a', updatedAt: '2026-10-01' }] },
+    LEGACY_VESSEL_ID: 'legacy',
+    vesselIdentityKeys(id) { return new Set([id]); },
+    async dbGetAll() {
+      return [
+        { id: 'disk', vesselId: 'ship-a', updatedAt: '2026-10-30' },
+        { id: 'other', vesselId: 'ship-b', updatedAt: '2026-10-30' },
+      ];
+    },
+  };
+  vm.createContext(box);
+  vm.runInContext([extract('recordTs'), extract('mergeListsById'), 'async ' + extract('refreshOrbEntriesFromDb')].join('\n'), box);
+  await box.refreshOrbEntriesFromDb();
+  const ids = (box.state.orbEntries || []).map((row) => row.id).sort();
+  check('reload unions IndexedDB e-ORB rows into the open book', ids, ['disk', 'mem']);
+  check('and leaves another ship\'s book alone', ids.includes('other'), false);
+})().then(() => {
+  console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
+  process.exit(fails ? 1 : 0);
+}).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
