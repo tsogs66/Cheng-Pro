@@ -1789,27 +1789,50 @@
         }).join('|');
       }
 
-      function tankSetupBrief(bundle) {
+      function tankBookCount(bundle) {
         const tanks = (bundle && bundle.tanks) || {};
         let n = 0;
-        Object.keys(tanks).forEach((k) => { n += (tanks[k] || []).length; });
-        const fuel = tanks.fuel || [];
+        Object.keys(tanks).forEach((k) => { n += ((tanks[k] || []).length); });
+        return n;
+      }
+
+      function tankSetupBrief(bundle) {
+        const n = tankBookCount(bundle);
+        const fuel = ((bundle && bundle.tanks) || {}).fuel || [];
         const ordered = fuel.some((t) => t && Number.isFinite(Number(t.sortIndex)));
         return n ? (n + ' tanks' + (ordered ? ' · custom order' : '')) : 'no tanks';
       }
 
-      async function pushTankSetupToServer(localId, serverId) {
-        const bundle = await readTankBundleForSetup(localId);
-        if (!bundle || !serverId) return false;
+      async function writeTankSetup(via, vesselId, bundle) {
+        if (!vesselId || !bundle) return;
         for (const part of TANK_SETUP_PARTS) {
-          if (bundle[part] != null) {
-            await gatewayTankApi('/api/vessels/' + encodeURIComponent(serverId) + '/' + part, {
-              method: 'PUT',
-              body: JSON.stringify(bundle[part]),
-            });
-          }
+          if (bundle[part] == null) continue;
+          const path = '/api/vessels/' + encodeURIComponent(vesselId) + '/' + part;
+          const opts = { method: 'PUT', body: JSON.stringify(bundle[part]) };
+          if (via === 'local') await tankRequest(path, opts);
+          else await gatewayTankApi(path, opts);
         }
-        return true;
+      }
+
+      async function pushTankSetupToServer(localId, serverId) {
+        if (!serverId) return false;
+        const localBundle = await readTankVesselBundle('local', localId);
+        const serverBundle = await readTankVesselBundle('server', serverId);
+        const localTanks = tankBookCount(localBundle);
+        const serverTanks = tankBookCount(serverBundle);
+        /* The empty side is the one that failed to load. Copy the filled book
+           onto it. Never send an empty book over a ship that still has tanks. */
+        if (!localTanks && serverTanks) {
+          await writeTankSetup('local', localId, serverBundle);
+          return 'loaded';
+        }
+        if (localTanks && !serverTanks) {
+          await writeTankSetup('server', serverId, localBundle);
+          return 'sent';
+        }
+        if (!localTanks) return false;
+        await writeTankSetup('server', serverId, localBundle);
+        return 'sent';
       }
 
       async function mergeTankReportPair(localId, serverId) {
@@ -2045,15 +2068,22 @@
                 readTankVesselBundle('server', pair.server.id),
               ]);
               const setupDiffer = tankSetupSignature(localFull) !== tankSetupSignature(serverFull);
+              const localTanks = tankBookCount(localFull);
+              const serverTanks = tankBookCount(serverFull);
+              const setupReason = !localTanks && serverTanks
+                ? 'This device has no tank book — updating loads the server\'s tanks onto this ship'
+                : (!serverTanks && localTanks
+                  ? 'The server has no tank book — updating copies this device\'s tanks up'
+                  : (setupDiffer
+                    ? 'Tank parameters or order differ — updating keeps whichever side still has the tank book'
+                    : 'Tank parameters and order match'));
               rows.push({
                 kind: 'tank-setup',
                 localVesselId: pair.local.id,
                 serverVesselId: pair.server.id,
                 vesselId: pair.server.id,
                 action: setupDiffer ? 'merge' : 'same',
-                reason: setupDiffer
-                  ? 'Tank parameters or order differ — updating copies this device\'s tank book to the server as it is'
-                  : 'Tank parameters and order match',
+                reason: setupReason,
                 checked: setupDiffer,
                 title: `${name} · Tank parameters & order`,
                 localText: tankSetupBrief(localFull),
@@ -2184,6 +2214,7 @@
             try { screenNote = await pushOpenShipTankReports(); }
             catch (err) { screenNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
             const sounded = await loadLatestSounding(mergedIds, true);
+            reloadOpenTankFrames();
             const line = `Saved reports merged for ${mergedIds.length} vessel${mergedIds.length === 1 ? '' : 's'}.${sounded.length ? ' Latest sounding report and tank readings loaded.' : ''}${screenNote}`;
             setConsistency(line);
             setConsistencySummary('updated');

@@ -8272,6 +8272,27 @@ function vesselRegistryId(vesselId){
   return vesselRecord(vesselId)?.id || vesselId || state.activeVesselId || LEGACY_VESSEL_ID;
 }
 
+function orbKnownVesselIds(){
+  const ids = new Set();
+  const orb = state.setup && state.setup.orb;
+  const list = orb && orb.knownVesselIds;
+  if (Array.isArray(list)){
+    for (const id of list) if (id) ids.add(String(id));
+  }
+  return ids;
+}
+
+/* The other computer files the same book under its own vessel id. Remember
+   that id on this ship's setup so a later load still recognises the lines. */
+function rememberOrbVesselId(id){
+  if (!id || !state.setup) return;
+  if (!state.setup.orb || typeof state.setup.orb !== 'object') state.setup.orb = {};
+  const cur = orbKnownVesselIds();
+  cur.add(String(id));
+  if (state.activeVesselId) cur.add(String(state.activeVesselId));
+  state.setup.orb.knownVesselIds = [...cur];
+}
+
 function orbEntryMatchesShip(item, vesselId){
   if (!item) return false;
   const vid = vesselId || state.activeVesselId || LEGACY_VESSEL_ID;
@@ -8279,7 +8300,8 @@ function orbEntryMatchesShip(item, vesselId){
   /* Lines saved before ship tags have no vesselId. They belong to the open
      book on this device — hiding them on every named ship emptied the ORB. */
   if (!item.vesselId) return true;
-  return keys.has(item.vesselId);
+  if (keys.has(item.vesselId)) return true;
+  return orbKnownVesselIds().has(String(item.vesselId));
 }
 
 function toIsoDate(value){
@@ -8305,6 +8327,12 @@ function adoptOrbEntries(list){
     const row = Object.assign({}, o);
     const iso = toIsoDate(row.date);
     if (iso) row.date = iso;
+    /* A pull for this ship can arrive tagged with the tablet's vessel id.
+       It is still this ship's book. Stamp the local id so Windows shows it. */
+    if (row.vesselId && state.activeVesselId && !orbEntryMatchesShip(row)) {
+      rememberOrbVesselId(row.vesselId);
+      row.vesselId = state.activeVesselId;
+    }
     if (typeof tagVesselId === 'function') tagVesselId(row);
     return row;
   });
@@ -29749,7 +29777,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v354';
+let androidInstallCacheName = 'noon-report-v355';
 
 /*
  * What the program is called.
@@ -34147,7 +34175,9 @@ function orbBookEntries(){
      of work rather than an empty page. */
   let all = (state.orbEntries || []).filter(e => orbEntryMatchesShip(e));
   if (!all.length && typeof orbSealedBookEntries === 'function'){
-    all = adoptOrbEntries(orbSealedBookEntries(state.setup)).filter(e => orbEntryMatchesShip(e));
+    /* The sealed book is already this ship's. Filtering it again by the other
+       computer's vessel id is why a downloaded book opened empty on Windows. */
+    all = adoptOrbEntries(orbSealedBookEntries(state.setup));
   }
   if (!all.length) return { entries: [], ranged: false, from: '', to: '' };
   const latest = all.map(e => toIsoDate(e.date)).filter(Boolean).sort().slice(-1)[0];
