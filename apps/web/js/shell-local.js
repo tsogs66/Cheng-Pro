@@ -11,7 +11,6 @@
   if (typeof LocalApi === 'undefined') return;
 
   const SERVER_BASE_KEY = 'apiServerBase';
-  const TRANSPORT_KEY = 'apiTransport';
 
   function getServerBase() {
     try {
@@ -21,18 +20,11 @@
     return '';
   }
 
-  function getTransport() {
-    try {
-      const saved = localStorage.getItem(TRANSPORT_KEY);
-      if (saved === 'local' || saved === 'server') return saved;
-    } catch { /* ignore */ }
-    return 'local';
-  }
-
-  /** Prefer on-device DB unless the user explicitly chose server transport. */
+  /* This file only loads inside the packaged app. The working copy is the
+     device. A saved "database on this device" choice used to point vessel
+     reads at the office server and hide the files that ship had uploaded. */
   function useLocalShell() {
-    if (getTransport() !== 'server') return true;
-    return !getServerBase();
+    return true;
   }
 
   /** Match Tank Chief: license email isolates data under data/users/<slug>/. */
