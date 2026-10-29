@@ -342,6 +342,8 @@ check('and the leg count in the status line excludes it',
   vm.createContext(box);
   vm.runInContext([
     extract('toIsoDate'),
+    extract('orbKnownVesselIds'),
+    extract('rememberOrbVesselId'),
     extract('orbEntryMatchesShip'),
     extract('adoptOrbEntries'),
     extract('orbSealedBookEntries'),
@@ -354,6 +356,16 @@ check('and the leg count in the status line excludes it',
   );
   check('opening a named ship keeps untagged IndexedDB lines',
     rows.map((r) => r.id).sort(), ['idb', 'sealed']);
+  box.state.setup = {};
+  const pulled = box.hydrateOrbEntriesFromDevice(
+    [{ id: 'from-tablet', date: '2026-10-20', vesselId: 'tablet-ship' }],
+    'harbour-key',
+    { orb: { sealedBook: { entries: [{ id: 'from-tablet', date: '2026-10-20', vesselId: 'tablet-ship' }] } } }
+  );
+  check('a book downloaded under the tablet\'s vessel id loads on this ship',
+    pulled.map((r) => r.id), ['from-tablet']);
+  check('and is stamped with this ship so the Windows book can show it',
+    pulled[0] && pulled[0].vesselId, 'harbour-key');
 })();
 
 (async function testRefresh() {
