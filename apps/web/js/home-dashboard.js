@@ -634,9 +634,9 @@
   }
 
   /**
-   * Prefer Tank Monitoring (fuel-report) totals: measured volume + weight by air,
-   * bucketed by the fuel currently carried (HFO tanks holding distillate count
-   * under distillate — matching Monitoring section placement and row order).
+   * Tank Monitoring section totals: measured volume and weight in air.
+   * A sounded tank's stored reading is not mixed in — that reading is what
+   * made the home cards disagree with the monitoring sheet.
    */
   function fuelFamilyTotalsFromReport(fuelReport, readings, tanks) {
     const out = {
@@ -646,30 +646,24 @@
     const computed = fuelReport && (fuelReport.computed || fuelReport);
     const sections = (computed && computed.sections) || [];
     const rows = [];
+    let sawSheet = false;
     for (const section of sections) {
+      const list = section.rows || [];
+      const totals = section.totals;
+      if (!list.length && !totals) continue;
+      sawSheet = true;
       const distillate = section.id === 'do' || section.id === 'distillate';
       const bucket = distillate ? out.distillate : out.heavy;
-      for (const raw of section.rows || []) {
-        const fromReading = readingVolWt(readings, raw.tankId);
-        const vol = raw.measuredM3 != null ? Number(raw.measuredM3) : fromReading.vol;
-        const wt = raw.weightAirMT != null ? Number(raw.weightAirMT) : fromReading.wt;
-        const row = (vol !== raw.measuredM3 || wt !== raw.weightAirMT)
-          ? Object.assign({}, raw, {
-              measuredM3: vol,
-              weightAirMT: wt,
-            })
-          : raw;
-        rows.push({ row, distillate });
-        bucket.count += 1;
-        bucket.capacity += Number(row.capacity100M3 != null ? row.capacity100M3 : row.capacityM3) || 0;
-        if (vol != null || wt != null) {
-          bucket.volume += Number(vol) || 0;
-          bucket.weight += Number(wt) || 0;
-          bucket.withReading += 1;
-        }
+      if (totals) {
+        bucket.count = totals.tanks != null ? totals.tanks : list.length;
+        bucket.capacity = Number(totals.capacity100M3) || 0;
+        bucket.volume = Number(totals.measuredM3) || 0;
+        bucket.weight = Number(totals.weightAirMT) || 0;
+        bucket.withReading = list.filter((r) => r && r.measuredM3 != null).length;
       }
+      for (const raw of list) rows.push({ row: raw, distillate });
     }
-    if (rows.length) return { fam: out, rows };
+    if (sawSheet) return { fam: out, rows };
     const form = fuelReport && fuelReport.form;
     if (form && tanks && tanks.length) return fuelFamilyTotalsFromForm(form, tanks, readings);
     return { fam: out, rows };
@@ -958,15 +952,18 @@
   function renderHomeTankCard(tank, reading, reportMeta, rearrange) {
     const r = reading || {};
     const res = r.result || {};
-    let fill = res.fillPercent;
-    let vol = res.volumeObserved;
-    let mt = res.weightMT;
-    if (reportMeta && reportMeta.row) {
-      const row = reportMeta.row;
-      if (row.measuredM3 != null) vol = row.measuredM3;
-      if (row.weightAirMT != null) mt = row.weightAirMT;
-      const cap = Number(row.capacity100M3 != null ? row.capacity100M3 : (row.capacityM3 != null ? row.capacityM3 : tank.capacity)) || 0;
-      if (vol != null && cap > 0) fill = (Number(vol) / cap) * 100;
+    const sheet = reportMeta && reportMeta.row;
+    let fill = sheet ? null : res.fillPercent;
+    let vol = sheet ? null : res.volumeObserved;
+    let mt = sheet ? null : res.weightMT;
+    let temp = r.tempC;
+    if (sheet) {
+      if (sheet.measuredM3 != null) vol = sheet.measuredM3;
+      if (sheet.weightAirMT != null) mt = sheet.weightAirMT;
+      if (sheet.volumePercent != null) fill = sheet.volumePercent;
+      const cap = Number(sheet.capacity100M3 != null ? sheet.capacity100M3 : (sheet.capacityM3 != null ? sheet.capacityM3 : tank.capacity)) || 0;
+      if (fill == null && vol != null && cap > 0) fill = (Number(vol) / cap) * 100;
+      if (sheet.tempC !== '' && sheet.tempC != null) temp = sheet.tempC;
     }
     if (fill == null && vol != null && Number(tank.capacity) > 0) {
       fill = (Number(vol) / Number(tank.capacity)) * 100;
@@ -987,7 +984,7 @@
       pct: pct != null ? Math.round(pct) + '%' : '—',
       volume: vol != null ? fmtNum(vol, 1) + ' m³' : '',
       weight: mt != null ? fmtNum(mt, 2) + ' MT' : '',
-      temp: r.tempC != null && r.tempC !== '' ? fmtNum(r.tempC, 1) + '°C' : '',
+      temp: temp != null && temp !== '' ? fmtNum(temp, 1) + '°C' : '',
     };
     const svg = (typeof TankGraphics !== 'undefined' && typeof TankGraphics.tankSvg === 'function')
       ? TankGraphics.tankSvg(drawTank, pct, { safeFill: 85, details })
