@@ -174,18 +174,24 @@
    * — every button here failed, or worse, saved the shell's index.html. It now
    * asks whichever database the rest of Tank Chief is actually writing to.
    */
-  const TRANSPORT_KEY = 'apiTransport';
-
   function bundledClient() {
     return !!(window.ChengProBundled && ChengProBundled.isBundledClient());
   }
 
+  /* The packaged phone keeps the working copy on the device. A page served by
+     the AIO server uses that server. A saved "Database on this device" choice
+     is ignored: Update to the newest of both already takes the active vessel,
+     and a pull brings the files uploaded for that same vessel. */
   function tankTransport() {
+    try { if (window.CHENG_PRO_BUNDLED) return 'local'; } catch { /* ignore */ }
+    if (bundledClient() && canUseLocalTank()) return 'local';
     try {
-      const saved = localStorage.getItem(TRANSPORT_KEY);
-      if (saved === 'local' || saved === 'server') return saved;
-    } catch { /* private mode */ }
-    return bundledClient() ? 'local' : 'server';
+      const cap = window.Capacitor;
+      if (cap && ((cap.isNativePlatform && cap.isNativePlatform())
+        || (cap.getPlatform && cap.getPlatform() !== 'web'))) return 'local';
+    } catch { /* ignore */ }
+    if (typeof location !== 'undefined' && !/^https?:$/.test(location.protocol || '')) return 'local';
+    return 'server';
   }
 
   /* Where "the server" is. In a browser on the ChEng AIO server it is the
@@ -633,18 +639,12 @@
 
           <details class="form-panel backup-section" id="bk-tank-server" open>
             <summary><span class="backup-section-title">Tank Chief server</span><span class="hint backup-summary-note" id="bk-sync-summary">not set</span></summary>
-            <p class="hint">Peer URL, token, and where this device keeps its tank database.</p>
+            <p class="hint">Peer URL and token. Pull brings the files uploaded for the ship that is open. Update to the newest of both already takes that ship's data from both sides.</p>
             <div class="grid-2">
               <div class="field"><label for="bk-sync-url">Peer sync URL</label>
                 <input id="bk-sync-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.1.50:8080 or :3080"></div>
               <div class="field"><label for="bk-sync-token">Sync API token</label>
                 <input id="bk-sync-token" type="password" autocomplete="off" placeholder="Optional when peer uses SYNC_API_TOKEN"></div>
-            </div>
-            <div class="field" style="margin-top:10px"><label for="bk-api-transport">Database on this device</label>
-              <select id="bk-api-transport">
-                <option value="local">On this device — works with no network</option>
-                <option value="server">On the server that served this page</option>
-              </select>
             </div>
             <div class="btn-row">
               <button type="button" class="btn primary" id="bk-sync-save">Save &amp; connect</button>
@@ -1909,10 +1909,7 @@
             const peerToken = (root.querySelector('#bk-sync-token')?.value || '').trim();
             if (!usingLocalTank()) {
               if (!peerUrl) {
-                if (tankTransport() === 'local' && !canUseLocalTank()) {
-                  throw new Error('On this device is not available in this window, so there is no separate tank copy to compare. Set a peer URL to compare with another computer. On the phone, choose On this device first.');
-                }
-                throw new Error('This screen is already using the server database, so there is no separate copy to compare. Switch Database on this device to “On this device”, or set a peer URL to compare with another computer.');
+                throw new Error('This screen is using the server that served this page, so there is no second copy to compare until a peer URL is set. Pull brings the files uploaded for the ship that is open.');
               }
               progressSet(20, 'Reading saved reports on the peer…');
               const compared = await gatewayTankApi('/api/sync/saved-reports/compare', {
@@ -2773,10 +2770,8 @@
           const s = await tankRequest('/api/settings');
           const urlEl = root.querySelector('#bk-sync-url');
           const tokEl = root.querySelector('#bk-sync-token');
-          const trEl = root.querySelector('#bk-api-transport');
           if (urlEl) urlEl.value = s.syncUrl || '';
           if (tokEl) tokEl.value = s.syncApiToken || '';
-          if (trEl) trEl.value = tankTransport();
           markServerBlock('bk-tank-server', 'bk-sync-summary', urlEl && urlEl.value);
           setSync('Loaded from ' + tankSourceLabel() + '.');
         } catch (e) {
@@ -2798,6 +2793,12 @@
        * thrown away. Each step reports separately: a peer that does not answer
        * stops the sequence with the settings still saved, rather than looking
        * like the save failed. */
+      function activeVesselForSync() {
+        const active = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive && ChengPro.vessel.getActive()) || null;
+        if (!active || (!active.id && !active.name && !active.imo)) return null;
+        return { id: active.id || '', name: active.name || '', imo: active.imo || '' };
+      }
+
       root.querySelector('#bk-sync-save')?.addEventListener('click', async () => {
         const syncUrl = root.querySelector('#bk-sync-url').value.trim();
         const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
@@ -2807,10 +2808,6 @@
             method: 'PUT',
             body: JSON.stringify({ syncUrl, syncApiToken, syncEnabled: true }),
           });
-          const tr = root.querySelector('#bk-api-transport').value;
-          if (tr === 'local' || tr === 'server') {
-            try { localStorage.setItem(TRANSPORT_KEY, tr); } catch (_) { /* ignore */ }
-          }
         } catch (e) {
           setSync(e.message || 'Save failed');
           toast(e.message || 'Save failed');
@@ -2837,14 +2834,21 @@
           return;
         }
 
-        setSync('Peer reachable. Downloading the tank database…');
+        const vessel = activeVesselForSync();
+        if (!vessel) {
+          setSync('Saved and the peer answered. Open the vessel, then pull — that brings the files uploaded for that ship.');
+          toast('Open the vessel, then pull');
+          await refreshVesselLibrary();
+          return;
+        }
+        setSync('Peer reachable. Downloading this vessel\'s files…');
         let pulled = '';
         try {
           const res = await tankRequest('/api/sync/pull', {
             method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken }),
+            body: JSON.stringify({ syncUrl, syncApiToken, vessel }),
           });
-          pulled = res && (res.message || (res.remoteCount != null ? `${res.remoteCount} vessel(s) from the peer` : ''));
+          pulled = res && (res.message || (res.remoteCount != null ? `${res.remoteCount} vessel file set from the peer` : ''));
           if (res && res.warning) pulled = res.warning;
         } catch (e) {
           setSync(`Saved and peer reachable, but the tank pull failed: ${e.message || 'unknown error'}`);
@@ -2855,7 +2859,7 @@
 
         try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
         await refreshVesselLibrary();
-        const done = `Connected. ${pulled || 'Tank database up to date'}.`;
+        const done = `Connected. ${pulled || 'This vessel\'s tank files are up to date'}.`;
         setSync(done);
         toast('Connected — vessel list updated');
       });
@@ -2883,12 +2887,14 @@
           const syncUrl = root.querySelector('#bk-sync-url').value.trim();
           const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
           if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          const vessel = activeVesselForSync();
+          if (!vessel) { setSync('Open the vessel first. Pull brings the files uploaded for that ship.'); return; }
           setSync('Saving open tank work…');
           await flushTankFrames();
-          setSync('Pulling from peer…');
+          setSync('Pulling this vessel\'s files…');
           const res = await tankRequest('/api/sync/pull', {
             method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken }),
+            body: JSON.stringify({ syncUrl, syncApiToken, vessel }),
           });
           try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
           /* The open Tank Chief screen still holds what it read before the pull;

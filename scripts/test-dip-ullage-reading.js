@@ -49,7 +49,8 @@ console.log('\nHome dashboard reads the database Tank Chief writes to');
 check('device-first when Tank data is on this device',
   /tankDataOnDevice\(\) \? \[fromDevice, fromServer\] : \[fromServer, fromDevice\]/.test(HOME)
   && (HOME.match(/tankDataOnDevice\(\) \? \[fromDevice, fromServer\]/g) || []).length === 2);
-check('same setting as Backup and Tank Chief (apiTransport)', /localStorage\.getItem\('apiTransport'\)/.test(HOME));
+check('no saved database selection — the packaged app reads the device, the server page reads the server',
+  /CHENG_PRO_BUNDLED/.test(HOME) && !/localStorage\.getItem\('apiTransport'\)/.test(HOME));
 check('an empty answer from one side falls through to the other',
   /for \(const source of order\) \{\n\s*const report = await source\(\);\n\s*if \(report\) return report;/.test(HOME));
 

@@ -406,16 +406,21 @@ async function loadTankBundle(vesselId) {
   return null;
 }
 
-/* Same choice as Backup → "Database on this device" and Tank Chief itself:
-   the stored apiTransport, else on-device for the bundled desktop/phone app. */
+/* The packaged phone reads the on-device copy. A page served by the server
+   reads that server. There is no database picker: Update to the newest of
+   both, and Pull, move the active vessel's files. */
 function tankDataOnDevice() {
   if (typeof LocalApi === 'undefined' || typeof LocalApi.handle !== 'function') return false;
+  try { if (window.CHENG_PRO_BUNDLED) return true; } catch { /* ignore */ }
   try {
-    const saved = localStorage.getItem('apiTransport');
-    if (saved === 'local') return true;
-    if (saved === 'server') return false;
-  } catch { /* private mode */ }
-  return !!(window.ChengProBundled && ChengProBundled.isBundledClient && ChengProBundled.isBundledClient());
+    if (window.ChengProBundled && ChengProBundled.isBundledClient && ChengProBundled.isBundledClient()) return true;
+  } catch { /* ignore */ }
+  try {
+    const cap = window.Capacitor;
+    if (cap && ((cap.isNativePlatform && cap.isNativePlatform())
+      || (cap.getPlatform && cap.getPlatform() !== 'web'))) return true;
+  } catch { /* ignore */ }
+  return typeof location !== 'undefined' && !/^https?:$/.test(location.protocol || '');
 }
 
 /** Resolve then try alias folder ids until a Tank bundle loads. */
