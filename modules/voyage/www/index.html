@@ -28343,9 +28343,28 @@ function applyVesselMiscCarry(){
   }
 }
 
+/* A row stored in a leg belongs to that leg. Rows of voyage 66 L carried
+   condition B -- logged before the leg became Laden, or tagged while another
+   leg was open -- and the leg filter after a merge dropped them without a
+   word: 51 of 64 entries. Filed here under the leg they sit in. updatedAt is
+   left alone: both merges let this device's copy win a tie, so the next
+   upload corrects the server copy without outranking a real edit elsewhere. */
+function fileRowsUnderLeg(rows, vn, cond){
+  if (!vn) return rows || [];
+  return (rows || []).map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const rowVn = String(row.voyageNumber || '').trim();
+    if (rowVn && rowVn !== vn) return row;
+    const rowCond = normalizeCondition(row.condition != null && row.condition !== '' ? row.condition : cond);
+    if (rowVn === vn && rowCond === cond) return row;
+    return { ...row, voyageNumber: vn, condition: cond };
+  });
+}
+
 function takeLegSyncHold(){
   const vn = (state.setup && state.setup.voyageNumber || '').trim();
   const cond = normalizeCondition(state.setup && state.setup.shipCondition);
+  state.entries = fileRowsUnderLeg(state.entries, vn, cond);
   const entries = (state.entries || []).filter((entry) => {
     if (!entry) return false;
     const eVn = String(entry.voyageNumber || '').trim();
@@ -28659,10 +28678,13 @@ async function importMiscVesselData(payload, merge){
 function applyRemoteSnapshot(remote, policy){
   const localSync = localSyncCredentialSnapshot();
   const remoteData = remote.data || remote;
+  const remoteEntries = legSyncHold
+    ? fileRowsUnderLeg(remoteData.entries, legSyncHold.voyageNumber, legSyncHold.condition)
+    : remoteData.entries;
   if (policy === 'remote'){
     /* Never let a server snapshot wipe this device's sync credentials. */
     state.setup = preserveLocalSyncOnSetup(remoteData.setup || {}, localSync);
-    state.entries = (remoteData.entries || []).map(e=> normalizeEntry({...e, vesselId: state.activeVesselId}));
+    state.entries = (remoteEntries || []).map(e=> normalizeEntry({...e, vesselId: state.activeVesselId}));
     state.receipts = (remoteData.receipts || []).map(r=> tagVesselId({...r}));
     state.documents = (remoteData.documents || []).map(d=> tagVesselId({...d}));
     state.abstracts = (remoteData.abstracts || []).map(a=> tagVesselId({...a}));
@@ -28701,7 +28723,7 @@ function applyRemoteSnapshot(remote, policy){
     state.setup.shipCondition = legSyncHold.condition;
   }
   state.entries = dedupeEntriesByContent(
-    filterDeleted(mergeListsById(remoteData.entries, state.entries), deleted.entries).map(normalizeEntry),
+    filterDeleted(mergeListsById(remoteEntries, state.entries), deleted.entries).map(normalizeEntry),
     deleted
   );
   state.receipts = filterDeleted(mergeListsById(remoteData.receipts, state.receipts), deleted.receipts);
