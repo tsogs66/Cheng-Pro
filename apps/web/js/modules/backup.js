@@ -188,6 +188,37 @@
     return bundledClient() ? 'local' : 'server';
   }
 
+  /* Where "the server" is. In a browser on the ChEng AIO server it is the
+     page's own host. The Android app is served from https://localhost inside
+     the APK and the Windows app from its own 127.0.0.1, so a bare
+     '/tanks/...' never left the device: in the APK every call came back as
+     the app's index.html with a 200, and the backup reported saved reports
+     as sent that never reached the server. Those apps use the Server URL
+     saved under License, the same one the shell uses for server mode. */
+  function tankServerBase() {
+    if (!bundledClient()) return '';
+    let base = '';
+    try {
+      base = localStorage.getItem('apiServerBase') || localStorage.getItem('chengAioLicenseServerUrl') || '';
+    } catch { /* private mode */ }
+    base = String(base).trim().replace(/\/+$/, '').replace(/\/api\/license$/i, '');
+    if (base) return base;
+    if (window.Capacitor || !/^https?:$/.test(location.protocol)) {
+      throw new Error('Set the ChEng AIO server URL under License → Server URL first. This device has no server to send tank reports to without it.');
+    }
+    return '';
+  }
+
+  /* A reply that is a web page is not tank data, whatever its status. */
+  function tankJsonOrThrow(raw, contentType) {
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = undefined; }
+    if (data === undefined || (raw && !/json/i.test(contentType || '') && /^\s*</.test(raw))) {
+      throw new Error('The server answered with a web page, not tank data. Check the ChEng AIO server URL under License → Server URL.');
+    }
+    return data;
+  }
+
   function canUseLocalTank() {
     return typeof LocalApi !== 'undefined' && typeof LocalApi.handle === 'function';
   }
@@ -231,7 +262,9 @@
     }
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('GET', '/tanks' + path);
+      let base;
+      try { base = tankServerBase(); } catch (e) { reject(e); return; }
+      xhr.open('GET', base + '/tanks' + path);
       const headers = tankAuthHeaders();
       Object.keys(headers).forEach((key) => {
         try { xhr.setRequestHeader(key, headers[key]); } catch (_) { /* ignore */ }
@@ -243,8 +276,8 @@
       };
       xhr.onload = () => {
         let data = null;
-        try { data = xhr.responseText ? JSON.parse(xhr.responseText) : null; }
-        catch (e) { reject(new Error('Invalid backup from Tank Chief')); return; }
+        try { data = tankJsonOrThrow(xhr.responseText, xhr.getResponseHeader('Content-Type')); }
+        catch (e) { reject(e); return; }
         if (xhr.status >= 400) {
           reject(new Error((data && (data.error || data.message)) || xhr.statusText || 'Request failed'));
           return;
@@ -301,15 +334,15 @@
         }
       }
     } catch (_) { /* ignore */ }
-    const url = '/tanks' + path;
+    const url = tankServerBase() + '/tanks' + path;
     const res = await fetch(url, { ...options, headers });
     const raw = await res.text();
-    let data = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch { data = { raw }; }
     if (!res.ok) {
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
       throw new Error((data && (data.error || data.message)) || res.statusText || 'Request failed');
     }
-    return data;
+    return tankJsonOrThrow(raw, res.headers.get('Content-Type'));
   }
 
   /* ---------------------------------------------------------- Voyage Chief --
@@ -2135,7 +2168,12 @@
         try {
           return await gatewayTankApi(path, options);
         } catch (gatewayErr) {
-          /* Fall back to ChengProApi (LocalApi) when the gateway is unreachable. */
+          /* Fall back to ChengProApi (LocalApi) when the gateway is unreachable.
+             Not when a server URL is set: this device's own copy shown as the
+             server's is how missing reports went unnoticed. */
+          let configured = true;
+          try { configured = !!tankServerBase(); } catch (_) { configured = true; }
+          if (configured) throw gatewayErr;
           try {
             return await ChengProApi.api('/tanks' + path, options);
           } catch (_) {
@@ -2170,7 +2208,7 @@
         try {
           /* Do not attach license scope headers — the catalog is server-wide and
            * entitlement mismatches returned 401 / an empty list. */
-          const res = await fetch('/tanks/api/vessel-library', {
+          const res = await fetch(tankServerBase() + '/tanks/api/vessel-library', {
             headers: { 'Content-Type': 'application/json' },
             cache: 'no-store',
           });

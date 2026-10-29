@@ -298,10 +298,16 @@ def read_leg_meta(path: Path, voyage_number: str, condition: str) -> dict:
             "entryCount": 0,
         }
     entries = ((data.get("data") or data).get("entries")) or []
+    # A pull asks for the folder and file this leg sits in, so that is what
+    # the listing reports. A file written by an older client can carry another
+    # number or condition inside (a B.json saying "L"); listing those sent the
+    # pull to a leg that does not exist, and the leg could never be downloaded.
     return {
-        "voyageNumber": data.get("voyageNumber") or voyage_number,
-        "condition": safe_condition(data.get("condition") or condition),
-        "voyageKey": data.get("voyageKey") or f"{voyage_number}-{condition}",
+        "voyageNumber": voyage_number,
+        "condition": condition,
+        "voyageKey": f"{voyage_number}-{condition}",
+        "storedVoyageNumber": data.get("voyageNumber"),
+        "storedCondition": data.get("condition"),
         "updatedAt": data.get("updatedAt") or data.get("serverUpdatedAt"),
         "deviceId": data.get("deviceId"),
         "deviceName": data.get("deviceName"),

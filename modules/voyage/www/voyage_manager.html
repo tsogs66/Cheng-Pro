@@ -29471,7 +29471,8 @@ document.getElementById('btnRequestPersist')?.addEventListener('click', async ()
     if (host){ host.style.display = 'none'; host.innerHTML = ''; host._persistRows = []; }
     const opened = outcome && outcome.opened;
     const line = `Updated ${(outcome.results || []).length} voyage leg(s).`
-      + (opened ? ` Voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is now open.` : '');
+      + (opened ? ` Voyage ${opened.voyage} · ${persistConditionWord(opened.condition)} is now open.` : '')
+      + legFailureNote(outcome.failed);
     if (meta) meta.textContent = line;
     alert(line);
   } catch (e){
@@ -31411,7 +31412,7 @@ async function openLegForReconcile(voyage, condition){
   await commitOpenWorkBeforeSync();
   try {
     await activateVoyageLeg(vid, vn, cond);
-    return;
+    return false;
   } catch (e) {
     if (!/No .* records for voyage/i.test(String(e && e.message || ''))) throw e;
   }
@@ -31425,6 +31426,7 @@ async function openLegForReconcile(voyage, condition){
   state.abstracts = [];
   state.printHistory = [];
   await saveSetup();
+  return true;
 }
 
 function remoteLegSummaries(voyages){
@@ -31500,11 +31502,14 @@ async function compareLocalAndServerLegs(){
   const { body } = await fetchSyncJson(`${base}/api/voyage/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
   const remoteLegs = remoteLegSummaries((body && body.voyages) || []);
   const keys = new Map();
+  /* Paired by the server folder a leg syncs to. The server files "V 12" as
+     V-12, so a raw-number match listed one leg twice: only here and only there. */
+  const legKey = (leg) => slugVoyageNo(leg.voyageNumber) + '|' + normalizeCondition(leg.condition);
   for (const leg of localLegs){
-    keys.set(leg.voyageNumber + '|' + normalizeCondition(leg.condition), { local: leg });
+    keys.set(legKey(leg), { local: leg });
   }
   for (const leg of remoteLegs){
-    const key = leg.voyageNumber + '|' + normalizeCondition(leg.condition);
+    const key = legKey(leg);
     const slot = keys.get(key) || {};
     slot.remote = leg;
     keys.set(key, slot);
@@ -31576,6 +31581,7 @@ async function reconcileVoyageLegs(legs, opts){
   }
   const openLatest = !!(opts && opts.openLatest);
   const results = [];
+  const failed = [];
   let opened = null;
   try {
     for (let i = 0; i < list.length; i++){
@@ -31586,13 +31592,25 @@ async function reconcileVoyageLegs(legs, opts){
         current: i + 1,
         total: list.length,
       });
-      await openLegForReconcile(vn, cond);
+      const fresh = await openLegForReconcile(vn, cond);
       /* syncNow archives the active leg itself before it returns, so the
          archive that used to follow this line wrote the whole leg to
          IndexedDB a second time -- a multi-megabyte chunked write per leg,
          for nothing, on a leg carrying scanned requisitions. That doubling
          is a large part of why this took so long over a ship's connection. */
-      await syncNow({ policy: 'merge' });
+      try {
+        /* A leg this device does not have is pulled, never pushed. When the
+           server could not hand it over, the upload that followed put an
+           empty leg on the server in its place. */
+        await syncNow({ policy: 'merge', pullOnly: fresh });
+      } catch (err) {
+        if (!fresh) throw err;
+        failed.push({ voyage: vn, condition: cond, error: err && err.message ? err.message : String(err) });
+        /* Leave the empty leg unfiled: with no voyage number it is not archived. */
+        state.setup.voyageNumber = '';
+        state.entries = [];
+        continue;
+      }
       results.push({ voyage: vn, condition: cond, entryCount: (state.entries || []).length });
     }
   } finally {
@@ -31616,7 +31634,13 @@ async function reconcileVoyageLegs(legs, opts){
       vesselMiscCarry = null;
     }
   }
-  return { results, opened };
+  return { results, opened, failed };
+}
+
+/** Legs listed on the server that could not be downloaded, by name and why. */
+function legFailureNote(failed){
+  if (!failed || !failed.length) return '';
+  return ' Not downloaded: ' + failed.map((f) => `voyage ${f.voyage} ${f.condition} (${f.error})`).join('; ') + '.';
 }
 
 const VOYAGE_BRIDGE_CHUNK = 160000;
@@ -31976,14 +32000,17 @@ async function onVoyageBackupMessage(ev){
           return reconcileVoyageLegs(Array.isArray(msg.legs) ? msg.legs : [], { openLatest: !!msg.openLatest });
         }, { source: 'server' });
         const results = (outcome && outcome.results) || [];
+        const failed = (outcome && outcome.failed) || [];
         const opened = outcome && outcome.opened;
         reply({
-          message: results.length
+          message: (results.length
             ? `Updated ${results.length} voyage leg${results.length === 1 ? '' : 's'}.`
               + (opened
                 ? ` Voyage ${opened.voyage} ${opened.condition} is now open.`
                 : (msg.openLatest ? '' : ' The leg you had open is restored.'))
-            : 'No voyage legs were selected.',
+            : (failed.length ? '' : 'No voyage legs were selected.'))
+            + legFailureNote(failed),
+          failed,
           results,
           opened,
         });
