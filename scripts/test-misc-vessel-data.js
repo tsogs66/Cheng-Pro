@@ -287,6 +287,12 @@ check('voiding an e-ORB line queues a sync',
   /await refreshOrbIntegrity\(\);\s*\n\s*markPendingSync\(\);\s*\n\s*renderOrbBrowse\(\);/.test(HTML), true);
 check('a sync reloads e-ORB entries from IndexedDB first',
   /await refreshOrbEntriesFromDb\(\);\s*\n\s*takeLegSyncHold\(\);/.test(HTML), true);
+check('a pull then unions e-ORB rows from every voyage on the server',
+  /await unionOrbEntriesFromServer\(\);\s*\n\s*await persistAllToDb\(\);/.test(HTML), true);
+check('an empty pulled book does not wipe this device',
+  /pulledOrb.length \? pulledOrb : adoptOrbEntries/.test(HTML), true);
+check('the book matches ship identity by slug or registry id',
+  /function orbEntryMatchesShip/.test(HTML), true);
 check('a server check reloads e-ORB entries before it files the leg',
   /async function commitOpenWorkBeforeSync\(\)\{\s*\n\s*if \(!state\.activeVesselId\) return;\s*\n\s*await refreshOrbEntriesFromDb\(\);/.test(HTML), true);
 check('the backup count reloads e-ORB entries from IndexedDB',

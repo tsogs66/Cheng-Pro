@@ -634,8 +634,8 @@
   }
 
   /**
-   * Prefer stored sounding results so Home matches Tank Summary. The monitoring
-   * sheet is used only to group tanks (moved HFO carrying distillate).
+   * Monitoring sheet totals first so Home matches Tank Summary after a reload.
+   * Stored soundings fill a blank sheet cell only.
    */
   function fuelFamilyTotalsFromReport(fuelReport, readings, tanks) {
     const out = {
@@ -656,8 +656,8 @@
       bucket.count += list.length || (totals && totals.tanks) || 0;
       for (const raw of list) {
         const fromReading = readingVolWt(readings, raw && raw.tankId);
-        const vol = fromReading.vol != null ? fromReading.vol : (raw && raw.measuredM3 != null ? Number(raw.measuredM3) : null);
-        const wt = fromReading.wt != null ? fromReading.wt : (raw && raw.weightAirMT != null ? Number(raw.weightAirMT) : null);
+        const vol = raw && raw.measuredM3 != null ? Number(raw.measuredM3) : fromReading.vol;
+        const wt = raw && raw.weightAirMT != null ? Number(raw.weightAirMT) : fromReading.wt;
         bucket.capacity += Number((raw && (raw.capacity100M3 != null ? raw.capacity100M3 : raw.capacityM3)) || 0);
         if (vol != null || wt != null) {
           bucket.volume += Number(vol) || 0;
@@ -961,7 +961,7 @@
     let vol = res.volumeObserved;
     let mt = res.weightMT;
     let temp = r.tempC;
-    if (sheet && (res.volumeObserved == null && res.weightMT == null)) {
+    if (sheet) {
       if (sheet.measuredM3 != null) vol = sheet.measuredM3;
       if (sheet.weightAirMT != null) mt = sheet.weightAirMT;
       if (sheet.volumePercent != null) fill = sheet.volumePercent;
@@ -1013,7 +1013,9 @@
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
     const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport, readings, tanks) : null;
-    const fam = fuelFamilyTotals(tanks, readings);
+    const fam = (fromReport && fromReport.fam && fromReport.rows && fromReport.rows.length)
+      ? fromReport.fam
+      : fuelFamilyTotals(tanks, readings);
     const withReading = fam.heavy.withReading + fam.distillate.withReading;
     const pct = (b) => (b.capacity ? (b.volume / b.capacity) * 100 : 0);
     if (summaryEl) {

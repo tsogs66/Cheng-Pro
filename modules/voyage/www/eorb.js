@@ -1224,8 +1224,45 @@
   /** MARPOL / SMS: weekly sludge (C.11) inventory at most every 7 days — sooner is allowed. */
   const WEEKLY_INTERVAL_DAYS = 7;
 
+  const MONTH_ABBR = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
+
+  /** Company UI date: mm/dd/yyyy. Storage and filters stay yyyy-mm-dd. */
+  function toIsoDate(value) {
+    const s = String(value == null ? '' : value).trim();
+    if (!s) return '';
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      return m[3] + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0');
+    }
+    m = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if (m) {
+      const mo = MONTH_ABBR[m[2].toLowerCase()];
+      if (mo) return m[3] + '-' + mo + '-' + String(m[1]).padStart(2, '0');
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + '-'
+        + String(d.getMonth() + 1).padStart(2, '0') + '-'
+        + String(d.getDate()).padStart(2, '0');
+    }
+    return '';
+  }
+
+  function formatMdY(value) {
+    const iso = toIsoDate(value);
+    if (!iso) return value ? String(value) : '';
+    return iso.slice(5, 7) + '/' + iso.slice(8, 10) + '/' + iso.slice(0, 4);
+  }
+
   function addDaysIso(isoDate, days) {
-    const d = new Date(String(isoDate).slice(0, 10) + 'T12:00:00');
+    const iso = toIsoDate(isoDate);
+    if (!iso) return null;
+    const d = new Date(iso + 'T12:00:00');
     if (isNaN(d.getTime())) return null;
     d.setDate(d.getDate() + Number(days));
     const y = d.getFullYear();
@@ -1235,8 +1272,8 @@
   }
 
   function daysBetweenIso(fromIso, toIso) {
-    const a = new Date(String(fromIso).slice(0, 10) + 'T12:00:00');
-    const b = new Date(String(toIso).slice(0, 10) + 'T12:00:00');
+    const a = new Date(toIsoDate(fromIso) + 'T12:00:00');
+    const b = new Date(toIsoDate(toIso) + 'T12:00:00');
     if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
     return Math.round((b.getTime() - a.getTime()) / 86400000);
   }
@@ -1313,7 +1350,8 @@
     let last = null;
     (entries || []).forEach(e => {
       if (!pred(e) || !e.date) return;
-      const d = String(e.date).slice(0, 10);
+      const d = toIsoDate(e.date);
+      if (!d) return;
       if (!last || d > last) last = d;
     });
     return last;
@@ -2837,8 +2875,9 @@
    */
   function formatOrbDate(isoDate) {
     if (!isoDate) return '';
-    const d = new Date(isoDate + (isoDate.length === 10 ? 'T12:00:00' : ''));
-    if (isNaN(d.getTime())) return isoDate;
+    const iso = toIsoDate(isoDate) || String(isoDate);
+    const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
+    if (isNaN(d.getTime())) return formatMdY(isoDate) || String(isoDate);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dd = String(d.getDate()).padStart(2, '0');
     return dd + '-' + months[d.getMonth()] + '-' + d.getFullYear();
@@ -3840,6 +3879,8 @@
     buildPrintHtml,
     selectedItemNos,
     WEEKLY_INTERVAL_DAYS,
+    toIsoDate,
+    formatMdY,
     addDaysIso,
     daysBetweenIso,
     isWeeklySludgeInventory,

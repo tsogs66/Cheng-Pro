@@ -739,6 +739,21 @@ console.log('\nflag state ORB signatory policy');
   check('dual signatory lines differ', EORB.orbSignatoryLines(mhEntry, mhSetup).length, 2);
 }
 
+console.log('\ndates inherit mm/dd/yyyy and compare as ISO');
+check('ISO stays ISO', EORB.toIsoDate('2026-10-30'), '2026-10-30');
+check('US date becomes ISO', EORB.toIsoDate('10/30/2026'), '2026-10-30');
+check('ORB print date becomes ISO', EORB.toIsoDate('30-Oct-2026'), '2026-10-30');
+check('display is mm/dd/yyyy', EORB.formatMdY('2026-10-30'), '10/30/2026');
+check('mm/dd/yyyy display round-trips', EORB.formatMdY('10/30/2026'), '10/30/2026');
+check('addDaysIso accepts US date', EORB.addDaysIso('10/24/2026', 6), '2026-10-30');
+{
+  const last = EORB.lastMatchingEntryDate([
+    { date: '10/01/2026', voided: false },
+    { date: '2026-10-30', voided: false },
+  ], (e) => !e.voided);
+  check('last matching date normalizes mixed formats', last, '2026-10-30');
+}
+
 console.log();
 if (failures.length) {
   console.log(`FAILED — ${failures.length} of ${checks} checks`);

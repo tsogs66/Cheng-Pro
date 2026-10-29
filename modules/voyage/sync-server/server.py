@@ -130,14 +130,14 @@ ACCOUNTS = AccountStore(ACCOUNTS_DB)
 
 SLUG_RE = re.compile(r"^[a-zA-Z0-9._-]{1,64}$")
 COND_RE = re.compile(r"^(B|L|BALLAST|LADEN|LOADED)$", re.IGNORECASE)
-LIST_KEYS = ("entries", "receipts", "documents", "abstracts", "printHistory")
+LIST_KEYS = ("entries", "receipts", "documents", "abstracts", "printHistory", "orbEntries")
 # Lists that live inside setup and must be unioned, not taken from one side.
 MISC_SETUP_LISTS = (("requisitions", 0), ("bunkerPlanHistory", 50))
 ORB_TANK_GROUPS = (
     "sludge", "bilge", "bilgeWells", "fuel", "lube",
     "dirtyBallast", "cargo", "slop", "cbt",
 )
-TOMBSTONE_KEYS = LIST_KEYS + ("requisitions", "bunkerPlanHistory", "orbEntries", "orbTanks")
+TOMBSTONE_KEYS = LIST_KEYS + ("requisitions", "bunkerPlanHistory", "orbTanks")
 LEGACY_COND_SUFFIX = re.compile(
     r"^(?P<voyage>.+)-(?P<cond>B|L|BALLAST|LADEN|LOADED)$", re.IGNORECASE
 )

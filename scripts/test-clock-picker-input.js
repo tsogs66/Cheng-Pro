@@ -49,6 +49,10 @@ for (const [label, file] of COPIES) {
     `${label}: the hour hand must sit on the hour numeral, not drift with the minutes`);
   assert(/Opening on every focus painted a full-screen overlay/.test(src),
     `${label}: time fields must not open the overlay on focus`);
+  assert(/formatDatePartDisplay/.test(src),
+    `${label}: date readout is mm/dd/yyyy`);
+  assert(src.includes('\\d{1,2}'),
+    `${label}: date parser accepts mm/dd/yyyy`);
   console.log('ok —', label);
 }
 

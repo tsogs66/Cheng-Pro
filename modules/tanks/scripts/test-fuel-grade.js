@@ -144,18 +144,28 @@ console.log('ok — MGO / LSMGO default to distillate, HFO stays residual, a mov
 
   const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   const brand = fs.readFileSync(path.join(__dirname, '../public/js/branding.js'), 'utf8');
-  assert.ok(appJs.includes('fuelFamilyTotals(STATE.bundle.tanks.fuel'), 'overview uses stored sounding totals');
-  assert.ok(!/reportFam = monitoring/.test(appJs), 'overview does not overlay monitoring sheet totals');
+  assert.ok(appJs.includes('familyTotalsFromComputed(monitoringComputed)'), 'overview uses monitoring sheet totals');
+  assert.ok(appJs.includes('rememberMonitoringRows(monitoringComputed)'), 'overview paints monitoring rows');
   assert.ok(brand.includes('function printJobIsLandscape'), 'portrait unless the capacity book');
   assert.ok(brand.includes('function stripNamedLandscapePage'), 'portrait html drops the landscape page');
   assert.ok(brand.includes("landscape ? '@page landscape-sheet { size: A4 landscape; margin: 0; }' : ''"),
     'landscape page is emitted only for a landscape job');
+  const serverJs = fs.readFileSync(path.join(__dirname, '../server/index.js'), 'utf8');
+  const getFn = serverJs.slice(
+    serverJs.indexOf("app.get('/api/vessels/:id/fuel-report'"),
+    serverJs.indexOf("app.post('/api/vessels/:id/fuel-report/compute'")
+  );
+  assert.ok(getFn.length > 40, 'GET fuel-report handler found');
+  assert.ok(!getFn.includes('saveVesselPart'), 'GET fuel-report must not rewrite the vessel');
+  assert.ok(/const recomputed = gradesChanged/.test(serverJs), 'PUT fuel-report recomputes after carried grades');
+
   const sample = '@media print {\n@page landscape-sheet {\n  size: A4 landscape;\n  margin: 0;\n}\n@page { size: A4 portrait; margin: 0; }\n}';
   const stripped = sample.replace(/@page\s+landscape-sheet\s*\{[^}]*\}/gi, '');
   assert.ok(!/size:\s*A4\s+landscape/i.test(stripped), 'stripped portrait css has no landscape size');
   const home = fs.readFileSync(path.join(__dirname, '../../../apps/web/js/home-dashboard.js'), 'utf8');
   const reportFn = home.slice(home.indexOf('function fuelFamilyTotalsFromReport'), home.indexOf('function fuelFamilyTotals('));
-  assert.ok(reportFn.includes('readingVolWt'), 'home cards prefer stored sounding weights');
+  assert.ok(reportFn.includes('raw.measuredM3'), 'home cards prefer monitoring sheet weights');
+  assert.ok(/fromReport && fromReport.fam/.test(home), 'home family cards use the monitoring sheet');
   const bridge = fs.readFileSync(path.join(__dirname, '../../../apps/web/js/print-bridge.js'), 'utf8');
   assert.ok(bridge.includes('printing-calib'), 'shell print stays portrait unless the capacity book');
   console.log('ok — summary totals follow monitoring, portrait print drops the landscape page');

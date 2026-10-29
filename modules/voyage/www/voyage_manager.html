@@ -3,7 +3,7 @@
   Voyage Chief — engine log, e-ORB and voyage reporting
   ts0gs · Marvin C. Endozo
 -->
-<html lang="en">
+<html lang="en-US">
 <head>
 <meta charset="UTF-8">
 <title>Voyage Chief — Engine Log</title>
@@ -8292,6 +8292,66 @@ function vesselRegistryId(vesselId){
   return vesselRecord(vesselId)?.id || vesselId || state.activeVesselId || LEGACY_VESSEL_ID;
 }
 
+function orbEntryMatchesShip(item, vesselId){
+  if (!item) return false;
+  const vid = vesselId || state.activeVesselId || LEGACY_VESSEL_ID;
+  if (!item.vesselId) return vid === LEGACY_VESSEL_ID;
+  const keys = typeof vesselIdentityKeys === 'function' ? vesselIdentityKeys(vid) : new Set([vid]);
+  return keys.has(item.vesselId);
+}
+
+function toIsoDate(value){
+  if (window.EORB && typeof EORB.toIsoDate === 'function') return EORB.toIsoDate(value);
+  const s = String(value == null ? '' : value).trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[3] + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0');
+  return s.slice(0, 10);
+}
+
+function formatMdY(value){
+  if (window.EORB && typeof EORB.formatMdY === 'function') return EORB.formatMdY(value);
+  const iso = toIsoDate(value);
+  if (!iso || iso.length < 10) return value ? String(value) : '';
+  return iso.slice(5, 7) + '/' + iso.slice(8, 10) + '/' + iso.slice(0, 4);
+}
+
+function adoptOrbEntries(list){
+  return (list || []).map((o) => {
+    const row = Object.assign({}, o);
+    const iso = toIsoDate(row.date);
+    if (iso) row.date = iso;
+    if (typeof tagVesselId === 'function') tagVesselId(row);
+    return row;
+  });
+}
+
+async function unionOrbEntriesFromServer(){
+  const base = typeof syncApiBase === 'function' ? syncApiBase() : '';
+  if (!base || !state.activeVesselId) return 0;
+  try {
+    const vessel = vesselSyncSlug();
+    const { body } = await fetchSyncJson(
+      `${base}/api/voyage-misc/${encodeURIComponent(vessel)}?full=1`,
+      { headers: syncRequestHeaders() }
+    );
+    const remote = (body && body.misc) || {};
+    const incoming = adoptOrbEntries(remote.orbEntries || []);
+    if (!incoming.length) return 0;
+    const deleted = (typeof ensureSyncConfig === 'function' ? (ensureSyncConfig().deletedIds || {}) : {});
+    const merged = typeof filterDeleted === 'function'
+      ? filterDeleted(mergeListsById(incoming, state.orbEntries || []), deleted.orbEntries)
+      : mergeListsById(incoming, state.orbEntries || []);
+    state.orbEntries = adoptOrbEntries(merged);
+    return incoming.length;
+  } catch (err) {
+    console.warn('e-ORB vessel union', err);
+    return 0;
+  }
+}
+
 /** True only when a library leg belongs to the given vessel (never other ships). */
 function legBelongsToVessel(leg, vesselId){
   if (!leg || !vesselId) return false;
@@ -8853,7 +8913,7 @@ async function loadVesselFromDb(vesselId){
   }
   try{
     const allOrb = await dbGetAll('orbEntries');
-    state.orbEntries = (allOrb || []).filter(match);
+    state.orbEntries = adoptOrbEntries((allOrb || []).filter(match));
   }catch(_){ state.orbEntries = []; }
   reportVesselLoad(
     `${ship} · ${state.entries.length} log entries, ${state.receipts.length} receipts, ${state.documents.length} documents`,
@@ -12743,7 +12803,7 @@ function consumptionRowValues(r){
   const incOf = fuel => extraOf(incExtra, fuel);
   const dt = new Date(r.datetime);
   return {
-    datetime: dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'}),
+    datetime: dt.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'}),
     operation: r.operation,
     hfoMe: meOf('HFO'), hfoGe: geOf('HFO'), hfoBlr: blrOf('HFO'),
     hfoTotal: sum(meOf('HFO'), geOf('HFO'), blrOf('HFO')),
@@ -17084,7 +17144,7 @@ function buildRequisitionPrintSheets(rows){
     { label: 'For Follow Up', value: String(tally.byStatus['follow-up']) },
     { label: 'Received', value: String(tally.received) }
   ]);
-  const asOf = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+  const asOf = new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   const metaCells = [
     { label: 'Vessel', value: escPrint(state.setup.vesselName || '—') },
     { label: 'Voyage No.', value: escPrint(state.setup.voyageNumber || '—') },
@@ -22078,7 +22138,7 @@ function openRobSnapshot(entryId){
 
   const dt = new Date(entry.datetime);
   document.getElementById('robSnapshotVessel').value = state.setup.vesselName || '';
-  document.getElementById('robSnapshotDate').value = dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
+  document.getElementById('robSnapshotDate').value = dt.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
   document.getElementById('robSnapshotTime').value = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   document.getElementById('robSnapshotOperation').value = entry.operation;
 
@@ -22102,7 +22162,7 @@ document.getElementById('btnCloseRobSnapshot').addEventListener('click', ()=>{
 });
 
 function printRobSnapshot(entry, dt, rowsForPrint){
-  const dateStr = dt.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
+  const dateStr = dt.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
   const timeStr = dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   const sheetHtml = `<div class="pr-sheet pr-sheet-rob">
     ${printDocHeader({ title: 'Remaining On Board', subtitle: 'Fuel, Lube & Fresh Water Inventory Snapshot', badge: entry.operation })}
@@ -26012,7 +26072,7 @@ function renderDocList(){
   }
   body.innerHTML = state.documents.slice().sort((a,b)=>new Date(b.uploadedAt)-new Date(a.uploadedAt)).map(d=>`
     <tr>
-      <td>${new Date(d.uploadedAt).toLocaleDateString()}</td>
+      <td>${new Date(d.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })}</td>
       <td>${d.bdnNo||'—'}</td>
       <td>${d.company||'—'}</td>
       <td>${d.location||'—'}</td>
@@ -28695,7 +28755,8 @@ function applyRemoteSnapshot(remote, policy){
     state.documents = (remoteData.documents || []).map(d=> tagVesselId({...d}));
     state.abstracts = (remoteData.abstracts || []).map(a=> tagVesselId({...a}));
     state.printHistory = (remoteData.printHistory || []).map(p=> slimPrintRecord(tagVesselId({...p})));
-    state.orbEntries = (remoteData.orbEntries || []).map(o=> tagVesselId({...o}));
+    const pulledOrb = adoptOrbEntries(remoteData.orbEntries || []);
+    state.orbEntries = pulledOrb.length ? pulledOrb : adoptOrbEntries(state.orbEntries || []);
     /* Entries from the server are in the server's order; book order here will
        differ, so the chain is rebuilt after this returns (see the caller). */
     _orbNeedsReseal = 'the active leg was pulled from the server';
@@ -28737,7 +28798,7 @@ function applyRemoteSnapshot(remote, policy){
   state.abstracts = filterDeleted(mergeListsById(remoteData.abstracts, state.abstracts), deleted.abstracts);
   state.printHistory = filterDeleted(mergeListsById(remoteData.printHistory, state.printHistory), deleted.printHistory)
     .map(p => slimPrintRecord(p));
-  state.orbEntries = mergeListsById(remoteData.orbEntries, state.orbEntries).map(o => tagVesselId({...o}));
+  state.orbEntries = adoptOrbEntries(mergeListsById(remoteData.orbEntries, state.orbEntries));
   /* A merge interleaves two devices' entries by date, so every line after the
      first incoming one follows a different predecessor. */
   _orbNeedsReseal = 'entries were merged from the server';
@@ -28967,7 +29028,9 @@ async function refreshOrbEntriesFromDb(){
       return vesselId === LEGACY_VESSEL_ID;
     };
     const fromDb = (allOrb || []).filter(match);
-    state.orbEntries = mergeListsById(fromDb, state.orbEntries || []);
+    let merged = mergeListsById(fromDb, state.orbEntries || []);
+    if (typeof adoptOrbEntries === 'function') merged = adoptOrbEntries(merged);
+    state.orbEntries = merged;
   } catch (_) {}
 }
 
@@ -29174,6 +29237,10 @@ async function syncNow(options = {}){
       }
     }
     }
+
+    update({ label: 'Collecting the oil record book from every voyage…', source: 'server' });
+    await unionOrbEntriesFromServer();
+    await persistAllToDb();
 
     update({ label: 'Refreshing the program…', source: 'program' });
     await archiveActiveVoyageLeg();
@@ -29584,7 +29651,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v351';
+let androidInstallCacheName = 'noon-report-v352';
 
 /*
  * What the program is called.
@@ -30879,7 +30946,7 @@ async function restoreFullDatabase(payload){
   await loadVesselFromDb(vid);
   try{
     const orbAll = await dbGetAll('orbEntries');
-    state.orbEntries = (orbAll || []).filter(e => !e.vesselId || e.vesselId === state.activeVesselId);
+    state.orbEntries = adoptOrbEntries((orbAll || []).filter(e => orbEntryMatchesShip(e)));
   }catch(_){ state.orbEntries = []; }
   render();
   applyEntryDefaults();
@@ -30937,7 +31004,7 @@ async function mergeFullDatabase(payload){
   await loadVesselFromDb(state.activeVesselId);
   try{
     const orbAll = await dbGetAll('orbEntries');
-    state.orbEntries = (orbAll || []).filter(e => !e.vesselId || e.vesselId === state.activeVesselId);
+    state.orbEntries = adoptOrbEntries((orbAll || []).filter(e => orbEntryMatchesShip(e)));
   }catch(_){ state.orbEntries = []; }
   render();
   applyEntryDefaults();
@@ -33018,22 +33085,23 @@ function orbLastEntryDate(){
   let last = null;
   (state.orbEntries || []).forEach(e=>{
     if (!e) return;
-    if (e.vesselId && e.vesselId !== state.activeVesselId) return;
-    if (!e.date) return;
-    if (!last || String(e.date) > last) last = String(e.date);
+    if (!orbEntryMatchesShip(e)) return;
+    const day = toIsoDate(e.date);
+    if (!day) return;
+    if (!last || day > last) last = day;
   });
   return last;
 }
 
 function orbLastWeeklyInventoryDate(){
   if (!window.EORB) return null;
-  const rows = (state.orbEntries || []).filter(e => !e.vesselId || e.vesselId === state.activeVesselId);
+  const rows = (state.orbEntries || []).filter(e => orbEntryMatchesShip(e));
   return EORB.lastMatchingEntryDate(rows, EORB.isWeeklySludgeInventory);
 }
 
 function orbLastWeeklyOwsDate(){
   if (!window.EORB) return null;
-  const rows = (state.orbEntries || []).filter(e => !e.vesselId || e.vesselId === state.activeVesselId);
+  const rows = (state.orbEntries || []).filter(e => orbEntryMatchesShip(e));
   return EORB.lastMatchingEntryDate(rows, EORB.isWeeklyOwsTest);
 }
 
@@ -33936,14 +34004,15 @@ function renderOrbCodesList(){
 }
 
 function filteredOrbEntries(){
-  const from = document.getElementById('orb_from')?.value || '';
-  const to = document.getElementById('orb_to')?.value || '';
+  const from = toIsoDate(document.getElementById('orb_from')?.value || '');
+  const to = toIsoDate(document.getElementById('orb_to')?.value || '');
   const part = document.getElementById('orb_browsePart')?.value || 'all';
   const officer = document.getElementById('orb_browseOfficer')?.value || 'all';
   return (state.orbEntries || []).filter(e => {
     if (part !== 'all' && String(e.part) !== part) return false;
-    if (from && e.date < from) return false;
-    if (to && e.date > to) return false;
+    const day = toIsoDate(e.date);
+    if (from && day && day < from) return false;
+    if (to && day && day > to) return false;
     /* Officer report: match the roster id, falling back to the recorded name for
        entries saved before the roster existed. */
     if (officer !== 'all'){
@@ -33953,7 +34022,7 @@ function filteredOrbEntries(){
       if (e.officerId !== officer && !nameMatch) return false;
     }
     return true;
-  }).sort((a,b)=> String(a.date).localeCompare(String(b.date)) || String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+  }).sort((a,b)=> toIsoDate(a.date).localeCompare(toIsoDate(b.date)) || String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
 }
 
 /** Officer filter options for Browse / Print. */
@@ -33980,7 +34049,7 @@ function renderOrbBrowse(){
     const text = (e.lines||[]).map(l=>`${l.itemNo}: ${l.text}`).join(' · ');
     return `<tr${e.voided ? ' class="orb-voided"' : ''}>
       <td><input type="checkbox" class="orb-browse-check" value="${e.id}" checked></td>
-      <td>${EORB ? EORB.formatOrbDate(e.date) : e.date}</td>
+      <td>${formatMdY(e.date)}</td>
       <td>Part ${e.part}</td>
       <td><strong>${e.code}</strong></td>
       <td>${items}</td>
@@ -34042,11 +34111,17 @@ function orbBookEntries(){
   /* No range picked: the last 7 days up to the most recent entry in the book, not up to
      today — a book that was last written a fortnight ago should still show its last week
      of work rather than an empty page. */
-  const all = (state.orbEntries || []).filter(e => !e.vesselId || e.vesselId === state.activeVesselId);
+  const all = (state.orbEntries || []).filter(e => orbEntryMatchesShip(e));
   if (!all.length) return { entries: [], ranged: false, from: '', to: '' };
-  const latest = all.map(e => e.date).sort().slice(-1)[0];
+  const latest = all.map(e => toIsoDate(e.date)).filter(Boolean).sort().slice(-1)[0];
   const start = EORB.addDaysIso(latest, -(ORB_BOOK_DAYS - 1));
-  return { entries: all.filter(e => e.date >= start && e.date <= latest), ranged: false, from: start, to: latest };
+  return {
+    entries: all.filter(e => {
+      const day = toIsoDate(e.date);
+      return day && (!start || day >= start) && day <= latest;
+    }),
+    ranged: false, from: start, to: latest
+  };
 }
 
 /* The book's stylesheet lives with the book builder in eorb.js. Injecting it here means
@@ -34334,8 +34409,8 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   }
   const officerName = document.getElementById('orb_weeklyOfficerName')?.value?.trim();
   if (!officerName){ alert('Officer in charge name is required.'); return; }
-  const date = document.getElementById('orb_weeklyEntryDate')?.value
-    || document.getElementById('orb_entryDate')?.value;
+  const date = toIsoDate(document.getElementById('orb_weeklyEntryDate')?.value
+    || document.getElementById('orb_entryDate')?.value);
   const weeklyDraftCheck = orbDraftSignatoryExtras({
     officerName,
     officerRank: document.getElementById('orb_weeklyOfficerRank')?.value?.trim() || '',
@@ -34463,8 +34538,8 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
 
   const officerName = document.getElementById('orb_officerName')?.value?.trim();
   if (!officerName){ alert('Officer in charge name is required.'); return; }
-  const date = document.getElementById('orb_wizardEntryDate')?.value
-    || document.getElementById('orb_entryDate')?.value;
+  const date = toIsoDate(document.getElementById('orb_wizardEntryDate')?.value
+    || document.getElementById('orb_entryDate')?.value);
   const signDatePreview = (document.getElementById('orb_officerSignDate')?.value || date) + 'T12:00:00';
   const signCheck = orbDraftSignatoryExtras({
     officerName,
