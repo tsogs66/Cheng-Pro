@@ -24,8 +24,11 @@
   function printViaHiddenIframe(html, title, source) {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
-    const landscape = /@page\s*\{\s*size\s*:\s*A4\s+landscape/i.test(String(html || ''))
-      || /size:\s*A4\s+landscape/i.test(String(html || ''));
+    const text = String(html || '');
+    /* Capacity book marks the body printing-calib. A named landscape page
+       left in a portrait tank-summary sheet must not flip the job. */
+    const landscape = /<body[^>]*\bprinting-calib\b/i.test(text)
+      || /@page\s*\{\s*size\s*:\s*A4\s+landscape/i.test(text);
     const box = landscape ? 'width:297mm;height:210mm' : 'width:210mm;height:297mm';
     /* Keep a tiny on-screen box — fully off-screen/opacity-0 iframes often never print. */
     iframe.style.cssText =
