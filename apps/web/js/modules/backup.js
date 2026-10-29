@@ -1779,7 +1779,29 @@
             flag: localVessel.flag || '',
           }),
         });
-        return created && created.id ? created : { id: localVessel.id, name: localVessel.name || '', imo: localVessel.imo || '' };
+        const made = created && created.id ? created : { id: localVessel.id, name: localVessel.name || '', imo: localVessel.imo || '' };
+        /* A new server record is a name and nothing else. Give it this ship's
+           setup, so the server copy is the ship rather than a bare record that
+           a later pull would hand back to another device as an empty ship. */
+        try {
+          const bundle = await readTankBundleForSetup(localVessel.id);
+          for (const part of ['tanks', 'assets', 'bunkering', 'transfers', 'bunkerOps', 'voyage']) {
+            if (bundle && bundle[part] != null) {
+              await gatewayTankApi('/api/vessels/' + encodeURIComponent(made.id) + '/' + part, {
+                method: 'PUT',
+                body: JSON.stringify(bundle[part]),
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Ship setup not copied to the new server record:', err && err.message ? err.message : err);
+        }
+        return made;
+      }
+
+      async function readTankBundleForSetup(localId) {
+        if (!usingLocalTank()) return null;
+        try { return await tankRequest('/api/vessels/' + encodeURIComponent(localId)); } catch (_) { return null; }
       }
 
       async function mergeTankReportPair(localId, serverId) {

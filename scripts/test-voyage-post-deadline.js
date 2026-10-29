@@ -116,7 +116,7 @@ const reconcileCode = reconcile.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/
    that was open, once, after every leg has been synced. */
 const reconcileLoop = reconcileCode.split('} finally {')[0];
 
-check('reconcile still syncs each leg', /await syncNow\(\{ policy: 'merge' \}\)/.test(reconcileCode), true);
+check('reconcile still syncs each leg', /await syncNow\(\{ policy: 'merge'(, pullOnly: fresh)? \}\)/.test(reconcileCode), true);
 /* syncNow archives the active leg before returning, so the archive that used
    to follow it rewrote the whole leg to IndexedDB a second time — megabytes
    per leg, for nothing. The one archive after the loop files the restored
