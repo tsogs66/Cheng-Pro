@@ -67,6 +67,12 @@
   ];
   let progressJob = null;
 
+  /* The last Save & connect or Test connection line. The tank pull inside
+     Save can make the page draw itself again, which used to wipe the result
+     he was waiting for; the redrawn page shows it again from here. */
+  let suiteReport = null;
+  const SUITE_REPORT_MS = 5 * 60 * 1000;
+
   function progressHost() {
     return document.getElementById('bk-progress-host')
       || document.querySelector('.backup-page')
@@ -199,20 +205,47 @@
      the APK and the Windows app from its own 127.0.0.1, so a bare
      '/tanks/...' never left the device: in the APK every call came back as
      the app's index.html with a 200, and the backup reported saved reports
-     as sent that never reached the server. Those apps use the Server URL
-     saved under License, the same one the shell uses for server mode. */
+     as sent that never reached the server. Those apps use the Cheng Suite
+     server saved here, or else the Server URL saved under License. */
   function tankServerBase() {
     if (!bundledClient()) return '';
     let base = '';
     try {
-      base = localStorage.getItem('apiServerBase') || localStorage.getItem('chengAioLicenseServerUrl') || '';
+      base = localStorage.getItem(SUITE_URL_KEY) || localStorage.getItem('apiServerBase')
+        || localStorage.getItem('chengAioLicenseServerUrl') || '';
     } catch { /* private mode */ }
-    base = String(base).trim().replace(/\/+$/, '').replace(/\/api\/license$/i, '');
+    base = normalizeSuiteUrl(base);
     if (base) return base;
     if (window.Capacitor || !/^https?:$/.test(location.protocol)) {
-      throw new Error('Set the ChEng AIO server URL under License → Server URL first. This device has no server to send tank reports to without it.');
+      throw new Error('Set the Cheng Suite server URL in Backup & Restore first. This device has no server to send tank reports to without it.');
     }
     return '';
+  }
+
+  /* One address serves Tank Chief and Voyage Chief. Older installs saved it
+     once per program, sometimes with /tanks or /api/license on the end; the
+     ChEng AIO server answers both at its root. */
+  const SUITE_URL_KEY = 'chengSuiteServerUrl';
+
+  function normalizeSuiteUrl(url) {
+    return String(url || '').trim().replace(/\/+$/, '')
+      .replace(/\/api\/license$/i, '').replace(/\/tanks$/i, '').replace(/\/+$/, '');
+  }
+
+  /* The two saved copies may disagree. An address that answers tank sync is
+     a ChEng AIO server, which serves voyage sync as well; a standalone
+     Voyage server does not serve tanks. So the Tank address wins, and its
+     token goes with it. The Voyage token fills in where Tank has none. */
+  function pickSuiteServer(tank, voyage) {
+    const tankUrl = normalizeSuiteUrl(tank && tank.syncUrl);
+    const voyUrl = normalizeSuiteUrl(voyage && voyage.serverUrl);
+    const tankToken = String((tank && tank.syncApiToken) || '').trim();
+    const voyToken = String((voyage && voyage.apiToken) || '').trim();
+    return {
+      url: tankUrl || voyUrl,
+      token: tankUrl ? (tankToken || voyToken) : (voyToken || tankToken),
+      otherUrl: tankUrl && voyUrl && tankUrl !== voyUrl ? voyUrl : '',
+    };
   }
 
   /* A reply that is a web page is not tank data, whatever its status. */
@@ -220,7 +253,7 @@
     let data = null;
     try { data = raw ? JSON.parse(raw) : null; } catch { data = undefined; }
     if (data === undefined || (raw && !/json/i.test(contentType || '') && /^\s*</.test(raw))) {
-      throw new Error('The server answered with a web page, not tank data. Check the ChEng AIO server URL under License → Server URL.');
+      throw new Error('The server answered with a web page, not tank data. Check the Cheng Suite server URL in Backup & Restore.');
     }
     return data;
   }
@@ -440,13 +473,15 @@
     return voyageFrame;
   }
 
+  /* Voyage Chief's half of the Cheng Suite server form. Every sync now goes
+     through Database consistency, which merges by record. */
   function readVoyageSyncForm(root) {
     return {
-      serverUrl: (root.querySelector('#bk-voy-sync-url')?.value || '').trim(),
-      apiToken: (root.querySelector('#bk-voy-sync-token')?.value || '').trim(),
+      serverUrl: normalizeSuiteUrl(root.querySelector('#bk-suite-url')?.value),
+      apiToken: (root.querySelector('#bk-suite-token')?.value || '').trim(),
       vesselId: (root.querySelector('#bk-voy-sync-vessel')?.value || '').trim(),
       deviceName: (root.querySelector('#bk-voy-sync-device')?.value || '').trim(),
-      conflictPolicy: root.querySelector('#bk-voy-sync-conflict')?.value || 'merge',
+      conflictPolicy: 'merge',
     };
   }
 
@@ -476,19 +511,13 @@
 
   function fillVoyageSyncForm(root, settings) {
     if (!settings) return;
-    const url = root.querySelector('#bk-voy-sync-url');
-    const tok = root.querySelector('#bk-voy-sync-token');
     const vessel = root.querySelector('#bk-voy-sync-vessel');
     const device = root.querySelector('#bk-voy-sync-device');
-    const conflict = root.querySelector('#bk-voy-sync-conflict');
-    if (url) url.value = settings.serverUrl || '';
-    if (tok && settings.apiToken) tok.value = settings.apiToken;
     /* Carry the active vessel's slug when the module has none stored, rather
        than leaving it blank for the engineer to guess at. A slug the module
        has already recorded wins -- that is the folder its data is in. */
     if (vessel) vessel.value = settings.vesselId || activeVesselSlug() || '';
     if (device) device.value = settings.deviceName || '';
-    if (conflict) conflict.value = settings.conflictPolicy || 'merge';
   }
 
   async function voyagePost(action, extra, host, timeoutMs) {
@@ -634,83 +663,32 @@
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'} Active vessel: <strong>${esc(activeLabel)}</strong></p>
           <div id="bk-progress-host"></div>
 
-          <h2 class="backup-step"><span class="backup-step-no">1</span> Connect to your servers</h2>
-          <p class="hint backup-step-hint">Set each address once. Saving one connects and pulls straight away, and the vessel list in step 2 fills itself from whichever servers answer. Step 3 needs no network at all.</p>
+          <h2 class="backup-step"><span class="backup-step-no">1</span> Connect to your server</h2>
+          <p class="hint backup-step-hint">Set the address once. It serves Tank Chief and Voyage Chief together, and the vessel list in step 2 fills itself once it answers. Step 3 needs no network at all.</p>
 
-          <details class="form-panel backup-section" id="bk-tank-server" open>
-            <summary><span class="backup-section-title">Tank Chief server</span><span class="hint backup-summary-note" id="bk-sync-summary">not set</span></summary>
-            <p class="hint">Peer URL and token. Pull brings the files uploaded for the ship that is open. Update to the newest of both already takes that ship's data from both sides.</p>
+          <details class="form-panel backup-section" id="bk-suite-server" open>
+            <summary><span class="backup-section-title">Cheng Suite server</span><span class="hint backup-summary-note" id="bk-suite-summary">not set</span></summary>
+            <p class="hint">One address and one token for Tank Chief and Voyage Chief. Save &amp; connect stores them for both, checks that each half answers, and brings down the tank files uploaded for the ship that is open. Everything else moves through Database consistency below.</p>
             <div class="grid-2">
-              <div class="field"><label for="bk-sync-url">Peer sync URL</label>
-                <input id="bk-sync-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.1.50:8080 or :3080"></div>
-              <div class="field"><label for="bk-sync-token">Sync API token</label>
-                <input id="bk-sync-token" type="password" autocomplete="off" placeholder="Optional when peer uses SYNC_API_TOKEN"></div>
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-sync-save">Save &amp; connect</button>
-              <button type="button" class="btn" id="bk-sync-probe">Test connection</button>
-              <button type="button" class="btn" id="bk-sync-pull">Pull from peer</button>
-              <button type="button" class="btn" id="bk-sync-push">Push to peer</button>
-              <button type="button" class="btn" id="bk-sync-flush">Flush offline queue</button>
-            </div>
-            <p class="hint" id="bk-sync-status">Ready.</p>
-          </details>
-
-          <details class="form-panel backup-section" id="bk-voyage-server" open>
-            <summary><span class="backup-section-title">Voyage Chief server</span><span class="hint backup-summary-note" id="bk-voy-sync-summary">not set</span></summary>
-            <p class="hint">Self-hosted Voyage sync server. Same settings that used to live under Voyage → Setup.</p>
-            <div class="grid-2">
-              <div class="field span2"><label for="bk-voy-sync-url">Sync server URL</label>
-                <input id="bk-voy-sync-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.x.x:8080 or https://sync.yourdomain.com"></div>
-              <div class="field"><label for="bk-voy-sync-token">API token</label>
-                <input id="bk-voy-sync-token" type="password" autocomplete="off" placeholder="Bearer token"></div>
+              <div class="field span2"><label for="bk-suite-url">Server URL</label>
+                <input id="bk-suite-url" type="url" autocomplete="url" inputmode="url" placeholder="http://192.168.1.50:8080 or https://sync.yourdomain.com"></div>
+              <div class="field"><label for="bk-suite-token">API token</label>
+                <input id="bk-suite-token" type="password" autocomplete="off" placeholder="SYNC_API_TOKEN of the server"></div>
               <div class="field"><label for="bk-voy-sync-vessel">Vessel ID (slug)</label>
                 <input id="bk-voy-sync-vessel" autocomplete="off" placeholder="e.g. captain-veniamis"></div>
               <div class="field"><label for="bk-voy-sync-device">Device name</label>
                 <input id="bk-voy-sync-device" autocomplete="off" placeholder="e.g. ER tablet / Chief PC"></div>
-              <div class="field"><label for="bk-voy-sync-conflict">Conflict policy</label>
-                <select id="bk-voy-sync-conflict">
-                  <option value="merge">Merge by record (recommended)</option>
-                  <option value="local">Prefer this device</option>
-                  <option value="remote">Prefer server</option>
-                </select>
-              </div>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn primary" id="bk-voy-sync-save">Save &amp; connect</button>
-              <button type="button" class="btn" id="bk-voy-sync-test">Test connection</button>
-              <button type="button" class="btn" id="bk-voy-sync-push">Push active leg</button>
-              <button type="button" class="btn" id="bk-voy-sync-pull">Pull active leg</button>
-              <button type="button" class="btn" id="bk-voy-sync-persist">Keep data persistent</button>
+              <button type="button" class="btn primary" id="bk-suite-save">Save &amp; connect</button>
+              <button type="button" class="btn" id="bk-suite-test">Test connection</button>
             </div>
-            <p class="hint">Keep data persistent compares every voyage leg. Tick the ones both databases should hold, then press it again. A leg on only one side is copied across. A leg on both sides keeps the newer watch. The voyage you have open is saved and sent as well, and it stays open. Miscellaneous data goes with that leg. Saved tank reports, including monitoring, are copied to the server.</p>
-            <p class="hint" id="bk-voy-sync-status">Loading sync settings…</p>
-
-            <div class="backup-subsection">
-              <h3>One leg at a time</h3>
-              <p class="hint">For a specific voyage and condition. Step 2 pulls a ship's latest leg — or all of them — from its own row, which is the usual way in.</p>
-              <div class="btn-row">
-                <button type="button" class="btn" id="bk-voy-sync-list">List remote voyages</button>
-              </div>
-              <div class="grid-2" style="margin-top:10px;">
-                <div class="field"><label for="bk-voy-sync-pull-voyage">Voyage no.</label>
-                  <select id="bk-voy-sync-pull-voyage"><option value="">— List remote voyages first —</option></select></div>
-                <div class="field"><label for="bk-voy-sync-pull-condition">Condition</label>
-                  <select id="bk-voy-sync-pull-condition">
-                    <option value="B">B — Ballasted</option>
-                    <option value="L">L — Laden</option>
-                  </select></div>
-              </div>
-              <div class="btn-row">
-                <button type="button" class="btn" id="bk-voy-sync-pull-leg">Pull selected voyage leg</button>
-              </div>
-              <div id="bk-voy-sync-remote" class="hint backup-remote-list" hidden></div>
-            </div>
+            <p class="hint" id="bk-suite-status">Loading server settings…</p>
           </details>
 
           <details class="form-panel backup-section" id="bk-consistency" open>
             <summary><span class="backup-section-title">Database consistency</span><span class="hint backup-summary-note" id="bk-consistency-summary">not checked</span></summary>
-            <p class="hint">Compares every voyage leg, every saved tank report, and the miscellaneous data (requisitions, the consumption plan and its snapshots, the oil record book) on this device with the server. Open work in Tank Chief and Voyage Chief is saved first. Push and pull of the active leg do not see the other voyages. Nothing here deletes a leg, a report or a requisition. Where both sides have the same one, the newer copy is kept and records that exist on only one side stay.</p>
+            <p class="hint">Compares every voyage leg, every saved tank report, and the miscellaneous data (requisitions, the consumption plan and its snapshots, the oil record book) on this device with the server. Open work in Tank Chief and Voyage Chief is saved first. Every copy between this device and the server goes through here. Nothing here deletes a leg, a report or a requisition. Where both sides have the same one, the newer copy is kept and records that exist on only one side stay.</p>
             <div class="btn-row">
               <button type="button" class="btn primary" id="bk-check-voyage">Check voyage legs</button>
               <button type="button" class="btn" id="bk-check-tanks">Check saved tank reports</button>
@@ -852,8 +830,7 @@
 
       /* Keep the folded line honest while he is typing a new address. */
       for (const [noteId, urlId] of [
-        ['bk-sync-summary', 'bk-sync-url'],
-        ['bk-voy-sync-summary', 'bk-voy-sync-url'],
+        ['bk-suite-summary', 'bk-suite-url'],
       ]) {
         const note = root.querySelector('#' + noteId);
         const urlEl = root.querySelector('#' + urlId);
@@ -1457,17 +1434,6 @@
         });
       }
 
-      function voyageNumbers(rows, side) {
-        const key = side === 'local' ? 'localText' : 'serverText';
-        const seen = [];
-        for (const row of rows || []) {
-          if (!row || row[key] === '—') continue;
-          const no = String(row.voyage || '').trim();
-          if (no && !seen.includes(no)) seen.push(no);
-        }
-        return seen;
-      }
-
       function reloadOpenVoyageFrame() {
         document.querySelectorAll('iframe.aio-embed-frame').forEach((frame) => {
           try {
@@ -1558,7 +1524,7 @@
 
       async function refreshVoyageConsistency() {
         const settings = readVoyageSyncForm(root);
-        if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
+        if (!settings.serverUrl) throw new Error('Set the Cheng Suite server URL above, then check again.');
         progressSet(20, 'Comparing voyage legs on this device and the server…');
         watchVoyage(20, 90);
         const compared = await voyagePost('compare-legs', {
@@ -1644,7 +1610,7 @@
          count it. This compares it with the server's union of every leg. */
       async function refreshMiscConsistency() {
         const settings = readVoyageSyncForm(root);
-        if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
+        if (!settings.serverUrl) throw new Error('Set the Cheng Suite server URL above, then check again.');
         await voyagePost('save-sync-settings', { settings }, root);
         progressSet(30, 'Comparing miscellaneous data on this device and the server…');
         const compared = await voyagePost('compare-misc', {}, root, 120000);
@@ -1905,11 +1871,11 @@
         try {
           await withProgress('Comparing saved tank reports…', 'Writing open gaugings and drafts…', async () => {
             await flushTankFrames();
-            const peerUrl = (root.querySelector('#bk-sync-url')?.value || '').trim();
-            const peerToken = (root.querySelector('#bk-sync-token')?.value || '').trim();
+            const peerUrl = normalizeSuiteUrl(root.querySelector('#bk-suite-url')?.value);
+            const peerToken = (root.querySelector('#bk-suite-token')?.value || '').trim();
             if (!usingLocalTank()) {
               if (!peerUrl) {
-                throw new Error('This screen is using the server that served this page, so there is no second copy to compare until a peer URL is set. Pull brings the files uploaded for the ship that is open.');
+                throw new Error('This screen is using the server that served this page, so there is no second copy to compare until the Cheng Suite server URL is set above.');
               }
               progressSet(20, 'Reading saved reports on the peer…');
               const compared = await gatewayTankApi('/api/sync/saved-reports/compare', {
@@ -2171,7 +2137,6 @@
       /* ---------- Server vessel library + sync settings ---------- */
       const libStatus = root.querySelector('#bk-lib-status');
       const libList = root.querySelector('#bk-lib-list');
-      const syncStatus = root.querySelector('#bk-sync-status');
       const setLib = (t) => { if (libStatus) libStatus.textContent = t; };
 
       /* Pulling a ship's legs or adopting a vessel means several round trips to
@@ -2180,7 +2145,15 @@
          while it works — see .is-working in css/hud-effects.css. */
       const libPanel = libList && libList.closest ? libList.closest('.form-panel') : null;
       const working = (on) => { if (libPanel) libPanel.classList.toggle('is-working', !!on); };
-      const setSync = (t) => { if (syncStatus) syncStatus.textContent = t; };
+      /* Looked up each time: after a redraw the line is a new element. */
+      const setSync = (t) => {
+        const el = document.getElementById('bk-suite-status');
+        if (el) el.textContent = t;
+      };
+      const reportSuite = (t) => {
+        suiteReport = { text: t, at: Date.now() };
+        setSync(t);
+      };
 
       async function serverTankApi(path, options = {}) {
         /* Prefer the live gateway so Electron "local" transport does not hide server vessels. */
@@ -2406,12 +2379,12 @@
               /* Voyage Chief's own sync config is what pull-voyage-leg reads,
                  and in a fresh profile it is empty — the frame answers "Enter a
                  Sync Server URL first" however good the row is. So push the
-                 Voyage server form down first, exactly as the panel's own List /
-                 Pull buttons do, and say plainly when that form is blank. */
+                 Cheng Suite server form down first, and say plainly when it is
+                 blank. */
               const voySettings = readVoyageSyncForm(root);
               if (!voySettings.serverUrl) {
-                setLib('Set the Voyage Chief sync server URL in step 1 above, then pull.');
-                toast('Voyage sync server not set');
+                setLib('Set the Cheng Suite server URL in step 1 above, then pull.');
+                toast('Cheng Suite server not set');
                 return;
               }
 
@@ -2419,7 +2392,7 @@
               working(true);
               try {
                 /* Point the frame at this row's ship, not at whatever slug the
-                   Voyage server form happens to hold — with that form folded
+                   server form happens to hold — with that form folded
                    away once it is configured, it is usually the last ship
                    pulled, not the one whose row was clicked. */
                 await voyagePost('save-sync-settings', {
@@ -2765,202 +2738,85 @@
       root.querySelector('#bk-lib-refresh')?.addEventListener('click', () => refreshVesselLibrary());
       refreshVesselLibrary();
 
-      async function loadSyncSettings() {
+      /* ---------- Cheng Suite server: one address and one token ----------
+       *
+       * Tank Chief and Voyage Chief used to keep a server each. The ChEng AIO
+       * server answers both at one address with one SYNC_API_TOKEN, so the
+       * form holds one of each and Save & connect writes them into both
+       * programs. Each half still loads on its own clock (Voyage answers
+       * through its hidden frame), so the form is painted from whichever has
+       * arrived, and never over what he has started typing. */
+      const suiteUrlEl = root.querySelector('#bk-suite-url');
+      const suiteTokenEl = root.querySelector('#bk-suite-token');
+      const suiteSaved = { tank: null, voyage: null };
+      const suiteNotes = { tank: '', voyage: '' };
+      let suiteTyped = false;
+      [suiteUrlEl, suiteTokenEl].forEach((el) => {
+        if (el) el.addEventListener('input', () => { suiteTyped = true; });
+      });
+
+      const sentence = (t) => {
+        const s = String(t || '').trim();
+        return !s ? '' : /[.!?]$/.test(s) ? s : s + '.';
+      };
+
+      function readSuiteForm() {
+        return {
+          url: normalizeSuiteUrl(suiteUrlEl && suiteUrlEl.value),
+          token: ((suiteTokenEl && suiteTokenEl.value) || '').trim(),
+        };
+      }
+
+      function paintSuiteForm() {
+        const picked = pickSuiteServer(suiteSaved.tank, suiteSaved.voyage);
+        if (!suiteTyped) {
+          if (suiteUrlEl) suiteUrlEl.value = picked.url;
+          if (suiteTokenEl) suiteTokenEl.value = picked.token;
+        }
+        markServerBlock('bk-suite-server', 'bk-suite-summary', suiteUrlEl && suiteUrlEl.value);
+        const parts = [suiteNotes.voyage, suiteNotes.tank];
+        if (picked.otherUrl) {
+          parts.push(`Voyage Chief was saved with ${picked.otherUrl}. Save & connect points both programs at the address above.`);
+        }
+        /* A Save or Test that is running or just reported wins over a
+           settings load that answers late. */
+        if (suiteReport && Date.now() - suiteReport.at < SUITE_REPORT_MS) setSync(suiteReport.text);
+        else setSync(parts.filter(Boolean).map(sentence).join(' ') || 'Ready.');
+      }
+
+      /* The frame shows a saved token as dots. The copy mirrored here is the real one. */
+      function voyageTokenOf(settings, mirrored) {
+        const tok = String((settings && settings.apiToken) || '');
+        return tok && tok.indexOf('•') < 0 ? tok : ((mirrored && mirrored.apiToken) || '');
+      }
+
+      function rememberSuiteUrl(url) {
+        try {
+          if (url) localStorage.setItem(SUITE_URL_KEY, url);
+          else localStorage.removeItem(SUITE_URL_KEY);
+        } catch (_) { /* private mode */ }
+      }
+
+      async function loadTankServerSettings() {
         try {
           const s = await tankRequest('/api/settings');
-          const urlEl = root.querySelector('#bk-sync-url');
-          const tokEl = root.querySelector('#bk-sync-token');
-          if (urlEl) urlEl.value = s.syncUrl || '';
-          if (tokEl) tokEl.value = s.syncApiToken || '';
-          markServerBlock('bk-tank-server', 'bk-sync-summary', urlEl && urlEl.value);
-          setSync('Loaded from ' + tankSourceLabel() + '.');
+          suiteSaved.tank = { syncUrl: s.syncUrl || '', syncApiToken: s.syncApiToken || '' };
+          suiteNotes.tank = '';
         } catch (e) {
-          setSync(e.message || 'Could not load sync settings');
+          suiteNotes.tank = 'Tank Chief settings could not be read: ' + (e.message || 'unknown error');
         }
+        paintSuiteForm();
       }
-      loadSyncSettings();
+      loadTankServerSettings();
 
-      /* Saving a peer URL is the moment the engineer means "connect me".
-       *
-       * Rather than leave him to press Test, then Pull, then Refresh list, the
-       * save runs the whole arrival: prove the peer answers, bring the tank
-       * database down, then repaint the vessel library and the header's vessel
-       * list so his ships are simply there.
-       *
-       * The pull is safe to do without asking because applySyncPayload merges
-       * by revision — a remote vessel only lands when its revision is at least
-       * the local one, so work done on this device since the last sync is not
-       * thrown away. Each step reports separately: a peer that does not answer
-       * stops the sequence with the settings still saved, rather than looking
-       * like the save failed. */
-      function activeVesselForSync() {
-        const active = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive && ChengPro.vessel.getActive()) || null;
-        if (!active || (!active.id && !active.name && !active.imo)) return null;
-        return { id: active.id || '', name: active.name || '', imo: active.imo || '' };
-      }
-
-      root.querySelector('#bk-sync-save')?.addEventListener('click', async () => {
-        const syncUrl = root.querySelector('#bk-sync-url').value.trim();
-        const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
-
-        try {
-          await tankRequest('/api/settings', {
-            method: 'PUT',
-            body: JSON.stringify({ syncUrl, syncApiToken, syncEnabled: true }),
-          });
-        } catch (e) {
-          setSync(e.message || 'Save failed');
-          toast(e.message || 'Save failed');
-          return;
-        }
-
-        if (!syncUrl) {
-          setSync('Sync settings saved. Enter a peer URL to pull vessels automatically.');
-          toast('Sync settings saved');
-          await refreshVesselLibrary();
-          return;
-        }
-
-        setSync('Saved. Checking the peer…');
-        try {
-          await tankRequest('/api/sync/probe', {
-            method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken }),
-          });
-        } catch (e) {
-          setSync(`Saved, but the peer did not answer: ${e.message || 'unreachable'}. Vessels will appear once it does.`);
-          toast('Saved — peer unreachable');
-          await refreshVesselLibrary();
-          return;
-        }
-
-        const vessel = activeVesselForSync();
-        if (!vessel) {
-          setSync('Saved and the peer answered. Open the vessel, then pull — that brings the files uploaded for that ship.');
-          toast('Open the vessel, then pull');
-          await refreshVesselLibrary();
-          return;
-        }
-        setSync('Peer reachable. Downloading this vessel\'s files…');
-        let pulled = '';
-        try {
-          const res = await tankRequest('/api/sync/pull', {
-            method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken, vessel }),
-          });
-          pulled = res && (res.message || (res.remoteCount != null ? `${res.remoteCount} vessel file set from the peer` : ''));
-          if (res && res.warning) pulled = res.warning;
-        } catch (e) {
-          setSync(`Saved and peer reachable, but the tank pull failed: ${e.message || 'unknown error'}`);
-          toast('Tank pull failed');
-          await refreshVesselLibrary();
-          return;
-        }
-
-        try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
-        await refreshVesselLibrary();
-        const done = `Connected. ${pulled || 'This vessel\'s tank files are up to date'}.`;
-        setSync(done);
-        toast('Connected — vessel list updated');
-      });
-
-      root.querySelector('#bk-sync-probe')?.addEventListener('click', async () => {
-        try {
-          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
-          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
-          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
-          setSync('Testing peer…');
-          const res = await tankRequest('/api/sync/probe', {
-            method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken }),
-          });
-          setSync(res.hint || res.message || 'Peer reachable');
-          toast(res.hint || 'Peer OK');
-        } catch (e) {
-          setSync(e.message || 'Probe failed');
-          toast(e.message || 'Probe failed');
-        }
-      });
-
-      root.querySelector('#bk-sync-pull')?.addEventListener('click', async () => {
-        try {
-          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
-          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
-          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
-          const vessel = activeVesselForSync();
-          if (!vessel) { setSync('Open the vessel first. Pull brings the files uploaded for that ship.'); return; }
-          setSync('Saving open tank work…');
-          await flushTankFrames();
-          setSync('Pulling this vessel\'s files…');
-          const res = await tankRequest('/api/sync/pull', {
-            method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken, vessel }),
-          });
-          try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
-          /* The open Tank Chief screen still holds what it read before the pull;
-             a later save from it would write that back. Make it read again. */
-          reloadOpenTankFrames();
-          setSync(res.message || 'Pull complete');
-          toast(res.message || 'Pull complete');
-        } catch (e) {
-          setSync(e.message || 'Pull failed');
-          toast(e.message || 'Pull failed');
-        }
-      });
-
-      root.querySelector('#bk-sync-push')?.addEventListener('click', async () => {
-        try {
-          const syncUrl = root.querySelector('#bk-sync-url').value.trim();
-          const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
-          if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
-          setSync('Saving open tank work…');
-          await flushTankFrames();
-          setSync('Pushing to peer…');
-          const res = await tankRequest('/api/sync/push', {
-            method: 'POST',
-            body: JSON.stringify({ syncUrl, syncApiToken }),
-          });
-          setSync(res.message || 'Push complete');
-          toast(res.message || 'Push complete');
-        } catch (e) {
-          setSync(e.message || 'Push failed');
-          toast(e.message || 'Push failed');
-        }
-      });
-
-      root.querySelector('#bk-sync-flush')?.addEventListener('click', async () => {
-        try {
-          setSync('Flushing offline queue…');
-          if (typeof LocalApi !== 'undefined' && LocalApi.flush) {
-            await LocalApi.flush();
-          } else {
-            await tankRequest('/api/sync/push', {
-              method: 'POST',
-              body: JSON.stringify({}),
-            });
-          }
-          setSync('Offline queue flushed.');
-          toast('Offline queue flushed');
-        } catch (e) {
-          setSync(e.message || 'Flush failed');
-          toast(e.message || 'Flush failed');
-        }
-      });
-
-
-      const setVoySync = (t) => {
-        const el = root.querySelector('#bk-voy-sync-status');
-        if (el) el.textContent = t;
-      };
-      const remoteBox = root.querySelector('#bk-voy-sync-remote');
-
-      /* Paint mirrored credentials immediately so a closed/reopened AIO still
-       * shows the last saved Voyage sync URL before the bridge iframe answers. */
+      /* Paint the mirrored Voyage copy at once so a reopened AIO shows the
+       * last saved server before the bridge frame answers. */
       {
         const mirrored = readMirroredVoyageSync();
         if (mirrored && (mirrored.serverUrl || mirrored.apiToken || mirrored.vesselId)) {
           fillVoyageSyncForm(root, mirrored);
-          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', mirrored.serverUrl);
+          suiteSaved.voyage = { serverUrl: mirrored.serverUrl || '', apiToken: mirrored.apiToken || '' };
+          paintSuiteForm();
         }
       }
 
@@ -2969,261 +2825,182 @@
           const msg = await voyagePost('get-sync-settings', {}, root);
           const settings = msg.settings || {};
           const mirrored = readMirroredVoyageSync() || {};
+          const apiToken = voyageTokenOf(settings, mirrored);
           fillVoyageSyncForm(root, {
-            serverUrl: settings.serverUrl || mirrored.serverUrl || '',
-            apiToken: settings.apiToken || mirrored.apiToken || '',
             vesselId: settings.vesselId || mirrored.vesselId || '',
             deviceName: settings.deviceName || mirrored.deviceName || '',
-            conflictPolicy: settings.conflictPolicy || mirrored.conflictPolicy || 'merge',
           });
+          suiteSaved.voyage = { serverUrl: settings.serverUrl || mirrored.serverUrl || '', apiToken };
           if (settings.serverUrl || settings.apiToken) {
             mirrorVoyageSyncToLocalStorage({
               serverUrl: settings.serverUrl || '',
-              apiToken: (settings.apiToken && settings.apiToken.indexOf('•') < 0) ? settings.apiToken : (mirrored.apiToken || ''),
+              apiToken,
               vesselId: settings.vesselId || '',
               deviceName: settings.deviceName || '',
-              conflictPolicy: settings.conflictPolicy || 'merge',
+              conflictPolicy: 'merge',
             });
           }
-          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', (settings.serverUrl || mirrored.serverUrl));
-          const s = settings;
-          const parts = [];
-          if (s.lastSyncedAt) parts.push('Last sync: ' + new Date(s.lastSyncedAt).toLocaleString());
-          else parts.push('Last sync: never');
-          if (s.lastSyncError) parts.push('Error: ' + s.lastSyncError);
-          setVoySync(parts.join(' · '));
+          suiteNotes.voyage = (settings.lastSyncedAt
+            ? 'Last voyage sync: ' + new Date(settings.lastSyncedAt).toLocaleString()
+            : 'Last voyage sync: never')
+            + (settings.lastSyncError ? '. Error: ' + settings.lastSyncError : '');
         } catch (e) {
-          const mirrored = readMirroredVoyageSync();
-          if (mirrored && mirrored.serverUrl) {
-            fillVoyageSyncForm(root, mirrored);
-            markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', mirrored.serverUrl);
-            setVoySync('Using last saved sync URL (Voyage bridge still loading).');
-          } else {
-            setVoySync(e.message || 'Could not load Voyage sync settings');
-          }
+          suiteNotes.voyage = suiteSaved.voyage
+            ? 'Using the last saved server (Voyage Chief is still loading)'
+            : (e.message || 'Could not load Voyage Chief settings');
         }
+        paintSuiteForm();
       })();
 
-      root.querySelector('#bk-voy-sync-save')?.addEventListener('click', async () => {
-        setVoySync('Saving Voyage sync settings…');
+      function activeVesselForSync() {
+        const active = (window.ChengPro && ChengPro.vessel && ChengPro.vessel.getActive && ChengPro.vessel.getActive()) || null;
+        if (!active || (!active.id && !active.name && !active.imo)) return null;
+        return { id: active.id || '', name: active.name || '', imo: active.imo || '' };
+      }
+
+      /* Both halves answer at the same address, but each is asked on its own:
+         one that is down should not hide that the other is fine. The servers'
+         own hints point at the standalone apps' Push / Pull and Setup pages,
+         so the result is said in this page's words. */
+      function suiteFailure(err) {
+        const text = String((err && err.message) || err || 'unreachable');
+        if (/\b401\b|unauthori[sz]ed|token/i.test(text)) {
+          return 'the API token was missing or refused. Enter the server\'s SYNC_API_TOKEN above and save.';
+        }
+        return sentence(text);
+      }
+
+      async function testSuiteServer(url, token, voySettings, skipVoyage) {
+        const out = { tank: false, voyage: false, line: '' };
+        const lines = [];
         try {
-          const formSettings = readVoyageSyncForm(root);
-          mirrorVoyageSyncToLocalStorage(formSettings);
-          const msg = await voyagePost('save-sync-settings', { settings: formSettings }, root);
-          markServerBlock('bk-voyage-server', 'bk-voy-sync-summary', formSettings.serverUrl);
-          setVoySync(msg.message || 'Saved.');
-          toast(msg.message || 'Voyage sync settings saved');
+          await tankRequest('/api/sync/probe', {
+            method: 'POST',
+            body: JSON.stringify({ syncUrl: url, syncApiToken: token }),
+          });
+          out.tank = true;
+          lines.push('Tank Chief answers.');
         } catch (e) {
-          setVoySync(e.message || 'Save failed');
+          lines.push('Tank Chief did not answer: ' + suiteFailure(e));
+        }
+        /* When Voyage Chief could not even take the settings, asking it again
+           only waits out the same two minutes. */
+        if (!skipVoyage) {
+          try {
+            await voyagePost('test-sync', { settings: voySettings }, root);
+            out.voyage = true;
+            lines.push('Voyage Chief answers.');
+          } catch (e) {
+            lines.push('Voyage Chief did not answer: ' + suiteFailure(e));
+          }
+        }
+        out.line = lines.join(' ');
+        return out;
+      }
+
+      /* Saving the address is the moment the engineer means "connect me".
+       *
+       * What the two Save & connect buttons did, in one: store the address and
+       * token in Tank Chief and in Voyage Chief, prove each half answers,
+       * bring down the tank files uploaded for the ship that is open, then
+       * repaint the vessel library and the header's vessel list so his ships
+       * are simply there.
+       *
+       * The tank pull is safe without asking because applySyncPayload merges
+       * by revision and an empty part never replaces a filled one. Voyage legs,
+       * saved reports and miscellaneous data are left to Database consistency,
+       * which shows what differs before anything is written. Each step reports
+       * separately: a server that does not answer stops the sequence with the
+       * settings still saved, rather than looking like the save failed. */
+      root.querySelector('#bk-suite-save')?.addEventListener('click', async () => {
+        const { url, token } = readSuiteForm();
+        if (suiteUrlEl) suiteUrlEl.value = url;
+        const voySettings = readVoyageSyncForm(root);
+        reportSuite('Saving the server for Tank Chief and Voyage Chief…');
+
+        try {
+          await tankRequest('/api/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ syncUrl: url, syncApiToken: token, syncEnabled: true }),
+          });
+        } catch (e) {
+          reportSuite('Not saved: ' + sentence(e.message || 'Tank Chief settings could not be written'));
           toast(e.message || 'Save failed');
-        }
-      });
-
-      root.querySelector('#bk-voy-sync-test')?.addEventListener('click', async () => {
-        setVoySync('Testing Voyage sync connection…');
-        try {
-          const msg = await voyagePost('test-sync', { settings: readVoyageSyncForm(root) }, root);
-          setVoySync(msg.message || 'Connection OK');
-          toast(msg.message || 'Connection OK');
-        } catch (e) {
-          setVoySync(e.message || 'Connection failed');
-          toast(e.message || 'Connection failed');
-        }
-      });
-
-      root.querySelector('#bk-voy-sync-push')?.addEventListener('click', async () => {
-        if (!confirm('PUSH ACTIVE LEG — uploads this device’s active voyage leg and OVERWRITES the same leg on the server. Continue?')) return;
-        setVoySync('Pushing active leg…');
-        try {
-          await flushTankFrames();
-          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
-          const msg = await voyagePost('push-active', {}, root);
-          setVoySync(msg.message || 'Push completed');
-          toast(msg.message || 'Push completed');
-        } catch (e) {
-          setVoySync(e.message || 'Push failed');
-          toast(e.message || 'Push failed');
-        }
-      });
-
-      root.querySelector('#bk-voy-sync-pull')?.addEventListener('click', async () => {
-        if (!confirm('PULL ACTIVE LEG — downloads the active leg from the server and OVERWRITES the local active leg. Continue?')) return;
-        setVoySync('Pulling active leg…');
-        try {
-          await flushTankFrames();
-          await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
-          const msg = await voyagePost('pull-active', {}, root);
-          setVoySync(msg.message || 'Pull completed');
-          toast(msg.message || 'Pull completed');
-        } catch (e) {
-          setVoySync(e.message || 'Pull failed');
-          toast(e.message || 'Pull failed');
-        }
-      });
-
-      root.querySelector('#bk-voy-sync-persist')?.addEventListener('click', async () => {
-        const settings = readVoyageSyncForm(root);
-        if (!settings.serverUrl) {
-          setVoySync('Set the Voyage Chief sync server URL, then press Keep data persistent.');
-          toast('Set the sync server URL first');
           return;
         }
-        const planMatches = consistencyPlan
-          && consistencyPlan.kind === 'voyage'
-          && (consistencyPlan.settings || {}).serverUrl === settings.serverUrl
-          && String((consistencyPlan.settings || {}).vesselId || '') === String(settings.vesselId || '');
-        if (!planMatches) {
-          setVoySync('Comparing every voyage leg…');
+        suiteSaved.tank = { syncUrl: url, syncApiToken: token };
+        rememberSuiteUrl(url);
+        mirrorVoyageSyncToLocalStorage(voySettings);
+        let voyageNote = '';
+        try {
+          await voyagePost('save-sync-settings', { settings: voySettings }, root);
+          suiteSaved.voyage = { serverUrl: url, apiToken: token };
+        } catch (e) {
+          voyageNote = (/still loading/i.test(String(e && e.message))
+            ? 'Voyage Chief has not finished loading, so it does not have the server yet.'
+            : 'Voyage Chief did not take the server: ' + suiteFailure(e))
+            + ' Press Save & connect again in a moment.';
+        }
+        suiteTyped = false;
+        markServerBlock('bk-suite-server', 'bk-suite-summary', url);
+
+        if (!url) {
+          reportSuite(['Saved. Enter the server URL to connect.', voyageNote].filter(Boolean).join(' '));
+          toast('Server settings saved');
+          await refreshVesselLibrary();
+          return;
+        }
+
+        reportSuite('Saved. Checking the server…');
+        const tested = await testSuiteServer(url, token, voySettings, !!voyageNote);
+        if (!tested.tank) {
+          reportSuite(['Saved, but the server did not answer for tank files.', tested.line, voyageNote,
+            'Vessels will appear once it does.'].filter(Boolean).join(' '));
+          toast('Saved — server unreachable');
+          await refreshVesselLibrary();
+          return;
+        }
+
+        let pulled = '';
+        const vessel = activeVesselForSync();
+        if (!vessel) {
+          pulled = 'Open the vessel to bring down the tank files uploaded for it.';
+        } else {
+          reportSuite('Server reachable. Saving open tank work…');
           try {
             await flushTankFrames();
-            await voyagePost('save-sync-settings', { settings }, root);
-            const plan = await withProgress('Comparing voyage legs…', 'Reading this device and the server…', () => refreshVoyageConsistency());
-            const rows = plan.rows || [];
-            const differ = rows.filter((row) => row.action !== 'same');
-            const box = root.querySelector('#bk-consistency');
-            if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
-            if (!differ.length) {
-              const opened = await voyagePost('reconcile-legs', {
-                vessel: plan.vessel,
-                settings,
-                openLatest: false,
-                legs: [],
-              }, root, 600000);
-              reloadOpenVoyageFrame();
-              let tankNote = '';
-              try { tankNote = await pushOpenShipTankReports(); }
-              catch (err) { tankNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
-              const line = (opened.message || 'The open voyage leg is saved on the server.')
-                + tankNote;
-              setVoySync(line);
-              setConsistency(line);
-              toast(line);
-              return;
-            }
-            const here = voyageNumbers(rows, 'local');
-            const there = voyageNumbers(rows, 'server');
-            const line = `This device has voyage ${here.join(', ') || 'none'}. The server has voyage ${there.join(', ') || 'none'}. Tick the legs both databases should hold, then press Keep data persistent again.`;
-            setVoySync(line);
-            setConsistency(line);
-            toast('Select the legs, then press Keep data persistent again');
+            /* What Flush offline queue did: put the device store on disk. Only
+               where that store is the working copy; in a browser on the server
+               it was never started and would not answer. */
+            if (usingLocalTank() && LocalApi.flush) await LocalApi.flush();
+            reportSuite('Downloading this vessel\'s tank files…');
+            const res = await tankRequest('/api/sync/pull', {
+              method: 'POST',
+              body: JSON.stringify({ syncUrl: url, syncApiToken: token, vessel }),
+            });
+            pulled = sentence((res && (res.warning || res.message)) || 'This vessel\'s tank files are up to date');
+            /* The open Tank Chief screen still holds what it read before the pull;
+               a later save from it would write that back. Make it read again. */
+            reloadOpenTankFrames();
           } catch (e) {
-            setVoySync(e.message || 'Compare failed');
-            toast(e.message || 'Compare failed');
+            pulled = 'The tank pull failed: ' + sentence(e.message || 'unknown error');
           }
-          return;
         }
-        const picked = selectedConsistencyRows();
-        if (!picked.length) {
-          setVoySync('No legs are ticked. Tick the ones both databases should share, then press Keep data persistent again.');
-          toast('Tick at least one leg');
-          return;
-        }
-        const lines = picked.map((row) => `• ${row.title} — ${row.reason}`).join('\n');
-        if (!confirm(
-          'KEEP DATA PERSISTENT\n\n'
-          + 'These legs will be copied so both databases have them. Where both sides already have the leg, the newer watch is kept. Nothing is deleted.\n\n'
-          + lines
-          + '\n\nThe voyage you have open is saved and sent as well, and it stays open. Continue?'
-        )) return;
-        setVoySync('Copying the selected voyage legs…');
-        try {
-          await withProgress('Updating voyage legs…', 'Starting…', async () => {
-            watchVoyage(8, 90);
-            const msg = await voyagePost('reconcile-legs', {
-              vessel: consistencyPlan.vessel,
-              settings,
-              openLatest: false,
-              legs: picked.map((row) => ({ voyage: row.voyage, condition: row.condition })),
-            }, root, 600000);
-            let tankNote = '';
-            try { tankNote = await pushOpenShipTankReports(); }
-            catch (err) { tankNote = ' Tank reports were not copied: ' + (err && err.message ? err.message : err); }
-            reloadOpenVoyageFrame();
-            progressSet(94, 'Loading the latest sounding report…');
-            const sounded = await loadLatestSounding([consistencyPlan.vessel], false);
-            const line = (msg.message || 'Voyage legs updated.')
-              + (sounded[0] && sounded[0].loaded ? ' Latest sounding report and tank readings loaded.' : '')
-              + tankNote;
-            setVoySync(line);
-            setConsistency(line);
-            setConsistencySummary('updated');
-            toast(line);
-            return line;
-          });
-          if (consistencyApply) consistencyApply.disabled = true;
-        } catch (e) {
-          setVoySync(e.message || 'Merge failed');
-          toast(e.message || 'Merge failed');
-        }
+
+        try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+        await refreshVesselLibrary();
+        reportSuite(['Connected.', tested.line, pulled, voyageNote,
+          'Use Database consistency below for voyage legs, saved reports and miscellaneous data.'].filter(Boolean).join(' '));
+        toast('Connected — vessel list updated');
       });
 
-      root.querySelector('#bk-voy-sync-list')?.addEventListener('click', async () => {
-        setVoySync('Listing remote voyages…');
-        try {
-          const msg = await voyagePost('list-remote', { settings: readVoyageSyncForm(root) }, root);
-          setVoySync(msg.message || 'Listed.');
-          const voyages = msg.voyages || [];
-          const pullSel = root.querySelector('#bk-voy-sync-pull-voyage');
-          if (pullSel) {
-            const keep = pullSel.value;
-            if (!voyages.length) {
-              pullSel.innerHTML = '<option value="">— No remote voyages —</option>';
-            } else {
-              pullSel.innerHTML = voyages.map((v) => {
-                const vn = esc(v.voyageNumber || v.voyageKey || '');
-                return `<option value="${vn}">${vn}</option>`;
-              }).join('');
-              if (keep && [...pullSel.options].some((o) => o.value === keep)) pullSel.value = keep;
-            }
-          }
-          if (remoteBox) {
-            remoteBox.hidden = false;
-            if (!voyages.length) {
-              remoteBox.textContent = msg.message || 'No remote voyages.';
-            } else {
-              remoteBox.innerHTML = `<strong>Remote voyages for ${esc(msg.vessel || '')}</strong>` +
-                voyages.map((v) => {
-                  const conds = (v.conditions || []).map((c) =>
-                    `${esc(c.condition)} (${c.entryCount || 0} entries)`
-                  ).join(' · ') || 'no legs';
-                  return `<div class="backup-remote-item"><code>${esc(v.voyageNumber || v.voyageKey || '')}</code> — ${conds}</div>`;
-                }).join('');
-            }
-          }
-        } catch (e) {
-          setVoySync(e.message || 'List failed');
-          if (remoteBox) {
-            remoteBox.hidden = false;
-            remoteBox.textContent = e.message || 'List failed';
-          }
-        }
-      });
-
-      root.querySelector('#bk-voy-sync-pull-leg')?.addEventListener('click', async () => {
-        const voyage = (root.querySelector('#bk-voy-sync-pull-voyage')?.value || '').trim();
-        const condition = (root.querySelector('#bk-voy-sync-pull-condition')?.value || 'B').trim();
-        if (!voyage) {
-          setVoySync('Select a voyage number first (List remote voyages refreshes the list).');
-          toast('Select a voyage number first');
-          return;
-        }
-        if (!confirm(`Pull ${voyage} / ${condition} from the server and merge it as the active leg?\n\nNewer of local vs server kept for each record.`)) return;
-        setVoySync(`Pulling ${voyage} / ${condition}…`);
-        try { await flushTankFrames(); } catch (_) { /* the pull still saves the open leg itself */ }
-        try {
-          const settings = readVoyageSyncForm(root);
-          await voyagePost('save-sync-settings', { settings }, root);
-          const msg = await voyagePost('pull-voyage-leg', {
-            voyage,
-            condition,
-            vessel: settings.vesselId || undefined,
-          }, root);
-          setVoySync(msg.message || 'Pull completed');
-          toast(msg.message || 'Pull completed');
-        } catch (e) {
-          setVoySync(e.message || 'Pull failed');
-          toast(e.message || 'Pull failed');
-        }
+      root.querySelector('#bk-suite-test')?.addEventListener('click', async () => {
+        const { url, token } = readSuiteForm();
+        if (!url) { reportSuite('Enter the server URL first.'); return; }
+        reportSuite('Testing the server…');
+        const tested = await testSuiteServer(url, token, readVoyageSyncForm(root));
+        reportSuite(tested.line);
+        toast(tested.tank && tested.voyage ? 'Server OK for Tank Chief and Voyage Chief' : 'Server check failed — see the status line');
       });
 
       ensureVoyageFrame(root);

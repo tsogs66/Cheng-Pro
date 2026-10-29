@@ -4,6 +4,7 @@ data/settings.json
 data/vessels-index.json
 data/auth/
 data/voyage-sync/
+data/desktop-sync-creds.json
 www-android/
 android/
 android/app/sideload.keystore

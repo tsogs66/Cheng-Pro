@@ -44,7 +44,8 @@ function run(page) {
     bundledClient: () => !!page.bundled,
   };
   vm.createContext(box);
-  vm.runInContext(extract('tankServerBase') + '\n' + extract('tankJsonOrThrow'), box);
+  const key = BACKUP.match(/const SUITE_URL_KEY = '[^']+';/)[0];
+  vm.runInContext([key, extract('normalizeSuiteUrl'), extract('tankServerBase'), extract('tankJsonOrThrow')].join('\n'), box);
   return box;
 }
 
@@ -59,7 +60,9 @@ check('the Windows app uses the Server URL when it is set',
 check('the Windows app with no Server URL keeps its own server', run({ bundled: true, protocol: 'http:' }).tankServerBase() === '');
 let threw = '';
 try { run({ bundled: true, capacitor: true }).tankServerBase(); } catch (e) { threw = e.message; }
-check('the Android app with no Server URL says so instead of sending nowhere', /License → Server URL/.test(threw), threw);
+check('the Android app with no Server URL says so instead of sending nowhere', /Cheng Suite server URL/.test(threw), threw);
+check('the Cheng Suite server saved in Backup wins over the License one',
+  run({ bundled: true, capacitor: true, storage: { chengSuiteServerUrl: 'http://10.0.0.9:8080/tanks', apiServerBase: 'http://10.0.0.5:8080' } }).tankServerBase() === 'http://10.0.0.9:8080');
 
 console.log('\nA web page is not tank data');
 const box = run({ bundled: false });

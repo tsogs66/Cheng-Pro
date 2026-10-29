@@ -39,19 +39,14 @@ for (const [label, anchor, span = 1200] of [
   ['voyage database restore / merge', 'const voyageDbImport = async'],
   ['voyage vessel export', "root.querySelector('#bk-voyage-vessel')"],
   ['voyage vessel import', "root.querySelector('#bk-voyage-vessel-file').onchange"],
-  ['tank peer pull', "root.querySelector('#bk-sync-pull')"],
-  ['tank peer push', "root.querySelector('#bk-sync-push')"],
-  ['voyage push active leg', "root.querySelector('#bk-voy-sync-push')"],
-  ['voyage pull active leg', "root.querySelector('#bk-voy-sync-pull')"],
-  ['voyage pull one leg', "root.querySelector('#bk-voy-sync-pull-leg')"],
-  ['Keep data persistent', "root.querySelector('#bk-voy-sync-persist')"],
+  ['Cheng Suite server Save & connect', "root.querySelector('#bk-suite-save')", 3600],
   ['check voyage legs', "root.querySelector('#bk-check-voyage')"],
   ['check miscellaneous data', "root.querySelector('#bk-check-misc')"],
   ['Update to the newest of both', "root.querySelector('#bk-consistency-apply').onclick"],
 ]) {
   check(label, after(BACKUP, anchor, span).includes(SAVE), anchor);
 }
-check('tank peer pull makes the open Tank Chief screen read again',
+check('the tank pull on Save & connect makes the open Tank Chief screen read again',
   /tankRequest\('\/api\/sync\/pull'[\s\S]{0,600}reloadOpenTankFrames\(\)/.test(BACKUP));
 
 console.log('\nVoyage Chief bridge saves the open leg first');

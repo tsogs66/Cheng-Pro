@@ -127,7 +127,7 @@ window.ChengProAboutGuide = (function () {
       purpose: 'After activation, the daily log, soundings, spares, ORB, and bunker plans stay on the device. The server is only for a copy and for the license check.',
       steps: [
         'Keep working. Entries save on the device as you press Save.',
-        'Sync, Keep data persistent, and Check for latest release need a connection. They wait until the link is up.',
+        'Sync, the database consistency check, and Check for latest release need a connection. They wait until the link is up.',
         'The license has a grace window. When the device next reaches the license server, Refresh check now on the License page updates it.'
       ],
       buttons: [
@@ -473,27 +473,23 @@ window.ChengProAboutGuide = (function () {
     },
     {
       group: 'Fix a voyage mistake',
-      q: 'Push or Pull replaced a voyage, or the server and this device disagree.',
-      purpose: 'Push active leg and Pull active leg copy one leg and overwrite that same leg on the other side. They are the wrong tool when several voyages moved while the ship was offline. Keep data persistent and the consistency check look at every leg.',
+      q: 'The server and this device disagree about a voyage.',
+      purpose: 'Every copy between this device and the server goes through Database consistency. It looks at every leg, not only the open one, so voyages that moved while the ship was offline are all found.',
       steps: [
         'Open Backup & Restore in the AIO menu.',
-        'Under the Voyage Chief server, Save & connect and Test connection first.',
-        'For one leg you mean to overwrite: Push active leg sends this device’s active leg. Pull active leg replaces this device’s active leg with the server’s. Read the confirm text before you accept.',
-        'For many legs: press Keep data persistent. The first press lists the legs that differ and ticks them. Untick any leg that should not be copied. The second press confirms and merges. Both sides then hold the selected legs. The newest leg opens in Voyage Chief (newest log time, then the higher voyage number).',
-        'Or press Check voyage legs, read the suggestion, and press Update to the newest of both. Newer copy wins. A leg that exists on only one side is copied. Nothing is deleted.'
+        'Under Cheng Suite server, Save & connect and Test connection first.',
+        'Under Database consistency, press Check voyage legs. Each leg shows what this device and the server hold, and which is newer.',
+        'Untick any leg that should not be copied, then press Update to the newest of both. Newer copy wins. A leg that exists on only one side is copied. Nothing is deleted.'
       ],
       buttons: [
-        'Push active leg — this device overwrites that one leg on the server',
-        'Pull active leg — the server overwrites that one leg on this device',
-        'Keep data persistent — compare every leg, let you choose, then both sides keep the selection',
         'Check voyage legs — lists what is newer, local or server',
         'Check saved tank reports — the same comparison for Tank Chief reports',
-        'Update to the newest of both — applies the comparison. It stays off until a check has run',
-        'List remote voyages / Pull selected voyage leg — fetch one named leg from the server list'
+        'Check miscellaneous data — requisitions, the consumption plan and the oil record book',
+        'Update to the newest of both — applies the comparison. It stays off until a check has run'
       ],
       undo: [
-        'If a push or pull overwrote a good leg, the other side no longer has the old copy of that leg. Restore it from a database backup or a vessel export made before the push.',
-        'Keep data persistent and Update to the newest of both do not delete a leg that exists on only one side. A leg you untick is left as it was.'
+        'Update to the newest of both does not delete a leg that exists on only one side. A leg you untick is left as it was.',
+        'If a newer copy replaced one you wanted, restore it from a database backup or a vessel export made before the update.'
       ]
     },
     {
@@ -786,20 +782,18 @@ window.ChengProAboutGuide = (function () {
       purpose: 'The working copy is on the device. A server copy exists only after you push, sync, or save to the ship server. The license email is the folder for that user. A master key can open user folders on the host.',
       steps: [
         'Day to day, assume the phone or the PC is the record. Export a file before a handover, a reinstall, or a long stay offline if the server might be behind.',
-        'Voyage server and tank peer sync are separate. Set each under Backup & Restore, Save & connect, and Test connection.',
-        'Push to peer / Pull from peer move Tank Chief. Flush offline queue sends tank changes that were made while offline.',
-        'Voyage push and pull of the active leg overwrite that one leg. Use Keep data persistent when more than the active leg may differ.'
+        'One server holds Tank Chief and Voyage Chief. Set its address and token once under Backup & Restore → Cheng Suite server.',
+        'Save & connect stores them for both programs, checks that each answers, and brings down the tank files uploaded for the ship that is open.',
+        'Voyage legs, saved tank reports and miscellaneous data move through Database consistency: check, then Update to the newest of both.'
       ],
       buttons: [
-        'Save & connect — stores the server address and the token',
-        'Test connection — checks the server before a push',
-        'Push to peer / Pull from peer — Tank Chief',
-        'Flush offline queue — sends tank changes saved while offline',
-        'Push active leg / Pull active leg — one voyage leg, overwritten on the other side'
+        'Save & connect — stores the one server address and token for Tank Chief and Voyage Chief',
+        'Test connection — checks that Tank Chief and Voyage Chief both answer',
+        'Check … / Update to the newest of both — compares this device with the server and keeps the newer copy of each record'
       ],
       undo: [
         'A failed test connection changes nothing. Correct the URL or the token and test again.',
-        'A pull you did not want is undone only from a backup taken before the pull.'
+        'An update you did not want is undone only from a backup taken before it.'
       ]
     }
   ];
