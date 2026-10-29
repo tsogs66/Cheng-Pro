@@ -1017,7 +1017,7 @@
     let temp = r.tempC;
     const method = (sheet && (sheet.method || sheet.entryMethod))
       || r.entryMethod || r.method || tank.soundingMethod || '';
-    const reading = sheet && sheet.reading !== undefined && sheet.reading !== ''
+    const sounding = sheet && sheet.reading !== undefined && sheet.reading !== ''
       ? sheet.reading
       : r.reading;
     if (sheet) {
@@ -1025,10 +1025,10 @@
       if (sheet.weightAirMT != null) mt = sheet.weightAirMT;
       if (sheet.volumePercent != null) fill = sheet.volumePercent;
       const cap = Number(sheet.capacity100M3 != null ? sheet.capacity100M3 : (sheet.capacityM3 != null ? sheet.capacityM3 : tank.capacity)) || 0;
-      fill = fillPercentFromSounding(method, reading, vol, cap, fill);
+      fill = fillPercentFromSounding(method, sounding, vol, cap, fill);
       if (sheet.tempC !== '' && sheet.tempC != null) temp = sheet.tempC;
     } else {
-      fill = fillPercentFromSounding(method, reading, vol, tank.capacity, fill);
+      fill = fillPercentFromSounding(method, sounding, vol, tank.capacity, fill);
     }
     if (fill == null && vol != null && Number(tank.capacity) > 0) {
       fill = (Number(vol) / Number(tank.capacity)) * 100;

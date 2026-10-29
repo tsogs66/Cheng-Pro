@@ -61,6 +61,15 @@ check('computeRow uses the form method, then the stored entry method',
   /normalizeMethod\(row\.method \|\| row\.entryMethod\)/.test(CORE));
 
 const DASH = fs.readFileSync(path.join(ROOT, 'apps/web/js/home-dashboard.js'), 'utf8').replace(/\r\n/g, '\n');
+try {
+  new Function(DASH);
+  check('home-dashboard.js parses (a redeclared reading argument blanks Android Home)', true);
+} catch (err) {
+  check('home-dashboard.js parses (a redeclared reading argument blanks Android Home)', false, err && err.message);
+}
+check('Home tank card does not redeclare the reading argument',
+  /function renderHomeTankCard\(tank, reading/.test(DASH)
+  && !/function renderHomeTankCard\(tank, reading[\s\S]{0,900}const reading\s*=/.test(DASH));
 check('home fill treats dip 0 as empty, not the stored ullage 100%',
   /function fillPercentFromSounding/.test(DASH) && /if \(dip\) return 0;/.test(DASH));
 check('home recomputes the monitoring sheet like Tank Chief',
@@ -70,6 +79,9 @@ const SHIM = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/node-shim.
 const LOCAL = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/local-api.js'), 'utf8');
 check('the AIO shell re-reads the tank database before answering Home',
   /async function reload\(/.test(SHIM) && /NodeShim\.reload/.test(LOCAL));
+
+check('a failed IndexedDB read does not empty the tank files already in memory',
+  /const nextFiles = new Map\(\)/.test(SHIM));
 
 const PREP = fs.readFileSync(path.join(ROOT, 'scripts/prepare-android-www.js'), 'utf8');
 check('Android Home loads calc.js before fuel-report-core so dip/ullage can compute',
