@@ -67,6 +67,9 @@ check('Check miscellaneous data button', BACKUP.includes('id="bk-check-misc"'));
 check('check asks Voyage Chief to compare with the server', /refreshMiscConsistency[\s\S]{0,800}voyagePost\('compare-misc'/.test(BACKUP));
 check('Update sends the miscellaneous data both ways', /consistencyPlan\.kind === 'misc'[\s\S]{0,400}voyagePost\('reconcile-misc'/.test(BACKUP));
 check('Voyage Chief reads the server union of every leg', VOYAGE.includes('/api/voyage-misc/${encodeURIComponent(vessel)}'));
+const GATEWAY = fs.readFileSync(path.join(ROOT, 'server/index.js'), 'utf8');
+check('AIO gateway forwards /api/voyage-misc to the Python sync server',
+  GATEWAY.includes("app.use('/api/voyage-misc', requireVoyage)"));
 
 function extract(name) {
   const start = VOYAGE.indexOf(`function ${name}(`);

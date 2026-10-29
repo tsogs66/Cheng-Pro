@@ -112,6 +112,11 @@ async function main() {
     assert.ok(vHealth.json.modules.voyage);
 
     // Admin login against proxied Python auth
+    const misc = await request(port, 'GET', '/api/voyage-misc/test');
+    assert.notEqual(misc.status, 404, 'AIO must forward /api/voyage-misc to Python, not 404');
+    assert.ok([401, 403, 200, 503].includes(misc.status),
+      'voyage-misc should reach Python (got ' + misc.status + ')');
+
     const login = await request(port, 'POST', '/api/auth/login', {
       username: 'admin',
       password: process.env.SYNC_ADMIN_PASSWORD,

@@ -31,7 +31,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use((req, res, next) => {
   if (req.path.startsWith('/tanks')) return next();
   if (req.path.startsWith('/api/auth') || req.path.startsWith('/api/admin') ||
-      req.path.startsWith('/api/voyage') || req.path.startsWith('/api/vessels') ||
+      req.path.startsWith('/api/voyage') || req.path.startsWith('/api/voyage-misc') ||
+      req.path.startsWith('/api/vessels') ||
       req.path.startsWith('/api/assignments') || req.path.startsWith('/api/health')) {
     return next(); // proxy raw body
   }
@@ -396,6 +397,7 @@ app.get('/js/license-config.js', (req, res) => {
 app.use('/api/auth', requireVoyage);
 app.use('/api/admin', requireVoyage);
 app.use('/api/voyage', requireVoyage);
+app.use('/api/voyage-misc', requireVoyage);
 app.use('/api/assignments', requireVoyage);
 app.use('/api/vessels', requireVoyage);
 
