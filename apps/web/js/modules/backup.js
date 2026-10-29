@@ -677,10 +677,11 @@
 
           <details class="form-panel backup-section" id="bk-consistency" open>
             <summary><span class="backup-section-title">Database consistency</span><span class="hint backup-summary-note" id="bk-consistency-summary">not checked</span></summary>
-            <p class="hint">Compares every voyage leg, and every saved tank report, on this device with the server. Push and pull of the active leg do not see the other voyages. Nothing here deletes a leg or a report. Where both sides have the same one, the newer copy is kept and records that exist on only one side stay.</p>
+            <p class="hint">Compares every voyage leg, every saved tank report, and the miscellaneous data (requisitions, the consumption plan and its snapshots, the oil record book) on this device with the server. Open work in Tank Chief and Voyage Chief is saved first. Push and pull of the active leg do not see the other voyages. Nothing here deletes a leg, a report or a requisition. Where both sides have the same one, the newer copy is kept and records that exist on only one side stay.</p>
             <div class="btn-row">
               <button type="button" class="btn primary" id="bk-check-voyage">Check voyage legs</button>
               <button type="button" class="btn" id="bk-check-tanks">Check saved tank reports</button>
+              <button type="button" class="btn" id="bk-check-misc">Check miscellaneous data</button>
               <button type="button" class="btn" id="bk-consistency-apply" disabled>Update to the newest of both</button>
             </div>
             <div id="bk-consistency-list" class="bk-consistency-list hint">Not checked yet.</div>
@@ -905,6 +906,8 @@
       const suiteImport = async (file, merge) => {
         const verbTitle = merge ? 'Merging the entire program…' : 'Restoring the entire program…';
         return withProgress(verbTitle, `Reading ${file.name}…`, async () => {
+          progressSet(1, 'Saving open work in Tank Chief and Voyage Chief…');
+          await flushTankFrames();
           const payload = await readFileJson(file, (pct) => {
             progressSet(slicePct(0, 12, pct), `Reading ${file.name}…`);
           });
@@ -1006,7 +1009,8 @@
 
       root.querySelector('#bk-misc-export').onclick = async () => {
         try {
-          await withProgress('Exporting miscellaneous data…', 'Reading Voyage Chief…', async () => {
+          await withProgress('Exporting miscellaneous data…', 'Saving open work…', async () => {
+            await flushTankFrames();
             setMisc('Reading requisitions, consumption plans, and the oil record book…');
             let voyagePayload = null;
             let voyageError = null;
@@ -1049,6 +1053,8 @@
       const miscImport = async (file, merge) => {
         const verbTitle = merge ? 'Merging miscellaneous data…' : 'Restoring miscellaneous data…';
         return withProgress(verbTitle, `Reading ${file.name}…`, async () => {
+          progressSet(1, 'Saving open work in Tank Chief and Voyage Chief…');
+          await flushTankFrames();
           const payload = await readFileJson(file, (pct) => {
             progressSet(slicePct(0, 20, pct), `Reading ${file.name}…`);
           });
@@ -1218,7 +1224,8 @@
 
       root.querySelector('#bk-voyage-db').onclick = async () => {
         try {
-          await withProgress('Backing up Voyage Chief…', 'Reading the voyage database…', async () => {
+          await withProgress('Backing up Voyage Chief…', 'Saving open work…', async () => {
+            await flushTankFrames();
             setVoyage('Building voyage database backup…');
             watchVoyage(8, 84);
             const msg = await voyagePost('export-db', {}, root);
@@ -1240,6 +1247,8 @@
       const voyageDbImport = async (file, merge) => {
         const title = merge ? 'Merging Voyage Chief…' : 'Restoring Voyage Chief…';
         return withProgress(title, `Reading ${file.name}…`, async () => {
+          progressSet(1, 'Saving open work in Tank Chief and Voyage Chief…');
+          await flushTankFrames();
           const payload = await readFileJson(file, (pct) => {
             progressSet(slicePct(0, 18, pct), `Reading ${file.name}…`);
           });
@@ -1278,7 +1287,8 @@
 
       root.querySelector('#bk-voyage-vessel').onclick = async () => {
         try {
-          await withProgress('Exporting the voyage vessel…', 'Reading the vessel…', async () => {
+          await withProgress('Exporting the voyage vessel…', 'Saving open work…', async () => {
+            await flushTankFrames();
             setVoyage('Exporting voyage vessel…');
             watchVoyage(8, 84);
             const msg = await voyagePost('export-vessel', { vesselId: active && active.voyageSlug }, root);
@@ -1304,6 +1314,7 @@
         if (!file) return;
         try {
           await withProgress('Importing a voyage vessel…', `Reading ${file.name}…`, async () => {
+            await flushTankFrames();
             const payload = await readFileJson(file, (pct) => {
               progressSet(slicePct(0, 20, pct), `Reading ${file.name}…`);
             });
@@ -1554,7 +1565,7 @@
             miscRow = {
               kind: 'voyage-misc',
               action: 'same',
-              reason: 'Sent with the open voyage leg when you update',
+              reason: 'Sent with the open leg; compare it with Check miscellaneous data',
               checked: false,
               title: 'Miscellaneous vessel data',
               localText: held.join(' · '),
@@ -1593,6 +1604,53 @@
         } catch (e) {
           setConsistency(e.message || 'Voyage check failed');
           toast(e.message || 'Voyage check failed');
+        }
+      };
+
+      /* Miscellaneous data has no leg of its own, so the voyage check can only
+         count it. This compares it with the server's union of every leg. */
+      async function refreshMiscConsistency() {
+        const settings = readVoyageSyncForm(root);
+        if (!settings.serverUrl) throw new Error('Set the Voyage Chief sync server URL above, then check again.');
+        await voyagePost('save-sync-settings', { settings }, root);
+        progressSet(30, 'Comparing miscellaneous data on this device and the server…');
+        const compared = await voyagePost('compare-misc', {}, root, 120000);
+        const rows = (compared.rows || []).map((row) => ({
+          kind: 'misc',
+          key: row.key,
+          action: row.action,
+          reason: row.reason,
+          checked: row.action !== 'same',
+          title: row.label,
+          localText: String(row.localCount),
+          serverText: String(row.remoteCount),
+        }));
+        const differ = rows.filter((row) => row.action !== 'same').length;
+        const legs = compared.legs || 0;
+        const plan = {
+          kind: 'misc',
+          settings,
+          rows,
+          summary: differ ? `${differ} miscellaneous item${differ === 1 ? '' : 's'} differ` : 'miscellaneous data matches',
+          status: `Miscellaneous data compared with ${legs} leg${legs === 1 ? '' : 's'} on the server for ${compared.vesselName || compared.vessel || 'this ship'}. ${differ ? 'Update brings both sides to the newest of both.' : 'Nothing is ahead on either side.'}`,
+        };
+        renderConsistency(plan);
+        return plan;
+      }
+
+      root.querySelector('#bk-check-misc').onclick = async () => {
+        try {
+          await withProgress('Comparing miscellaneous data…', 'Saving open work…', async () => {
+            await flushTankFrames();
+            const plan = await refreshMiscConsistency();
+            const differ = (plan.rows || []).filter((row) => row.action !== 'same').length;
+            return differ
+              ? `${differ} miscellaneous item${differ === 1 ? '' : 's'} differ`
+              : 'Miscellaneous data matches';
+          });
+        } catch (e) {
+          setConsistency(e.message || 'Miscellaneous data check failed');
+          toast(e.message || 'Miscellaneous data check failed');
         }
       };
 
@@ -1959,11 +2017,23 @@
         }
         const noun = consistencyPlan.kind === 'voyage'
           ? `${picked.length} voyage leg${picked.length === 1 ? '' : 's'}`
-          : `${picked.length} saved-report group${picked.length === 1 ? '' : 's'}`;
+          : consistencyPlan.kind === 'misc'
+            ? 'the miscellaneous data (requisitions, consumption plan, oil record book)'
+            : `${picked.length} saved-report group${picked.length === 1 ? '' : 's'}`;
         if (!confirm(`Update ${noun} to the newest of both sides?\n\nRecords that exist on only one side are copied across. Where both sides have the same record, the newer copy is kept. Nothing is deleted.`)) return;
         try {
           await withProgress('Updating to the newest copy…', 'Writing open gaugings and drafts…', async () => {
             await flushTankFrames();
+            if (consistencyPlan.kind === 'misc') {
+              progressSet(30, 'Updating miscellaneous data with the server…');
+              const msg = await voyagePost('reconcile-misc', {}, root, 600000);
+              reloadOpenVoyageFrame();
+              const line = msg.message || 'Miscellaneous data updated.';
+              setConsistency(line);
+              setConsistencySummary('updated');
+              toast(line);
+              return line;
+            }
             if (consistencyPlan.kind === 'voyage') {
               const settings = consistencyPlan.settings || readVoyageSyncForm(root);
               watchVoyage(8, 96);
@@ -2753,12 +2823,17 @@
           const syncUrl = root.querySelector('#bk-sync-url').value.trim();
           const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
           if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          setSync('Saving open tank work…');
+          await flushTankFrames();
           setSync('Pulling from peer…');
           const res = await tankRequest('/api/sync/pull', {
             method: 'POST',
             body: JSON.stringify({ syncUrl, syncApiToken }),
           });
           try { await ChengPro.vessel.refresh(); } catch (_) { /* ignore */ }
+          /* The open Tank Chief screen still holds what it read before the pull;
+             a later save from it would write that back. Make it read again. */
+          reloadOpenTankFrames();
           setSync(res.message || 'Pull complete');
           toast(res.message || 'Pull complete');
         } catch (e) {
@@ -2772,6 +2847,8 @@
           const syncUrl = root.querySelector('#bk-sync-url').value.trim();
           const syncApiToken = root.querySelector('#bk-sync-token').value.trim();
           if (!syncUrl) { setSync('Enter a peer sync URL'); return; }
+          setSync('Saving open tank work…');
+          await flushTankFrames();
           setSync('Pushing to peer…');
           const res = await tankRequest('/api/sync/push', {
             method: 'POST',
@@ -2892,6 +2969,7 @@
         if (!confirm('PUSH ACTIVE LEG — uploads this device’s active voyage leg and OVERWRITES the same leg on the server. Continue?')) return;
         setVoySync('Pushing active leg…');
         try {
+          await flushTankFrames();
           await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
           const msg = await voyagePost('push-active', {}, root);
           setVoySync(msg.message || 'Push completed');
@@ -2906,6 +2984,7 @@
         if (!confirm('PULL ACTIVE LEG — downloads the active leg from the server and OVERWRITES the local active leg. Continue?')) return;
         setVoySync('Pulling active leg…');
         try {
+          await flushTankFrames();
           await voyagePost('save-sync-settings', { settings: readVoyageSyncForm(root) }, root);
           const msg = await voyagePost('pull-active', {}, root);
           setVoySync(msg.message || 'Pull completed');
@@ -2930,6 +3009,7 @@
         if (!planMatches) {
           setVoySync('Comparing every voyage leg…');
           try {
+            await flushTankFrames();
             await voyagePost('save-sync-settings', { settings }, root);
             const plan = await withProgress('Comparing voyage legs…', 'Reading this device and the server…', () => refreshVoyageConsistency());
             const rows = plan.rows || [];
@@ -3063,6 +3143,7 @@
         }
         if (!confirm(`Pull ${voyage} / ${condition} from the server and merge it as the active leg?\n\nNewer of local vs server kept for each record.`)) return;
         setVoySync(`Pulling ${voyage} / ${condition}…`);
+        try { await flushTankFrames(); } catch (_) { /* the pull still saves the open leg itself */ }
         try {
           const settings = readVoyageSyncForm(root);
           await voyagePost('save-sync-settings', { settings }, root);

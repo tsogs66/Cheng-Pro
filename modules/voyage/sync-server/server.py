@@ -1427,6 +1427,25 @@ class SyncHandler(BaseHTTPRequestHandler):
                            "assignments": ACCOUNTS.assignment_history(username=who)})
             return
 
+        # GET /api/voyage-misc/<vessel>[?full=1] -- miscellaneous data across every leg.
+        if len(parts) == 3 and parts[:2] == ["api", "voyage-misc"]:
+            try:
+                vessel = safe_slug(parts[2])
+            except ValueError:
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid path"})
+                return
+            if self._authorize_vessel(vessel) is None:
+                return
+            misc = collect_vessel_misc(vessel)
+            full = parse_qs(parsed.query).get("full", ["0"])[0] in ("1", "true")
+            body = {"ok": True, "vesselId": resolve_vessel_slug(vessel)}
+            if full:
+                body["misc"] = expand_blob_refs(vessel, misc)
+            else:
+                body["brief"] = brief_vessel_misc(misc)
+            json_response(self, HTTPStatus.OK, body)
+            return
+
         if len(parts) >= 2 and parts[0] == "api" and parts[1] == "voyage":
             try:
                 requested_vessel = safe_slug(parts[2]) if len(parts) >= 3 else ""
@@ -2755,6 +2774,69 @@ def _newer_misc_doc(a, b):
     ta = str(a.get("updatedAt") or a.get("savedAt") or "")
     tb = str(b.get("updatedAt") or b.get("savedAt") or "")
     return a if ta >= tb else copy.deepcopy(b)
+
+
+def collect_vessel_misc(vessel: str) -> dict:
+    """The ship's miscellaneous data across every leg on this server.
+
+    Requisitions, plan snapshots and e-ORB entries ride inside whichever leg
+    was open when they were sent, so no single leg holds them all. Union them
+    the way a leg merge does -- newest stamp per id, deleted ids left out --
+    and take the newest consumption plan and oil record book set-up.
+    """
+    deleted: dict = {}
+    lists: dict[str, list] = {key: [] for key, _cap in MISC_SETUP_LISTS}
+    orb_entries: list = []
+    plan = None
+    orb = None
+    orb_at = ""
+    legs = 0
+    for voyage in list_voyages(vessel):
+        for cond in voyage.get("conditions") or []:
+            try:
+                path = resolve_leg_path(vessel, voyage["voyageNumber"], cond["condition"])
+            except (KeyError, ValueError):
+                continue
+            data = _leg_payload(path)
+            if not data:
+                continue
+            legs += 1
+            inner = data.get("data") if isinstance(data.get("data"), dict) else data
+            deleted = merge_deleted_maps(deleted, inner.get("deletedIds"))
+            setup = _setup_from_leg(data)
+            for key, _cap in MISC_SETUP_LISTS:
+                lists[key] = merge_misc_list(lists[key], setup.get(key), [], 0)
+            orb_entries = merge_misc_list(orb_entries, inner.get("orbEntries"), [], 0)
+            plan = _newer_misc_doc(plan, setup.get("bunkerPlan"))
+            setup_at = str((setup.get("sync") or {}).get("lastModifiedAt") or data.get("updatedAt") or "")
+            if isinstance(setup.get("orb"), dict) and setup_at >= orb_at:
+                orb, orb_at = setup["orb"], setup_at
+    for key, cap in MISC_SETUP_LISTS:
+        lists[key] = merge_misc_list(lists[key], [], deleted.get(key), cap)
+    orb_entries = merge_misc_list(orb_entries, [], deleted.get("orbEntries"), 0)
+    return {
+        "legs": legs,
+        **lists,
+        "orbEntries": orb_entries,
+        "bunkerPlan": plan,
+        "orb": orb,
+        "deletedIds": {k: deleted.get(k) or [] for k in ("requisitions", "bunkerPlanHistory", "orbEntries")},
+    }
+
+
+def brief_vessel_misc(misc: dict) -> dict:
+    """Ids and stamps only. Requisitions carry scanned files; a check needs none of them."""
+    def rows(items):
+        return [{"id": r.get("id"), "at": _misc_row_ts(r)} for r in items or [] if isinstance(r, dict) and r.get("id")]
+    plan = misc.get("bunkerPlan")
+    return {
+        "legs": misc.get("legs", 0),
+        "requisitions": rows(misc.get("requisitions")),
+        "bunkerPlanHistory": rows(misc.get("bunkerPlanHistory")),
+        "orbEntries": rows(misc.get("orbEntries")),
+        "bunkerPlanAt": str((plan or {}).get("updatedAt") or (plan or {}).get("savedAt") or "") if isinstance(plan, dict) else "",
+        "orbConfigured": isinstance(misc.get("orb"), dict) and bool(misc.get("orb")),
+    }
 
 
 def merge_open_work_draft(server_doc, client_doc):

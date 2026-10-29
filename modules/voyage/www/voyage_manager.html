@@ -28408,6 +28408,114 @@ function miscVesselDataCounts(){
   };
 }
 
+/* Miscellaneous data against the server's view of it, which is the union of
+   every leg on the server: a requisition sent with last voyage's leg is on
+   the server even though the open leg never carried it. Ids and stamps only
+   for the check; the scanned files stay where they are. */
+function miscRowStamp(row){
+  if (!row || typeof row !== 'object') return '';
+  return String(row.updatedAt || row.savedAt || row.printedAt || row.createdAt || row.date || '');
+}
+function compareMiscList(label, key, localList, remoteBrief, deletedHere){
+  const dead = new Set((deletedHere || []).map(String));
+  const here = new Map();
+  for (const row of localList || []) if (row && row.id != null) here.set(String(row.id), miscRowStamp(row));
+  const there = new Map();
+  for (const row of remoteBrief || []) if (row && row.id != null) there.set(String(row.id), String(row.at || ''));
+  let onlyHere = 0, onlyServer = 0, newerHere = 0, newerServer = 0;
+  here.forEach((at, id) => {
+    if (!there.has(id)) onlyHere++;
+    else if (at > there.get(id)) newerHere++;
+    else if (at < there.get(id)) newerServer++;
+  });
+  there.forEach((at, id) => { if (!here.has(id) && !dead.has(id)) onlyServer++; });
+  const parts = [];
+  if (onlyHere) parts.push(onlyHere + ' only on this device');
+  if (onlyServer) parts.push(onlyServer + ' only on the server');
+  if (newerHere) parts.push(newerHere + ' newer here');
+  if (newerServer) parts.push(newerServer + ' newer on the server');
+  return {
+    key, label,
+    localCount: here.size,
+    remoteCount: [...there.keys()].filter((id) => !dead.has(id)).length,
+    action: parts.length ? 'update' : 'same',
+    reason: parts.length ? parts.join(', ') : 'Same on both sides',
+  };
+}
+async function compareMiscWithServer(){
+  const base = syncApiBase();
+  if (!base) throw new Error('Enter a Sync Server URL first.');
+  if (!state.activeVesselId) throw new Error('No vessel is open in Voyage Chief on this device.');
+  const vessel = vesselSyncSlug();
+  const { body } = await fetchSyncJson(`${base}/api/voyage-misc/${encodeURIComponent(vessel)}`, { headers: syncRequestHeaders() });
+  const remote = (body && body.brief) || {};
+  const setup = state.setup || {};
+  const deleted = (ensureSyncConfig().deletedIds) || {};
+  const rows = [
+    compareMiscList('Spare & store requisitions', 'requisitions', setup.requisitions, remote.requisitions, deleted.requisitions),
+    compareMiscList('Consumption plan snapshots', 'bunkerPlanHistory', setup.bunkerPlanHistory, remote.bunkerPlanHistory, deleted.bunkerPlanHistory),
+    compareMiscList('e-ORB entries', 'orbEntries', state.orbEntries, remote.orbEntries, deleted.orbEntries),
+  ];
+  const planHere = setup.bunkerPlan && typeof setup.bunkerPlan === 'object' ? String(setup.bunkerPlan.updatedAt || setup.bunkerPlan.savedAt || '') : '';
+  const planThere = String(remote.bunkerPlanAt || '');
+  rows.push({
+    key: 'bunkerPlan', label: 'Consumption plan (open)',
+    localCount: planHere ? 1 : 0, remoteCount: planThere ? 1 : 0,
+    action: planHere === planThere ? 'same' : 'update',
+    reason: planHere === planThere ? 'Same on both sides' : (planHere > planThere ? 'Newer here' : 'Newer on the server'),
+  });
+  const orbHere = !!(setup.orb && typeof setup.orb === 'object' && Object.keys(setup.orb).length);
+  const orbThere = !!remote.orbConfigured;
+  rows.push({
+    key: 'orb', label: 'Oil record book set-up',
+    localCount: orbHere ? 1 : 0, remoteCount: orbThere ? 1 : 0,
+    action: orbHere === orbThere ? 'same' : 'update',
+    reason: orbHere === orbThere ? (orbHere ? 'Set up on both sides' : 'Not set up') : (orbHere ? 'Only on this device' : 'Only on the server'),
+  });
+  return { rows, legs: remote.legs || 0, vesselName: setup.vesselName || '', vessel };
+}
+/* Newest of both: take what the server holds into this device, then send the
+   union up with the open leg. Nothing is deleted except what a tombstone says. */
+async function reconcileMiscWithServer(){
+  const base = syncApiBase();
+  if (!base) throw new Error('Enter a Sync Server URL first.');
+  if (!state.activeVesselId) throw new Error('No vessel is open in Voyage Chief on this device.');
+  const vessel = vesselSyncSlug();
+  const { body } = await fetchSyncJson(`${base}/api/voyage-misc/${encodeURIComponent(vessel)}?full=1`, { headers: syncRequestHeaders() });
+  const remote = (body && body.misc) || {};
+  const sync = ensureSyncConfig();
+  const deleted = mergeDeletedIds(sync.deletedIds, remote.deletedIds);
+  sync.deletedIds = deleted;
+  const localSetup = {
+    requisitions: (state.setup.requisitions || []).slice(),
+    bunkerPlanHistory: (state.setup.bunkerPlanHistory || []).slice(),
+    bunkerPlan: state.setup.bunkerPlan || null,
+    orb: state.setup.orb || null,
+  };
+  mergeMiscVesselData(state.setup, localSetup, remote, deleted, false);
+  if ((!state.setup.orb || !Object.keys(state.setup.orb).length) && remote.orb && typeof remote.orb === 'object') {
+    state.setup.orb = remote.orb;
+  }
+  state.orbEntries = filterDeleted(mergeListsById(remote.orbEntries || [], state.orbEntries || []), deleted.orbEntries);
+  await saveCurrentVesselState();
+  const vn = (state.setup.voyageNumber || '').trim();
+  let sent = false;
+  if (vn){
+    await syncNow({ policy: 'merge' });
+    await archiveActiveVoyageLeg();
+    sent = true;
+  }
+  const counts = miscVesselDataCounts();
+  return {
+    counts,
+    sent,
+    message: (sent
+      ? 'Miscellaneous data is the newest of both on this device and on the server'
+      : 'Miscellaneous data from the server is on this device. Open a voyage leg and update again to send it up')
+      + ` (${counts.requisitions} requisitions, ${counts.bunkerPlanHistory} plan snapshots, ${counts.orbEntries} e-ORB entries).`,
+  };
+}
+
 /* Lists the miscellaneous file carries for one ship's setup. The working
    consumption plan is one object; the snapshots are the saved record. */
 function miscShipFromSetup(vesselId, setup){
@@ -31592,9 +31700,11 @@ async function onVoyageBackupMessage(ev){
       const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
       reply({ payload, filename: `voyage-chief-db-backup_${stamp}.json` });
     } else if (msg.action === 'restore-db') {
+      await commitOpenWorkBeforeSync();
       await restoreFullDatabase(msg.payload);
       reply({ message: 'Voyage database restored on this device.' });
     } else if (msg.action === 'merge-db') {
+      await commitOpenWorkBeforeSync();
       await mergeFullDatabase(msg.payload);
       reply({ message: 'Voyage database merged on this device.' });
     } else if (msg.action === 'export-vessel') {
@@ -31613,6 +31723,7 @@ async function onVoyageBackupMessage(ev){
       });
     } else if (msg.action === 'import-vessel') {
       if (!msg.payload) throw new Error('No vessel payload');
+      await commitOpenWorkBeforeSync();
       const mode = msg.mode === 'merge' ? 'merge' : 'replace';
       const res = await importVesselExport(msg.payload, { mode });
       /* Say which it was. The caller shows this to the engineer, and "imported"
@@ -31778,10 +31889,18 @@ async function onVoyageBackupMessage(ev){
       } else {
         reply({ counts: null, message: 'No vessel is open in Voyage Chief on this device.' });
       }
+    } else if (msg.action === 'compare-misc') {
+      await commitOpenWorkBeforeSync();
+      reply(await compareMiscWithServer());
+    } else if (msg.action === 'reconcile-misc') {
+      await commitOpenWorkBeforeSync();
+      reply(await reconcileMiscWithServer());
     } else if (msg.action === 'export-misc') {
+      await commitOpenWorkBeforeSync();
       const payload = await buildMiscDataExport();
       reply({ payload });
     } else if (msg.action === 'import-misc') {
+      await commitOpenWorkBeforeSync();
       const result = await importMiscVesselData(msg.payload, !!msg.merge);
       reply(result);
     } else if (msg.action === 'list-remote') {

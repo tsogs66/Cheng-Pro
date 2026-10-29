@@ -299,7 +299,8 @@ async function loadFuelReport(vesselId) {
     if (report.form) return { form: report.form, computed: report.computed || null };
     return null;
   }
-  if (window.ChengProApi && ChengProApi.api) {
+  async function fromServer() {
+    if (!(window.ChengProApi && ChengProApi.api)) return null;
     try {
       const viaApi = await ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId) + '/fuel-report');
       const ok = usable(viaApi);
@@ -317,9 +318,10 @@ async function loadFuelReport(vesselId) {
         return { form: viaApi.form, computed: viaApi.computed || null };
       }
       return withFormOnly(viaApi);
-    } catch { /* fall through */ }
+    } catch { return null; }
   }
-  if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
+  async function fromDevice() {
+    if (!(typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle)) return null;
     try {
       await LocalApi.start();
       applyTankOfflineScope();
@@ -341,6 +343,14 @@ async function loadFuelReport(vesselId) {
         return { form: res.body.form, computed: (res.body && res.body.computed) || null };
       }
     } catch { /* ignore */ }
+    return null;
+  }
+  /* Read Monitoring from the database Tank Chief writes to, so the dashboard
+     shows the soundings on that page rather than the server's older copy. */
+  const order = tankDataOnDevice() ? [fromDevice, fromServer] : [fromServer, fromDevice];
+  for (const source of order) {
+    const report = await source();
+    if (report) return report;
   }
   return null;
 }
@@ -370,21 +380,42 @@ async function loadFuelReportForBundle(bundle, active) {
 async function loadTankBundle(vesselId) {
   if (!vesselId) return null;
   applyTankOfflineScope();
-  if (window.ChengProApi && ChengProApi.api) {
+  async function fromServer() {
+    if (!(window.ChengProApi && ChengProApi.api)) return null;
     try {
       const viaApi = await ChengProApi.api('/tanks/api/vessels/' + encodeURIComponent(vesselId));
       if (viaApi && (viaApi.vessel || viaApi.tanks)) return viaApi;
     } catch { /* fall through */ }
+    return null;
   }
-  if (typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle) {
+  async function fromDevice() {
+    if (!(typeof LocalApi !== 'undefined' && LocalApi.start && LocalApi.handle)) return null;
     try {
       await LocalApi.start();
       applyTankOfflineScope();
       const res = await LocalApi.handle('GET', '/api/vessels/' + encodeURIComponent(vesselId));
       if (res.status < 400 && res.body) return res.body;
     } catch { /* ignore */ }
+    return null;
+  }
+  const order = tankDataOnDevice() ? [fromDevice, fromServer] : [fromServer, fromDevice];
+  for (const source of order) {
+    const bundle = await source();
+    if (bundle) return bundle;
   }
   return null;
+}
+
+/* Same choice as Backup → "Database on this device" and Tank Chief itself:
+   the stored apiTransport, else on-device for the bundled desktop/phone app. */
+function tankDataOnDevice() {
+  if (typeof LocalApi === 'undefined' || typeof LocalApi.handle !== 'function') return false;
+  try {
+    const saved = localStorage.getItem('apiTransport');
+    if (saved === 'local') return true;
+    if (saved === 'server') return false;
+  } catch { /* private mode */ }
+  return !!(window.ChengProBundled && ChengProBundled.isBundledClient && ChengProBundled.isBundledClient());
 }
 
 /** Resolve then try alias folder ids until a Tank bundle loads. */

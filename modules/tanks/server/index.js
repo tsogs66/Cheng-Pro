@@ -456,6 +456,9 @@ function savedReportsOf(bundle) {
     bunkerPlan: bundle.bunkerPlan || null,
     bunkerAfter: bundle.bunkerAfter || null,
     bunkerSummary: bundle.bunkerSummary || null,
+    /* The sounding sheet's header -- voyage, port, drafts, trim, heel. The open
+       sheet is calculated with it, so it travels with the drafts. */
+    voyage: (bundle && bundle.voyage) || null,
   };
 }
 
@@ -537,6 +540,14 @@ app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
       store.saveVesselPart(id, part, body[part]);
       counts[part] = 1;
     }
+    /* The sheet header is one object: the side that edited it later keeps it. */
+    if (body.voyage && typeof body.voyage === 'object' && !Array.isArray(body.voyage)) {
+      const current = store.getVesselBundle(id).voyage || {};
+      if (String(body.voyage.updatedAt || '') > String(current.updatedAt || '')) {
+        store.saveVesselPart(id, 'voyage', body.voyage);
+        counts.voyage = 1;
+      }
+    }
     res.json({ ok: true, counts });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -546,7 +557,9 @@ app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
 /**
  * Make the working tank sheet the newest saved sounding report, and write
  * its soundings as the current tank readings. A reading taken after that
- * report is left as it is.
+ * report is left as it is, and so is a working sheet edited after it: its
+ * header (drafts, trim, heel) and its form are newer work, not something an
+ * older report may replace.
  */
 app.post('/api/vessels/:id/sounding-report/load-latest', (req, res) => {
   try {
@@ -562,6 +575,11 @@ app.post('/api/vessels/:id/sounding-report/load-latest', (req, res) => {
       return res.json({ ok: true, loaded: false, reason: 'No saved sounding report on this vessel' });
     }
     const stamp = savedReportStamp(snap);
+    const sheetAt = [bundle.fuelReport && bundle.fuelReport.updatedAt, bundle.voyage && bundle.voyage.updatedAt]
+      .map((v) => String(v || '')).sort().pop();
+    if (stamp && sheetAt > stamp) {
+      return res.json({ ok: true, loaded: false, reason: 'The open sounding sheet is newer than the latest saved report' });
+    }
     const { computed } = buildFuelReport(id, snap.form);
     const form = { ...computed.form, updatedAt: stamp || new Date().toISOString() };
     const gradesChanged = fuelReport.applyCarriedFuelGrades(bundle, form);
@@ -592,6 +610,7 @@ app.post('/api/vessels/:id/sounding-report/load-latest', (req, res) => {
       draftAft: computed.header && computed.header.draftAft,
       trim: computed.header && computed.header.trim,
       heel: computed.header && computed.header.heel,
+      updatedAt: stamp || new Date().toISOString(),
     });
     res.json({
       ok: true,
