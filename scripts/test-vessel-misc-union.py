@@ -88,6 +88,26 @@ check("brief requisition count", len(brief["requisitions"]), 3)
 check("brief plan stamp", brief["bunkerPlanAt"], "2026-10-03T00:00:00Z")
 check("brief oil record book configured", brief["orbConfigured"], True)
 
+print("\nSealed book on an older leg, newer setup has none")
+V2 = "mv-sealed-book"
+write_leg(V2, "1", "B", {
+    "sync": {"lastModifiedAt": "2026-09-01T00:00:00Z"},
+    "orb": {
+        "note": "older book",
+        "sealedBook": {"entries": [{"id": "sealed1", "date": "2026-09-01"}], "count": 1},
+    },
+})
+write_leg(V2, "2", "L", {
+    "sync": {"lastModifiedAt": "2026-10-20T00:00:00Z"},
+    "orb": {"note": "newer setup no book"},
+})
+sealed = server.collect_vessel_misc(V2)
+check("sealed lines are in the union", [r["id"] for r in sealed["orbEntries"]], ["sealed1"])
+check("newest orb still carries those sealed lines",
+      [r["id"] for r in ((sealed["orb"] or {}).get("sealedBook") or {}).get("entries") or []],
+      ["sealed1"])
+check("newest orb setup fields kept", sealed["orb"]["note"], "newer setup no book")
+
 print("\nShip with no legs")
 empty = server.collect_vessel_misc("mv-nothing-here")
 check("no legs, nothing to report", (empty["legs"], empty["requisitions"], empty["bunkerPlan"]), (0, [], None))

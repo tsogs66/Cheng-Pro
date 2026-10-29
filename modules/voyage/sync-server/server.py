@@ -2826,6 +2826,15 @@ def collect_vessel_misc(vessel: str) -> dict:
     for key, cap in MISC_SETUP_LISTS:
         lists[key] = merge_misc_list(lists[key], [], deleted.get(key), cap)
     orb_entries = merge_misc_list(orb_entries, [], deleted.get("orbEntries"), 0)
+    if isinstance(orb, dict) and orb_entries:
+        orb = dict(orb)
+        book = orb.get("sealedBook") if isinstance(orb.get("sealedBook"), dict) else {}
+        orb["sealedBook"] = {
+            "entries": orb_entries,
+            "count": len(orb_entries),
+            "head": book.get("head") or "",
+            "sealedAt": orb_at,
+        }
     return {
         "legs": legs,
         **lists,
