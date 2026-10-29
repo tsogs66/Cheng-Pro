@@ -293,6 +293,11 @@ check('an empty pulled book does not wipe this device',
   /pulledOrb.length \? pulledOrb : adoptOrbEntries/.test(HTML), true);
 check('the book matches ship identity by slug or registry id',
   /function orbEntryMatchesShip/.test(HTML), true);
+check('the sealed MEPC book rides inside setup.orb, not as a misc list',
+  /function orbSealedBookEntries/.test(HTML) && /sealedBook/.test(HTML)
+  && !/key: 'orbEntries', label: 'e-ORB entries'/.test(HTML), true);
+check('saving setup snapshots the sealed book onto the ORB config',
+  /state\.setup\.orb\.sealedBook = \{/.test(HTML), true);
 check('a server check reloads e-ORB entries before it files the leg',
   /async function commitOpenWorkBeforeSync\(\)\{\s*\n\s*if \(!state\.activeVesselId\) return;\s*\n\s*await refreshOrbEntriesFromDb\(\);/.test(HTML), true);
 check('the backup count reloads e-ORB entries from IndexedDB',

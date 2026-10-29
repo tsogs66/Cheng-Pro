@@ -61,6 +61,7 @@ shellHtml = shellHtml.replace(
     `<script>window.CHENG_PRO_BUNDLED = true; window.CHENG_PRO_EMBEDDED_BASE = "tanks/embedded/"; window.CHENG_PRO_VERSION = ${JSON.stringify(aioVersion)}; window.CHENG_PRO_AUTHOR = "ts0gs · Marvin C. Endozo";</script>`,
     '<script src="tanks/js/node-shim.js"></script>',
     '<script src="tanks/js/node-require.js"></script>',
+    '<script src="tanks/js/calc.js"></script>',
     '<script src="tanks/js/fuel-report-core.js"></script>',
     '<script src="tanks/js/bunkering-core.js"></script>',
     '<script src="tanks/js/store-core.js"></script>',

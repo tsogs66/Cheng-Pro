@@ -1436,7 +1436,9 @@
       },
       /* Engine officers who may sign entries: [{ id, rank, name }]. */
       officers: Array.isArray(seed.officers) ? seed.officers : [],
-      disclaimerAck: !!seed.disclaimerAck
+      disclaimerAck: !!seed.disclaimerAck,
+      /* MEPC.312(74) sealed hash chain of saved lines. Not a loose list. */
+      sealedBook: (seed.sealedBook && typeof seed.sealedBook === 'object') ? seed.sealedBook : null
     };
   }
 

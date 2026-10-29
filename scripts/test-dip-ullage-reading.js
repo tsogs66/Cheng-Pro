@@ -57,6 +57,23 @@ check('an empty answer from one side falls through to the other',
 const CORE = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/fuel-report-core.js'), 'utf8').replace(/\r\n/g, '\n');
 check('monitoring default row uses the stored sounding method',
   /method:\s*normalizeMethod\(r\.entryMethod \|\| r\.method \|\| tank\.soundingMethod\)/.test(CORE));
+check('computeRow uses the form method, then the stored entry method',
+  /normalizeMethod\(row\.method \|\| row\.entryMethod\)/.test(CORE));
+
+const DASH = fs.readFileSync(path.join(ROOT, 'apps/web/js/home-dashboard.js'), 'utf8').replace(/\r\n/g, '\n');
+check('home fill treats dip 0 as empty, not the stored ullage 100%',
+  /function fillPercentFromSounding/.test(DASH) && /if \(dip\) return 0;/.test(DASH));
+check('home recomputes the monitoring sheet like Tank Chief',
+  /function homeComputedReport/.test(DASH));
+
+const SHIM = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/node-shim.js'), 'utf8');
+const LOCAL = fs.readFileSync(path.join(ROOT, 'modules/tanks/public/js/local-api.js'), 'utf8');
+check('the AIO shell re-reads the tank database before answering Home',
+  /async function reload\(/.test(SHIM) && /NodeShim\.reload/.test(LOCAL));
+
+const PREP = fs.readFileSync(path.join(ROOT, 'scripts/prepare-android-www.js'), 'utf8');
+check('Android Home loads calc.js before fuel-report-core so dip/ullage can compute',
+  /tanks\/js\/calc\.js/.test(PREP) && /tanks\/js\/fuel-report-core\.js/.test(PREP));
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

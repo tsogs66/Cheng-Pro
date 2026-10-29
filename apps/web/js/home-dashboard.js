@@ -586,6 +586,41 @@
     };
   }
 
+  /** Dip 0 is empty; ullage 0 is full. Stored fillPercent is often the ullage answer. */
+  function fillPercentFromSounding(method, reading, volume, capacity, stored) {
+    const m = String(method || '').toLowerCase();
+    const dip = /dip|sound|depth/.test(m);
+    const r = reading === '' || reading == null ? null : Number(reading);
+    if (r === 0 && Number.isFinite(r)) {
+      if (dip) return 0;
+      if (/ullage/.test(m)) return 100;
+    }
+    if (volume != null && Number(capacity) > 0) {
+      return (Number(volume) / Number(capacity)) * 100;
+    }
+    return stored;
+  }
+
+  /**
+   * Same sheet Tank Chief Summary uses. Android Home used to trust stored
+   * readings (ullage 0 cm = 100%) while the iframe recomputed from form.method.
+   */
+  function homeComputedReport(bundle, fuelReport) {
+    const Core = typeof FuelReportCore !== 'undefined' ? FuelReportCore : null;
+    if (!Core || typeof Core.computeFuelReport !== 'function') return null;
+    if (typeof computeTank !== 'function') return null;
+    try {
+      const form = (fuelReport && fuelReport.form)
+        || (bundle && bundle.fuelReport)
+        || null;
+      const computed = Core.computeFuelReport(bundle, form, null);
+      if (computed && Array.isArray(computed.sections) && computed.sections.length) return computed;
+    } catch (err) {
+      console.warn('Home monitoring compute', err);
+    }
+    return null;
+  }
+
   /**
    * When Monitoring form exists but computed.sections is missing, still bucket by
    * carried fuelType / pinned section so HFO tanks holding distillate land in MDO/MGO.
@@ -610,12 +645,31 @@
         : (pinned === 'fuel' ? false : isDistillateFuelType(fuelType));
       const moved = isDist !== homeDistillate;
       const fromReading = readingVolWt(readings, tank.id);
+      const method = fr.method || fr.entryMethod || tank.soundingMethod || '';
+      const reading = fr.reading !== undefined && fr.reading !== ''
+        ? Number(fr.reading)
+        : (readings && readings[tank.id] && readings[tank.id].reading);
+      let vol = fromReading.vol;
+      let wt = fromReading.wt;
+      let volumePercent = null;
+      if (Number(reading) === 0 && Number.isFinite(Number(reading))) {
+        if (/dip|sound|depth/i.test(String(method))) {
+          vol = 0;
+          if (wt == null) wt = 0;
+          volumePercent = 0;
+        } else if (/ullage/i.test(String(method))) {
+          volumePercent = 100;
+        }
+      }
       const row = {
         tankId: tank.id,
         name: tank.name || tank.id,
         capacity100M3: tank.capacity,
-        measuredM3: fromReading.vol,
-        weightAirMT: fromReading.wt,
+        measuredM3: vol,
+        weightAirMT: wt,
+        volumePercent,
+        method,
+        reading,
         moved,
         sectionMismatch: moved,
         fuelType,
@@ -624,9 +678,9 @@
       const bucket = isDist ? out.distillate : out.heavy;
       bucket.count += 1;
       bucket.capacity += Number(tank.capacity) || 0;
-      if (fromReading.vol != null || fromReading.wt != null) {
-        bucket.volume += Number(fromReading.vol) || 0;
-        bucket.weight += Number(fromReading.wt) || 0;
+      if (vol != null || wt != null) {
+        bucket.volume += Number(vol) || 0;
+        bucket.weight += Number(wt) || 0;
         bucket.withReading += 1;
       }
     }
@@ -961,13 +1015,20 @@
     let vol = res.volumeObserved;
     let mt = res.weightMT;
     let temp = r.tempC;
+    const method = (sheet && (sheet.method || sheet.entryMethod))
+      || r.entryMethod || r.method || tank.soundingMethod || '';
+    const reading = sheet && sheet.reading !== undefined && sheet.reading !== ''
+      ? sheet.reading
+      : r.reading;
     if (sheet) {
       if (sheet.measuredM3 != null) vol = sheet.measuredM3;
       if (sheet.weightAirMT != null) mt = sheet.weightAirMT;
       if (sheet.volumePercent != null) fill = sheet.volumePercent;
       const cap = Number(sheet.capacity100M3 != null ? sheet.capacity100M3 : (sheet.capacityM3 != null ? sheet.capacityM3 : tank.capacity)) || 0;
-      if (fill == null && vol != null && cap > 0) fill = (Number(vol) / cap) * 100;
+      fill = fillPercentFromSounding(method, reading, vol, cap, fill);
       if (sheet.tempC !== '' && sheet.tempC != null) temp = sheet.tempC;
+    } else {
+      fill = fillPercentFromSounding(method, reading, vol, tank.capacity, fill);
     }
     if (fill == null && vol != null && Number(tank.capacity) > 0) {
       fill = (Number(vol) / Number(tank.capacity)) * 100;
@@ -1012,7 +1073,11 @@
       || '';
     const tanks = (bundle && bundle.tanks && bundle.tanks.fuel) || [];
     const readings = (bundle && bundle.readings) || {};
-    const fromReport = fuelReport ? fuelFamilyTotalsFromReport(fuelReport, readings, tanks) : null;
+    const live = homeComputedReport(bundle, fuelReport);
+    const reportForTotals = live
+      ? { form: (fuelReport && fuelReport.form) || (bundle && bundle.fuelReport) || null, computed: live }
+      : fuelReport;
+    const fromReport = reportForTotals ? fuelFamilyTotalsFromReport(reportForTotals, readings, tanks) : null;
     const fam = (fromReport && fromReport.fam && fromReport.rows && fromReport.rows.length)
       ? fromReport.fam
       : fuelFamilyTotals(tanks, readings);

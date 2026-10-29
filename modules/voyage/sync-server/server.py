@@ -2813,6 +2813,12 @@ def collect_vessel_misc(vessel: str) -> dict:
             for key, _cap in MISC_SETUP_LISTS:
                 lists[key] = merge_misc_list(lists[key], setup.get(key), [], 0)
             orb_entries = merge_misc_list(orb_entries, inner.get("orbEntries"), [], 0)
+            orb_entries = merge_misc_list(orb_entries, setup.get("orbEntries"), [], 0)
+            orb_cfg = setup.get("orb")
+            if isinstance(orb_cfg, dict):
+                book = orb_cfg.get("sealedBook")
+                if isinstance(book, dict):
+                    orb_entries = merge_misc_list(orb_entries, book.get("entries"), [], 0)
             plan = _newer_misc_doc(plan, setup.get("bunkerPlan"))
             setup_at = str((setup.get("sync") or {}).get("lastModifiedAt") or data.get("updatedAt") or "")
             if isinstance(setup.get("orb"), dict) and setup_at >= orb_at:

@@ -76,6 +76,16 @@ check('first defaultOrbSetup keeps ack', ackOnce.disclaimerAck, true);
 check('second defaultOrbSetup keeps ack', EORB.defaultOrbSetup(ackOnce).disclaimerAck, true);
 check('unset ack stays false', EORB.defaultOrbSetup({ shipName: 'X' }).disclaimerAck, false);
 
+console.log('\nMEPC.312(74) sealed book survives setup rebuild');
+const sealedOnce = EORB.defaultOrbSetup({
+  shipName: 'Test Vessel',
+  sealedBook: { entries: [{ id: 'e1', chainHash: 'sha-256:abc' }], head: 'sha-256:abc', count: 1 }
+});
+check('first defaultOrbSetup keeps sealed book head', sealedOnce.sealedBook && sealedOnce.sealedBook.head, 'sha-256:abc');
+check('second defaultOrbSetup keeps sealed book entries',
+  (EORB.defaultOrbSetup(sealedOnce).sealedBook.entries || []).map((e) => e.id), ['e1']);
+check('unset sealed book stays null', EORB.defaultOrbSetup({ shipName: 'X' }).sealedBook, null);
+
 console.log('\nweekly OWS test recognition');
 checkTrue('scenario id counts as weekly OWS test',
   EORB.isWeeklyOwsTest({ scenarioId: 'ows-weekly-test', code: 'I' }));
