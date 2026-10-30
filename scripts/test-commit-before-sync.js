@@ -47,7 +47,7 @@ const pullLeg = between(html, "msg.action === 'pull-voyage-leg'", 'reply({');
 assert.match(pullLeg, /commitOpenWorkBeforeSync[\s\S]{0,400}state\.setup\.voyageNumber = voyage/);
 const summary = between(html, 'async function saveOpenVoyageSummary', "document.getElementById('btnSaveVoyageSummary')");
 assert.match(summary, /archiveActiveVoyageLeg/);
-assert.match(html, /noon-report-v356/);
+assert.match(html, /noon-report-v357/);
 assert.match(html, /function takeLegSyncHold/);
 assert.match(html, /function restoreHeldLegRecords/);
 assert.match(html, /list\.unshift\(\{ voyage: prevVn, condition: prevCond \}\)/);

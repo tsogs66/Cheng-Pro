@@ -1340,6 +1340,11 @@
   .orb-weekly-table .field input{min-height:34px;}
   .orb-weekly-cap input{pointer-events:none;}
   .orb-scenario-card.ows-seq{border-color:var(--teal) !important;}
+  .orb-scenario-card.flag-na{opacity:0.78;}
+  .orb-scenario-card .flagtag{
+    display:inline-block; margin-top:6px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-size:10px;
+    color:var(--alert, #d47a4a); border:1px solid var(--alert, #d47a4a); border-radius:10px; padding:1px 7px;
+  }
   #orbDeleteLastContents{
     white-space:pre-wrap; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.45;
     max-height:40vh; overflow:auto; background:var(--ink); color:var(--paper);
@@ -29814,7 +29819,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v356';
+let androidInstallCacheName = 'noon-report-v357';
 
 /*
  * What the program is called.
@@ -33617,12 +33622,16 @@ function renderOrbScenarioGroups(){
     <div class="orb-scenario-group">
       <h4>${escHtml(g.group)}</h4>
       <div class="orb-scenario-grid">
-        ${g.scenarios.map(s=>`
-          <button type="button" class="orb-scenario-card${s.group === 'Routine' ? ' routine' : ''}${s.group === 'OWS overboard discharge' ? ' ows-seq' : ''}" data-orb-scenario="${escAttr(s.id)}">
+        ${g.scenarios.map(s=>{
+          const flagWarn = EORB.scenarioFlagWarning(setup, s);
+          return `
+          <button type="button" class="orb-scenario-card${s.group === 'Routine' ? ' routine' : ''}${s.group === 'OWS overboard discharge' ? ' ows-seq' : ''}${flagWarn ? ' flag-na' : ''}" data-orb-scenario="${escAttr(s.id)}">
             <div class="title">${escHtml(s.title)}</div>
             <div class="blurb">${escHtml(s.blurb || '')}</div>
             <span class="codetag">Code ${escHtml(s.code)} · ${escHtml((s.items||[]).join(', '))}${s.wizard === 'weekly' ? ' + I' : ''}</span>
-          </button>`).join('')}
+            ${flagWarn ? '<span class="flagtag">Not for this flag</span>' : ''}
+          </button>`;
+        }).join('')}
       </div>
     </div>`).join('');
 }
@@ -34443,6 +34452,16 @@ document.getElementById('orbScenarioGroups')?.addEventListener('click', (e)=>{
   if (!card || !window.EORB) return;
   const sc = EORB.getScenario(card.getAttribute('data-orb-scenario'));
   if (!sc) return;
+  const date = toIsoDate(document.getElementById('orb_entryDate')?.value || orbTodayIso());
+  const missed = EORB.scenarioOpenErrors(state.orbEntries || [], {
+    date, scenarioId: sc.id, code: sc.code, items: sc.items
+  });
+  if (missed.length){
+    alert(EORB.formatScenarioBlockMessage(sc.title, missed));
+    return;
+  }
+  const flagWarn = EORB.scenarioFlagWarning(orbSetup(), sc);
+  if (flagWarn && !confirm(flagWarn + '\n\nContinue anyway?')) return;
   if (sc.wizard === 'weekly'){
     openWeeklyInventoryWizard();
     document.getElementById('orbWeeklyWizard')?.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -34657,10 +34676,18 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   if (signErrors.length){ alert('Cannot save entry:\n\n• ' + signErrors.join('\n• ')); return; }
   const dateErr = orbDateError(date);
   if (dateErr){ alert('Cannot save this ORB entry:\n\n' + dateErr); return; }
-  const dischargePrereq = EORB.owsSequencePrereqErrors(state.orbEntries || [], {
-    date, scenarioId: _orbWizard.scenarioId
+  const sequenceErrs = EORB.scenarioOpenErrors(state.orbEntries || [], {
+    date, scenarioId: _orbWizard.scenarioId, code, items: selected
   });
-  if (dischargePrereq.length){ alert('Cannot save this ORB entry:\n\n• ' + dischargePrereq.join('\n• ')); return; }
+  if (sequenceErrs.length){
+    alert(EORB.formatScenarioBlockMessage(
+      (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.title) || ('Code ' + code),
+      sequenceErrs
+    ));
+    return;
+  }
+  const flagWarn = EORB.scenarioFlagWarning(setup, EORB.getScenario(_orbWizard.scenarioId));
+  if (flagWarn && !confirm(flagWarn + '\n\nSave this entry anyway?')) return;
   if (_orbWizard.scenarioId === 'ows-weekly-test'){
     values.weeklyOwsTest = true;
     const owsErr = EORB.weeklyInventoryDateError(date, orbLastWeeklyOwsDate(), 'Weekly 15 ppm / OWS test');

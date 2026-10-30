@@ -1235,23 +1235,26 @@
     { id: 'odme-condition', group: 'Cargo (tankers)', part: 2, code: 'M',
       title: 'Condition of the ODME system', blurb: 'Failure or condition of the oil discharge monitoring and control system.', items: ['70', '71', '72'], requires: { odme: true } },
 
-    /* ---- Part III — fuel changeover (Annex VI Reg. 14.6) ---- */
+    /* ---- Part III — fuel changeover (Annex VI Reg. 14.6) ----
+       Circ.736 / beORB examples mark these standalone Part III C / E cards as
+       Panama-flag only. Other flags still get Part III supplements on the related
+       Part I entry. */
     { id: 'changeover-to-ls-start', group: 'Fuel changeover', part: 3, code: 'C',
       title: 'Changeover commencement — HFO to MGO',
       blurb: 'Starting the change to low-sulphur fuel before entering an ECA. Record position, time and the volume of low-sulphur fuel on board.',
-      items: ['1'] },
+      items: ['1'], flagOnly: ['PA'] },
     { id: 'changeover-to-ls-complete', group: 'Fuel changeover', part: 3, code: 'C',
       title: 'Changeover completion — HFO to MGO',
       blurb: 'Changeover complete and low-sulphur fuel in service. This must be recorded before the ship enters the ECA.',
-      items: ['2'] },
+      items: ['2'], flagOnly: ['PA'] },
     { id: 'changeover-to-hs-start', group: 'Fuel changeover', part: 3, code: 'C',
       title: 'Changeover commencement — MGO to HFO',
       blurb: 'Starting the change back to residual fuel after leaving an ECA. This must not begin before the ship is clear of the area.',
-      items: ['3'] },
+      items: ['3'], flagOnly: ['PA'] },
     { id: 'changeover-to-hs-complete', group: 'Fuel changeover', part: 3, code: 'C',
       title: 'Changeover completion — MGO to HFO',
       blurb: 'Changeover back to residual fuel complete, with position, time and the low-sulphur volume remaining on board.',
-      items: ['4'] },
+      items: ['4'], flagOnly: ['PA'] },
   ];
 
   /** Scenarios available for a part, filtered by what the ship is actually fitted with. */
@@ -1386,19 +1389,26 @@
    * Manual D.15.1 overboard discharge requires same-date 15 ppm test then valve unseal.
    * @returns {string[]} blocking messages (empty when prerequisites are satisfied)
    */
+  function wantsOwsOverboardDischarge(opts) {
+    const o = opts || {};
+    if (o.scenarioId === 'bilge-ows-sea') return true;
+    const items = selectedItemNos(o.items || o.selectedItems || []);
+    return o.code === 'D' && items.indexOf('15.1') !== -1;
+  }
+
   function owsDischargePrereqErrors(entries, opts) {
     const o = opts || {};
-    if (o.scenarioId !== 'bilge-ows-sea') return [];
+    if (!wantsOwsOverboardDischarge(o)) return [];
     const d = String(o.date || '').slice(0, 10);
     if (!d) return ['Set the operation date before saving overboard discharge.'];
     const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d &&
       (!o.excludeId || e.id !== o.excludeId));
     const errs = [];
     if (!day.some(isOwsOcmTestEntry)) {
-      errs.push('Log test of OWS 15 ppm equipment (Code I) for ' + formatOrbDate(d) + ' first.');
+      errs.push('1. Test of OWS 15 ppm equipment (Code I) — not yet recorded for ' + formatOrbDate(d) + '.');
     }
     if (!day.some(isOverboardSealBreakEntry)) {
-      errs.push('Log unsealing of overboard valves (Code I) for ' + formatOrbDate(d) + ' before discharge.');
+      errs.push('2. Unsealing of overboard valves (Code I) — not yet recorded for ' + formatOrbDate(d) + '.');
     }
     const sorted = day.slice().sort((a, b) =>
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
@@ -1436,13 +1446,90 @@
     return [];
   }
 
-  /** Combined sequence gate used by the save path. */
+  function isOwsFailureEntry(entry) {
+    if (!entry || entry.voided) return false;
+    if (entry.scenarioId === 'ows-failure') return true;
+    const items = selectedItemNos(entry.selectedItems || []);
+    return entry.code === 'F' && items.indexOf('19') !== -1;
+  }
+
+  function isOwsRestoredEntry(entry) {
+    if (!entry || entry.voided) return false;
+    if (entry.scenarioId === 'ows-restored') return true;
+    const items = selectedItemNos(entry.selectedItems || []);
+    return entry.code === 'F' && items.indexOf('20') !== -1 && items.indexOf('19') === -1;
+  }
+
+  /** Latest Code F failure that has not yet been closed by a restore. */
+  function lastOpenOwsFailure(entries) {
+    const live = (entries || []).filter(e => e && !e.voided).slice().sort((a, b) => {
+      const c = String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      if (c) return c;
+      return String(a.date || '').localeCompare(String(b.date || ''));
+    });
+    let open = null;
+    live.forEach(e => {
+      if (isOwsFailureEntry(e)) open = e;
+      if (isOwsRestoredEntry(e)) open = null;
+    });
+    return open;
+  }
+
+  function wantsOwsRestore(opts) {
+    const o = opts || {};
+    if (o.scenarioId === 'ows-restored') return true;
+    const items = selectedItemNos(o.items || o.selectedItems || []);
+    return o.code === 'F' && items.indexOf('20') !== -1 && items.indexOf('19') === -1;
+  }
+
+  function owsRestorePrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (!wantsOwsRestore(o)) return [];
+    const open = lastOpenOwsFailure(entries);
+    if (open) return [];
+    const anyFail = (entries || []).some(isOwsFailureEntry);
+    if (!anyFail) {
+      return ['No previous OWS failure is recorded. Log Failure of oily-water separator (Code F item 19) first.'];
+    }
+    return ['The previous OWS failure is already closed by a restore entry. Log a new failure (Code F item 19) before recording another restore.'];
+  }
+
+  /** Combined sequence gate used by the save path and the card-click popup. */
   function owsSequencePrereqErrors(entries, opts) {
     const o = opts || {};
     if (o.scenarioId === 'ows-overboard-unseal') return owsUnsealPrereqErrors(entries, o);
-    if (o.scenarioId === 'bilge-ows-sea') return owsDischargePrereqErrors(entries, o);
+    if (wantsOwsOverboardDischarge(o)) return owsDischargePrereqErrors(entries, o);
     if (o.scenarioId === 'ows-overboard-reseal') return owsResealPrereqErrors(entries, o);
     return [];
+  }
+
+  function scenarioOpenErrors(entries, opts) {
+    const o = opts || {};
+    return owsSequencePrereqErrors(entries, o).concat(owsRestorePrereqErrors(entries, o));
+  }
+
+  function formatScenarioBlockMessage(title, errors) {
+    const head = title
+      ? 'Cannot record this operation yet: ' + title + '.'
+      : 'Cannot record this operation yet.';
+    return head + '\n\nRequired steps missed:\n• ' + (errors || []).join('\n• ') +
+      '\n\nComplete those entries first so the Oil Record Book stays in the correct sequence.';
+  }
+
+  /**
+   * Warning when the scenario is not used for this vessel's flag (Circ.736 / beORB).
+   * Empty string when the operation applies.
+   */
+  function scenarioFlagWarning(setup, scenario) {
+    if (!scenario || !scenario.flagOnly || !scenario.flagOnly.length) return '';
+    const code = String((setup && setup.flag) || '').toUpperCase();
+    const allowed = scenario.flagOnly.map(c => String(c).toUpperCase());
+    if (allowed.indexOf(code) !== -1) return '';
+    const flag = getFlag(code);
+    const names = scenario.flagOnly.map(c => getFlag(c).name).join(', ');
+    return (scenario.title || 'This operation') + ' is not applicable for vessels flying the flag of ' +
+      (flag.name || code || 'this Administration') +
+      '.\n\nIt applies only to: ' + names + '.';
   }
 
   /** Plain-language checklist for the wizard notes box. */
@@ -4038,10 +4125,17 @@
     isOverboardSealBreakEntry,
     isOwsOverboardDischargeEntry,
     isOverboardResealEntry,
+    isOwsFailureEntry,
+    isOwsRestoredEntry,
+    lastOpenOwsFailure,
     owsDischargePrereqErrors,
     owsUnsealPrereqErrors,
     owsResealPrereqErrors,
+    owsRestorePrereqErrors,
     owsSequencePrereqErrors,
+    scenarioOpenErrors,
+    formatScenarioBlockMessage,
+    scenarioFlagWarning,
     owsDischargePrereqChecklist,
     lastOrbSaveBatch,
     formatOrbEntryPreview,
