@@ -55,6 +55,9 @@ assert.match(tank, /typeof STATE !== 'undefined'/);
 assert.doesNotMatch(tank, /window\.STATE && STATE\.bundle/);
 assert.match(tank, /flushUnsavedTankWork/);
 assert.match(tank, /pendingForceReload/);
+assert.match(tank, /overlayAioIdentityFromParent/);
+assert.match(tank, /chengaio-identity-changed/);
+assert.match(tank, /getAssets/);
 
 const start = html.indexOf('function voyageLegEntryTime');
 const end = html.indexOf('\nasync function loadLatestVoyageDataForActiveVessel');

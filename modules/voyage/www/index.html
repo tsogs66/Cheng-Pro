@@ -18359,7 +18359,7 @@ function printDepArrRobSheet(){
       {label:'Vessel', value:state.setup.vesselName||'—'},
       {label:'Voyage No.', value:state.setup.voyageNumber||'—'},
       {label:'Route', value:`${state.setup.departPort||'—'} → ${state.setup.arrivePort||'—'}`},
-      {label:'Chief Engineer', value:state.setup.chEng||'—'}
+      {label:'Chief Engineer', value:currentChEngName()||'—'}
     ], 4)}
     <div class="pr-grid"><div class="pr-span2">${table}</div></div>
     ${printSignatory()}
@@ -20716,7 +20716,7 @@ function printRow(label, value, cls){
  */
 function printSignatory(entry){
   const now = new Date().toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const signer = (entry && entry.chEng) ? entry.chEng : state.setup.chEng;
+  const signer = (entry && entry.chEng) ? entry.chEng : currentChEngName();
   /* Signature belongs to whoever is named below it, so an old sheet reprinted after a
      crew change carries the earlier officer's signature, not the incoming one's. */
   const sigUrl = signatureForChEng(signer);
@@ -21964,6 +21964,16 @@ function chEngSignatureMap(){
   if (!state.setup.chEngSignatures || typeof state.setup.chEngSignatures !== 'object'){
     state.setup.chEngSignatures = {};
   }
+  const aio = typeof aioPrintIdentity === 'function' ? aioPrintIdentity() : null;
+  if (aio && aio.chEngSignatures && typeof aio.chEngSignatures === 'object') {
+    for (const [k, url] of Object.entries(aio.chEngSignatures)) {
+      if (typeof url !== 'string' || !url) continue;
+      const raw = String(k).trim();
+      if (!raw) continue;
+      state.setup.chEngSignatures[raw] = url;
+      state.setup.chEngSignatures[raw.toLowerCase()] = url;
+    }
+  }
   return state.setup.chEngSignatures;
 }
 
@@ -21971,15 +21981,18 @@ function chEngSignatureMap(){
 function signatureForChEng(name){
   const key = (name || '').trim();
   if (!key) return null;
-  return chEngSignatureMap()[key] || null;
+  const map = chEngSignatureMap();
+  return map[key] || map[key.toLowerCase()] || null;
 }
 
 /** Signature to print for an entry — its stamped officer, else the current one. */
 function signatureForEntry(entry){
-  return signatureForChEng(entry?.chEng || state.setup.chEng);
+  return signatureForChEng(entry?.chEng || currentChEngName());
 }
 
 function vesselStampDataUrl(){
+  const aio = typeof aioPrintIdentity === 'function' ? aioPrintIdentity() : null;
+  if (aio && aio.vesselStamp) return aio.vesselStamp;
   return state.setup.vesselStamp || null;
 }
 
@@ -25929,7 +25942,7 @@ async function saveLogEntryFromForm(opts){
        reports that were already made — and a mid-voyage relief lands on exactly the
        entries that follow it. Entries written before this existed carry no stamp and
        fall back to the vessel's current Chief Engineer when printed. */
-    chEng: existing?.chEng ?? (state.setup.chEng || null),
+    chEng: existing?.chEng ?? (currentChEngName() || null),
     updatedAt: new Date().toISOString()
   };
   const fwDraft = readFwForm(isVoyageSummaryOpen() ? 'vs' : 'in');
@@ -29848,7 +29861,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v358';
+let androidInstallCacheName = 'noon-report-v359';
 
 /*
  * What the program is called.
@@ -35668,6 +35681,57 @@ function isChengAioEmbedded(){
   } catch (_) { return false; }
 }
 
+/**
+ * Live Chief Engineer + signature from ChEng AIO Vessel Setup.
+ * Standalone Voyage Chief keeps reading its own Vessel Data page.
+ */
+function aioPrintIdentity(){
+  if (!isChengAioEmbedded()) return null;
+  try {
+    const p = window.parent && window.parent !== window ? window.parent : null;
+    if (!p || !p.ChengPro || !p.ChengPro.vessel) return null;
+    const v = typeof p.ChengPro.vessel.getActive === 'function' ? p.ChengPro.vessel.getActive() : null;
+    if (!v) return null;
+    let assets = null;
+    if (typeof p.ChengPro.vessel.getAssets === 'function') assets = p.ChengPro.vessel.getAssets();
+    return {
+      chiefEngineer: String(v.chiefEngineer || '').trim(),
+      chEngSignatures: (assets && assets.chEngSignatures) || null,
+      vesselStamp: (assets && assets.vesselLogo) || null,
+    };
+  } catch (_) { return null; }
+}
+
+function currentChEngName(){
+  const aio = aioPrintIdentity();
+  if (aio && aio.chiefEngineer) return aio.chiefEngineer;
+  return (state.setup && state.setup.chEng) || '';
+}
+
+function applyChengAioIdentityOverlay(){
+  const aio = aioPrintIdentity();
+  if (!aio) return false;
+  if (!state.setup) state.setup = {};
+  if (aio.chiefEngineer) {
+    state.setup.chEng = aio.chiefEngineer;
+    if (typeof setChEngInputs === 'function') setChEngInputs(aio.chiefEngineer);
+  }
+  if (aio.chEngSignatures && typeof aio.chEngSignatures === 'object') {
+    if (!state.setup.chEngSignatures || typeof state.setup.chEngSignatures !== 'object') {
+      state.setup.chEngSignatures = {};
+    }
+    for (const [k, url] of Object.entries(aio.chEngSignatures)) {
+      if (typeof url !== 'string' || !url) continue;
+      const raw = String(k).trim();
+      if (!raw) continue;
+      state.setup.chEngSignatures[raw] = url;
+      state.setup.chEngSignatures[raw.toLowerCase()] = url;
+    }
+  }
+  if (aio.vesselStamp) state.setup.vesselStamp = aio.vesselStamp;
+  return true;
+}
+
 function normalizeImoForAio(imo){
   return String(imo || '').replace(/^IMO\s*/i, '').replace(/\D/g, '').trim();
 }
@@ -35741,6 +35805,7 @@ async function syncActiveVesselFromChengAio(forceVessel){
   if (!match) return false;
   if (match.id !== state.activeVesselId) await switchVessel(match.id);
   paintActiveVesselLabel((match && match.name) || hint.name || hint.vesselName || '');
+  applyChengAioIdentityOverlay();
   return true;
 }
 
@@ -35887,6 +35952,10 @@ function installChengAioVesselSync(){
       });
       return;
     }
+    if (msg.type === 'chengaio-identity-changed') {
+      applyChengAioIdentityOverlay();
+      return;
+    }
     if (msg.type !== 'chengaio-vessel-changed') return;
     syncActiveVesselFromChengAio(msg.vessel).catch((err) => {
       console.warn('AIO vessel sync:', err && err.message);
@@ -35985,6 +36054,7 @@ function applyEorbLicenseVisibility(){
  */
 function applyChengAioVesselHubLock(alreadyLocked){
   const hub = isChengAioEmbedded();
+  if (hub) applyChengAioIdentityOverlay();
   const sel = document.getElementById('vesselSelectionPanel');
   const ident = document.getElementById('vesselIdentityPanel');
   if (sel) sel.hidden = !!hub;

@@ -37,6 +37,56 @@
     return null;
   }
 
+  function readParentAssets() {
+    try {
+      if (window.parent && window.parent !== window && window.parent.ChengPro
+          && window.parent.ChengPro.vessel
+          && typeof window.parent.ChengPro.vessel.getAssets === 'function') {
+        return window.parent.ChengPro.vessel.getAssets();
+      }
+    } catch { /* cross-origin or not embedded */ }
+    return null;
+  }
+
+  /**
+   * Copy AIO Vessel Setup Chief Engineer + signatures onto the Tank folder
+   * this iframe is actually printing from. Folder ids often differ, so a
+   * GET of the resolved tank vessel.json can still be empty after the hub save.
+   */
+  async function overlayAioIdentityFromParent(incoming) {
+    const parent = (incoming && incoming.vessel) || readParentVessel();
+    const assets = (incoming && incoming.assets) || readParentAssets();
+    if (!parent && !assets) return;
+    const state = typeof STATE !== 'undefined' ? STATE : null;
+    if (window.FuelReport && typeof FuelReport.applyAioIdentity === 'function') {
+      FuelReport.applyAioIdentity();
+    } else if (state && state.bundle && window.FuelReport
+        && typeof FuelReport.overlayAioIdentity === 'function') {
+      state.bundle = FuelReport.overlayAioIdentity(state.bundle);
+    }
+    if (typeof Api === 'undefined' || !state || !state.activeVesselId) return;
+    const name = String((parent && parent.chiefEngineer) || '').trim();
+    try {
+      if (name) {
+        await Api.updateVessel(state.activeVesselId, { chiefEngineer: name });
+        if (state.bundle && state.bundle.vessel) state.bundle.vessel.chiefEngineer = name;
+      }
+      if (assets) {
+        const local = (state.bundle && state.bundle.assets) || { vesselLogo: null, chEngSignatures: {} };
+        const merged = {
+          vesselLogo: assets.vesselLogo || local.vesselLogo || null,
+          chEngSignatures: Object.assign({}, local.chEngSignatures || {}, assets.chEngSignatures || {}),
+        };
+        if (typeof Api.savePart === 'function') {
+          await Api.savePart(state.activeVesselId, 'assets', merged);
+        }
+        if (state.bundle) state.bundle.assets = merged;
+      }
+    } catch (err) {
+      console.warn('AIO identity persist:', err && err.message);
+    }
+  }
+
   function normalizeImo(imo) {
     return String(imo || '').replace(/^IMO\s*/i, '').replace(/\D/g, '').trim();
   }
@@ -122,7 +172,10 @@
         return;
       }
       const already = st.activeVesselId === resolved;
-      if (already && !force) return;
+      if (already && !force) {
+        await overlayAioIdentityFromParent();
+        return;
+      }
       if (!already && typeof window.flushUnsavedTankWork === 'function') {
         try { await window.flushUnsavedTankWork(); } catch (err) { console.warn(err); }
       }
@@ -139,6 +192,7 @@
         if (typeof window.reloadBundle === 'function') await window.reloadBundle();
         if (force && typeof window.render === 'function') window.render();
       }
+      await overlayAioIdentityFromParent();
       if (force) {
         try {
           window.parent.postMessage({
@@ -248,6 +302,12 @@
       }
       if (msg.type === 'chengaio-load-vessel-data') {
         applyFromShell(true);
+        return;
+      }
+      if (msg.type === 'chengaio-identity-changed') {
+        overlayAioIdentityFromParent(msg).catch((err) => {
+          console.warn('AIO identity overlay:', err && err.message);
+        });
         return;
       }
       if (msg.type !== 'chengaio-vessel-changed') return;

@@ -1,6 +1,7 @@
 (function (root) {
   const listeners = new Set();
   let active = null;
+  let activeAssets = { vesselLogo: null, chEngSignatures: {} };
   let list = [];
   let session = null;
   const HINT_KEY = 'chengProActiveVesselHint';
@@ -38,11 +39,21 @@
         imo: vessel.imo || '',
         name: vessel.name || '',
         slug: vessel.voyageSlug || vessel.slug || vessel.id || '',
+        chiefEngineer: vessel.chiefEngineer || '',
       } : null,
+      assets: activeAssets,
+    };
+    const identity = {
+      type: 'chengaio-identity-changed',
+      vessel: payload.vessel,
+      assets: activeAssets,
     };
     document.querySelectorAll('iframe').forEach((frame) => {
       try {
-        if (frame.contentWindow) frame.contentWindow.postMessage(payload, '*');
+        if (frame.contentWindow) {
+          frame.contentWindow.postMessage(payload, '*');
+          frame.contentWindow.postMessage(identity, '*');
+        }
       } catch { /* ignore */ }
     });
   }
@@ -57,11 +68,14 @@
         try {
           const shared = await ChengProApi.api('/api/shell/vessels/' + encodeURIComponent(id));
           active = shared.vessel;
+          activeAssets = shared.assets || { vesselLogo: null, chEngSignatures: {} };
         } catch {
           active = list.find((v) => v.id === id) || null;
+          activeAssets = { vesselLogo: null, chEngSignatures: {} };
         }
       } else {
         active = null;
+        activeAssets = { vesselLogo: null, chEngSignatures: {} };
         ChengProApi.setActiveId('');
       }
       writeActiveHint(active);
@@ -91,6 +105,8 @@
   root.ChengPro = {
     vessel: {
       getActive: () => active,
+      getAssets: () => activeAssets,
+      notifyIdentity: () => notifyEmbeds(active),
       list: async () => {
         if (!list.length) {
           try {

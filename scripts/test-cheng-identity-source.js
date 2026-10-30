@@ -106,9 +106,15 @@ check('the whole identity panel is still hidden when embedded',
 /* ---- a signed entry is never re-signed -------------------------------- */
 
 check('a printed entry prefers the officer stored on it',
-  /const signer = \(entry && entry\.chEng\) \? entry\.chEng : state\.setup\.chEng;/.test(HTML), true);
+  /const signer = \(entry && entry\.chEng\) \? entry\.chEng : currentChEngName\(\);/.test(HTML), true);
 check('and its signature image is looked up under that name',
-  /signatureForChEng\(entry\?\.chEng \|\| state\.setup\.chEng\)/.test(HTML), true);
+  /signatureForChEng\(entry\?\.chEng \|\| currentChEngName\(\)\)/.test(HTML), true);
+check('embedded printouts take the live AIO Chief Engineer when no entry is stamped',
+  /function currentChEngName\(/.test(HTML) && /function aioPrintIdentity\(/.test(HTML), true);
+check('AIO signatures are found under the lower-cased name Vessel Setup files them under',
+  /map\[key\] \|\| map\[key\.toLowerCase\(\)\]/.test(HTML), true);
+check('the hub lock overlays AIO identity onto Voyage setup',
+  /if \(hub\) applyChengAioIdentityOverlay\(\);/.test(lock), true);
 check('the ORB second signature falls back to setup, not to a blank',
   /draftEntry\.chiefEngName = nameEl\?\.value\?\.trim\(\) \|\| setup\.chiefEng \|\| '';/.test(HTML), true);
 

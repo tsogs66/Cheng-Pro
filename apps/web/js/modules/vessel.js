@@ -214,6 +214,7 @@ window.ChengProModules.vessel = {
           }
         }
         await ChengPro.vessel.refresh();
+        if (ChengPro.vessel.notifyIdentity) ChengPro.vessel.notifyIdentity();
         window.dispatchEvent(new CustomEvent('chengpro:navigate', { detail: 'vessel' }));
       } catch (e) { toast(e.message); }
     });
@@ -325,6 +326,10 @@ function buildPrintIdentityPanel({ vesselId, assets: initialAssets, getChEngName
     } catch (err) {
       console.warn('Voyage signature push skipped:', err.message);
     }
+    try {
+      await ChengPro.vessel.refresh();
+      if (ChengPro.vessel.notifyIdentity) ChengPro.vessel.notifyIdentity();
+    } catch (_) { /* shell refresh is best-effort after a stamp upload */ }
     return assets;
   }
 

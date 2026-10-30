@@ -403,6 +403,9 @@ function updateVesselDetails(id, patch) {
   setup.company = next.company;
   setup.flag = next.flag;
   setup.dwt = next.dwt;
+  if (next.chiefEngineer != null && String(next.chiefEngineer).trim()) {
+    setup.chEng = String(next.chiefEngineer).trim();
+  }
   setup.updatedAt = now();
   writeJson(voyagePath(id, 'setup.json'), setup);
 
@@ -413,6 +416,21 @@ function updateVesselDetails(id, patch) {
 function saveAssets(id, assets) {
   if (!fs.existsSync(vesselDir(id))) throw new Error('Vessel not found');
   writeJson(sharedPath(id, 'assets.json'), { ...emptyAssets(), ...assets });
+  ensureVoyagePlane(id);
+  const setup = readJson(voyagePath(id, 'setup.json'), emptyVoyageSetup());
+  const incoming = (assets && assets.chEngSignatures && typeof assets.chEngSignatures === 'object')
+    ? assets.chEngSignatures : null;
+  if (incoming) {
+    if (!setup.chEngSignatures || typeof setup.chEngSignatures !== 'object') setup.chEngSignatures = {};
+    for (const [key, url] of Object.entries(incoming)) {
+      if (typeof url === 'string' && url) {
+        setup.chEngSignatures[String(key).trim().toLowerCase()] = url;
+      }
+    }
+  }
+  if (assets && assets.vesselLogo) setup.vesselStamp = assets.vesselLogo;
+  setup.updatedAt = now();
+  writeJson(voyagePath(id, 'setup.json'), setup);
   touchVessel(id);
   return readJson(sharedPath(id, 'assets.json'));
 }
