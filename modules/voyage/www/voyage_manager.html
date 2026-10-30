@@ -2870,11 +2870,12 @@
   /* Height is the signature line's offset from the top of the block — the stamp's
      `top` is pinned to the same figure so it centres on the line. */
   .pr-sign-space{
-    height:16.8mm; width:42mm; margin-left:auto; margin-bottom:0; position:relative;
+    height:16.8mm; width:42mm; margin-left:auto; margin-bottom:0;
+    display:flex; align-items:flex-end; justify-content:center;
   }
-  /* Centred over the line rather than pushed to its right end. */
+  /* Flex, not absolute+transform: Android PrintManager drops those images. */
   .pr-sign-space img{
-    position:absolute; left:50%; transform:translateX(-50%); bottom:0;
+    display:block;
     max-height:16.8mm; max-width:50.4mm; object-fit:contain;
   }
   .pr-sign-line{ width:42mm; height:1px; background:#122238; margin-left:auto; margin-bottom:1.2mm; }
@@ -29861,7 +29862,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v359';
+let androidInstallCacheName = 'noon-report-v360';
 
 /*
  * What the program is called.
