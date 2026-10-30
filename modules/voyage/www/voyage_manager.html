@@ -1299,7 +1299,36 @@
   .orb-form-input[type=number]{max-width:6.5em;}
   .orb-form-input[type=time]{max-width:7.5em;}
   select.orb-form-input{max-width:100%;}
-  .orb-form-input.orb-form-readonly{opacity:0.92; cursor:default;}
+  .orb-form-input.orb-form-readonly,
+  .orb-wizard-field.calc .orb-form-input{
+    background:var(--calc-bg);
+    border:1px dashed var(--brass-dim);
+    color:var(--brass);
+    cursor:default;
+    pointer-events:none;
+    box-shadow:none;
+    opacity:1;
+  }
+  .orb-form-input.orb-form-readonly:focus,
+  .orb-wizard-field.calc .orb-form-input:focus{
+    outline:none; border-color:var(--brass-dim); box-shadow:none;
+  }
+  @keyframes orb-warn-flash{
+    0%, 49%{opacity:1;}
+    50%, 100%{opacity:0.18;}
+  }
+  .orb-warn-flash,
+  .orb-weekly-due.err,
+  .orb-weekly-due.warn,
+  .orb-weekly-due.first{
+    color:var(--alert) !important;
+    border-left-color:var(--alert) !important;
+    border-color:var(--alert);
+    background:rgba(224,106,76,0.16);
+    animation:orb-warn-flash 1s step-end infinite;
+  }
+  .orb-form-prereq.orb-warn-flash{border:1px solid var(--alert);}
+  .orb-seq-missed{color:var(--alert); font-weight:700;}
   textarea.orb-form-input{width:100%; min-height:2.4em; resize:vertical;}
   @media (max-width:640px){
     .orb-form-sheet{font-size:11px;}
@@ -29819,7 +29848,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v357';
+let androidInstallCacheName = 'noon-report-v358';
 
 /*
  * What the program is called.
@@ -33213,7 +33242,7 @@ function fillOrbWeeklyDueBox(el, status, label){
   if (!el) return;
   if (!status || status.first){
     el.hidden = false;
-    el.className = 'orb-flag-box orb-weekly-due';
+    el.className = 'orb-flag-box orb-weekly-due first orb-warn-flash';
     el.textContent = 'No ' + label + ' recorded yet. Record one now, then again within 7 days (sooner is allowed, later is not).';
     return;
   }
@@ -33221,13 +33250,13 @@ function fillOrbWeeklyDueBox(el, status, label){
   const due = EORB.formatOrbDate(status.dueBy);
   el.hidden = false;
   if (status.overdue){
-    el.className = 'orb-flag-box orb-weekly-due err';
+    el.className = 'orb-flag-box orb-weekly-due err orb-warn-flash';
     el.textContent = 'Warning: ' + label + ' is past 7 days. Last: ' + last + '. Was due by: ' + due +
       '. The next one must be sooner than 7 days, never later. Record it now.';
     return;
   }
   if (status.dueSoon){
-    el.className = 'orb-flag-box orb-weekly-due warn';
+    el.className = 'orb-flag-box orb-weekly-due warn orb-warn-flash';
     el.textContent = 'Warning: ' + label + ' is due. Last: ' + last + '. Next by: ' + due +
       ' (7 days). It may be sooner than 7 days, never later.';
     return;
@@ -33896,8 +33925,9 @@ function renderOrbCapacityWarnings(warnings){
     return;
   }
   box.innerHTML = warnings.map(w=>{
-    const color = w.level === 'error' ? 'var(--alert)' : (w.level === 'info' ? 'var(--teal)' : 'var(--brass)');
-    return `<div class="orb-flag-box" style="border-left-color:${color};margin-top:6px;"><strong style="color:${color};text-transform:uppercase;font-size:10px;letter-spacing:0.06em;">${w.level}</strong><div style="margin-top:4px;">${w.message}</div></div>`;
+    const flash = w.level === 'error' || w.level === 'warn';
+    const color = w.level === 'error' || w.level === 'warn' ? 'var(--alert)' : (w.level === 'info' ? 'var(--teal)' : 'var(--brass)');
+    return `<div class="orb-flag-box${flash ? ' orb-warn-flash' : ''}" style="border-left-color:${color};margin-top:6px;"><strong style="color:${color};text-transform:uppercase;font-size:10px;letter-spacing:0.06em;">${w.level}</strong><div style="margin-top:4px;">${w.message}</div></div>`;
   }).join('');
 }
 
@@ -33909,8 +33939,9 @@ function renderOrbOperationHelpers(hints){
     return;
   }
   box.innerHTML = hints.map(h=>{
-    const color = h.level === 'error' ? 'var(--alert)' : (h.level === 'info' ? 'var(--teal)' : 'var(--brass)');
-    return `<div class="orb-flag-box" style="border-left-color:${color};margin-top:6px;opacity:0.95;"><strong style="color:${color};text-transform:uppercase;font-size:10px;letter-spacing:0.06em;">Helper</strong><div style="margin-top:4px;">${escHtml(h.message)}</div></div>`;
+    const flash = h.level === 'error' || h.level === 'warn';
+    const color = flash ? 'var(--alert)' : (h.level === 'info' ? 'var(--teal)' : 'var(--brass)');
+    return `<div class="orb-flag-box${flash ? ' orb-warn-flash' : ''}" style="border-left-color:${color};margin-top:6px;opacity:0.95;"><strong style="color:${color};text-transform:uppercase;font-size:10px;letter-spacing:0.06em;">Helper</strong><div style="margin-top:4px;">${escHtml(h.message)}</div></div>`;
   }).join('');
 }
 
@@ -34000,16 +34031,23 @@ function renderOrbWizardPrereq(){
     sid === 'bilge-ows-sea' || sid === 'ows-overboard-reseal';
   if (!seq){
     box.hidden = true;
+    box.className = 'orb-form-notes orb-form-prereq';
     return;
   }
   const date = document.getElementById('orb_wizardEntryDate')?.value || document.getElementById('orb_entryDate')?.value;
   const ck = EORB.owsDischargePrereqChecklist(state.orbEntries || [], date);
   const mark = (done, current) => current ? '→' : (done ? '✓' : '○');
+  const needOcm = sid !== 'ows-ocm-test' && !ck.ocm;
+  const needUnseal = (sid === 'bilge-ows-sea' || sid === 'ows-overboard-reseal') && !ck.unseal;
+  const needDischarge = sid === 'ows-overboard-reseal' && !ck.discharge;
+  const incomplete = needOcm || needUnseal || needDischarge;
+  const li = (missed, html) => `<li${missed ? ' class="orb-seq-missed"' : ''}>${html}</li>`;
   box.hidden = false;
+  box.className = 'orb-form-notes orb-form-prereq' + (incomplete ? ' orb-warn-flash' : '');
   box.innerHTML = '<strong>OWS overboard sequence (same date)</strong><ul>' +
-    `<li>${mark(ck.ocm, sid === 'ows-ocm-test')} 1. Test of OWS 15 ppm equipment (Code I)</li>` +
-    `<li>${mark(ck.unseal, sid === 'ows-overboard-unseal')} 2. Unsealing of overboard valves (Code I)</li>` +
-    `<li>${mark(ck.discharge, sid === 'bilge-ows-sea')} 3. OWS discharge of bilge water (D.15.1)</li>` +
+    li(needOcm, `${mark(ck.ocm, sid === 'ows-ocm-test')} 1. Test of OWS 15 ppm equipment (Code I)`) +
+    li(needUnseal, `${mark(ck.unseal, sid === 'ows-overboard-unseal')} 2. Unsealing of overboard valves (Code I)`) +
+    li(needDischarge, `${mark(ck.discharge, sid === 'bilge-ows-sea')} 3. OWS discharge of bilge water (D.15.1)`) +
     `<li>${mark(ck.reseal, sid === 'ows-overboard-reseal')} 4. Sealing of overboard valve (Code I)</li></ul>` +
     '<p class="hint">Complete the steps in order for this date. The book keeps each step as its own sealed line.</p>';
 }

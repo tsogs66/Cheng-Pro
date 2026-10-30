@@ -3381,6 +3381,18 @@
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   }
 
+  /** Capacity / remaining totals the engineer must not type — they fill from the tank or the quantity. */
+  const ORB_COMPUTED_FIELDS = {
+    capacity: 1, fromCap: 1, retained: 1, fromRetained: 1, toRetained: 1, toTotal: 1,
+    extraFromRetained: 1, extraToTotal: 1, fuelApi: 1, fuelTotal: 1, lubeTotal: 1
+  };
+
+  function isOrbComputedField(f) {
+    if (!f) return false;
+    if (f.readOnly) return true;
+    return !!ORB_COMPUTED_FIELDS[f.name];
+  }
+
   function wizardBunkerSelectHtml(name, options, preset, attrs) {
     const val = preset != null ? String(preset) : '';
     const extra = attrs || '';
@@ -3399,8 +3411,9 @@
         (f.options || []).map(o => '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>').join('') +
         '</select>';
     }
-    if (f.readOnly) {
-      return '<input type="text" class="orb-form-input orb-form-readonly" readonly tabindex="-1" data-orb-field="' +
+    if (f.readOnly || isOrbComputedField(f)) {
+      const t = f.type === 'number' ? 'number' : 'text';
+      return '<input type="' + t + '" class="orb-form-input orb-form-readonly" readonly tabindex="-1" data-orb-field="' +
         escapeHtml(f.name) + '" value="' + escapeHtml(val) + '">';
     }
     if (f.type === 'textarea') {
@@ -3539,15 +3552,16 @@
 
   function wizardLabeledField(f, setup, opts, presets, bunkerFam) {
     const control = wizardControlForField(f, setup, opts, presets, bunkerFam);
+    const calcCls = isOrbComputedField(f) ? ' calc' : '';
     if (f.suffix) {
-      return '<div class="orb-wizard-field orb-inline-suffix">' +
+      return '<div class="orb-wizard-field orb-inline-suffix' + calcCls + '">' +
         '<label>' + escapeHtml(f.label) + ':</label>' +
         '<div class="orb-suffix-row">' + control +
         '<span class="orb-pos-unit">' + escapeHtml(f.suffix) + '</span></div>' +
         (f.hint ? '<span class="hint">' + escapeHtml(f.hint) + '</span>' : '') +
         '</div>';
     }
-    return '<div class="orb-wizard-field">' +
+    return '<div class="orb-wizard-field' + calcCls + '">' +
       '<label>' + escapeHtml(f.label) + '</label>' +
       control +
       (f.hint ? '<span class="hint">' + escapeHtml(f.hint) + '</span>' : '') +
@@ -4139,6 +4153,7 @@
     owsDischargePrereqChecklist,
     lastOrbSaveBatch,
     formatOrbEntryPreview,
+    isOrbComputedField,
     buildWizardFormSheet,
     formatLatLonPosition,
     lastMatchingEntryDate,
