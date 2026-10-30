@@ -673,7 +673,16 @@ console.log('\nthe on-screen book and the printed sheet are one document');
 
 console.log('\nOWS overboard discharge sequence (OCM test then valve unseal)');
 {
+  const groups = EORB.getScenarioGroups(EORB.defaultOrbSetup({}), 1);
+  const ows = groups.find(g => g.group === 'OWS overboard discharge');
+  check('OWS overboard group exists', !!ows, true);
+  check('OWS overboard is four steps', (ows && ows.scenarios || []).map(s => s.id).join(','),
+    'ows-ocm-test,ows-overboard-unseal,bilge-ows-sea,ows-overboard-reseal');
   const book = [
+    { id: '1', date: '2026-09-29', scenarioId: 'ows-ocm-test', voided: false, createdAt: '2026-09-29T08:00:00Z' },
+    { id: '2', date: '2026-09-29', scenarioId: 'ows-overboard-unseal', voided: false, createdAt: '2026-09-29T09:00:00Z' }
+  ];
+  const legacyUnseal = [
     { id: '1', date: '2026-09-29', scenarioId: 'ows-ocm-test', voided: false, createdAt: '2026-09-29T08:00:00Z' },
     { id: '2', date: '2026-09-29', scenarioId: 'seal-broken', voided: false, createdAt: '2026-09-29T09:00:00Z' }
   ];
@@ -682,8 +691,33 @@ console.log('\nOWS overboard discharge sequence (OCM test then valve unseal)');
   }).length >= 2, true);
   check('allows discharge when OCM and unseal logged same day',
     EORB.owsDischargePrereqErrors(book, { date: '2026-09-29', scenarioId: 'bilge-ows-sea' }).length, 0);
+  check('legacy seal-broken still satisfies unseal prereq',
+    EORB.owsDischargePrereqErrors(legacyUnseal, { date: '2026-09-29', scenarioId: 'bilge-ows-sea' }).length, 0);
+  checkTrue('unseal blocked until 15 ppm test is logged',
+    EORB.owsUnsealPrereqErrors([], { date: '2026-09-29', scenarioId: 'ows-overboard-unseal' }).length > 0);
+  check('unseal allowed after 15 ppm test',
+    EORB.owsUnsealPrereqErrors(book.slice(0, 1), { date: '2026-09-29', scenarioId: 'ows-overboard-unseal' }).length, 0);
+  const afterDischarge = book.concat([
+    { id: '3', date: '2026-09-29', scenarioId: 'bilge-ows-sea', code: 'D', selectedItems: ['15.1'],
+      voided: false, createdAt: '2026-09-29T10:00:00Z' }
+  ]);
+  checkTrue('reseal blocked until D.15.1 is logged',
+    EORB.owsResealPrereqErrors(book, { date: '2026-09-29', scenarioId: 'ows-overboard-reseal' }).length > 0);
+  check('reseal allowed after discharge',
+    EORB.owsResealPrereqErrors(afterDischarge, { date: '2026-09-29', scenarioId: 'ows-overboard-reseal' }).length, 0);
   checkTrue('form sheet builder includes table headers',
     EORB.buildWizardFormSheet(1, 'D', EORB.getOperation(1, 'D'), EORB.defaultOrbSetup({}), { scenarioId: 'bilge-ows-sea' }, ['13']).html.indexOf('orb-wizard-panel') !== -1);
+  const weeklyBatch = [
+    { id: 'a', createdAt: '2026-10-01T12:00:00Z', voided: false, date: '2026-10-01', code: 'C',
+      weeklyInventory: true, lines: [{ itemNo: '11.1', text: 'Sludge Tk' }] },
+    { id: 'b', createdAt: '2026-10-01T12:00:00Z', voided: false, date: '2026-10-01', code: 'I',
+      weeklyInventory: true, lines: [{ itemNo: '', text: 'Bilge holding 1.2 m³ retained' }] },
+    { id: 'c', createdAt: '2026-09-20T12:00:00Z', voided: false, date: '2026-09-20', code: 'I',
+      lines: [{ itemNo: '', text: 'older' }] }
+  ];
+  check('last save batch is the weekly pair', EORB.lastOrbSaveBatch(weeklyBatch).map(e => e.id).join(','), 'a,b');
+  checkTrue('preview lists both weekly lines',
+    EORB.formatOrbEntryPreview(EORB.lastOrbSaveBatch(weeklyBatch)).indexOf('Sludge Tk') !== -1);
 }
 
 console.log('\nbeORB-style date / code / item No. columns');

@@ -1317,6 +1317,41 @@
   .orb-weekly-due{margin-top:10px;}
   .orb-weekly-due.warn{border-left-color:var(--brass);}
   .orb-weekly-due.err{border-left-color:var(--alert);}
+  .orb-weekly-table{
+    display:grid;
+    grid-template-columns: 32px minmax(0, 2.4fr) minmax(132px, 1fr) minmax(148px, 1fr);
+    column-gap:12px;
+    row-gap:8px;
+    align-items:center;
+    margin:8px 0 16px;
+  }
+  .orb-weekly-table > .orb-weekly-head{
+    font-size:10px; letter-spacing:0.07em; text-transform:uppercase; color:var(--paper-dim);
+    padding-bottom:2px;
+  }
+  .orb-weekly-row{display:contents;}
+  .orb-weekly-check{width:18px; height:18px; margin:0; accent-color:var(--teal); justify-self:center;}
+  .orb-weekly-name{
+    font-size:13px; line-height:1.3; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .orb-weekly-table .field{margin:0; min-width:0;}
+  .orb-weekly-table .field > label{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);}
+  .orb-weekly-table .field input{min-height:34px;}
+  .orb-weekly-cap input{pointer-events:none;}
+  .orb-scenario-card.ows-seq{border-color:var(--teal) !important;}
+  #orbDeleteLastContents{
+    white-space:pre-wrap; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.45;
+    max-height:40vh; overflow:auto; background:var(--ink); color:var(--paper);
+    padding:10px 12px; border:1px solid var(--line); border-radius:6px; margin:0 0 14px;
+  }
+  @media (max-width:640px){
+    .orb-weekly-table{
+      grid-template-columns: 28px minmax(0, 1.6fr) minmax(96px, 1fr) minmax(108px, 1fr);
+      column-gap:8px;
+    }
+    .orb-weekly-name{font-size:12px;}
+  }
   /* Disclaimer must stay visible on short/landscape views — do not use .hint (those hide). */
   .orb-disclaimer{
     display:flex; gap:8px; align-items:flex-start; margin-top:12px;
@@ -4925,6 +4960,7 @@ html.astrolabe body::before { opacity: 0.26; }
         <div class="btn-row">
           <button class="primary small" type="button" id="btnOrbSaveWeekly">Save Weekly Inventory</button>
           <button class="ghost small" type="button" id="btnOrbPreviewWeekly">Refresh Preview</button>
+          <button class="ghost small" type="button" id="btnOrbDeleteLastWeekly">Delete last entry</button>
           <button class="ghost small" type="button" id="btnOrbCancelWeekly">Cancel</button>
         </div>
       </div>
@@ -4981,6 +5017,7 @@ html.astrolabe body::before { opacity: 0.26; }
           <button class="primary small" type="button" id="btnOrbFilter">Fetch Records</button>
           <button class="ghost small" type="button" id="btnOrbPrint">Print Selected Period</button>
           <button class="ghost small" type="button" id="btnOrbVoid">Void / correct selected</button>
+          <button class="ghost small" type="button" id="btnOrbDeleteLast">Delete last entry</button>
           <button class="ghost small" type="button" id="btnOrbVerify">Verify record book</button>
           <button class="ghost small" type="button" id="btnOrbExportJson">Export JSON</button>
         </div>
@@ -29777,7 +29814,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v355';
+let androidInstallCacheName = 'noon-report-v356';
 
 /*
  * What the program is called.
@@ -33223,14 +33260,14 @@ function applyOrbDateBounds(){
     if (min) el.min = min; else el.removeAttribute('min');
     el.max = max;
   });
-  /* Weekly inventory: never later than last weekly + 7 days, when that date is still
-     a valid book date. Sooner than 7 days is allowed. */
+  /* Weekly inventory: never later than last weekly + 7 days. Sooner is allowed. */
   const wk = document.getElementById('orb_weeklyEntryDate');
   if (wk && window.EORB){
     const lastWeekly = orbLastWeeklyInventoryDate();
-    const dueBy = lastWeekly ? EORB.addDaysIso(lastWeekly, EORB.WEEKLY_INTERVAL_DAYS) : null;
-    if (dueBy && dueBy >= (min || dueBy) && dueBy < max){
-      wk.max = dueBy;
+    if (lastWeekly){
+      const dueBy = EORB.addDaysIso(lastWeekly, EORB.WEEKLY_INTERVAL_DAYS);
+      if (dueBy && dueBy < max) wk.max = dueBy;
+      if (lastWeekly > (wk.min || '')) wk.min = lastWeekly;
     }
   }
   /* Weekly 15 ppm / OWS test: same 7-day window when that wizard is open. */
@@ -33581,7 +33618,7 @@ function renderOrbScenarioGroups(){
       <h4>${escHtml(g.group)}</h4>
       <div class="orb-scenario-grid">
         ${g.scenarios.map(s=>`
-          <button type="button" class="orb-scenario-card${s.group === 'Routine' ? ' routine' : ''}" data-orb-scenario="${escAttr(s.id)}">
+          <button type="button" class="orb-scenario-card${s.group === 'Routine' ? ' routine' : ''}${s.group === 'OWS overboard discharge' ? ' ows-seq' : ''}" data-orb-scenario="${escAttr(s.id)}">
             <div class="title">${escHtml(s.title)}</div>
             <div class="blurb">${escHtml(s.blurb || '')}</div>
             <span class="codetag">Code ${escHtml(s.code)} · ${escHtml((s.items||[]).join(', '))}${s.wizard === 'weekly' ? ' + I' : ''}</span>
@@ -33664,22 +33701,29 @@ function openWeeklyInventoryWizard(){
     if (!tanks.length){
       return `<h3 class="sub">${label}</h3><div class="hint">No tanks in setup — add them under Vessel Setup → IOPP / ORB Tanks.</div>`;
     }
+    const capLabel = group === 'sludge' ? 'Capacity (m³) — 11.2' : 'Capacity (m³)';
+    const robLabel = group === 'sludge' ? 'Retained ROB (m³) — 11.3' : 'Retained ROB (m³)';
     const rows = tanks.map(t => `
-      <div class="form-grid cols3" data-weekly-tank="${t.id}" data-weekly-group="${group}" data-weekly-name="${(t.name||'').replace(/"/g,'&quot;')}" style="margin-bottom:8px;align-items:end;">
-        <div class="field"><label>Tank</label>
-          <div style="display:flex;gap:8px;align-items:center;min-height:34px;">
-            <input type="checkbox" data-weekly-include checked>
-            <span style="font-size:13px;">${t.name || t.id}</span>
-          </div>
+      <div class="orb-weekly-row" data-weekly-tank="${escAttr(t.id)}" data-weekly-group="${escAttr(group)}" data-weekly-name="${escAttr(t.name || t.id)}">
+        <input type="checkbox" class="orb-weekly-check" data-weekly-include checked aria-label="Include ${escAttr(t.name || t.id)}">
+        <span class="orb-weekly-name" title="${escAttr(t.name || t.id)}">${escHtml(t.name || t.id)}</span>
+        <div class="field calc orb-weekly-cap">
+          <label>${capLabel}</label>
+          <input type="number" step="0.001" data-weekly-cap readonly tabindex="-1" value="${t.capacityM3!=null?t.capacityM3:''}" aria-label="${escAttr(capLabel)}">
         </div>
-        <div class="field"><label>Capacity (m³) — item 11.2</label>
-          <input type="number" step="0.001" data-weekly-cap value="${t.capacityM3!=null?t.capacityM3:''}">
-        </div>
-        <div class="field"><label>Retained ROB (m³) — item 11.3</label>
-          <input type="number" step="0.001" data-weekly-rob value="${t.robM3!=null?t.robM3:''}" placeholder="required to include">
+        <div class="field orb-weekly-rob">
+          <label>${robLabel}</label>
+          <input type="number" step="0.001" data-weekly-rob value="${t.robM3!=null?t.robM3:''}" placeholder="required to include" aria-label="${escAttr(robLabel)}">
         </div>
       </div>`).join('');
-    return `<h3 class="sub">${label}</h3>${rows}`;
+    return `<h3 class="sub">${label}</h3>
+      <div class="orb-weekly-table">
+        <div class="orb-weekly-head"></div>
+        <div class="orb-weekly-head">Tank</div>
+        <div class="orb-weekly-head">${capLabel}</div>
+        <div class="orb-weekly-head">${robLabel}</div>
+        ${rows}
+      </div>`;
   }).join('');
   const iso = orbTodayIso();
   const lastDate = orbLastEntryDate();
@@ -33942,20 +33986,23 @@ function syncOrbFormDateOut(){
 function renderOrbWizardPrereq(){
   const box = document.getElementById('orbWizardPrereq');
   if (!box || !window.EORB || !_orbWizard) return;
-  if (_orbWizard.scenarioId !== 'bilge-ows-sea'){
+  const sid = _orbWizard.scenarioId;
+  const seq = sid === 'ows-ocm-test' || sid === 'ows-overboard-unseal' ||
+    sid === 'bilge-ows-sea' || sid === 'ows-overboard-reseal';
+  if (!seq){
     box.hidden = true;
     return;
   }
   const date = document.getElementById('orb_wizardEntryDate')?.value || document.getElementById('orb_entryDate')?.value;
   const ck = EORB.owsDischargePrereqChecklist(state.orbEntries || [], date);
+  const mark = (done, current) => current ? '→' : (done ? '✓' : '○');
   box.hidden = false;
-  box.innerHTML = '<strong>Same-day sequence before overboard discharge</strong><ul>' +
-    `<li>${ck.ocm ? '✓' : '○'} OWS / OCM test (Code I)</li>` +
-    `<li>${ck.unseal ? '✓' : '○'} Overboard valve unsealed (Code I — seal broken)</li>` +
-    '<li>→ this discharge (D.15.1), then re-seal when finished</li></ul>' +
-    (!ck.ocm || !ck.unseal
-      ? '<p class="hint">Complete the missing step(s) for this date using the scenario cards above, then return here.</p>'
-      : '<p class="hint">Prerequisites for this date are logged — fill the discharge details below.</p>');
+  box.innerHTML = '<strong>OWS overboard sequence (same date)</strong><ul>' +
+    `<li>${mark(ck.ocm, sid === 'ows-ocm-test')} 1. Test of OWS 15 ppm equipment (Code I)</li>` +
+    `<li>${mark(ck.unseal, sid === 'ows-overboard-unseal')} 2. Unsealing of overboard valves (Code I)</li>` +
+    `<li>${mark(ck.discharge, sid === 'bilge-ows-sea')} 3. OWS discharge of bilge water (D.15.1)</li>` +
+    `<li>${mark(ck.reseal, sid === 'ows-overboard-reseal')} 4. Sealing of overboard valve (Code I)</li></ul>` +
+    '<p class="hint">Complete the steps in order for this date. The book keeps each step as its own sealed line.</p>';
 }
 
 function renderOrbWizardFormSheet(){
@@ -34459,12 +34506,11 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   const setup = readOrbSetupFromForm();
   const includeBilge = !!document.getElementById('orb_weeklyIncludeBilge')?.checked;
   const soundings = collectWeeklySoundings();
-  /* Persist ROB values back into tank setup for next week */
+  /* Persist ROB only — capacity is IOPP data and is not edited here. */
   soundings.forEach(s => {
     const list = setup.tanks[s.group] || [];
     const tank = list.find(t => t.id === s.id);
     if (!tank) return;
-    if (s.capacityM3 != null && !isNaN(s.capacityM3)) tank.capacityM3 = s.capacityM3;
     if (s.robM3 != null && !isNaN(s.robM3)) tank.robM3 = s.robM3;
   });
   state.setup.orb = setup;
@@ -34490,14 +34536,8 @@ document.getElementById('btnOrbSaveWeekly')?.addEventListener('click', async ()=
   const lastWeekly = orbLastWeeklyInventoryDate();
   const windowErr = window.EORB ? EORB.weeklyInventoryDateError(date, lastWeekly) : null;
   if (windowErr){
-    const dueBy = lastWeekly ? EORB.addDaysIso(lastWeekly, EORB.WEEKLY_INTERVAL_DAYS) : null;
-    const lastBook = orbLastEntryDate();
-    const missedWindow = dueBy && date > dueBy && date === orbTodayIso() && lastBook && lastBook > dueBy;
-    if (!missedWindow){
-      alert('Cannot save weekly inventory:\n\n' + windowErr);
-      return;
-    }
-    if (!confirm(windowErr + '\n\nLater ORB entries already sit after the 7-day due date, so this sounding can only be dated today. Save as overdue?')) return;
+    alert('Cannot save weekly inventory:\n\n' + windowErr);
+    return;
   }
   if (includeBilge && !entriesToSave.some(e => e.code === 'I')){
     if (!confirm('No oily bilge / bilge tank retained quantities entered.\n\nWeekly inventory should include sludge and bilge tanks. Save sludge (Code C) only?')) return;
@@ -34617,10 +34657,10 @@ document.getElementById('btnOrbSaveEntry')?.addEventListener('click', async ()=>
   if (signErrors.length){ alert('Cannot save entry:\n\n• ' + signErrors.join('\n• ')); return; }
   const dateErr = orbDateError(date);
   if (dateErr){ alert('Cannot save this ORB entry:\n\n' + dateErr); return; }
-  const dischargePrereq = EORB.owsDischargePrereqErrors(state.orbEntries || [], {
+  const dischargePrereq = EORB.owsSequencePrereqErrors(state.orbEntries || [], {
     date, scenarioId: _orbWizard.scenarioId
   });
-  if (dischargePrereq.length){ alert('Cannot save overboard discharge:\n\n• ' + dischargePrereq.join('\n• ')); return; }
+  if (dischargePrereq.length){ alert('Cannot save this ORB entry:\n\n• ' + dischargePrereq.join('\n• ')); return; }
   if (_orbWizard.scenarioId === 'ows-weekly-test'){
     values.weeklyOwsTest = true;
     const owsErr = EORB.weeklyInventoryDateError(date, orbLastWeeklyOwsDate(), 'Weekly 15 ppm / OWS test');
@@ -34939,6 +34979,85 @@ document.getElementById('btnOrbVerify')?.addEventListener('click', async ()=>{
   });
 });
 
+async function voidOrbEntriesByIds(ids, note){
+  const reason = String(note || '').trim();
+  if (!reason) return 0;
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const id of ids){
+    const entry = (state.orbEntries || []).find(e => e.id === id);
+    if (!entry || entry.voided) continue;
+    entry.voided = true;
+    entry.voidReason = reason;
+    entry.voidedAt = now;
+    entry.updatedAt = now;
+    await dbPut('orbEntries', entry);
+    n += 1;
+  }
+  if (!n) return 0;
+  await resealOrbChain();
+  await refreshOrbIntegrity();
+  markPendingSync();
+  renderOrbBrowse();
+  renderOrbBook();
+  applyOrbDateBounds();
+  _orbAwaitingReplacement = ids.slice();
+  return n;
+}
+
+function confirmOrbDeleteLastDialog(preview){
+  return new Promise(resolve => {
+    const overlay = document.getElementById('orbDeleteLastOverlay');
+    const body = document.getElementById('orbDeleteLastContents');
+    const okBtn = document.getElementById('orbDeleteLastConfirm');
+    const cancel = document.getElementById('orbDeleteLastCancel');
+    if (!overlay || !okBtn || !cancel){
+      resolve(confirm('Delete last entry?\n\n' + (preview || '') + '\n\nThe line stays in the book as a struck-through record. OK to confirm, Cancel to keep it.'));
+      return;
+    }
+    if (body) body.textContent = preview || '(no contents)';
+    let done = false;
+    function close(result){
+      if (done) return;
+      done = true;
+      overlay.classList.remove('open');
+      overlay.hidden = true;
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      overlay.removeEventListener('mousedown', onBackdrop);
+      document.removeEventListener('keydown', onKey, true);
+      resolve(result);
+    }
+    function onOk(){ close(true); }
+    function onCancel(){ close(false); }
+    function onBackdrop(ev){ if (ev.target === overlay) close(false); }
+    function onKey(ev){
+      if (ev.key === 'Escape'){ ev.preventDefault(); close(false); }
+    }
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    overlay.addEventListener('mousedown', onBackdrop);
+    document.addEventListener('keydown', onKey, true);
+    overlay.hidden = false;
+    overlay.classList.add('open');
+    setTimeout(() => { try { cancel.focus(); } catch(_){} }, 0);
+  });
+}
+
+async function deleteLastOrbEntry(){
+  if (!window.EORB) return;
+  const live = (state.orbEntries || []).filter(e =>
+    typeof orbEntryMatchesShip === 'function' ? orbEntryMatchesShip(e) : true);
+  const batch = EORB.lastOrbSaveBatch(live);
+  if (!batch.length){ alert('No ORB entry to delete.'); return; }
+  const preview = EORB.formatOrbEntryPreview(batch);
+  const ok = await confirmOrbDeleteLastDialog(preview);
+  if (!ok) return;
+  const n = await voidOrbEntriesByIds(batch.map(e => e.id), 'Last entry withdrawn by officer');
+  if (!n){ alert('Those lines are already voided.'); return; }
+  alert(n + ' ORB line(s) struck through.\n\nMARPOL does not allow removing a sealed line — it stays in the book with a strike-through.\n\nRecord the correct operation as a new entry. The next entry you save will be linked to the line(s) it replaces.');
+}
+
 document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
   const ids = [...document.querySelectorAll('.orb-browse-check:checked')].map(c=>c.value);
   if (!ids.length){ alert('Select the entry to void.'); return; }
@@ -34951,34 +35070,12 @@ document.getElementById('btnOrbVoid')?.addEventListener('click', async ()=>{
   if (reason == null) return;
   const note = String(reason).trim();
   if (!note){ alert('A reason is required to void an ORB entry.'); return; }
-  const now = new Date().toISOString();
-  let n = 0;
-  for (const id of ids){
-    const entry = (state.orbEntries || []).find(e => e.id === id);
-    if (!entry || entry.voided) continue;
-    entry.voided = true;
-    entry.voidReason = note;
-    entry.voidedAt = now;
-    entry.updatedAt = now;
-    await dbPut('orbEntries', entry);
-    n += 1;
-  }
+  const n = await voidOrbEntriesByIds(ids, note);
   if (!n){ alert('Those lines are already voided.'); return; }
-  /* Voiding changes the record content of those lines, so the chain over them
-     and everything after has to be resealed. The strike-through is part of the
-     record -- MARPOL does not allow deleting -- so it is sealed, not excluded. */
-  await resealOrbChain();
-  await refreshOrbIntegrity();
-  markPendingSync();
-  renderOrbBrowse();
-  renderOrbBook();
-  applyOrbDateBounds();
-  /* A voided line and its correction are a pair. Remembering which lines were
-     just struck means the next entry saved can say what it replaces, instead
-     of leaving a reader two unexplained rows. */
-  _orbAwaitingReplacement = ids.slice();
   alert(n + ' ORB line(s) struck through.\n\nRecord the correct operation as a new entry — the next entry you save will be linked to the line(s) it replaces, so the book reads as a correction rather than two separate rows.');
 });
+document.getElementById('btnOrbDeleteLast')?.addEventListener('click', () => deleteLastOrbEntry());
+document.getElementById('btnOrbDeleteLastWeekly')?.addEventListener('click', () => deleteLastOrbEntry());
 /** Open the system print dialog for the given ORB entry rows (same layout as Browse / Print). */
 function printOrbEntries(rows, rangeLabel){
   if (!window.EORB || !rows || !rows.length) return;
@@ -36903,6 +37000,17 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
   }
 })();
 </script>
+    <div id="orbDeleteLastOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="orbDeleteLastTitle" hidden>
+      <div class="nv-leg-dialog">
+        <h3 id="orbDeleteLastTitle">Delete last entry</h3>
+        <p class="hint">MARPOL does not allow removing a sealed line. Confirming strikes through the last saved entry (or last weekly batch). The struck line stays in the book.</p>
+        <pre id="orbDeleteLastContents"></pre>
+        <div class="nv-leg-actions">
+          <button type="button" class="ghost small" id="orbDeleteLastCancel">Cancel</button>
+          <button type="button" class="primary small" id="orbDeleteLastConfirm">Confirm delete</button>
+        </div>
+      </div>
+    </div>
     <div id="askTextOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="askTextTitle" hidden>
       <div class="nv-leg-dialog">
         <h3 id="askTextTitle">Enter a value</h3>

@@ -156,11 +156,12 @@
       when(ctx) {
         return ctx.part === 1 && ctx.code === 'I' &&
           (ctx.scenarioId === 'seal-broken' || ctx.scenarioId === 'seal-applied' ||
+            ctx.scenarioId === 'ows-overboard-unseal' || ctx.scenarioId === 'ows-overboard-reseal' ||
             ctx.val.extraSealNo || ctx.val.extraEquipment);
       },
       lines(ctx) {
         const v = ctx.val;
-        const broken = ctx.scenarioId === 'seal-broken';
+        const broken = ctx.scenarioId === 'seal-broken' || ctx.scenarioId === 'ows-overboard-unseal';
         const text = [
           broken ? 'Annex I valve / equipment unsealed for operation' : 'Annex I valve / equipment sealed',
           v.extraEquipment ? String(v.extraEquipment) : '',
@@ -935,32 +936,81 @@
       weeklyKind: 'ows-test',
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
       presets: { remarks: 'Weekly operational test of 15 ppm bilge alarm / oily-water separator carried out. Equipment found in good working order.' } },
-    { id: 'ows-ocm-test', group: 'Routine', part: 1, code: 'I',
-      title: 'OWS / OCM test (recirculation line)',
-      blurb: 'Step 1 before any manual overboard discharge: test OWS through the recirculation line and confirm OCM / 15 ppm alarm with satisfactory results.',
+
+    /* ---- OWS overboard discharge (fixed 4-step sequence) ---- */
+    { id: 'ows-ocm-test', group: 'OWS overboard discharge', part: 1, code: 'I',
+      title: '1. Test of OWS 15 ppm equipment',
+      blurb: 'Test of OWS through the recirculation line, then test of the OCM / 15 ppm alarm with satisfactory results. First step before any manual overboard discharge of bilge water.',
       items: ['I'],
       requires: { ows: true },
       extraFields: [EXTRA_FIELDS.testDuration, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Test of OWS through recirculation line for satisfactory results and test of OCM with satisfactory results.', testDurationMin: 10 },
-      formNotes: ['Required before D.15.1 overboard discharge on the same date. Follow with Code I — breaking the overboard valve seal, then record the discharge.'] },
+      presets: { remarks: 'Test of OWS through recirculation line and test of OCM with satisfactory results.', testDurationMin: 10 },
+      formNotes: [
+        'Record duration of the recirculation test in minutes.',
+        'Same-date sequence: (1) this test, (2) unsealing of overboard valves, (3) D.15.1 discharge, (4) sealing of overboard valve.'
+      ] },
+    { id: 'ows-overboard-unseal', group: 'OWS overboard discharge', part: 1, code: 'I',
+      title: '2. Unsealing of overboard valves',
+      blurb: 'Break the seal on the overboard valve from the 15 ppm unit so discharge can proceed. Log this after the 15 ppm test and before D.15.1.',
+      items: ['I'],
+      requires: { ows: true },
+      extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
+      presets: {
+        extraEquipment: 'Overboard valve from 15 ppm bilge water separator unit',
+        remarks: 'Overboard valve unsealed for normal operation of 15 ppm unit.'
+      },
+      formNotes: ['Log this after the OWS / 15 ppm test and before D.15.1 overboard discharge on the same date.'] },
+    { id: 'bilge-ows-sea', group: 'OWS overboard discharge', part: 1, code: 'D',
+      title: '3. OWS discharge of bilge water overboard',
+      blurb: 'Discharge to sea through the OWS / 15 ppm equipment (manual start). Requires the 15 ppm test and overboard unsealing on the same date first.',
+      items: ['13', '14', '15.1'], requires: { ows: true },
+      requiresOwsSequence: true,
+      formNotes: [
+        'Same-day sequence: (1) test of OWS 15 ppm equipment, (2) unsealing of overboard valves, (3) this discharge (D.15.1), (4) sealing of overboard valve.',
+        'Ensure the vessel is not in territorial waters, at anchor, or in port unless local rules allow.',
+        'Cross-check OWS memory / pump throughput if applicable (nominal capacity check).'
+      ] },
+    { id: 'ows-overboard-reseal', group: 'OWS overboard discharge', part: 1, code: 'I',
+      title: '4. Sealing of overboard valve',
+      blurb: 'Refit the seal on the overboard valve after OWS discharge is finished. Last step of the overboard sequence.',
+      items: ['I'],
+      requires: { ows: true },
+      extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
+      presets: {
+        extraEquipment: 'Overboard valve from 15 ppm bilge water separator unit',
+        remarks: 'Overboard valve sealed after operation of 15 ppm unit.'
+      },
+      formNotes: ['Log this after D.15.1 overboard discharge on the same date. Record the new seal number.'] },
 
     /* ---- Fuel oil ---- */
     { id: 'bunker-fuel', group: 'Fuel oil', part: 1, code: 'H',
-      title: 'Bunkering fuel oil',
+      title: 'Bunkering of fuel oil',
       blurb: 'Taking residual fuel oil bunkers (HFO / LFO / VLSFO) into heavy-fuel tanks only. Records place, time, ISO grade, quantity and tank totals after loading.',
       items: ['26.1', '26.2', '26.3'],
       bunkerFuelCategory: 'residual',
-      presets: { fuelType: 'VLSFO', fuelIsoSpec: 'RMG 380' } },
+      presets: { fuelType: 'VLSFO', fuelIsoSpec: 'RMG 380' },
+      formNotes: [
+        'Separate entries required for each grade of fuel oil to ensure transparency.',
+        'Bunkering Delivery Notes to be kept onboard for at least 3 years.'
+      ] },
     { id: 'bunker-diesel', group: 'Fuel oil', part: 1, code: 'H',
-      title: 'Bunkering diesel oil',
+      title: 'Bunkering of diesel oil',
       blurb: 'Taking distillate bunkers (MDO / MGO / LSMGO) into diesel-service tanks only. Same Code H record — grade, quantity and tank totals after loading.',
       items: ['26.1', '26.2', '26.3'],
       bunkerFuelCategory: 'distillate',
-      presets: { fuelType: 'MGO', fuelIsoSpec: 'DMA' } },
+      presets: { fuelType: 'MGO', fuelIsoSpec: 'DMA' },
+      formNotes: [
+        'Separate entries required for each grade of diesel oil to ensure transparency.',
+        'Bunkering Delivery Notes to be kept onboard for at least 3 years.'
+      ] },
     { id: 'bunker-lube', group: 'Fuel oil', part: 1, code: 'H',
       title: 'Bunkering of bulk lubricating oil',
       blurb: 'Taking bulk lubricating oil into lube tanks. Same Code H record as fuel and diesel — grade, total quantity added (Ltrs), and per-tank litres added with ROB after loading.',
-      items: ['26.1', '26.2', '26.4'] },
+      items: ['26.1', '26.2', '26.4'],
+      formNotes: [
+        'Separate entries required for each grade of lubricating oil to ensure transparency.',
+        'This entry is not required if lubricating oils are delivered in package form (55 gallon drum, etc.).'
+      ] },
     { id: 'fo-tank-ballast', group: 'Fuel oil', part: 1, code: 'A',
       title: 'Ballasting or cleaning a fuel oil tank',
       blurb: 'Ballasting or internally cleaning an oil fuel tank.',
@@ -980,8 +1030,8 @@
       blurb: 'Oil residue collected by draining engine sump tanks.',
       items: ['11.1', '11.2', '11.3', '11.4'] },
     { id: 'sludge-manual', group: 'Sludge / oil residue', part: 1, code: 'C',
-      title: 'Fuel oil / residue added manually to a sludge tank',
-      blurb: 'Manual collection into a sludge tank — all content of a sludge tank counts as sludge.',
+      title: 'Sludge collected by manual operation in sludge tank',
+      blurb: 'Recording of sludge collected by manual operation into a sludge tank (C.11.4). All content of a sludge tank counts as sludge.',
       items: ['11.1', '11.2', '11.3', '11.4'] },
     { id: 'sludge-transfer', group: 'Sludge / oil residue', part: 1, code: 'C',
       title: 'Sludge transfer — tank to tank',
@@ -990,19 +1040,24 @@
 
     { id: 'sludge-water-drain', group: 'Sludge / oil residue', part: 1, code: 'C',
       title: 'Draining water from a sludge tank to a bilge water holding tank',
-      blurb: 'Settled water drawn off a sludge tank into the oily bilge water holding tank. Recorded as a transfer — the source is drawn down and the receiving tank topped up.',
+      blurb: 'Settled water drawn off a sludge tank into the oily bilge water holding tank. Record quantity drained, source retained, receiving tank and retained in that tank.',
       items: ['12.2'],
       fieldTankGroups: { fromTank: 'sludge', toTank: 'bilge' } },
     { id: 'sludge-evaporation', group: 'Sludge / oil residue', part: 1, code: 'C',
       title: 'Evaporation of water from a sludge tank',
       blurb: 'Water evaporated off a sludge tank by heating. Disposal by another method — state the quantity evaporated and what is left in the tank.',
       items: ['12.4'],
-      presets: { otherMethod: 'Evaporation of water from sludge tank by heating' } },
+      presets: { otherMethod: 'Evaporation of water from sludge tank by heating' },
+      formNotes: [
+        'If forced evaporation is used to reduce water in oil residue, "heating of oil residue (sludge) as a method of reducing its volume by forced evaporation" should be recorded in IOPP 3.2.3 other acceptable means.',
+        'Forced ventilation or other physical arrangements in the vent line to prevent backflow of condensed water may be noted as other acceptable means under IOPP 3.2.3.'
+      ] },
     { id: 'sludge-regeneration', group: 'Sludge / oil residue', part: 1, code: 'C',
       title: 'FO / LO regeneration from oil residue (sludge)',
-      blurb: 'Oil recovered from sludge and returned to service as fuel or lube oil. Disposal by another method.',
+      blurb: 'Transferring sludge from an IOPP 3.1 tank to an FO/LO tank (regeneration). Only permitted if listed as an approved means of disposal under IOPP 3.2.3.',
       items: ['12.4'],
-      presets: { otherMethod: 'FO/LO regeneration from oil residue (sludge)' } },
+      presets: { otherMethod: 'FO/LO regeneration from oil residue (sludge)' },
+      formNotes: ['Only use this if regeneration is an approved means of disposal under item 3.2.3 of the IOPP Certificate Supplement.'] },
 
     /* ---- Bilge water ---- */
     { id: 'bilge-well-to-tank', group: 'Bilge water', part: 1, code: 'D',
@@ -1010,16 +1065,6 @@
       blurb: 'Pumping engine room bilge wells into the oily bilge water holding tank (manual start).',
       items: ['13', '14', '15.3'],
       fieldTankGroups: { fromTank: 'bilgeWells' } },
-    { id: 'bilge-ows-sea', group: 'Bilge water', part: 1, code: 'D',
-      title: 'Bilge water discharged overboard via 15 ppm equipment',
-      blurb: 'Step 3 — discharge to sea through the OWS / 15 ppm equipment (manual start). Requires OCM test and overboard valve unsealing logged the same date first.',
-      items: ['13', '14', '15.1'], requires: { ows: true },
-      requiresOwsSequence: true,
-      formNotes: [
-        'Same-day sequence: (1) OWS / OCM test (Code I), (2) breaking overboard valve seal (Code I), (3) this discharge (D.15.1), (4) re-seal valve when finished.',
-        'Ensure the vessel is not in territorial waters, at anchor, or in port unless local rules allow.',
-        'Cross-check OWS memory / pump throughput if applicable (nominal capacity check).'
-      ] },
     { id: 'bilge-ows-auto-overboard', group: 'Bilge water', part: 1, code: 'E',
       title: 'Bilge system placed in automatic overboard mode (15 ppm)',
       blurb: 'Automatic-mode discharge overboard via 15 ppm equipment. Use Code D when started by hand, and Code E item 18 when returned to manual.',
@@ -1049,13 +1094,14 @@
 
     /* ---- Incineration & disposal ---- */
     { id: 'sludge-incinerated', group: 'Incineration & disposal', part: 1, code: 'C',
-      title: 'Sludge incinerated',
-      blurb: 'Burning oil residue in the incinerator. Code C.12.3 is the quantity, tank, quantity retained and burn time. Part III E is the start and stop position and time, oxygen percentage and combustion chamber temperature.',
+      title: 'Incineration of oil residue (sludge) in incinerator',
+      blurb: 'Burning oil residue in the incinerator. Code C.12.3 records quantity from the tank, quantity retained, and hours burned.',
       items: ['12.3'], requires: { incinerator: true } },
     { id: 'incinerator-garbage', group: 'Incineration & disposal', part: 1, code: 'I',
       title: 'Garbage incinerated',
-      blurb: 'Burning garbage in the incinerator. Code I is the description of what was burned. Part III E follows with start and stop position and time, oxygen percentage and combustion chamber temperature.',
-      items: ['I'], requires: { incinerator: true } },
+      blurb: 'Burning garbage in the incinerator. Code I describes what was burned. Do not use this entry for incineration of oil residue (sludge) — that is Code C.12.3.',
+      items: ['I'], requires: { incinerator: true },
+      formNotes: ['Do NOT use this entry for incineration of oil residue (sludge). Use Code C.12.3.'] },
     { id: 'sludge-other-disposal', group: 'Incineration & disposal', part: 1, code: 'C',
       title: 'Sludge disposed by another method',
       blurb: 'Any disposal route other than reception facility, transfer or incineration — state the method.',
@@ -1063,84 +1109,96 @@
 
     /* ---- Reception facility ---- */
     { id: 'sludge-ashore', group: 'Reception facility', part: 1, code: 'C',
-      title: 'Sludge discharged ashore to reception facility',
-      blurb: 'Landing oil residue ashore. Retained quantity is calculated from the tank ROB less the quantity landed.',
-      items: ['12.1'] },
+      title: 'Disposal of oil residue (sludge) via shore connection',
+      blurb: 'Landing oil residue ashore. Record quantity from the tank, quantity retained, reception facility, and port stay.',
+      items: ['12.1'],
+      formNotes: [
+        'The master should obtain from the reception-facility operator a receipt or certificate detailing the quantity of oil residue (sludge) transferred, with date and time of transfer.',
+        'Keep that receipt with Oil Record Book Part I.'
+      ] },
 
     /* ---- Machinery & equipment ---- */
     { id: 'ows-failure', group: 'Machinery & equipment', part: 1, code: 'F',
-      title: '15 ppm / OWS equipment failure',
-      blurb: 'Any failure of the oil filtering equipment must be recorded, with the reason and the date repaired.',
-      items: ['19', '20', '21'] },
+      title: 'Failure of oily-water separator',
+      blurb: 'Failure of oily filter equipment, oil content meter or stopping device. Record items 19, 20 and 21.',
+      items: ['19', '20', '21'],
+      formNotes: [
+        'The condition of the oil filtering equipment also covers the alarm and automatic stopping devices, if applicable.',
+        'A Code I entry should also be made indicating that the overboard valve was sealed shut due to non-working oil filtering equipment or oil content meter.',
+        'On the date the system is functional again, record a new Code F entry where F.19 is the date and time of the initial failure and F.20 is the time the system is functional again.'
+      ] },
     { id: 'ows-restored', group: 'Machinery & equipment', part: 1, code: 'F',
-      title: '15 ppm / OWS equipment restored to operation',
-      blurb: 'The oil filtering equipment made operational again after a failure. Record the time it was restored and what was done.',
+      title: 'Restore of oily-water separator',
+      blurb: 'When proper operation of the oily filtering equipment, oil content meter or stopping device is restored.',
       items: ['20', '21'] },
     { id: 'general-remarks', group: 'Machinery & equipment', part: 1, code: 'I',
-      title: 'Additional procedure or general remark',
-      blurb: 'Additional operational procedures and remarks. Never use this in place of codes A–H.',
-      items: ['I'] },
+      title: 'Additional operational procedures and general remarks',
+      blurb: 'Use this code only for additional operational procedures or general remarks that cannot be logged with any other code. Never use this in place of codes A–H.',
+      items: ['I'],
+      formNotes: ['Use this code only for additional operational procedures or general remarks that cannot be logged with any other code.'] },
 
     /* ---- Code I operations (additional procedures) ----
        MARPOL gives Code I no item fields of its own, so each of these carries the tank,
        quantity or duration the operation actually involved through the scenario's extra
        fields — which also move the tank R.O.B. where oil changed tanks. */
     { id: 'bilge-oily-to-tank', group: 'Code I operations', part: 1, code: 'I',
-      title: 'Pumping oily bilge water to a tank listed in IOPP 3.3',
+      title: 'Pumping oily bilge water to a tank listed in item 3.3 of IOPP',
       blurb: 'Oily bilge water moved into a holding tank listed in item 3.3 of the IOPP Certificate.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.fromTank, EXTRA_FIELDS.toTank, EXTRA_FIELDS.qty,
         EXTRA_FIELDS.fromRetained, EXTRA_FIELDS.toTotal, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
       presets: { remarks: 'Oily bilge water pumped to holding tank listed in item 3.3 of the IOPP Certificate.' } },
     { id: 'bilge-unit-maintenance', group: 'Code I operations', part: 1, code: 'I',
-      title: 'Emptying / filling the bilge separation unit for maintenance',
-      blurb: 'Draining or refilling the 15 ppm separator itself for servicing — not a discharge.',
+      title: 'Emptying and filling of bilge separation unit for maintenance',
+      blurb: 'Oily bilge water drained from the bilge separation unit, unit cleaned and refilled with water. Not a discharge to sea.',
       items: ['I'],
       requires: { ows: true },
       extraFields: [EXTRA_FIELDS.fromTank, EXTRA_FIELDS.toTank, EXTRA_FIELDS.qty, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Bilge separation unit emptied and refilled for maintenance purposes. No discharge to sea.' } },
+      presets: { remarks: 'Unit cleaned and refilled with water.' },
+      formNotes: [
+        'Entries should be made for the transfer for filling and emptying the bilge separation unit during maintenance.',
+        'Make sure bilge separation unit cleaning and maintenance follows the manufacturer\'s service manual.'
+      ] },
     { id: 'bilge-evaporation', group: 'Code I operations', part: 1, code: 'I',
       title: 'Evaporation of water from a bilge tank',
-      blurb: 'Water evaporated off a bilge tank. The quantity comes out of that tank\u2019s R.O.B.',
+      blurb: 'Water evaporated from a bilge tank. Record quantity evaporated, source tank, and quantity retained.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.fromTank, EXTRA_FIELDS.qty, EXTRA_FIELDS.fromRetained],
       presets: { remarks: 'Water evaporated from bilge water holding tank by heating.' } },
     { id: 'aircooler-condensate', group: 'Code I operations', part: 1, code: 'I',
-      title: 'Condensate from air coolers to a bilge water holding tank',
+      title: 'Condensed water from air coolers to a bilge water holding tank',
       blurb: 'Condensed water from the scavenge / charge air coolers led to a bilge water holding tank.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.toTank, EXTRA_FIELDS.qty, EXTRA_FIELDS.toTotal],
       presets: { remarks: 'Condensated water from air coolers led to bilge water holding tank.' } },
     { id: 'debunker-fuel', group: 'Code I operations', part: 1, code: 'I',
-      title: 'De-bunkering fuel oil',
+      title: 'De-bunkering of fuel oil',
       blurb: 'Landing fuel oil off the ship. Recorded under Code I — Code H covers bunkers taken on, not given up.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.fromTank, EXTRA_FIELDS.qtyT, EXTRA_FIELDS.place, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Fuel oil de-bunkered from the vessel.' } },
+      presets: { remarks: 'Fuel oil de-bunkered from the vessel.' },
+      formNotes: ['Include receipt and certificate from the receiver for amount and type of fuel oil de-bunkered.'] },
     { id: 'debunker-diesel', group: 'Code I operations', part: 1, code: 'I',
-      title: 'De-bunkering diesel oil',
+      title: 'De-bunkering of diesel oil',
       blurb: 'Landing diesel / gas oil off the ship.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.fromTank, EXTRA_FIELDS.qtyT, EXTRA_FIELDS.place, EXTRA_FIELDS.timeStart, EXTRA_FIELDS.timeStop],
-      presets: { remarks: 'Diesel oil de-bunkered from the vessel.' } },
+      presets: { remarks: 'Diesel oil de-bunkered from the vessel.' },
+      formNotes: ['Include receipt and certificate from the receiver for amount and type of diesel oil de-bunkered.'] },
     { id: 'seal-applied', group: 'Code I operations', part: 1, code: 'I',
       title: 'Sealing of a MARPOL Annex I valve or equipment',
-      blurb: 'A seal fitted to an Annex I related valve or item of equipment. Record the seal number.',
+      blurb: 'A seal fitted to an Annex I related valve or item of equipment. For the OWS overboard valve after discharge, use step 4 under OWS overboard discharge.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
       presets: { remarks: 'Seal fitted to MARPOL Annex I related valve and/or equipment.' } },
     { id: 'seal-broken', group: 'Code I operations', part: 1, code: 'I',
       title: 'Breaking a seal on a MARPOL Annex I valve or equipment',
-      blurb: 'Step 2 before overboard discharge: record the overboard valve unsealed for OWS operation, including seal number.',
+      blurb: 'A seal broken on an Annex I related valve or item of equipment. For the OWS overboard valve before discharge, use step 2 under OWS overboard discharge.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.equipment, EXTRA_FIELDS.sealNo, EXTRA_FIELDS.timeStart],
-      presets: {
-        extraEquipment: 'Overboard valve from 15 ppm bilge water separator unit',
-        remarks: 'Overboard valve unsealed for normal operation of 15 ppm unit.'
-      },
-      formNotes: ['Log this after the OWS / OCM test and before D.15.1 overboard discharge on the same date.'] },
+      presets: { remarks: 'Seal broken on MARPOL Annex I related valve and/or equipment.' } },
     { id: 'missed-entry', group: 'Code I operations', part: 1, code: 'I',
-      title: 'Entry for an earlier missed operation',
+      title: 'Entry pertaining to an earlier missed operational entry',
       blurb: 'Recording an operation that was carried out earlier but not entered at the time. The book keeps today\u2019s date; the date it actually happened goes in the wording.',
       items: ['I'],
       extraFields: [EXTRA_FIELDS.missedDate],
@@ -1148,9 +1206,14 @@
 
     /* ---- Exceptional ---- */
     { id: 'accidental-discharge', group: 'Exceptional', part: 1, code: 'G',
-      title: 'Accidental or exceptional discharge of oil',
-      blurb: 'Time, place, quantity, type of oil and the full circumstances and reasons for the discharge.',
-      items: ['22', '23', '24', '25'] },
+      title: 'Accidental pollution',
+      blurb: 'Time, place, quantity, type of oil and the full circumstances and reasons for the discharge (items 22–25).',
+      items: ['22', '23', '24', '25'],
+      formNotes: [
+        'If failure of oil filtering equipment or oil content meter related equipment is involved, an appropriate Code F entry is to be made in the ORB.',
+        'Relevant sections of the SOPEP (SMPEP) are to be used to combat oil spills at sea.',
+        'Examples of circumstances of discharge include, but are not limited to: oil content meter failure; fuel tank overflow; ruptured bunkering hose/flange; fuel tank leakage (due to collision or grounding).'
+      ] },
 
     /* ---- Part II — tankers ---- */
     { id: 'cargo-load', group: 'Cargo (tankers)', part: 2, code: 'A',
@@ -1304,11 +1367,23 @@
 
   function isOverboardSealBreakEntry(entry) {
     if (!entry || entry.voided) return false;
-    return entry.scenarioId === 'seal-broken';
+    return entry.scenarioId === 'ows-overboard-unseal' || entry.scenarioId === 'seal-broken';
+  }
+
+  function isOwsOverboardDischargeEntry(entry) {
+    if (!entry || entry.voided) return false;
+    if (entry.scenarioId === 'bilge-ows-sea') return true;
+    const items = entry.selectedItems || [];
+    return entry.code === 'D' && items.indexOf('15.1') !== -1;
+  }
+
+  function isOverboardResealEntry(entry) {
+    if (!entry || entry.voided) return false;
+    return entry.scenarioId === 'ows-overboard-reseal';
   }
 
   /**
-   * Manual D.15.1 overboard discharge requires same-date OCM test then valve unseal (beORB sequence).
+   * Manual D.15.1 overboard discharge requires same-date 15 ppm test then valve unseal.
    * @returns {string[]} blocking messages (empty when prerequisites are satisfied)
    */
   function owsDischargePrereqErrors(entries, opts) {
@@ -1320,19 +1395,54 @@
       (!o.excludeId || e.id !== o.excludeId));
     const errs = [];
     if (!day.some(isOwsOcmTestEntry)) {
-      errs.push('Log OWS / OCM test (Code I — OWS / OCM test or weekly 15 ppm test) for ' + formatOrbDate(d) + ' first.');
+      errs.push('Log test of OWS 15 ppm equipment (Code I) for ' + formatOrbDate(d) + ' first.');
     }
     if (!day.some(isOverboardSealBreakEntry)) {
-      errs.push('Log breaking the overboard valve seal (Code I — seal broken) for ' + formatOrbDate(d) + ' before discharge.');
+      errs.push('Log unsealing of overboard valves (Code I) for ' + formatOrbDate(d) + ' before discharge.');
     }
     const sorted = day.slice().sort((a, b) =>
       String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
     const ocm = sorted.filter(isOwsOcmTestEntry).pop();
     const unseal = sorted.filter(isOverboardSealBreakEntry).pop();
     if (ocm && unseal && String(unseal.createdAt || '') < String(ocm.createdAt || '')) {
-      errs.push('The seal-breaking entry must be logged after the OCM test on the same date.');
+      errs.push('The overboard unsealing entry must be logged after the 15 ppm test on the same date.');
     }
     return errs;
+  }
+
+  function owsUnsealPrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (o.scenarioId !== 'ows-overboard-unseal') return [];
+    const d = String(o.date || '').slice(0, 10);
+    if (!d) return ['Set the operation date before unsealing the overboard valve.'];
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d &&
+      (!o.excludeId || e.id !== o.excludeId));
+    if (!day.some(isOwsOcmTestEntry)) {
+      return ['Log test of OWS 15 ppm equipment (Code I) for ' + formatOrbDate(d) + ' before unsealing the overboard valve.'];
+    }
+    return [];
+  }
+
+  function owsResealPrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (o.scenarioId !== 'ows-overboard-reseal') return [];
+    const d = String(o.date || '').slice(0, 10);
+    if (!d) return ['Set the operation date before sealing the overboard valve.'];
+    const day = (entries || []).filter(e => !e.voided && String(e.date).slice(0, 10) === d &&
+      (!o.excludeId || e.id !== o.excludeId));
+    if (!day.some(isOwsOverboardDischargeEntry)) {
+      return ['Log OWS discharge of bilge water (D.15.1) for ' + formatOrbDate(d) + ' before sealing the overboard valve.'];
+    }
+    return [];
+  }
+
+  /** Combined sequence gate used by the save path. */
+  function owsSequencePrereqErrors(entries, opts) {
+    const o = opts || {};
+    if (o.scenarioId === 'ows-overboard-unseal') return owsUnsealPrereqErrors(entries, o);
+    if (o.scenarioId === 'bilge-ows-sea') return owsDischargePrereqErrors(entries, o);
+    if (o.scenarioId === 'ows-overboard-reseal') return owsResealPrereqErrors(entries, o);
+    return [];
   }
 
   /** Plain-language checklist for the wizard notes box. */
@@ -1342,8 +1452,44 @@
     return {
       ocm: day.some(isOwsOcmTestEntry),
       unseal: day.some(isOverboardSealBreakEntry),
+      discharge: day.some(isOwsOverboardDischargeEntry),
+      reseal: day.some(isOverboardResealEntry),
       date: d
     };
+  }
+
+  /**
+   * Last saved ORB batch: all non-voided lines that share the newest createdAt.
+   * Weekly inventory writes several Code C / I lines in one save — they void together.
+   */
+  function lastOrbSaveBatch(entries) {
+    const live = (entries || []).filter(e => e && !e.voided);
+    if (!live.length) return [];
+    const sorted = live.slice().sort((a, b) => {
+      const c = String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      if (c) return c;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    const last = sorted[sorted.length - 1];
+    const ts = last.createdAt;
+    if (!ts) return [last];
+    return sorted.filter(e => e.createdAt === ts);
+  }
+
+  function formatOrbEntryPreview(entries) {
+    return (entries || []).map(e => {
+      const head = [
+        formatOrbDate(e.date) || e.date || '',
+        e.code ? ('Code ' + e.code) : '',
+        e.weeklyInventory ? '(weekly inventory)' : ''
+      ].filter(Boolean).join('  ');
+      const body = (e.lines || []).map(ln => {
+        const no = ln && ln.itemNo ? String(ln.itemNo) : '';
+        return '  ' + (no ? no + '  ' : '') + String((ln && ln.text) || '');
+      }).join('\n');
+      const officer = [e.officerName, e.officerRank].filter(Boolean).join(' — ');
+      return [head, body, officer ? ('  Officer: ' + officer) : ''].filter(Boolean).join('\n');
+    }).join('\n\n');
   }
 
   function lastMatchingEntryDate(entries, pred) {
@@ -3568,8 +3714,9 @@
       panel = '<p class="hint">Tick item numbers above to show entry fields.</p>';
     }
     let extraHtml = '';
-    if (opts.scenarioId === 'seal-broken') {
-      extraHtml += '<section class="orb-wizard-section"><h3 class="orb-wizard-section-title">Seal broken</h3>' +
+    if (opts.scenarioId === 'seal-broken' || opts.scenarioId === 'ows-overboard-unseal' ||
+        opts.scenarioId === 'ows-overboard-reseal' || opts.scenarioId === 'seal-applied') {
+      extraHtml += '<section class="orb-wizard-section"><h3 class="orb-wizard-section-title">Seal</h3>' +
         '<div class="orb-wizard-fields">' +
         wizardLabeledField({ name: 'extraEquipment', label: 'Valve / equipment', type: 'text' }, setup, opts, presets, bunkerFam) +
         wizardLabeledField({ name: 'extraSealNo', label: 'Seal no.', type: 'text' }, setup, opts, presets, bunkerFam) +
@@ -3889,8 +4036,15 @@
     isWeeklyOwsTest,
     isOwsOcmTestEntry,
     isOverboardSealBreakEntry,
+    isOwsOverboardDischargeEntry,
+    isOverboardResealEntry,
     owsDischargePrereqErrors,
+    owsUnsealPrereqErrors,
+    owsResealPrereqErrors,
+    owsSequencePrereqErrors,
     owsDischargePrereqChecklist,
+    lastOrbSaveBatch,
+    formatOrbEntryPreview,
     buildWizardFormSheet,
     formatLatLonPosition,
     lastMatchingEntryDate,
