@@ -8838,11 +8838,12 @@ async function renderVoyageLibrary(){
     body.innerHTML = index.map(row=>{
       const b = row.B;
       const l = row.L;
+      const activeMark = (cond) => (isActiveScope && row.voyageNumber === activeVn && activeCond === cond) ? ' ★' : '';
       const bTxt = b
-        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="B" title="Load voyage ${row.voyageNumber} ballast">${b.entryCount||0} entries</button>`
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="B" title="Load voyage ${row.voyageNumber} ballast">${b.entryCount||0} entries${activeMark('B')}</button>`
         : '—';
       const lTxt = l
-        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="L" title="Load voyage ${row.voyageNumber} laden">${l.entryCount||0} entries</button>`
+        ? `<button type="button" class="ghost small voyage-leg-load" data-voyage="${row.voyageNumber}" data-cond="L" title="Load voyage ${row.voyageNumber} laden">${l.entryCount||0} entries${activeMark('L')}</button>`
         : '—';
       const updated = [b?.updatedAt, l?.updatedAt].filter(Boolean).sort().slice(-1)[0] || '—';
       const active = isActiveScope && row.voyageNumber === activeVn ? ` style="background:rgba(63,200,220,0.08)"` : '';
@@ -8955,6 +8956,28 @@ function vesselStatusName(fallback){
   if (named && named.name) return String(named.name).trim();
   return String(fallback || '').trim();
 }
+/**
+ * Which library leg to open when the working log has no entries.
+ * The voyage number and B/L already on the ship win, including a new leg that
+ * has not had a watch yet. Another condition of the same number, or a different
+ * voyage, is not a substitute — that is how New Voyage reopened the leg it had
+ * just archived.
+ */
+function preferredLibraryLeg(index, voyageNumber, shipCondition){
+  const vn = String(voyageNumber || '').trim();
+  const raw = String(shipCondition == null ? '' : shipCondition).trim().toUpperCase();
+  const cond = (raw === 'L' || raw === 'LADEN' || raw === 'LOADED') ? 'L' : 'B';
+  const rows = Array.isArray(index) ? index : [];
+  if (vn){
+    const row = rows.find(r => r && r.voyageNumber === vn);
+    if (row && row[cond]) return { voyageNumber: row.voyageNumber, condition: cond };
+    return null;
+  }
+  const row = rows[0];
+  if (!row || !(row.B || row.L)) return null;
+  return { voyageNumber: row.voyageNumber, condition: row.B ? 'B' : 'L' };
+}
+
 function reportVesselLoad(label, pct, ship){
   const top = _activityStack[_activityStack.length - 1];
   if (!top) return;
@@ -9036,15 +9059,15 @@ async function loadVesselFromDb(vesselId){
     }
   }
 
-  /* If working set is empty but a library leg exists, load the preferred leg. */
+  /* If working set is empty but this voyage's own leg is saved, load that leg.
+     persistCurrent stays off: the working log is empty, and archiving it first
+     would overwrite the library copy before it could be read back. */
   if (!state.entries.length){
     const index = await getVoyageLibraryIndex(vesselId);
-    const preferVn = vn || index[0]?.voyageNumber;
-    if (preferVn){
-      const row = index.find(r => r.voyageNumber === preferVn) || index[0];
-      const cond = row?.B ? 'B' : (row?.L ? 'L' : normalizeCondition(state.setup.shipCondition));
+    const prefer = preferredLibraryLeg(index, vn, state.setup.shipCondition);
+    if (prefer){
       try {
-        await activateVoyageLeg(vesselId, row.voyageNumber, cond);
+        await activateVoyageLeg(vesselId, prefer.voyageNumber, prefer.condition, { persistCurrent: false });
       } catch (_){ /* leave empty */ }
     }
   } else {
@@ -21464,6 +21487,7 @@ async function createNewVoyageLeg(opts = {}){
   state.setup.tzOffsetMin = newTzOffsetMin;
 
   state.setup.carryover = JSON.parse(JSON.stringify(last));
+  state.setup.carryover.condition = newCondition;
   state.setup.rob = rob;
   state.setup.robLube = robLube;
   {
@@ -21492,11 +21516,24 @@ async function createNewVoyageLeg(opts = {}){
   state.receipts = [];
   await clearVesselStore('entries', state.activeVesselId);
   await clearVesselStore('receipts', state.activeVesselId);
+  /* File this leg, then load it. Leaving it only in memory made the next open
+     treat the empty log as "no voyage" and put the leg just archived back on screen. */
+  if (state.activeVesselId){
+    await saveVoyageLegToLibrary(
+      state.activeVesselId,
+      newVoyageNo,
+      newCondition,
+      captureActiveLegPack()
+    );
+    await activateVoyageLeg(state.activeVesselId, newVoyageNo, newCondition, { persistCurrent: false });
+  }
   await saveSetup();
-  await renderVoyageLibrary();
   render();
+  applyEntryDefaults();
+  prefillFromLastEntry();
+  await renderVoyageLibrary();
   switchTab(opts.stayOnEntry ? 'entry' : 'voyagesetup');
-  alert(`Started ${newVoyageNo} / ${newCondition}. Previous leg kept in Voyage Library. Downloaded "${backupName}" and "${abstractName}".`);
+  alert(`Voyage ${newVoyageNo} / ${newCondition} is now the working leg. Previous leg kept in Voyage Library. Downloaded "${backupName}" and "${abstractName}".`);
   return true;
 }
 
@@ -21582,7 +21619,7 @@ async function acceptNewVoyageLegDialog(){
     tzOffsetMin: state.setup.tzOffsetMin,
     arrivePort: destination,
     voyageDistance: distanceNm,
-    stayOnEntry: false,
+    stayOnEntry: true,
   });
 }
 
@@ -29862,7 +29899,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v360';
+let androidInstallCacheName = 'noon-report-v361';
 
 /*
  * What the program is called.
@@ -35864,6 +35901,26 @@ function pickLatestVoyageLeg(index, working){
   const onBest = !!(best && curVn === best.voyageNumber && curCond === best.condition && entries.length);
   if (onBest || (entries.length && workingStamp && (!bestStamp || workingStamp >= bestStamp))){
     return { action: 'keep', voyageNumber: curVn, condition: curCond };
+  }
+  /* A leg just created with New Voyage has no log lines. Its updatedAt can sort
+     before the closed leg's last watch, which is often dated later than the
+     moment of the switch. That empty leg stays the working voyage when it is
+     the one most recently saved. */
+  const currentRow = (index || []).find(r => r && r.voyageNumber === curVn);
+  const currentLeg = currentRow && currentRow[curCond];
+  if (currentLeg && !entries.length && !(currentLeg.entries && currentLeg.entries.length)){
+    const savedAt = String(currentLeg.updatedAt || '');
+    if (savedAt){
+      let newer = false;
+      for (const row of index || []){
+        for (const cond of ['B', 'L']){
+          const leg = row && row[cond];
+          if (!leg || (row.voyageNumber === curVn && cond === curCond)) continue;
+          if (String(leg.updatedAt || '') > savedAt) newer = true;
+        }
+      }
+      if (!newer) return { action: 'keep', voyageNumber: curVn, condition: curCond };
+    }
   }
   if (!best) return { action: 'empty', voyageNumber: curVn, condition: curCond };
   return { action: 'open', voyageNumber: best.voyageNumber, condition: best.condition };
