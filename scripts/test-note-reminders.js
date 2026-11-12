@@ -77,5 +77,18 @@ check('several notes make several events', R.buildIcs([note({ id: 'x' }), note({
 check('file name from one note', R.icsFilename([note({ title: 'Class Survey!' })]), 'cheng-aio-class-survey.ics');
 check('file name for several', R.icsFilename([note({ id: 'x' }), note({ id: 'y' })]), 'cheng-aio-notes.ics');
 
+console.log('\nthe standalone programs run the same code');
+const fs = require('fs');
+const path = require('path');
+const shell = fs.readFileSync(path.join(__dirname, '../apps/web/js/note-reminders.js'), 'utf8');
+for (const rel of ['modules/tanks/public/js/note-reminders.js', 'modules/voyage/www/note-reminders.js']) {
+  check(rel + ' is the shell copy', fs.readFileSync(path.join(__dirname, '..', rel), 'utf8') === shell, true);
+}
+for (const rel of ['modules/tanks/public/js/notes.js', 'modules/voyage/www/notes.js']) {
+  const src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  check(rel + ' offers the calendar and alarm, and starts the watcher outside AIO',
+    /id="noteCalendar"/.test(src) && /id="noteAlarm"/.test(src) && /ChengReminders\.start\(loadAll\)/.test(src) && /!embedded\(\)/.test(src), true);
+}
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);
