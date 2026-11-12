@@ -16,6 +16,8 @@ const {
 } = require('./paths');
 
 const isPackaged = app.isPackaged;
+/* Windows shows a toast only for an app that has an id; use the installer's. */
+if (process.platform === 'win32') app.setAppUserModelId('marine.chengpro.app');
 
 const paths = resolvePaths((name) => app.getPath(name));
 fs.mkdirSync(paths.serverData, { recursive: true });
@@ -80,6 +82,28 @@ ipcMain.handle('cheng-save-text', async (event, payload = {}) => {
   await fs.promises.writeFile(result.filePath, text, 'utf8');
   return result.filePath;
 });
+
+/* Note alarms (rung while the program runs) and the calendar hand-off. */
+const { createReminders } = require('./reminders');
+const reminders = createReminders({
+  notify(alarm) {
+    const { Notification } = require('electron');
+    if (Notification.isSupported()) {
+      new Notification({ title: alarm.title, body: alarm.body || 'Alarm', silent: false, urgency: 'critical' }).show();
+    }
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true);
+    } catch { /* ignore */ }
+    shell.beep();
+  },
+  tmpDir: app.getPath('temp'),
+  mkdir: (dir) => fs.promises.mkdir(dir, { recursive: true }),
+  writeFile: (file, text) => fs.promises.writeFile(file, text, 'utf8'),
+  openFile: (file) => shell.openPath(file),
+});
+ipcMain.handle('cheng-reminders-sync', (_event, list) => reminders.sync(list));
+ipcMain.handle('cheng-reminders-calendar', (_event, payload = {}) =>
+  reminders.openCalendar(payload.filename, payload.text));
 
 async function createWindow(port) {
   mainWindow = new BrowserWindow({

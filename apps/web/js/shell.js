@@ -179,6 +179,9 @@
 
   function dropParkedFrame(frame) {
     if (!frame || frame.dataset.aioHold === '1') return;
+    /* A Tank embed with a bunkering warning up keeps running off to the side:
+       closing it would silence the alarm while fuel is still going aboard. */
+    if (frame === bunkerAlertFrame) return;
     const wrap = frame.closest('.aio-embed-wrap');
     if (wrap && wrap.classList.contains('aio-background-save')) wrap.remove();
   }
@@ -934,10 +937,41 @@
       const mod = d.module === 'spares' ? 'spares' : String(d.module);
       navigate(mod, { force: true });
     }
+    if (d.type === 'chengaio-bunker-alert') {
+      onBunkerAlertBeat(e.source, d);
+    }
     if (d.type === 'chengaio-request-tank-rob') {
       answerTankRob(e.source);
     }
   });
+
+  /* The Tank embed's bunkering alarm, mirrored on the whole window edge so it is
+     seen from any module. The embed sends a beat while a tank is inside its
+     five-minute window; if the beats stop (embed closed, plan paused) the glow
+     goes out on its own. Only our own embed frames are believed. */
+  let bunkerAlertTimer = null;
+  let bunkerAlertFrame = null;
+  function setBunkerEdge(on) {
+    document.documentElement.classList.toggle('aio-bunker-alert', !!on);
+  }
+  function endBunkerAlert() {
+    if (bunkerAlertTimer) { clearTimeout(bunkerAlertTimer); bunkerAlertTimer = null; }
+    const frame = bunkerAlertFrame;
+    bunkerAlertFrame = null;
+    setBunkerEdge(false);
+    /* If it was only being kept for the warning, let it go now. */
+    if (frame) dropParkedFrame(frame);
+  }
+  function onBunkerAlertBeat(source, d) {
+    const frame = [...document.querySelectorAll('iframe.aio-embed-frame')]
+      .find((f) => f.contentWindow && f.contentWindow === source);
+    if (!frame) return;
+    if (!d.active) { if (frame === bunkerAlertFrame) endBunkerAlert(); return; }
+    if (bunkerAlertTimer) clearTimeout(bunkerAlertTimer);
+    bunkerAlertFrame = frame;
+    setBunkerEdge(true);
+    bunkerAlertTimer = setTimeout(endBunkerAlert, 12000);
+  }
 
   let _tankRobFrame = null;
   function answerTankRob(source) {

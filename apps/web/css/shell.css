@@ -2271,3 +2271,13 @@ html.aio-suite .main .panel {
 }
 html.bright .aio-vessel-load-card { background: #fff; }
 
+
+/* Bunkering valve warning, mirrored from the Tank embed (see shell.js). */
+html.aio-bunker-alert::after {
+  content: ''; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+  box-shadow: inset 0 0 0 4px #ff2d2d, inset 0 0 38px 10px rgba(255, 45, 45, .75);
+  animation: aio-bunker-pulse 1s ease-in-out infinite alternate;
+}
+@keyframes aio-bunker-pulse { from { opacity: .45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { html.aio-bunker-alert::after { animation: none; } }
+@media print { html.aio-bunker-alert::after { display: none; } }
