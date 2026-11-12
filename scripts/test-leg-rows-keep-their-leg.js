@@ -56,6 +56,9 @@ function run(device, server) {
     slimPrintRecord: (r) => r,
     ensureSyncConfig: () => box.sync,
     applyVesselMiscCarry: () => {},
+    /* Not what this test is about: ORB lines pass through unchanged. */
+    adoptOrbEntries: (list) => list,
+    collectedOrbEntries: () => [],
   });
   box.state = {
     activeVesselId: 'v1',
