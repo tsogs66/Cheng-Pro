@@ -17493,8 +17493,17 @@ function bindBunkerFileLinks(){
     };
   });
 }
+const VOYAGE_BOOT_PAGES = new Set([
+  'summary', 'reports', 'receipts', 'consumption', 'rangetotals',
+  'voyageabstract', 'reference', 'voyagesetup',
+]);
 function switchTab(pageName){
   if (!pageName || pageName === 'more') return;
+  /* Consumption Plan inside ChEng AIO: the shell opens it in its own frame. */
+  if (pageName === 'bunkerplan' && isChengAioEmbedded() && !/[?&]page=bunkerplan\b/.test(location.search)){
+    try { window.parent.postMessage({ type: 'chengaio-navigate', module: 'bunkerplan' }, '*'); } catch (_) {}
+    return;
+  }
   if (isChengAioEmbedded() && /[?&]eorbEmbed=1\b/.test(location.search) && pageName !== 'orb') return;
   if (isChengAioEmbedded() && /[?&]page=bunkerplan\b/.test(location.search) && pageName !== 'bunkerplan') return;
   if (isChengAioEmbedded() && /[?&]page=spares\b/.test(location.search) && pageName !== 'spares') return;
@@ -36043,10 +36052,13 @@ function voyageEorbAllowed(){
 /**
  * Consumption Plan tab.
  *
- * Inside ChEng AIO it is always off: the shell carries its own Consumption
- * Plan entry that opens this very page in an iframe, so showing the tab as
- * well would put one calculation in two places in the same window. The
- * ?page=bunkerplan embed is that iframe, and keeps its page.
+ * Inside ChEng AIO the shell carries its own Consumption Plan entry that opens
+ * this very page in an iframe, so rendering the page here as well would put
+ * one calculation in two places in the same window. The menu entry is still
+ * shown — an engineer working in Voyage Chief expects to find the plan on its
+ * menu — but it is a LINK: switchTab() hands the request to the shell instead
+ * of drawing the page. The ?page=bunkerplan embed is that iframe, and keeps
+ * its page.
  *
  * Standalone, it is a licensed program of its own — hidden unless the key the
  * office issued includes it.
@@ -36066,11 +36078,14 @@ function applyConsumptionPlanVisibility(){
   const isPlanEmbed = /[?&]page=bunkerplan\b/.test(location.search || '');
   if (embedded && isPlanEmbed) return;
   const ok = consumptionPlanAllowed();
+  /* Embedded, the entry is always listed; the shell decides what a key without
+     the Consumption Plan program sees when the link is followed. */
+  const show = ok || embedded;
   document.querySelectorAll('#tabs .tab[data-page="bunkerplan"], .bn-item[data-page="bunkerplan"], #bnMoreSheet [data-page="bunkerplan"]').forEach((el) => {
-    el.hidden = !ok;
-    el.style.display = ok ? '' : 'none';
+    el.hidden = !show;
+    el.style.display = show ? '' : 'none';
   });
-  if (!ok){
+  if (!show){
     const page = document.getElementById('page-bunkerplan');
     if (page && page.classList.contains('active')){
       page.classList.remove('active');
@@ -37159,6 +37174,12 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
         }
       }
       else if (qsPage === 'setup') switchTab('setup');
+      /* Everything else another program may ask for. The bunker-file bar in
+         ChEng AIO sends "Voyage receipt" here as ?page=receipts, which none of
+         the branches above knew, so it opened the Summary instead. A fixed
+         list rather than any id: the ids the shell owns (bunkerplan, orb,
+         spares) are handled above and must not be reachable twice. */
+      else if (VOYAGE_BOOT_PAGES.has(qsPage)) switchTab(qsPage);
       /* Hiding the tab is not one of the navigation choices. Chained onto them
          with else-if it swallowed ?page=data and ?page=setup inside the shell —
          and ?page=data is exactly how the AIO Backup screen opens this app. */
