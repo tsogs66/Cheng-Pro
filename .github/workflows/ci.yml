@@ -86,11 +86,22 @@ jobs:
             exit 1
           fi
 
+      # The PDF calibration import is Python and OCR; its test reads a long
+      # generated book as text and as a skewed, speckled scan, so it needs the
+      # real Tesseract and the packages the importer uses.
+      - name: Install the PDF import tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr poppler-utils unpaper
+          python -m pip install pdfplumber reportlab ocrmypdf pikepdf img2pdf pillow
+
       # No SYNC_* here on purpose. smoke-test.js sets SYNC_ADMIN_PASSWORD
       # itself and deliberately leaves SYNC_API_TOKEN unset, because it asserts
       # that the tank sync export answers 200 at the gateway root — configuring
       # a token closes that endpoint and the test gets a 401.
       - name: Seed and run the suite tests
+        env:
+          REQUIRE_PDF_TOOLS: '1'
         run: |
           npm run seed
           npm test
