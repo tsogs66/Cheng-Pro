@@ -400,6 +400,8 @@ app.use('/api/auth', requireVoyage);
 app.use('/api/admin', requireVoyage);
 app.use('/api/voyage', requireVoyage);
 app.use('/api/voyage-misc', requireVoyage);
+/* Live sync: pairing and presence for Voyage Chief devices on the same Wi-Fi/hotspot. */
+app.use('/api/voyage-lan', requireVoyage);
 app.use('/api/assignments', requireVoyage);
 app.use('/api/vessels', requireVoyage);
 

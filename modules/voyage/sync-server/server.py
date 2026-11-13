@@ -65,6 +65,7 @@ import threading
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lan_sync import LanSync  # noqa: E402
 from accounts import (  # noqa: E402
     ROLE_ADMIN,
     ROLE_VESSEL,
@@ -127,6 +128,8 @@ ACCOUNTS_DB = Path(os.environ.get("SYNC_ACCOUNTS_DB", str(DATA_DIR / "accounts.d
 ADMIN_USER = os.environ.get("SYNC_ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("SYNC_ADMIN_PASSWORD", "")
 ACCOUNTS = AccountStore(ACCOUNTS_DB)
+# Pairing and presence for live sync between devices on one Wi-Fi or hotspot (see lan_sync.py).
+LAN = LanSync(DATA_DIR)
 
 SLUG_RE = re.compile(r"^[a-zA-Z0-9._-]{1,64}$")
 COND_RE = re.compile(r"^(B|L|BALLAST|LADEN|LOADED)$", re.IGNORECASE)
@@ -1225,9 +1228,68 @@ class SyncHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
         return True
 
+    def _lan_is_local(self) -> bool:
+        """Is this request from the machine the server runs on? Behind the AIO gateway every request
+        arrives from 127.0.0.1, so the gateway says who really called in X-Forwarded-For; that header is
+        believed only from a loopback peer, never from another machine talking to this port directly."""
+        loopback = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+        peer = self.client_address[0]
+        if peer not in loopback:
+            return False
+        real = self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        return (not real) or real in loopback
+
+    def _lan_credential(self, vessel: dict, share_all: bool) -> dict:
+        """What a paired device is handed: the vessel's own token, or the server's when the person at
+        this PC chose to share every vessel (or the ship is not registered, so it has no token of its own)."""
+        imo = (vessel or {}).get("imo")
+        if not share_all and imo:
+            row = ACCOUNTS.get_vessel_by_imo(str(imo))
+            if row and row.get("token"):
+                return {"scope": "vessel", "token": row["token"]}
+        if TOKEN_CONFIGURED:
+            return {"scope": "all", "token": API_TOKEN}
+        return {"scope": "open", "token": ""}
+
+    def _lan_get(self, parts: list) -> None:
+        if parts == ["api", "voyage-lan", "hello"]:
+            return json_response(self, HTTPStatus.OK, LAN.hello())
+        if parts == ["api", "voyage-lan", "presence"]:
+            principal = self._principal()
+            if principal.get("reason"):
+                return self._reject_unauthorized(principal["reason"])
+            return json_response(self, HTTPStatus.OK, {"ok": True, "devices": LAN.presence()})
+        json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _lan_post(self, parts: list, body: dict) -> None:
+        if parts == ["api", "voyage-lan", "pair", "start"]:
+            if not self._lan_is_local():
+                return json_response(self, HTTPStatus.FORBIDDEN, {"error": "A pairing code can only be shown on the server's own screen."})
+            return json_response(self, HTTPStatus.OK, LAN.start_pairing(body.get("vessel"), bool(body.get("shareAll"))))
+        if parts == ["api", "voyage-lan", "pair"]:
+            status, out = LAN.redeem(body.get("code"))
+            if status != 200:
+                return json_response(self, status, out)
+            cred = self._lan_credential(out["vessel"], out["shareAll"])
+            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), None)
+            return json_response(self, HTTPStatus.OK, {
+                "ok": True, "scope": cred["scope"], "token": cred["token"],
+                "vessel": out["vessel"], "serverName": LAN.hello()["deviceName"], "deviceId": LAN.hello()["deviceId"],
+            })
+        if parts == ["api", "voyage-lan", "presence"]:
+            principal = self._principal()
+            if principal.get("reason"):
+                return self._reject_unauthorized(principal["reason"])
+            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), body.get("vessel"))
+            return json_response(self, HTTPStatus.OK, {"ok": True, "devices": LAN.presence()})
+        json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
     def do_GET(self) -> None:
         bind_request_license_email(self)
         parsed = urlparse(self.path)
+        lan_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        if lan_parts[:2] == ["api", "voyage-lan"]:
+            return self._lan_get(lan_parts)
         if parsed.path == "/api/health":
             json_response(
                 self,
@@ -1589,6 +1651,9 @@ class SyncHandler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid JSON body"})
             return
+
+        if parts[:2] == ["api", "voyage-lan"]:
+            return self._lan_post(parts, body)
 
         blob = self._blob_route(parts)
         if blob:
