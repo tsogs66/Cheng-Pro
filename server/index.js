@@ -377,6 +377,8 @@ app.post('/api/sync/import', express.json({ limit: '50mb' }), requireGatewaySync
 app.post('/api/sync/probe', express.json({ limit: '1mb' }), requireGatewaySyncAuth, forwardTankApi);
 app.post('/api/sync/pull', express.json({ limit: '1mb' }), requireGatewaySyncAuth, forwardTankApi);
 app.post('/api/sync/push', express.json({ limit: '50mb' }), requireGatewaySyncAuth, forwardTankApi);
+/* Live sync with another device on the same Wi-Fi/hotspot: the tank module answers, authenticated by its own pairing tokens. */
+app.all('/api/lan/*', forwardTankApi);
 
 /* Per-user license seats (yearly / lifetime, 60-day grace) */
 const { mountLicenseRoutes } = require('./license/routes');
@@ -472,6 +474,7 @@ async function boot() {
     const s = app.listen(PORT, HOST, () => {
       const base = `http://${HOST}:${s.address().port}`;
       console.log(`ChEng AIO listening on ${base}`);
+      try { tank.lanSync.setPort(s.address().port, HOST); } catch (_) { /* live sync is optional */ }
       console.log(`  Shell:         ${base}/`);
       console.log(`  Tanks:         ${base}/tanks/`);
       console.log(`  Voyage:        ${base}/voyage/`);
