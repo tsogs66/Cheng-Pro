@@ -76,6 +76,9 @@ function proxyToVoyage(port) {
     req.on('end', () => {
       const body = Buffer.concat(chunks);
       const headers = { ...req.headers, host: `127.0.0.1:${port}` };
+      /* Who really called: the Python server behind us sees only this process, and decides from this
+         whether a request came from the screen of the machine it runs on (starting a pairing code). */
+      headers['x-forwarded-for'] = String((req.socket && req.socket.remoteAddress) || '');
       delete headers['content-length'];
       if (body.length) headers['content-length'] = String(body.length);
       const preq = http.request(
