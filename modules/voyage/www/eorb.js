@@ -599,7 +599,7 @@
         { no: '11.1', label: 'Identity of tank(s)', fields: [field('tank', 'Sludge tank (IOPP 3.1)', 'tank', { tankGroup: 'sludge', required: true })] },
         { no: '11.2', label: 'Capacity of tank(s) (m³)', fields: [field('capacity', 'Capacity (m³)', 'number', { required: true })] },
         { no: '11.3', label: 'Total quantity of retention (m³)', fields: [field('retention', 'Retention ROB (m³)', 'number', { required: true })] },
-        { no: '11.4', label: 'Quantity collected by manual operation (m³)', fields: [field('manualCollected', 'Manual collection (m³)', 'number')] },
+        { no: '11.4', label: 'Quantity collected by manual operation (m³)', fields: [field('manualCollected', 'Manual collection (m³)', 'number'), field('manualSource', 'Collected from (source)', 'text')] },
         { no: '12.1', label: 'Disposal to reception facilities', fields: [
           field('qtyDisposed', 'Quantity disposed (m³)', 'number'),
           field('tankEmptied', 'Tank(s) emptied', 'tank', { tankGroup: 'sludge' }),
@@ -663,7 +663,7 @@
       items: [
         { no: '16', label: 'Automatic mode — discharge overboard via 15 ppm', fields: [
           field('timeStart', 'Time', 'time', { required: true }),
-          field('position', 'Position', 'text', { required: true }),
+          field('position', 'Position', 'position', { required: true }),
           field('fromTank', 'From tank (if applicable)', 'tank', { tankGroup: 'bilge' })
         ]},
         { no: '17', label: 'Automatic mode — transfer to holding tank', fields: [
@@ -814,7 +814,7 @@
       { no: '27', label: 'Identity of tank(s) cleaned', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
       { no: '28', label: 'Port or ship’s position', fields: [field('place', 'Port / position', 'text')] },
       { no: '29', label: 'Duration of cleaning', fields: [field('duration', 'Duration', 'text')] },
-      { no: '30', label: 'Method of cleaning', fields: [field('method', 'Method', 'text')] },
+      { no: '30', label: 'Method of cleaning (hand-hosing, machine washing, chemical cleaning — chemical type and quantity)', fields: [field('method', 'Method', 'text'), field('chemType', 'Chemical type (if used)', 'text'), field('chemQty', 'Chemical quantity (m³)', 'number')] },
       { no: '31.1', label: 'Washings to reception facilities', fields: [
         field('receptionPort', 'Port', 'text'), field('qty', 'Quantity (m³)', 'number')
       ]},
@@ -2973,7 +2973,17 @@
       if (Part1 && code === 'C' && item.no === '11.1') text = resolve(item.fields[0]);
       if (Part1 && code === 'C' && item.no === '11.2') text = resolve(item.fields[0]) + ' m³';
       if (Part1 && code === 'C' && item.no === '11.3') text = resolve(item.fields[0]) + ' m³';
-      if (Part1 && code === 'C' && item.no === '11.4' && resolve(item.fields[0])) text = resolve(item.fields[0]) + ' m³';
+      if (Part1 && code === 'C' && item.no === '11.4' && resolve(item.fields[0])) {
+        text = resolve(item.fields[0]) + ' m³' + (resolve(item.fields[1]) ? (' collected from ' + resolve(item.fields[1])) : '');
+      }
+      if ((code === 'G' && item.no === '24') || (code === 'N' && item.no === '75')) {
+        const q = resolve(item.fields[0]); const o = resolve(item.fields[1]);
+        text = [q !== '' ? (q + ' m³') : '', o].filter(Boolean).join(' ');
+      }
+      if (Number(part) === 2 && code === 'G' && item.no === '30') {
+        const m = resolve(item.fields[0]); const ct = resolve(item.fields[1]); const cq = resolve(item.fields[2]);
+        text = [m, ct ? ('chemical cleaning with ' + ct + (cq !== '' ? (', ' + cq + ' m³') : '')) : ''].filter(Boolean).join(', ');
+      }
       if (Part1 && code === 'C' && item.no === '12.1') {
         text = [resolve(item.fields[0]) && (resolve(item.fields[0]) + ' m³ sludge from ' + resolve(item.fields[1])),
           resolve(item.fields[2]) !== '' ? (resolve(item.fields[2]) + ' m³ retained') : '',
@@ -3892,7 +3902,7 @@
     if (code === 'C' && item.no === '11.2') return ctrl((item.fields[0] || {}).name) + ' m³ capacity.';
     if (code === 'C' && item.no === '11.3') return ctrl((item.fields[0] || {}).name) + ' m³ retained.';
     if (code === 'C' && item.no === '11.4') {
-      return ctrl('manualCollected') + ' m³ collected by manual operation.';
+      return ctrl('manualCollected') + ' m³ collected by manual operation from ' + ctrl('manualSource') + '.';
     }
     if (code === 'C' && item.no === '12.3') {
       return ctrl('qtyDisposed') + ' m³ from ' + ctrl('tankEmptied') + ', ' +
