@@ -754,6 +754,7 @@
       ]},
       { no: '3', label: 'Total quantity loaded', fields: [
         field('qtyAdded', 'Quantity added (m³ at 15°C)', 'number', { required: true }),
+        field('qtySplit', 'Per-tank quantity added (tank=m³, …) — when several tanks', 'text'),
         field('totalContent', 'Total content of tank(s) (m³)', 'number')
       ]}
     ]},
@@ -2472,6 +2473,54 @@
     return { values: v, notes, derived };
   }
 
+
+  /**
+   * Tank movements of the Part II cargo entries (A loading, B internal transfer,
+   * C unloading), as { id, delta } or { id, set }. A movement that cannot be put on
+   * one tank (several tanks with no per-tank split) is left out and reported by
+   * partTwoUnresolved so the quantity is not guessed.
+   */
+  function partTwoOps(setup, code, want, v) {
+    const ops = [];
+    const ids = (x) => tankIdList(x);
+    if (code === 'A' && want.has('3')) {
+      const add = numOrNull(v.qtyAdded);
+      const shares = add != null ? resolveTankShares(setup, ids(v.tanks), add, v.qtySplit) : null;
+      if (shares) shares.forEach((q, id) => ops.push({ id, delta: q, field: 'qtyAdded', what: 'loading' }));
+    }
+    if (code === 'B') {
+      const qty = numOrNull(v.qty);
+      const from = ids(v.fromTank), to = ids(v.toTank);
+      if (qty != null && from.length === 1) ops.push({ id: from[0], delta: -qty, field: 'qty', what: 'transfer' });
+      if (qty != null && to.length === 1) ops.push({ id: to[0], delta: qty, field: 'qty', what: 'transfer' });
+      /* The movement stays (it is what is checked); the quantity retained, when given,
+         is applied after it and is the figure the tank ends on. */
+      if (want.has('5') && from.length === 1) {
+        const ret = numOrNull(v.retained);
+        if (v.emptied === 'Yes') ops.push({ id: from[0], set: 0, field: 'retained', what: 'transfer' });
+        else if (v.emptied === 'No' && ret != null) ops.push({ id: from[0], set: ret, field: 'retained', what: 'transfer' });
+      }
+    }
+    if (code === 'C' && want.has('8')) {
+      const tanks = ids(v.tanks);
+      if (v.emptied === 'Yes') tanks.forEach(id => ops.push({ id, set: 0, field: 'emptied', what: 'unloading' }));
+      else if (v.emptied === 'No' && tanks.length === 1 && numOrNull(v.retained) != null) ops.push({ id: tanks[0], set: numOrNull(v.retained), field: 'retained', what: 'unloading' });
+    }
+    return ops;
+  }
+
+  function partTwoUnresolved(setup, code, want, v) {
+    const notes = [];
+    if (code === 'A' && want.has('3') && numOrNull(v.qtyAdded) != null && tankIdList(v.tanks).length > 1 &&
+        !resolveTankShares(setup, v.tanks, numOrNull(v.qtyAdded), v.qtySplit)) {
+      notes.push('Loading into several tanks: enter the quantity per tank (tank=m³, …) so each tank’s R.O.B. can be updated.');
+    }
+    if (code === 'B' && numOrNull(v.qty) != null && (tankIdList(v.fromTank).length > 1 || tankIdList(v.toTank).length > 1)) {
+      notes.push('Transfer between several tanks: R.O.B. is updated only when one tank is the source and one the receiver.');
+    }
+    return notes;
+  }
+
   /**
    * Part II (tankers) code J — collection/transfer/disposal of residues and oily mixtures.
    * Mirrors the Part I code C treatment so slop/cargo tank quantities stay consistent.
@@ -2481,6 +2530,32 @@
     const notes = [];
     const derived = [];
     const want = new Set(selectedItemNos(selectedItems));
+    if (code === 'A' || code === 'B' || code === 'C') {
+      const rob = (id) => { const hit = findTank(setup, id); return hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null; };
+      if (code === 'A' && want.has('3')) {
+        const add = numOrNull(v.qtyAdded);
+        const shares = add != null ? resolveTankShares(setup, v.tanks, add, v.qtySplit) : null;
+        if (shares) {
+          let total = 0, known = 0;
+          shares.forEach((q, id) => { const r = rob(id); if (r != null) { total += r + q; known += 1; } });
+          if (known) { v.totalContent = round3(total); derived.push('totalContent'); notes.push('Total content = prior R.O.B. + quantity loaded.'); }
+        }
+      }
+      if (code === 'B') {
+        const qty = numOrNull(v.qty);
+        const from = tankIdList(v.fromTank), to = tankIdList(v.toTank);
+        if (qty != null && from.length === 1 && rob(from[0]) != null && v.emptied !== 'Yes' && want.has('5')) {
+          v.retained = round3(Math.max(0, rob(from[0]) - qty)); derived.push('retained');
+          notes.push('Retained in the source tank: ' + fmtVal(rob(from[0])) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
+        }
+        if (qty != null && to.length === 1 && rob(to[0]) != null) {
+          v.toTotal = round3(rob(to[0]) + qty); derived.push('toTotal');
+          notes.push('Receiving tank total: ' + fmtVal(rob(to[0])) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.toTotal) + ' m³.');
+        }
+      }
+      partTwoUnresolved(setup, code, want, v).forEach(n => notes.push(n));
+      return { values: v, notes, derived };
+    }
     if (code !== 'J') return { values: v, notes, derived };
 
     function tankRob(id) {
@@ -2517,6 +2592,29 @@
   /** Part II code J: the same tank limits as Part I code C, for slop and cargo tanks. */
   function partTwoCapacityWarnings(setup, code, selectedItems, values) {
     const warnings = [];
+    if (code === 'A' || code === 'B' || code === 'C') {
+      const vv = values || {};
+      const w = new Set(selectedItemNos(selectedItems));
+      partTwoOps(setup, code, w, vv).forEach(op => {
+        const hit = findTank(setup, op.id);
+        if (!hit) return;
+        const rob = hit.tank.robM3 != null ? Number(hit.tank.robM3) : null;
+        const cap = hit.tank.capacityM3 != null ? Number(hit.tank.capacityM3) : null;
+        let after = null;
+        if (op.set != null) after = op.set; else if (rob != null) after = rob + op.delta;
+        if (op.delta != null && op.delta < 0 && rob != null && after < -0.001) {
+          warnings.push({ level: 'error', code: 'NEGATIVE_ROB', field: op.field, message: 'Taking ' + fmtVal(-op.delta) + ' m³ from ' + hit.tank.name + ' leaves ' + fmtVal(round3(after)) + ' m³ — only ' + fmtVal(rob) + ' m³ on board.' });
+        }
+        if (op.set != null && op.what === 'unloading' && rob != null && op.set - rob > 0.001) {
+          warnings.push({ level: 'error', code: 'ROB_EXCEEDED', field: op.field, message: 'Quantity retained after unloading (' + fmtVal(op.set) + ' m³) is more than ' + hit.tank.name + ' held (' + fmtVal(rob) + ' m³).' });
+        }
+        if (after != null && cap != null && after - cap > 0.001) {
+          warnings.push({ level: 'error', code: 'OVERFILL', field: op.field, message: hit.tank.name + ' would hold ' + fmtVal(round3(after)) + ' m³, over its capacity of ' + fmtVal(cap) + ' m³ (' + fmtVal(round3(after - cap)) + ' m³ too much).' });
+        }
+      });
+      partTwoUnresolved(setup, code, w, vv).forEach(n => warnings.push({ level: 'info', code: 'SPLIT_NEEDED', field: '', message: n }));
+      return warnings;
+    }
     if (code !== 'J') return warnings;
     const v = values || {};
     const want = new Set(selectedItemNos(selectedItems));
@@ -2972,9 +3070,17 @@
 
   /** Part II code J ROB effects — source tank drawn down, receiving tank topped up. */
   function applyPartTwoRob(setup, code, selectedItems, values, setRob) {
-    if (code !== 'J') return;
     const v = values || {};
     const want = new Set(selectedItemNos(selectedItems));
+    if (code === 'A' || code === 'B' || code === 'C') {
+      partTwoOps(setup, code, want, v).forEach(op => {
+        const hit = findTank(setup, op.id);
+        const base = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
+        setRob(op.id, op.set != null ? op.set : base + op.delta);
+      });
+      return;
+    }
+    if (code !== 'J') return;
     const qty = numOrNull(v.qty);
     const ids = tankIdList(v.tanks);
     if (want.has('56') && ids.length === 1) {

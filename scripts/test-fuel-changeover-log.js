@@ -114,5 +114,23 @@ console.log('\nEU port call');
   check('departure before arrival gives no plan', L.euBerthPlan({ arrivalMs: dep, departureMs: arr, changeoverHours: 3, consMtDay: 4 }).ok, false);
 }
 
+
+console.log('\nhand-over to the e-ORB Part III C item 4 (Panama)');
+{
+  const rec2 = L.newRecord('eca', { offsetMin: 480 });
+  const st2 = Object.assign(L.blankStage(2, { offsetMin: 480 }), { dateLT: '2021-10-27', timeLT: '00:30', latDeg: 29, latMin: 46.2, lonDeg: 123, lonMin: '02.0', rob: { a: 1.8, b: 15.6 } });
+  const pv = L.partThreeValues(rec2, st2, 890);
+  check('completion before the ECA', [pv.event, pv.scenarioId], ['Completed before entering the ECA', 'p3-changeover-complete']);
+  check('the UTC date and time, not the local ones', [pv.date, pv.time], ['2021-10-26', '16:30']);
+  check('tanks and the volume in m³ from the MT and the density', [pv.tankIds, pv.volumeM3], [['a', 'b'], 19.55]);
+  check('position carried over', [pv.position.latDeg, pv.position.lonMin], [29, '02.0']);
+  const st5 = Object.assign({}, st2, { no: 5 });
+  check('the change back after the ECA', L.partThreeValues(rec2, st5, 890).scenarioId, 'p3-changeover-start');
+  check('entry into the ECA has no Part III item', L.partThreeValues(rec2, Object.assign({}, st2, { no: 3 }), 890), null);
+  check('an EU port call has none either', L.partThreeValues(L.newRecord('eu', {}), st2, 890), null);
+  check('a stage with no time gives nothing', L.partThreeValues(rec2, L.blankStage(2, { offsetMin: 480 }), 890), null);
+  check('no density falls back to 890', L.partThreeValues(rec2, st2, null).volumeM3, 19.55);
+}
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);

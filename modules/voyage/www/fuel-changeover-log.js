@@ -260,6 +260,33 @@
   }
 
 
+  /**
+   * What a changeover stage hands to the e-ORB Part III C item 4 (Panama): the
+   * stage that completed the changeover before the ECA, or commenced the change
+   * back after it, with its UTC date and time, position, the tanks holding
+   * low-sulphur fuel and their volume in m³ (the record keeps MT, so it is taken
+   * through the density). Other stages and EU stages have no such item: null.
+   */
+  function partThreeValues(record, stage, densityKgM3) {
+    if (!record || record.kind === 'eu' || !stage) return null;
+    var event = stage.no === 2 ? 'Completed before entering the ECA' : (stage.no === 5 ? 'Commenced after leaving the ECA' : '');
+    if (!event) return null;
+    var utc = utcFromLocal(stage.dateLT, stage.timeLT, stage.offsetMin);
+    if (!utc) return null;
+    var dens = num(densityKgM3);
+    if (dens == null || dens <= 0) dens = 890;
+    var ids = Object.keys(stage.rob || {}).filter(function (id) { return num(stage.rob[id]) != null; });
+    var mt = ids.reduce(function (a, id) { return a + Number(stage.rob[id]); }, 0);
+    return {
+      event: event, date: utc.slice(0, 10), time: utc.slice(11, 16),
+      stageNo: stage.no, tankIds: ids, volumeM3: ids.length ? Math.round(mt / (dens / 1000) * 100) / 100 : null,
+      scenarioId: stage.no === 2 ? 'p3-changeover-complete' : 'p3-changeover-start',
+      position: positionComplete(stage) ? {
+        latDeg: stage.latDeg, latMin: stage.latMin, latHem: stage.latHem || 'N',
+        lonDeg: stage.lonDeg, lonMin: stage.lonMin, lonHem: stage.lonHem || 'E' } : null
+    };
+  }
+
   /* ------------------------------------------------------------ plan checks */
 
   /**
@@ -499,7 +526,10 @@
         '<label>Rank<input data-fcl="signRank" value="' + esc(st.signRank) + '"></label>' +
         '<label>Remarks<input data-fcl="remarks" value="' + esc(st.remarks) + '"></label></div>' +
         '<div class="fcl-row"><button type="button" class="ghost small" data-fcl-act="now">Set time to now</button>' +
-        '<button type="button" class="ghost small" data-fcl-act="fillrob">Fill tanks from tank ROB</button></div></div>';
+        '<button type="button" class="ghost small" data-fcl-act="fillrob">Fill tanks from tank ROB</button>' +
+        (api.partThreeAvailable && api.partThreeAvailable() && partThreeValues(rec, st, api.density ? api.density() : 890)
+          ? '<button type="button" class="ghost small" data-fcl-act="to-orb">Add to ORB Part III C (item 4)</button>' : '') +
+        '</div></div>';
     }
 
     function render() {
@@ -609,6 +639,11 @@
         st.timeLT = pad(l.getUTCHours()) + ':' + pad(l.getUTCMinutes());
         persist(rec); render(); return;
       }
+      if (act === 'to-orb') {
+        var pv = partThreeValues(rec, st, api.density ? api.density() : 890);
+        if (pv && api.toOrbPartIII) api.toOrbPartIII(pv);
+        return;
+      }
       if (act === 'fillrob') {
         var dens = (api.density ? api.density() : 890) / 1000;
         st.rob = st.rob || {}; st.tankNames = st.tankNames || {};
@@ -628,7 +663,7 @@
     ECA_STAGES: ECA_STAGES, EU_STAGES: EU_STAGES, REQUIRED_STAGES: REQUIRED_STAGES, KIND_LABELS: KIND_LABELS,
     stagesFor: stagesFor, utcFromLocal: utcFromLocal, formatPosition: formatPosition, positionComplete: positionComplete,
     tankColumns: tankColumns, robOf: robOf, newRecord: newRecord, blankStage: blankStage,
-    validate: validate, compareToPlan: compareToPlan, ecaFuelCheck: ecaFuelCheck, euBerthPlan: euBerthPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
+    validate: validate, compareToPlan: compareToPlan, partThreeValues: partThreeValues, ecaFuelCheck: ecaFuelCheck, euBerthPlan: euBerthPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
     mount: mount
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.FuelChangeoverLog;
