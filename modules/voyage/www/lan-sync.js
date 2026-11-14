@@ -259,11 +259,24 @@
     st.missingVessels.splice(i, 1);
   }
 
-  async function showCode(shareAll) {
+  async function showCode(shareAll, code) {
     var tag = licenseTag();
     if (!tag) throw new Error(LICENSE_NONE);
-    var out = await api('/api/voyage-lan/pair/start', 'POST', { vessel: me(), shareAll: !!shareAll, license: tag });
+    /* `code` lets the AIO show one code for every program: it is handed to each engine. */
+    var out = await api('/api/voyage-lan/pair/start', 'POST', { vessel: me(), shareAll: !!shareAll, license: tag, code: code || '' });
     st.pairing = { code: out.code, shareAll: !!shareAll, until: Date.now() + (out.expiresIn || 300) * 1000, address: base() };
+    /* A PC that has never been pointed at a server uses its own: it has to be on the server to be seen by the
+       device that joins, and the server just handed this PC the credential for it. */
+    var cred = out.credential;
+    if (!base() && cred && (cred.token || cred.scope === 'open') && typeof location !== 'undefined' && /^https?:/i.test(location.origin || '')) {
+      var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = v; };
+      set('sync_serverUrl', location.origin);
+      set('sync_apiToken', cred.token || '');
+      set('sync_auto', 'true');
+      var saver = g('saveSyncSettingsFromForm');
+      if (saver) await saver({ silent: true, fromAutosave: false });
+      st.pairing.address = base();
+    }
   }
 
   async function pairWith(url, code) {
@@ -288,6 +301,44 @@
     return j;
   }
 
+  /** True when Voyage runs inside the AIO: one page there (Backup & Restore) controls live sync for every program. */
+  function embedded() {
+    try {
+      if (root.ChengPro || root.ChengProShell) return true;
+      if (root.parent && root.parent !== root && (root.parent.ChengPro || root.parent.ChengProShell)) return true;
+    } catch (_) { /* cross-origin parent: it is the shell */ return true; }
+    try { return /[?&]chengaio=1\b/.test(root.location.search) || root.localStorage.getItem('chengAioEmbedded') === '1'; } catch (_) { return false; }
+  }
+
+  /** What the AIO's single sync page shows for Voyage Chief. Plain data, no DOM. */
+  function snapshot() {
+    var cfg = load();
+    return {
+      product: 'voyage-chief',
+      license: { active: !!licenseTag() },
+      enabled: !!cfg.enabled,
+      scopeAll: !!cfg.scopeAll,
+      paired: !!base() && !!cfg.server,
+      server: cfg.server || '',
+      address: base(),
+      status: st.status || '',
+      message: st.message || '',
+      last: st.last || null,
+      missingLegs: (st.missingLegs || []).length,
+      missingVessels: (st.missingVessels || []).length,
+      found: (st.found || []).map(function (f) { return { url: f.url, name: f.name, deviceId: f.deviceId }; }),
+      pairing: st.pairing && Date.now() < st.pairing.until ? { code: st.pairing.code, until: st.pairing.until, shareAll: !!st.pairing.shareAll } : null
+    };
+  }
+  function setConfig(patch) {
+    var cfg = load();
+    if (patch && typeof patch.enabled === 'boolean') cfg.enabled = patch.enabled;
+    if (patch && typeof patch.scopeAll === 'boolean') cfg.scopeAll = patch.scopeAll;
+    save(cfg);
+    if (cfg.enabled) setTimeout(function () { tick(true); }, 300);
+    return snapshot();
+  }
+
   /* --------------------------------------------------------------- the panel */
 
   var host = null;
@@ -295,6 +346,12 @@
 
   function render() {
     if (!host || !document.body.contains(host)) return;
+    if (embedded()) {
+      host.dataset.drawn = '1';
+      host.innerHTML = '<h2>Live sync (Wi-Fi / hotspot)</h2><div class="hint">In ChEng AIO live sync is set up once for every program on <b>Backup &amp; Restore</b> in the main menu. Status here: <b>' +
+        esc(st.status || (load().enabled ? 'checking' : 'off')) + '</b> ' + esc(st.message || '') + '</div>';
+      return;
+    }
     var typing = host.contains(document.activeElement) || Array.prototype.some.call(host.querySelectorAll('input[type=text],input:not([type])'), function (i) { return i.value; });
     if (typing && host.dataset.drawn) return;
     var cfg = load();
@@ -384,7 +441,7 @@
 
   var api2 = {
     sameHull: sameHull, decide: decide, sha256: sha256, licenseTagOf: licenseTagOf, licenseTag: licenseTag, candidates: candidates, mount: mount, scan: scan,
-    tick: tick, pairWith: pairWith, _state: st, _touch: function (t) { lastInput = t; }
+    tick: tick, pairWith: pairWith, showCode: showCode, snapshot: snapshot, setConfig: setConfig, embedded: embedded, _state: st, _touch: function (t) { lastInput = t; }
   };
   if (typeof module === 'object' && module.exports) module.exports = api2;
   root.VoyageLanSync = api2;

@@ -663,6 +663,10 @@
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'} Active vessel: <strong>${esc(activeLabel)}</strong></p>
           <div id="bk-progress-host"></div>
 
+          <h2 class="backup-step"><span class="backup-step-no">⇄</span> Sync with a nearby device</h2>
+          <p class="hint backup-step-hint">One pairing for every program, over the same Wi-Fi or a phone hotspot: Tank Chief, Voyage Chief, and the other reports. No server needed.</p>
+          <div id="bk-live-sync-host"></div>
+
           <h2 class="backup-step"><span class="backup-step-no">1</span> Connect to your server</h2>
           <p class="hint backup-step-hint">Set the address once. It serves Tank Chief and Voyage Chief together, and the vessel list in step 2 fills itself once it answers. Step 3 needs no network at all.</p>
 
@@ -773,6 +777,30 @@
 
           <div id="bk-voyage-bridge-host" class="aio-backup-voyage-bridge" hidden aria-hidden="true"></div>
         </section>`;
+
+      /* One live sync for every program (see js/lan-sync-all.js). It tells Tank Chief's engine and Voyage
+         Chief's engine what to do; the records themselves keep taking the path they always took. */
+      try {
+        const lanHost = root.querySelector('#bk-live-sync-host');
+        if (lanHost && window.ChengLanSyncAll) {
+          const lanCtl = ChengLanSyncAll.create({
+            tank: (path, init) => gatewayTankApi(path, init && init.body && typeof init.body !== 'string'
+              ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
+            voyage: (action, extra) => voyagePost(action, extra || {}, root, 120000),
+            license: () => {
+              try {
+                const ent = ChengLicense.loadEntitlement();
+                return ent && ent.email && ent.licenseId && (!ChengLicense.isValid || ChengLicense.isValid(ent))
+                  ? { email: ent.email, licenseId: ent.licenseId } : null;
+              } catch (_) { return null; }
+            },
+            toast,
+          });
+          ChengLanSyncAll.mount(lanHost, lanCtl, { toast });
+        }
+      } catch (err) {
+        console.warn('Live sync panel:', err);
+      }
 
       const tankStatus = root.querySelector('#bk-tank-status');
       const voyageStatus = root.querySelector('#bk-voyage-status');
