@@ -256,10 +256,10 @@ sb.state.setup = { requisitions: localReqs, bunkerPlanHistory: many('p', 3), orb
 sb.state.orbEntries = [{ id: 'o1' }, { id: 'o2' }];
 check('the backup page is told what this device holds',
   sb.miscVesselDataCounts(),
-  { requisitions: 2, bunkerPlanHistory: 3, orbEntries: 2, orbConfigured: true });
+  { requisitions: 2, bunkerPlanHistory: 3, changeoverRecords: 0, orbEntries: 2, orbConfigured: true });
 check('and an unconfigured book says so',
   (() => { sb.state.setup = {}; return sb.miscVesselDataCounts(); })(),
-  { requisitions: 0, bunkerPlanHistory: 0, orbEntries: 2, orbConfigured: false });
+  { requisitions: 0, bunkerPlanHistory: 0, changeoverRecords: 0, orbEntries: 2, orbConfigured: false });
 
 /* ---- wiring ---------------------------------------------------------- */
 

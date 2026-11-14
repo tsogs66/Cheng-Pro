@@ -110,5 +110,18 @@ blank = server.merge_snapshots(
 check("a push with no draft does not erase the stored draft",
       blank["data"]["openWorkDraft"]["log"]["fields"]["in_datetime"], "old")
 
+two_records = server.merge_snapshots(
+    leg({
+        "sync": {"lastModifiedAt": "2026-10-01T00:00:00Z"},
+        "changeoverRecords": [{"id": "co-a", "updatedAt": "2026-10-01T00:00:00Z", "kind": "eca"}],
+    }),
+    leg({
+        "sync": {"lastModifiedAt": "2026-10-02T00:00:00Z"},
+        "changeoverRecords": [{"id": "co-b", "updatedAt": "2026-10-02T00:00:00Z", "kind": "eu"}],
+    }),
+)
+check("fuel changeover records from both devices are kept",
+      sorted(r["id"] for r in two_records["data"]["setup"]["changeoverRecords"]), ["co-a", "co-b"])
+
 print(f"sync misc merge ok ({checks})" if not failures else f"{len(failures)} failed")
 sys.exit(1 if failures else 0)

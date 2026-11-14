@@ -4416,6 +4416,12 @@ html.astrolabe body::before { opacity: 0.26; }
         Put the whole blending volume into <em>V</em> — service tank, mixing/deaeration tank, supply and circulating pipes and the engine itself — because anything left out makes the answer shorter than the truth. Under MARPOL Annex VI Reg. 14.3 the limit inside an ECA is 0.10&nbsp;% m/m. The figure is an estimate for planning: the completion time that goes in the record is the one actually observed, and Reg. 14.6 wants it with the position and the volume of low-sulphur fuel on board.</div>
       <div class="hint" id="coThermalHint"></div>
     </div>
+    <div class="panel" id="changeoverLogPanel">
+      <h2>Fuel Changeover Record — Appendix VI log</h2>
+      <p class="hint">The record of each changeover as it was carried out (MARPOL Annex VI Reg. 14.6): date, local time and UTC, position, and the quantity of compliant fuel in each tank, signed by the officer in charge. One record per ECA passage or EU port call, in the company's log layout. The tank columns follow this ship's distillate tanks (ORB Vessel Setup &rarr; Fuel oil tanks, Bunker service: Distillate).</p>
+      <div class="btn-row" style="margin-bottom:6px;"><button type="button" class="ghost small" id="btnCoToRecord">Start an ECA record from the plan above</button></div>
+      <div id="changeoverLogHost"></div>
+    </div>
     <div class="panel" id="bunkerPlanHistory" style="display:none;">
       <h2>Saved Calculations</h2>
       <div class="table-scroll">
@@ -5915,6 +5921,7 @@ html.astrolabe body::before { opacity: 0.26; }
 
 <script src="stem-advice.js"></script>
 <script src="eorb.js"></script>
+<script src="fuel-changeover-log.js"></script>
 <script src="save-file.js"></script>
 <script src="file-viewer.js"></script>
 <script src="camera-capture.js"></script>
@@ -15694,6 +15701,84 @@ document.getElementById('btnCoToSetup')?.addEventListener('click', ()=>{
         '\n\nThese are the planned times. Record the times actually observed — Annex VI Reg. 14.6 wants the completion time with the position and the volume of low-sulphur fuel on board, and the e-ORB has the entry for it.');
 });
 
+/* ---- Fuel changeover record (Appendix VI log) -----------------------------
+   The record itself lives in fuel-changeover-log.js. This is the ship's side of
+   it: the active vessel's distillate tanks, the officer, the signature and stamp,
+   and where the list is kept (setup.changeoverRecords, merged by id like the other
+   per-ship lists, with a tombstone on delete). */
+let _changeoverLogUi = null;
+const CO_FORM_KEY = 'voyage-changeover-form';
+
+function changeoverRecords(){
+  if (!Array.isArray(state.setup.changeoverRecords)) state.setup.changeoverRecords = [];
+  return state.setup.changeoverRecords;
+}
+
+/** The ship's fuel tanks for the log's columns: distillate (compliant) first, residual apart. */
+function changeoverTanks(){
+  const out = { distillate: [], residual: [] };
+  try{
+    if (window.EORB && typeof orbSetup === 'function'){
+      const s = orbSetup();
+      const pick = (g) => (EORB.tanksForGroup(s, g) || []).map(t => ({ id: t.id, name: t.name, frameNo: t.frameNo || '', capacityM3: t.capacityM3, robM3: t.robM3 }));
+      out.distillate = pick('fuelDistillate');
+      out.residual = pick('fuelResidual');
+    }
+  }catch(_e){}
+  /* No physical tanks set up in the ORB: fall back to the voyage fuel grades. */
+  if (!out.distillate.length && !out.residual.length){
+    (state.setup.fuelTanks || []).forEach(t => {
+      const row = { id: t.id, name: t.name || t.grade || t.id };
+      (/MGO|MDO|DMA|DMB|DMZ|DFA/i.test(String(t.grade || t.name)) ? out.distillate : out.residual).push(row);
+    });
+  }
+  return out;
+}
+
+function changeoverLogApi(){
+  return {
+    records: changeoverRecords,
+    save: async (list)=>{ state.setup.changeoverRecords = list; try{ await saveSetup(); }catch(_e){ alert('The changeover record could not be stored on this device.'); } },
+    deleted: (id)=>{ rememberDeleted('changeoverRecords', id); },
+    confirm: (m)=> confirm(m),
+    vessel: ()=>({ name: state.setup.vesselName || '', imo: state.setup.imoNo || '', company: state.setup.company || '' }),
+    tanks: changeoverTanks,
+    defaultOffsetMin: ()=> defaultShipTzOffsetMin(),
+    officer: ()=>({ name: (typeof currentChEngName === 'function' ? currentChEngName() : '') || '', rank: 'C/E' }),
+    signature: (name)=> (typeof signatureForChEng === 'function' ? (signatureForChEng(name) || '') : ''),
+    signatoryHtml: ()=> printSignatory({ chEng: (typeof currentChEngName === 'function' ? currentChEngName() : '') }),
+    print: (html)=> printPortraitPages(['<div class="pr-sheet">' + html + '</div>']),
+    density: ()=> Number(document.getElementById('co_density')?.value) || 890,
+    lastForm: ()=>{ try{ return JSON.parse(localStorage.getItem(CO_FORM_KEY) || '{}'); }catch(_e){ return {}; } },
+    rememberForm: (f)=>{ try{ localStorage.setItem(CO_FORM_KEY, JSON.stringify(f || {})); }catch(_e){} }
+  };
+}
+
+function renderChangeoverLog(){
+  const host = document.getElementById('changeoverLogHost');
+  if (!host || !window.FuelChangeoverLog) return;
+  if (!_changeoverLogUi) _changeoverLogUi = FuelChangeoverLog.mount(host, changeoverLogApi());
+  else _changeoverLogUi.render();
+}
+
+document.getElementById('btnCoToRecord')?.addEventListener('click', async ()=>{
+  if (!window.FuelChangeoverLog) return;
+  if (!_lastChangeover || !_lastChangeover.latestStart){
+    alert('Calculate first, with the planned crossing filled in — there is no plan to start a record from.');
+    return;
+  }
+  const api = changeoverLogApi();
+  const o = api.officer();
+  const rec = FuelChangeoverLog.newRecord('eca', { offsetMin: api.defaultOffsetMin(), officerName: o.name, officerRank: o.rank, form: api.lastForm() });
+  rec.title = 'ECA crossing ' + (_lastChangeover.input.ecaAt || '');
+  rec.plan = { latestStartIso: _lastChangeover.latestStart.toISOString(), hours: _lastChangeover.hours, ecaAt: _lastChangeover.input.ecaAt || '' };
+  changeoverRecords().push(rec);
+  try{ await saveSetup(); }catch(_e){}
+  renderChangeoverLog();
+  if (_changeoverLogUi) _changeoverLogUi.select(rec.id);
+  document.getElementById('changeoverLogPanel')?.scrollIntoView({ block: 'start' });
+});
+
 document.getElementById('btnCoPrint')?.addEventListener('click', ()=>{
   if (!_lastChangeover){
     alert('Calculate first — there is nothing to print yet.');
@@ -17558,6 +17643,7 @@ function switchTab(pageName){
     requestAnimationFrame(()=> animateRobGauges());
     requestTankSurveyCompare();
   }
+  if (pageName === 'bunkerplan' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
   if (pageName === 'spares'){
     bindSparesUi();
     renderRequisitions();
@@ -28445,6 +28531,7 @@ async function purgeTombstonedFromDb(){
 const MISC_VESSEL_DATA_LISTS = [
   { key: 'requisitions', label: 'spares & stores requisitions', cap: 0 },
   { key: 'bunkerPlanHistory', label: 'consumption plan snapshots', cap: 50 },
+  { key: 'changeoverRecords', label: 'fuel changeover log', cap: 300 },
 ];
 
 /** A row's last-touched stamp, falling back through the names these lists use. */
@@ -28600,6 +28687,7 @@ function rememberVesselMiscForSync(){
   vesselMiscCarry = {
     requisitions: Array.isArray(setup.requisitions) ? setup.requisitions.slice() : [],
     bunkerPlanHistory: Array.isArray(setup.bunkerPlanHistory) ? setup.bunkerPlanHistory.slice() : [],
+    changeoverRecords: Array.isArray(setup.changeoverRecords) ? setup.changeoverRecords.slice() : [],
     bunkerPlan: setup.bunkerPlan && typeof setup.bunkerPlan === 'object' ? setup.bunkerPlan : null,
     orb: setup.orb && typeof setup.orb === 'object' ? setup.orb : null,
     orbEntries: (state.orbEntries || []).slice(),
@@ -28612,6 +28700,7 @@ function applyVesselMiscCarry(){
   mergeMiscVesselData(state.setup, {
     requisitions: vesselMiscCarry.requisitions,
     bunkerPlanHistory: vesselMiscCarry.bunkerPlanHistory,
+    changeoverRecords: vesselMiscCarry.changeoverRecords,
     bunkerPlan: vesselMiscCarry.bunkerPlan,
     orb: vesselMiscCarry.orb,
   }, state.setup, deleted, false);
@@ -28705,6 +28794,7 @@ function miscVesselDataCounts(){
   return {
     requisitions: (setup.requisitions || []).length,
     bunkerPlanHistory: (setup.bunkerPlanHistory || []).length,
+    changeoverRecords: (setup.changeoverRecords || []).length,
     orbEntries: (state.orbEntries || []).length,
     orbConfigured: !!(setup.orb && (setup.orb.shipName || setup.orb.imo)),
   };
@@ -30188,6 +30278,7 @@ let androidInstallAssets = [
   './license.js',
   './save-file.js',
   './file-viewer.js',
+  './fuel-changeover-log.js',
   './camera-capture.js',
   './guide.js',
   './note-reminders.js',
