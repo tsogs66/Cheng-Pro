@@ -3779,7 +3779,7 @@ html.astrolabe body::before { opacity: 0.26; }
       <div class="hint">Distance run, M/E avg RPM, slip, engine distance/speed, and consumption review are on the Voyage Summary after you save or open an entry.</div>
 
       <div class="btn-row" id="fmQuickEntryRow" hidden style="margin:12px 0 8px; justify-content:flex-start;">
-        <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, M/E runtime, rev counter, fuel types and TBN in a popup, then apply them to this log entry">Enter Flowmeters…</button>
+        <button type="button" class="primary small" id="btnFlowmeterQuickEntry" title="Enter flowmeters, rev counter and RPM in a popup, then apply them to this log entry">Enter Flowmeters…</button>
       </div>
 
       <div id="logMetersDeferred" hidden>
@@ -3850,7 +3850,7 @@ html.astrolabe body::before { opacity: 0.26; }
     <div id="fmQuickOverlay" class="fm-quick-overlay" role="dialog" aria-modal="true" aria-labelledby="fmQuickTitle" hidden>
       <div class="fm-quick-dialog">
         <h3 id="fmQuickTitle">Enter Flowmeters</h3>
-        <p class="hint">Values load from the log entry form. Accept writes them back and reveals M/E runtime &amp; revolutions, fuel/cyl meters and FWG. Spec. Gravity comes from Vessel Data density. RPM and Rev. Counter stay linked using M/E run hours.</p>
+        <p class="hint">Values load from the log entry form. Accept writes them back and reveals M/E runtime &amp; revolutions, fuel/cyl meters and FWG. Fuel type and TBN are set on the log entry itself. RPM and Rev. Counter stay linked using M/E run hours.</p>
         <div class="fm-quick-rows">
           <div class="fm-quick-row">
             <div class="fm-quick-block">
@@ -3858,18 +3858,8 @@ html.astrolabe body::before { opacity: 0.26; }
               <div id="fmq_meMeters"></div>
             </div>
             <div class="fm-quick-block">
-              <h4>Fuel in Use</h4>
-              <div class="field"><label>M/E Fuel Type</label><select id="fmq_me_type"><option>HFO</option><option>LSFO</option><option>MDO/MGO</option><option>LSMGO</option></select></div>
-            </div>
-          </div>
-          <div class="fm-quick-row">
-            <div class="fm-quick-block">
               <h4>Generator</h4>
               <div id="fmq_geMeters"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>Fuel in Use</h4>
-              <div class="field"><label>G/E Fuel Type</label><select id="fmq_ge_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
             </div>
           </div>
           <div class="fm-quick-row">
@@ -3878,18 +3868,8 @@ html.astrolabe body::before { opacity: 0.26; }
               <div class="field"><label>Fuel Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_blr_meter"></div>
             </div>
             <div class="fm-quick-block">
-              <h4>Fuel in Use</h4>
-              <div class="field"><label>Boiler Fuel Type</label><select id="fmq_blr_type"><option>HFO</option><option>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select></div>
-            </div>
-          </div>
-          <div class="fm-quick-row">
-            <div class="fm-quick-block">
               <h4>Cylinder Oil</h4>
               <div class="field"><label>Cylinder Oil Meter</label><input type="text" inputmode="decimal" autocomplete="off" id="fmq_cyl_meter"></div>
-            </div>
-            <div class="fm-quick-block">
-              <h4>TBN in Use</h4>
-              <div class="field"><label>TBN</label><select id="fmq_tbn"><option>HIGH</option><option>LOW</option></select></div>
             </div>
           </div>
           <div class="fm-quick-row">
@@ -4788,41 +4768,11 @@ html.astrolabe body::before { opacity: 0.26; }
     </div>
 
     <div class="panel">
-      <h2>Flowmeter Card</h2>
-      <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Inlet/Outlet columns follow <strong>Vessel Data → Flowmeters &amp; Counters → Setup Type</strong> (SINGLE, DUAL ME, DUAL GE, or DUAL BOTH).</div>
-      <div class="btn-row">
-        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordAll">Print All Meters + Rev. Counter</button>
-        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordFuel">Print Fuel Meters Only</button>
-        <button class="ghost small" type="button" id="btnPreviewFlowmeterRecordSample">Show Sample</button>
-      </div>
-      <div class="hint" id="flowmeterRecordArrHint">All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).</div>
-    </div>
-
-    <div class="panel">
-      <h2>Log Entry Data Card</h2>
-      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. <strong>Two identical copies</strong> on one page, each exactly half the sheet (148.5&nbsp;mm) — cut on the centre dashed line.</div>
-      <div class="btn-row">
-        <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
-        <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
-      </div>
-    </div>
-
-    <div class="panel" id="consComparePanel">
-      <h2>Flowmeter and Manual Consumption</h2>
-      <p class="report-lead">Fuel and lube oil for each log entry. Flowmeter is the quantity calculated from the meter readings. Manual is the figure booked on the report: the typed override when one was entered, otherwise the same flowmeter figure. Difference is manual minus flowmeter. A plus means more was booked than the meters show. A minus means less.</p>
-      <div class="table-scroll">
-        <table id="consCompareTable">
-          <thead><tr><th>Entry</th><th>Item</th><th>Flowmeter</th><th>Manual</th><th>Difference</th></tr></thead>
-          <tbody id="consCompareBody"><tr class="empty-row"><td colspan="5">No log entries yet.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel">
       <h2>Select Report Category</h2>
       <div class="hint">Pick a category to list matching log entries — same as the report buttons in the original workbook's Voyage Report tab. Selecting an entry opens its supplementary report for additional data not captured on the main Log Entry form.</div>
       <div class="btn-row" id="reportCategoryButtons"></div>
     </div>
+
     <div class="panel" id="reportListPanel" style="display:none;">
       <h2 id="reportListTitle">Matching Entries</h2>
       <div class="table-scroll">
@@ -4832,6 +4782,7 @@ html.astrolabe body::before { opacity: 0.26; }
         </table>
       </div>
     </div>
+
     <div class="panel" id="reportEditorPanel" style="display:none;">
       <h2 id="reportEditorTitle">Supplementary Report</h2>
       <div class="form-grid cols3" id="reportEditorHeader"></div>
@@ -4904,6 +4855,37 @@ html.astrolabe body::before { opacity: 0.26; }
         <button class="primary" id="btnSaveReport">Save Supplementary Report</button>
         <button class="ghost" id="btnPrintReport">Print Supplementary Report (A4 Portrait)</button>
         <button class="ghost" id="btnCloseReport">Close</button>
+      </div>
+    </div>
+
+    <div class="panel" id="consComparePanel">
+      <h2>Flowmeter and Manual Consumption</h2>
+      <p class="report-lead">Fuel and lube oil for each log entry. Flowmeter is the quantity calculated from the meter readings. Manual is the figure booked on the report: the typed override when one was entered, otherwise the same flowmeter figure. Difference is manual minus flowmeter. A plus means more was booked than the meters show. A minus means less.</p>
+      <div class="table-scroll">
+        <table id="consCompareTable">
+          <thead><tr><th>Entry</th><th>Item</th><th>Flowmeter</th><th>Manual</th><th>Difference</th></tr></thead>
+          <tbody id="consCompareBody"><tr class="empty-row"><td colspan="5">No log entries yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Flowmeter Card</h2>
+      <div class="hint">Blank A4 handouts for the watchkeeper — eight identical slips per page (2×4), cut on the dashed lines. Each slip has Date, Operation, and a meter table. Inlet/Outlet columns follow <strong>Vessel Data → Flowmeters &amp; Counters → Setup Type</strong> (SINGLE, DUAL ME, DUAL GE, or DUAL BOTH).</div>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordAll">Print All Meters + Rev. Counter</button>
+        <button class="ghost small" type="button" id="btnPrintFlowmeterRecordFuel">Print Fuel Meters Only</button>
+        <button class="ghost small" type="button" id="btnPreviewFlowmeterRecordSample">Show Sample</button>
+      </div>
+      <div class="hint" id="flowmeterRecordArrHint">All meters: M/E, G/E, Boiler, Cylinder Oil, Rev. Counter, FW Generator. Fuel-only: M/E, G/E, Boiler (no cyl oil, rev counter, or FW generator).</div>
+    </div>
+
+    <div class="panel">
+      <h2>Log Entry Data Card</h2>
+      <div class="hint">Blank A4 <strong>landscape</strong> form for the watchkeeper to fill by hand and hand to the Chief Engineer. Includes flowmeters + rev counter (Inlet/Outlet follow Vessel Data Setup Type), watch/operation, main engine, auxiliaries, and tank ROB — not consumption MT. <strong>Two identical copies</strong> on one page, each exactly half the sheet (148.5&nbsp;mm) — cut on the centre dashed line.</div>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnPrintLogEntryDataRecord">Print Blank Form (A4 Landscape ÷2)</button>
+        <button class="ghost small" type="button" id="btnPreviewLogEntryDataSample">Preview Blank Form</button>
       </div>
     </div>
   </div>
@@ -5099,12 +5081,13 @@ html.astrolabe body::before { opacity: 0.26; }
         </div>
         <div class="hint" id="orbIntegrityLine" role="status" aria-live="polite"></div>
         <div class="hint">Each entry carries a digest of its own contents and of the entry before it in book order, so a line altered, inserted, removed or reordered after the fact shows up at the point it happened. <strong>Verify record book</strong> checks the whole chain and reads nothing out of it — running it changes nothing. Quote the book digest on a printed page: a book that still produces the same digest has not been altered.</div>
-        <div class="table-scroll" style="margin-top:12px;">
-          <table class="orb-table">
-            <thead><tr><th></th><th>Date</th><th>Part</th><th>Code</th><th>Items</th><th>Record / Officer</th></tr></thead>
-            <tbody id="orbBrowseBody"></tbody>
-          </table>
+        <div class="btn-row" style="margin-top:12px; align-items:center;">
+          <span class="hint" id="orbBrowseCount" role="status" aria-live="polite" style="margin:0; flex:1 1 220px;"></span>
+          <button class="ghost small" type="button" id="btnOrbSelectAll">Select all</button>
+          <button class="ghost small" type="button" id="btnOrbSelectNone">Clear selection</button>
         </div>
+        <div class="orb-browse" id="orbBrowseBook" style="margin-top:8px;"></div>
+        <div class="hint">Laid out as the record book is: Date, Code, Item No. and the record of operations. Ten lines show at a time — scroll for the rest. Tick an entry to print or void just that one; with nothing ticked, Print takes the whole period above.</div>
       </div>
 
       <div class="panel">
@@ -5913,6 +5896,7 @@ html.astrolabe body::before { opacity: 0.26; }
 <script src="stem-advice.js"></script>
 <script src="eorb.js"></script>
 <script src="save-file.js"></script>
+<script src="file-viewer.js"></script>
 <script src="camera-capture.js"></script>
 <script src="guide.js"></script>
 <script src="note-reminders.js"></script>
@@ -17239,23 +17223,7 @@ function openReqFile(reqId, fileId){
   const file = req && (req.files || []).find(function(f){ return f.id === fileId; });
   if (!file || !file.dataUrl) return;
   _reqViewFile = file;
-  const panel = document.getElementById('reqViewer');
-  const embed = document.getElementById('reqViewerEmbed');
-  const img = document.getElementById('reqViewerImage');
-  const title = document.getElementById('reqViewerTitle');
-  if (title) title.textContent = file.filename || 'File';
-  if (reqFileIsImage(file)){
-    if (embed){ embed.removeAttribute('src'); embed.hidden = true; }
-    if (img){ img.hidden = false; img.style.display = 'block'; img.src = file.dataUrl; img.alt = file.filename || 'Requisition photo'; }
-  } else if (embed){
-    if (img){ img.removeAttribute('src'); img.hidden = true; img.style.display = ''; }
-    embed.hidden = false;
-    embed.setAttribute('src', file.dataUrl);
-  }
-  if (panel){
-    panel.hidden = false;
-    try { panel.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch (_) {}
-  }
+  ChengFileViewer.open({ src: file.dataUrl, mime: file.mime, filename: file.filename, title: file.filename || 'Requisition file' });
 }
 function downloadReqFile(){
   if (!_reqViewFile || !_reqViewFile.dataUrl) return;
@@ -18790,17 +18758,9 @@ function previewFlowmeterRecordSample(){
     + fuelPage,
     { title: 'Flowmeter Card — Sample' }
   );
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
-  if (!win){
-    alert('Allow pop-ups to show the sample.');
-    return;
-  }
-  win.document.open();
-  win.document.write(html.replace(
-    'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; }',
-    'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; overflow:auto !important; }'
-  ));
-  win.document.close();
+  /* In-page viewer with zoom (Tank does its previews in-page too): window.open is not available
+     in the Android app or the AIO frame, which is why the sample used to do nothing there. */
+  ChengFileViewer.openHtml(html, { title: 'Flowmeter Card — Sample', onPrint: () => printFlowmeterRecord('all') });
 }
 
 /** Blank line field for log-entry data handouts. */
@@ -19315,32 +19275,16 @@ function printLogEntryDataRecord(){
 
 function previewLogEntryDataSample(){
   const page = buildLogEntryDataPageHtml();
-  /* No noopener — we must call fitLogEntryDataRoot on the opened document. */
-  const win = window.open('', '_blank', 'width=1280,height=900');
-  if (!win){
-    alert('Allow pop-ups to preview the blank form.');
-    return;
-  }
   const html = buildLogEntryDataPrintDocument(page).replace(
     'body{ background:#e8e8e8 !important; padding:12px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }',
     'body{ background:#e8e8e8 !important; padding:16px !important; width:auto !important; height:auto !important; max-height:none !important; overflow:auto !important; }'
   );
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  const runFit = ()=>{
-    try{
-      void win.document.body.offsetHeight;
-      fitLogEntryDataRoot(win.document);
-    }catch(_e){}
-  };
-  runFit();
-  try{
-    win.addEventListener('load', ()=> setTimeout(runFit, 30));
-    if (win.document.fonts && win.document.fonts.ready){
-      win.document.fonts.ready.then(()=> setTimeout(runFit, 30)).catch(()=>{});
-    }
-  }catch(_e){}
+  ChengFileViewer.openHtml(html, {
+    title: 'Log Entry Data Card — Blank Form',
+    onPrint: () => printLogEntryDataRecord(),
+    /* The card fits its own A4 box, so it is laid out once the preview document exists. */
+    onDocument: (doc) => { try { void doc.body.offsetHeight; fitLogEntryDataRoot(doc); } catch (_e) {} }
+  });
 }
 
 function exportWeeklyAbstractCsv(){
@@ -21761,7 +21705,7 @@ function renderVsPhotoPreview(dataUrl){
     box.innerHTML = `<div class="hint" style="margin:0;">No photo attached.</div>`;
     return;
   }
-  box.innerHTML = `<img src="${vsPhotoDataUrl}" alt="Attached voyage summary photo">`;
+  box.innerHTML = `<img src="${vsPhotoDataUrl}" alt="Attached voyage summary photo" data-viewer data-viewer-title="Voyage summary photo">`;
 }
 function readFileAsDataUrl(file){
   return new Promise((resolve, reject)=>{
@@ -22096,7 +22040,7 @@ function renderVesselStampPreview(){
   if (!box) return;
   const url = vesselStampDataUrl();
   box.innerHTML = url
-    ? `<img src="${url}" alt="Vessel stamp">`
+    ? `<img src="${url}" alt="Vessel stamp" data-viewer data-viewer-title="Vessel stamp">`
     : `<span class="stamp-empty">No stamp uploaded — printed documents show the signature line only.</span>`;
   const btn = document.getElementById('btnRemoveVesselStamp');
   if (btn) btn.style.display = url ? '' : 'none';
@@ -22110,7 +22054,7 @@ function renderChEngSignaturePreview(){
   const name = (document.getElementById('s_chEng')?.value || state.setup.chEng || '').trim();
   const url = signatureForChEng(name);
   box.innerHTML = url
-    ? `<img src="${url}" alt="Chief Engineer signature">`
+    ? `<img src="${url}" alt="Chief Engineer signature" data-viewer data-viewer-title="Chief Engineer signature">`
     : `<span class="stamp-empty">${name ? 'No signature stored for ' + escHtml(name) + '.' : 'Enter the Chief Engineer name first, then upload their signature.'}</span>`;
   const btn = document.getElementById('btnRemoveChEngSignature');
   if (btn) btn.style.display = url ? '' : 'none';
@@ -23682,8 +23626,7 @@ function viewPrintHistoryRecord(p){
   const entry = findPrintEntry(p);
   const sheet = sheetHtmlForPrintType(type, entry);
   if (!sheet){
-    const blob = new Blob([p.text || ''], { type: 'text/plain;charset=utf-8' });
-    window.open(URL.createObjectURL(blob), '_blank');
+    ChengFileViewer.openHtml('<!DOCTYPE html><meta charset="utf-8"><body style="margin:16px;font:13px/1.4 monospace;white-space:pre-wrap;background:#fff;color:#111">' + escPrint(p.text || '') + '</body>', { title: type });
     return;
   }
   const bodyInner = `<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${sheet}</div></div>`;
@@ -23698,7 +23641,7 @@ function viewPrintHistoryRecord(p){
   fitPrintPortraitRoot(doc);
   const html = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   try { iframe.remove(); } catch (_e) {}
-  window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+  ChengFileViewer.openHtml(html, { title: type });
 }
 
 async function recordPrintHistory(label, entry){
@@ -25849,10 +25792,6 @@ function openFmQuickDialog(){
   setElVal('fmq_revCounter', getElVal('in_revCounter'));
   setElVal('fmq_rpm', getElVal('in_rpm') || getElVal('vs_rpm'));
   setElVal('fmq_fwProd', getElVal('in_fwProd'));
-  setElVal('fmq_me_type', getElVal('me_type') || 'HFO');
-  setElVal('fmq_ge_type', getElVal('ge_type') || 'MDO/MGO');
-  setElVal('fmq_blr_type', getElVal('blr_type') || 'MDO/MGO');
-  setElVal('fmq_tbn', getElVal('in_tbn') || 'HIGH');
 
   if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
   overlay.hidden = false;
@@ -25882,10 +25821,6 @@ function acceptFmQuickDialog(){
   setElVal('cyl_meter', getElVal('fmq_cyl_meter'));
   setElVal('in_revCounter', getElVal('fmq_revCounter'));
   setElVal('in_fwProd', getElVal('fmq_fwProd'));
-  setElVal('me_type', getElVal('fmq_me_type'));
-  setElVal('ge_type', getElVal('fmq_ge_type'));
-  setElVal('blr_type', getElVal('fmq_blr_type'));
-  setElVal('in_tbn', getElVal('fmq_tbn'));
   const rpmVal = getElVal('fmq_rpm');
   setElVal('in_rpm', rpmVal);
   setElVal('vs_rpm', rpmVal);
@@ -26311,26 +26246,8 @@ function isBdnImageDoc(doc){
 }
 function showBdnDocument(doc){
   if (!doc) return;
-  document.getElementById('docViewerTitle').textContent = doc.filename;
-  const embed = document.getElementById('docViewerEmbed');
-  const img = document.getElementById('docViewerImage');
-  const asImage = isBdnImageDoc(doc);
-  if (asImage){
-    embed.style.display = 'none';
-    embed.removeAttribute('src');
-    img.style.display = '';
-    img.src = doc.dataUrl;
-  } else {
-    img.style.display = 'none';
-    img.removeAttribute('src');
-    embed.style.display = '';
-    embed.setAttribute('src', doc.dataUrl);
-  }
-  const dl = document.getElementById('docViewerDownload');
-  dl.href = doc.dataUrl;
-  dl.download = doc.filename;
-  document.getElementById('docViewerPanel').style.display = '';
-  document.getElementById('docViewerPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  /* In-app viewer with zoom: a new tab does not exist inside the Android app or the AIO frame. */
+  ChengFileViewer.open({ src: doc.dataUrl, mime: doc.mime, filename: doc.filename, title: doc.filename });
 }
 
 function renderDocList(){
@@ -30250,6 +30167,7 @@ let androidInstallAssets = [
   './license-config.js',
   './license.js',
   './save-file.js',
+  './file-viewer.js',
   './camera-capture.js',
   './guide.js',
   './note-reminders.js',
@@ -34390,27 +34308,60 @@ function fillOrbBrowseOfficerSelect(){
   if (prev && (prev === 'all' || list.some(o=>o.id===prev))) sel.value = prev;
 }
 
-function renderOrbBrowse(){
-  const body = document.getElementById('orbBrowseBody');
-  if (!body) return;
-  const rows = filteredOrbEntries();
-  if (!rows.length){
-    body.innerHTML = `<tr><td colspan="6" class="hint" style="text-align:center;padding:18px;">No ORB entries in this range.</td></tr>`;
-    return;
-  }
-  body.innerHTML = rows.map(e => {
-    const items = (e.lines||[]).map(l=>l.itemNo).join(', ');
-    const text = (e.lines||[]).map(l=>`${l.itemNo}: ${l.text}`).join(' · ');
-    return `<tr${e.voided ? ' class="orb-voided"' : ''}>
-      <td><input type="checkbox" class="orb-browse-check" value="${e.id}" checked></td>
-      <td>${formatMdY(e.date)}</td>
-      <td>Part ${e.part}</td>
-      <td><strong>${e.code}</strong></td>
-      <td>${items}</td>
-      <td>${text}<div class="hint">${e.officerName||''}${e.officerRank?(', '+e.officerRank):''}${e.voided ? ' — VOID' + (e.voidReason ? (': ' + escHtml(e.voidReason)) : '') : ''}</div></td>
-    </tr>`;
-  }).join('');
+/* Entries ticked for printing or voiding. Nothing is ticked until the engineer ticks it, and the
+   ticks survive the table being redrawn after a save or a filter change. */
+const orbBrowseSelected = new Set();
+const ORB_BROWSE_LINES = 10;
+
+function updateOrbBrowseCount(){
+  const el = document.getElementById('orbBrowseCount');
+  if (!el) return;
+  const n = orbBrowseSelected.size;
+  el.textContent = n
+    ? `${n} entr${n === 1 ? 'y' : 'ies'} selected — Print and Void use the selection.`
+    : 'Nothing ticked — Print takes the whole period shown.';
 }
+
+/* Ten lines of the book, then scroll: the height is what the header and the first ten rows
+   actually measure, since a long record wraps to more than one text line. */
+function fitOrbBrowseHeight(){
+  const sc = document.querySelector('#orbBrowseBook .orb-browse-scroll');
+  if (!sc) return;
+  sc.style.maxHeight = '';
+  const rowsEl = sc.querySelectorAll('tbody tr');
+  if (rowsEl.length <= ORB_BROWSE_LINES) return;
+  const head = sc.querySelector('thead');
+  let h = head ? head.offsetHeight : 0;
+  for (let i = 0; i < ORB_BROWSE_LINES; i++) h += rowsEl[i].offsetHeight;
+  /* On a phone ten wrapped lines can be a whole screen; never taller than 70% of it. */
+  if (h > 0) sc.style.maxHeight = Math.min(h + 2, Math.round(window.innerHeight * 0.7)) + 'px';
+}
+
+function renderOrbBrowse(){
+  const host = document.getElementById('orbBrowseBook');
+  if (!host || !window.EORB) return;
+  const rows = filteredOrbEntries();
+  const present = new Set(rows.map(e => String(e.id)));
+  [...orbBrowseSelected].forEach(id => { if (!present.has(id)) orbBrowseSelected.delete(id); });
+  host.innerHTML = EORB.browseTableHtml(orbSetup(), rows, { selected: orbBrowseSelected, emptyText: 'No ORB entries in this range.' });
+  fitOrbBrowseHeight();
+  updateOrbBrowseCount();
+}
+document.getElementById('orbBrowseBook')?.addEventListener('change', (ev)=>{
+  const box = ev.target;
+  if (!box || !box.classList || !box.classList.contains('orb-browse-check')) return;
+  if (box.checked) orbBrowseSelected.add(String(box.value)); else orbBrowseSelected.delete(String(box.value));
+  updateOrbBrowseCount();
+});
+document.getElementById('btnOrbSelectAll')?.addEventListener('click', ()=>{
+  filteredOrbEntries().forEach(e => orbBrowseSelected.add(String(e.id)));
+  renderOrbBrowse();
+});
+document.getElementById('btnOrbSelectNone')?.addEventListener('click', ()=>{
+  orbBrowseSelected.clear();
+  renderOrbBrowse();
+});
+window.addEventListener('resize', ()=>{ try{ fitOrbBrowseHeight(); }catch(_e){} });
 
 /* Present R.O.B. of every Annex I tank, with how full each one is. Reads the same
    setup the entry wizard writes to, so a saved entry that moved oil shows here at once. */

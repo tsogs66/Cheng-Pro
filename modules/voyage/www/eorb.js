@@ -3852,7 +3852,9 @@
    *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
    *   Signature → separate row: NAME - RANK, 24-AUG-2026 [SIGNATURE]
    */
-  function bookRowsHtml(entries, setup) {
+  function bookRowsHtml(entries, setup, opts) {
+    opts = opts || {};
+    const selected = opts.selected || null;
     let body = '';
     let lastHeaderKey = null;
     const sorted = sortEntriesForBook(entries);
@@ -3880,8 +3882,14 @@
           part: ln.recordPart != null ? Number(ln.recordPart) : (Number(e.part) || 1),
           code: ln.recordCode != null ? String(ln.recordCode) : e.code
         };
+        /* Browse / Print: the tick that picks this entry for printing or voiding sits in the date
+           cell of the entry's first line, so the table stays the book's four columns. */
+        const pick = (opts.selectable && idx === 0)
+          ? ('<input type="checkbox" class="orb-browse-check" value="' + escapeHtml(String(e.id)) + '"' +
+             (selected && selected.has(String(e.id)) ? ' checked' : '') + ' aria-label="Select this entry"> ')
+          : '';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
-          '<td>' + (showDate ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
+          '<td>' + pick + (showDate ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
           '<td class="orb-code">' + (showCode ? escapeHtml(formatOrbBookCode(codeEntry)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + '</td></tr>';
@@ -3961,7 +3969,31 @@
     '.orb-book-foot{margin-top:14px; padding-top:6px; border-top:1px solid #999; font-size:9px; color:#444; line-height:1.45;}',
     '.orb-book-foot-bar{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;}',
     '.orb-book-foot-legal{font-size:8px; color:#666; line-height:1.4;}',
-    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}'
+    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}',
+    /* Browse / Print: the book's table with no head and no foot, 10 lines tall, the rest scrolls. */
+    '.orb-browse{background:#fff; color:#111; border:1px solid #999; border-radius:3px; font-family:Arial,Helvetica,sans-serif;}',
+    '.orb-browse-scroll{overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}',
+    '.orb-browse table{width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:12px; color:#111;}',
+    '.orb-browse thead th{position:sticky; top:0; z-index:1; background:#d9d9d9; color:#111; font-size:12px; font-weight:700;',
+    '  text-align:left; text-transform:none; letter-spacing:0; line-height:1.2; border:1px solid #999; padding:6px 6px;}',
+    '.orb-browse td{border:1px solid #999; border-top:0; padding:5px 6px; vertical-align:top; color:#111; line-height:1.35;',
+    '  white-space:normal; overflow-wrap:anywhere;}',
+    '.orb-browse tbody tr:nth-child(even) td{background:#ececec;}',
+    '.orb-browse th, .orb-browse td{font-family:Arial,Helvetica,sans-serif;}',
+    '.orb-browse th{white-space:normal; overflow-wrap:anywhere;}',
+    '.orb-browse td:nth-child(1){white-space:nowrap; overflow-wrap:normal;}',
+    '.orb-browse th:nth-child(1), .orb-browse td:nth-child(1){width:34%;}',
+    '.orb-browse th:nth-child(2), .orb-browse td.orb-code{width:9%; text-align:center; font-weight:700;}',
+    '.orb-browse th:nth-child(3), .orb-browse td:nth-child(3){width:13%; text-align:center;}',
+    '@media (min-width:700px){.orb-browse th:nth-child(1), .orb-browse td:nth-child(1){width:17%;}',
+    '  .orb-browse th:nth-child(2), .orb-browse td.orb-code{width:9%;}.orb-browse th:nth-child(3), .orb-browse td:nth-child(3){width:10%;}}',
+    '.orb-browse th:nth-child(2), .orb-browse th:nth-child(3){text-align:center;}',
+    '.orb-browse td.orb-record{text-transform:uppercase;}',
+    '.orb-browse tr.orb-voided td{color:#666;}',
+    '.orb-browse .orb-sign{font-style:italic; color:#333; text-transform:none; font-size:12px;}',
+    '.orb-browse tr.orb-sign-row td{border-top:0;}',
+    '.orb-browse input.orb-browse-check{width:20px; height:20px; margin:0 4px 0 0; vertical-align:-4px; accent-color:#1f4e8c;}',
+    '.orb-browse-empty{padding:22px; text-align:center; color:#555; font-size:13px;}'
   ].join('\n');
 
   /** The part this set of entries belongs to, named as the book names it. */
@@ -4041,6 +4073,20 @@
     '</div>';
   }
 
+  /**
+   * Browse / Print list: the record book's own table (Date, Code, Item No., Record of operations)
+   * with nothing around it — no ship header, no page footer — so a period reads like the pages of
+   * the book it will be printed into. Nothing is ticked unless the caller passes `selected`.
+   */
+  function browseTableHtml(setup, entries, opts) {
+    opts = opts || {};
+    const rows = sortEntriesForBook(entries);
+    const body = bookRowsHtml(rows, setup, { selectable: true, selected: opts.selected || null });
+    if (!body) return '<div class="orb-browse-empty">' + escapeHtml(opts.emptyText || 'No ORB entries in this range.') + '</div>';
+    return '<div class="orb-browse-scroll"><table><thead><tr><th>Date</th><th>Code</th><th>Item No.</th>' +
+      '<th>Record of operations / signature of officer in charge</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+
   function buildPrintHtml(setup, entries, rangeLabel, opts) {
     /* The printed sheet is the on-screen book on a page: same builder, same stylesheet,
        plus the Master's signature block and the flag note a signed record carries. */
@@ -4104,6 +4150,7 @@
     splitEntryPerItemLine,
     materializeOrbSaveRecords,
     bookRowsHtml,
+    browseTableHtml,
     bookDocumentHtml,
     bookPartTitles,
     BOOK_CSS,
