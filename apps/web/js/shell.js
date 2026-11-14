@@ -574,8 +574,12 @@
         email = String(ChengLicense.licenseEmail() || '').trim();
       }
     } catch (_e) { /* ignore */ }
-    const regText = email ? ('registered: ' + email) : '';
-    regEls.forEach((el) => { if (el) el.textContent = regText; });
+    /* The address alone: "registered:" is added by CSS where there is room (a phone showed "registered: ch…"). */
+    regEls.forEach((el) => {
+      if (!el) return;
+      el.textContent = email;
+      el.title = email ? 'Registered license: ' + email : '';
+    });
     if (authorEl) {
       authorEl.textContent = window.CHENG_PRO_AUTHOR || 'ts0gs · Marvin C. Endozo';
     }

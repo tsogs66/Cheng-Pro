@@ -306,6 +306,18 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
 }
 .topbar-meta .registered:empty,
 .topbar-meta .ver:empty { display: none; }
+/* "registered:" only where there is room; on a phone the whole address is worth more than the word. */
+@media (min-width: 700px) { .topbar-meta .registered:not(:empty)::before { content: 'registered: '; } }
+@media (max-width: 699px) { .topbar-meta .registered { max-width: 46vw; } }
+
+/* Live sync panel (Backup & Restore): fields a finger can hit, and text that is not smaller than the page around it. */
+#bk-live-sync input[type="text"], #bk-live-sync input:not([type]) { min-height: 44px; font-size: 15px; padding: 8px 10px; box-sizing: border-box; }
+#bk-live-sync .hint { font-size: 0.9rem; line-height: 1.5; }
+/* Explanatory text on Backup & Restore was 12px: under the 14px Android asks for body text. Phones and tablets only. */
+@media (max-width: 1024px) and (pointer: coarse) {
+  .backup-page .hint, #bk-live-sync .hint { font-size: 14px !important; line-height: 1.5; }
+}
+#bk-live-sync .btn.small { min-height: 40px; min-width: 40px; }
 .topbar-id:not(:has(:not(:empty))) { display: none; }
 .topbar-meta .theme-topbar { flex: 0 0 auto; }
 .app-version { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }

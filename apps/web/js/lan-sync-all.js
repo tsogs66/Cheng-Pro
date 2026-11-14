@@ -332,7 +332,7 @@
       var found = (s.found || []).map(function (d) {
         return '<div style="display:flex;gap:8px;align-items:center;margin:4px 0;flex-wrap:wrap"><span><b>' + esc(d.name || 'Device') +
           '</b> <span class="hint">' + esc(d.url) + '</span></span>' +
-          '<input data-ls-code="' + esc(d.url) + '" placeholder="code" inputmode="numeric" maxlength="6" style="width:90px">' +
+          '<input data-ls-code="' + esc(d.url) + '" placeholder="Code" inputmode="numeric" maxlength="6" autocomplete="off" style="width:110px">' +
           '<button type="button" class="btn primary" data-ls-pair="' + esc(d.url) + '">Pair</button></div>';
       }).join('');
       var peers = (s.peers || []).map(function (p) {
@@ -359,9 +359,9 @@
         '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button></div>' +
         code +
         '<div id="ls-found" style="margin-top:8px">' + found + '</div>' +
-        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
-        '<input id="ls-url" placeholder="or type its address: http://192.168.43.1:8080" style="flex:1;min-width:200px">' +
-        '<input id="ls-code" placeholder="code" inputmode="numeric" maxlength="6" style="width:90px">' +
+        '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<input id="ls-url" placeholder="Address: http://192.168.43.1:8080" inputmode="url" autocapitalize="off" autocomplete="off" style="flex:1 1 100%;min-width:0">' +
+        '<input id="ls-code" placeholder="Code" inputmode="numeric" maxlength="6" autocomplete="off" style="flex:1 1 120px;min-width:0">' +
         '<button type="button" class="btn" id="ls-pair-url">Pair</button></div>' +
         notice +
         '<div style="margin-top:10px">' + s.rows.map(rowHtml).join('') + '</div>' +
