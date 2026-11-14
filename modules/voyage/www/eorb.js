@@ -263,7 +263,7 @@
       code: 'NO', name: 'Norway (NIS)', admin: 'Norwegian Maritime Authority',
       language: 'English / Norwegian as applicable',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'NIS vessels follow MARPOL; electronic record books require NMA acceptance when used officially.',
+      erbNote: 'NIS vessels follow MARPOL; an electronic record book needs flag approval (NMA has authorised DNV for type approval and the ship-specific Declaration of MARPOL ERB, which stays on board).',
       tips: ['Keep printed/export copies available for PSC if the ERB system is offline.']
     }
   ];
@@ -452,6 +452,16 @@
         { ref: 'MIN 644 (M+F)', title: 'Approval and acceptance of electronic record books and related systems', note: 'Seen only in a search result; the page was not readable.', checked: 'listed' }
       ],
       history: []
+    },
+    NO: {
+      title: 'Norway — Norwegian Maritime Authority (NMA)',
+      documents: [
+        { ref: 'DNV article', title: 'Electronic Record Books – An available option to hard copy records', date: 'DNV quarterly newsletter (after 1 Oct 2025)',
+          note: 'Since 1 Oct 2020 the MARPOL record books (ORB Parts I and II, Cargo, Garbage, ODS, engine Tier and on/off status, fuel oil changeover, NOx engine parameters, EGCS) may be electronic if the flag approves the system against MEPC.312(74), and a ship-specific Declaration of MARPOL ERB is kept on board. NMA has authorised DNV for type approval and for the declaration. The tier / on-off status and fuel changeover records are listed as separate Annex VI records, not as part of the Oil Record Book, so the app gives a Norwegian ship Parts I and II only. A classification-society article, not an NMA text.', checked: 'read' }
+      ],
+      history: [
+        { date: '1 Oct 2020', change: 'MARPOL and NOx Technical Code amendments allow electronic record books approved by the flag.' }
+      ]
     }
   };
 
