@@ -87,6 +87,7 @@
       if (aioEmbed && /[?&]eorbEmbed=1\b/.test(qs)) document.documentElement.classList.add('eorb-embed');
       if (aioEmbed && /[?&]page=bunkerplan\b/.test(qs)) document.documentElement.classList.add('bunkerplan-embed');
       if (aioEmbed && /[?&]page=spares\b/.test(qs)) document.documentElement.classList.add('spares-embed');
+      if (aioEmbed && /[?&]page=eca\b/.test(qs)) document.documentElement.classList.add('eca-embed');
       if (aioEmbed && /[?&]page=data\b/.test(qs)) document.documentElement.classList.add('aio-data-embed');
     } catch (_e3) {}
   }catch(_e){}
@@ -2470,6 +2471,18 @@
   html.spares-embed body { padding-bottom: 0 !important; }
   html.spares-embed .page:not(#page-spares) { display: none !important; }
   html.spares-embed #page-spares { display: block !important; }
+  html.eca-embed .masthead,
+  html.eca-embed #tabs,
+  html.eca-embed .bottom-nav,
+  html.eca-embed #bnMoreSheet,
+  html.eca-embed #bnMoreBackdrop,
+  html.eca-embed .footer-note,
+  html.eca-embed .theme-fab {
+    display: none !important;
+  }
+  html.eca-embed body { padding-bottom: 0 !important; }
+  html.eca-embed .page:not(#page-eca) { display: none !important; }
+  html.eca-embed #page-eca { display: block !important; }
   @media (max-width:1100px), (hover:none) and (pointer:coarse){
     html:not(.use-top-tabs) .tabs{display:none;}
     html:not(.use-top-tabs) .bottom-nav{display:flex;}
@@ -3303,6 +3316,7 @@ html.astrolabe body::before { opacity: 0.26; }
     <div class="tab-group">
       <span class="tab-group-label">Voyage</span>
       <div class="tab" data-page="bunkerplan">Consumption Plan</div>
+      <div class="tab" data-page="eca">ECA</div>
       <div class="tab" data-page="consumption">Consumption</div>
       <div class="tab" data-page="voyageabstract">Voyage Abstract</div>
       <div class="tab" data-page="rangetotals">Range Totals</div>
@@ -4385,6 +4399,20 @@ html.astrolabe body::before { opacity: 0.26; }
       </div>
       <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly. Start with one destination or stay, set a <strong>Margin %</strong> on that line if you want a reserve for it, then <strong>Add destination / stay</strong> for the next leg — each line can carry its own margin (e.g. different % to a bunkering port vs an anchorage).</div>
     </div>
+    <div class="panel" id="bunkerPlanHistory" style="display:none;">
+      <h2>Saved Calculations</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
+          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="5">No saved calculations yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROB -->
+  <!-- ECA: the fuel changeover calculator and the Appendix VI changeover record -->
+  <div class="page" id="page-eca">
     <div class="panel" id="changeoverPanel">
       <h2>Fuel Changeover Calculator — ECA / sulphur limit</h2>
       <p class="hint">How long before the ECA boundary the changeover has to start, so the sulphur at engine inlet is under the limit by the time the ship crosses it. Built the way the FOBAS change-over calculator is: separate high- and low-sulphur service tanks, the low-sulphur fuel blending into whatever is still in the service system after the suction is shifted.</p>
@@ -4416,18 +4444,14 @@ html.astrolabe body::before { opacity: 0.26; }
         Put the whole blending volume into <em>V</em> — service tank, mixing/deaeration tank, supply and circulating pipes and the engine itself — because anything left out makes the answer shorter than the truth. Under MARPOL Annex VI Reg. 14.3 the limit inside an ECA is 0.10&nbsp;% m/m. The figure is an estimate for planning: the completion time that goes in the record is the one actually observed, and Reg. 14.6 wants it with the position and the volume of low-sulphur fuel on board.</div>
       <div class="hint" id="coThermalHint"></div>
     </div>
-    <div class="panel" id="bunkerPlanHistory" style="display:none;">
-      <h2>Saved Calculations</h2>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Date</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
-          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="5">No saved calculations yet.</td></tr></tbody>
-        </table>
-      </div>
+    <div class="panel" id="changeoverLogPanel">
+      <h2>Fuel Changeover Record — Appendix VI log</h2>
+      <p class="hint">The record of each changeover as it was carried out (MARPOL Annex VI Reg. 14.6): date, local time and UTC, position, and the quantity of compliant fuel in each tank, signed by the officer in charge. One record per ECA passage or EU port call, in the company's log layout. The tank columns follow this ship's distillate tanks (ORB Vessel Setup &rarr; Fuel oil tanks, Bunker service: Distillate).</p>
+      <div class="btn-row" style="margin-bottom:6px;"><button type="button" class="ghost small" id="btnCoToRecord">Start an ECA record from the plan above</button></div>
+      <div id="changeoverLogHost"></div>
     </div>
   </div>
 
-  <!-- ROB -->
   <!-- RANGE TOTALS -->
   <div class="page" id="page-rangetotals">
     <div class="panel">
@@ -5871,6 +5895,10 @@ html.astrolabe body::before { opacity: 0.26; }
         <span class="bn-ic" aria-hidden="true">📈</span>
         <span>Cons Plan</span>
       </button>
+      <button type="button" class="bn-more-item" data-page="eca">
+        <span class="bn-ic" aria-hidden="true">🌊</span>
+        <span>ECA</span>
+      </button>
       <button type="button" class="bn-more-item" data-page="consumption">
         <span class="bn-ic" aria-hidden="true">⏱️</span>
         <span>Cons</span>
@@ -5915,6 +5943,7 @@ html.astrolabe body::before { opacity: 0.26; }
 
 <script src="stem-advice.js"></script>
 <script src="eorb.js"></script>
+<script src="fuel-changeover-log.js"></script>
 <script src="save-file.js"></script>
 <script src="file-viewer.js"></script>
 <script src="camera-capture.js"></script>
@@ -15694,6 +15723,84 @@ document.getElementById('btnCoToSetup')?.addEventListener('click', ()=>{
         '\n\nThese are the planned times. Record the times actually observed — Annex VI Reg. 14.6 wants the completion time with the position and the volume of low-sulphur fuel on board, and the e-ORB has the entry for it.');
 });
 
+/* ---- Fuel changeover record (Appendix VI log) -----------------------------
+   The record itself lives in fuel-changeover-log.js. This is the ship's side of
+   it: the active vessel's distillate tanks, the officer, the signature and stamp,
+   and where the list is kept (setup.changeoverRecords, merged by id like the other
+   per-ship lists, with a tombstone on delete). */
+let _changeoverLogUi = null;
+const CO_FORM_KEY = 'voyage-changeover-form';
+
+function changeoverRecords(){
+  if (!Array.isArray(state.setup.changeoverRecords)) state.setup.changeoverRecords = [];
+  return state.setup.changeoverRecords;
+}
+
+/** The ship's fuel tanks for the log's columns: distillate (compliant) first, residual apart. */
+function changeoverTanks(){
+  const out = { distillate: [], residual: [] };
+  try{
+    if (window.EORB && typeof orbSetup === 'function'){
+      const s = orbSetup();
+      const pick = (g) => (EORB.tanksForGroup(s, g) || []).map(t => ({ id: t.id, name: t.name, frameNo: t.frameNo || '', capacityM3: t.capacityM3, robM3: t.robM3 }));
+      out.distillate = pick('fuelDistillate');
+      out.residual = pick('fuelResidual');
+    }
+  }catch(_e){}
+  /* No physical tanks set up in the ORB: fall back to the voyage fuel grades. */
+  if (!out.distillate.length && !out.residual.length){
+    (state.setup.fuelTanks || []).forEach(t => {
+      const row = { id: t.id, name: t.name || t.grade || t.id };
+      (/MGO|MDO|DMA|DMB|DMZ|DFA/i.test(String(t.grade || t.name)) ? out.distillate : out.residual).push(row);
+    });
+  }
+  return out;
+}
+
+function changeoverLogApi(){
+  return {
+    records: changeoverRecords,
+    save: async (list)=>{ state.setup.changeoverRecords = list; try{ await saveSetup(); }catch(_e){ alert('The changeover record could not be stored on this device.'); } },
+    deleted: (id)=>{ rememberDeleted('changeoverRecords', id); },
+    confirm: (m)=> confirm(m),
+    vessel: ()=>({ name: state.setup.vesselName || '', imo: state.setup.imoNo || '', company: state.setup.company || '' }),
+    tanks: changeoverTanks,
+    defaultOffsetMin: ()=> defaultShipTzOffsetMin(),
+    officer: ()=>({ name: (typeof currentChEngName === 'function' ? currentChEngName() : '') || '', rank: 'C/E' }),
+    signature: (name)=> (typeof signatureForChEng === 'function' ? (signatureForChEng(name) || '') : ''),
+    signatoryHtml: ()=> printSignatory({ chEng: (typeof currentChEngName === 'function' ? currentChEngName() : '') }),
+    print: (html)=> printPortraitPages(['<div class="pr-sheet">' + html + '</div>']),
+    density: ()=> Number(document.getElementById('co_density')?.value) || 890,
+    lastForm: ()=>{ try{ return JSON.parse(localStorage.getItem(CO_FORM_KEY) || '{}'); }catch(_e){ return {}; } },
+    rememberForm: (f)=>{ try{ localStorage.setItem(CO_FORM_KEY, JSON.stringify(f || {})); }catch(_e){} }
+  };
+}
+
+function renderChangeoverLog(){
+  const host = document.getElementById('changeoverLogHost');
+  if (!host || !window.FuelChangeoverLog) return;
+  if (!_changeoverLogUi) _changeoverLogUi = FuelChangeoverLog.mount(host, changeoverLogApi());
+  else _changeoverLogUi.render();
+}
+
+document.getElementById('btnCoToRecord')?.addEventListener('click', async ()=>{
+  if (!window.FuelChangeoverLog) return;
+  if (!_lastChangeover || !_lastChangeover.latestStart){
+    alert('Calculate first, with the planned crossing filled in — there is no plan to start a record from.');
+    return;
+  }
+  const api = changeoverLogApi();
+  const o = api.officer();
+  const rec = FuelChangeoverLog.newRecord('eca', { offsetMin: api.defaultOffsetMin(), officerName: o.name, officerRank: o.rank, form: api.lastForm() });
+  rec.title = 'ECA crossing ' + (_lastChangeover.input.ecaAt || '');
+  rec.plan = { latestStartIso: _lastChangeover.latestStart.toISOString(), hours: _lastChangeover.hours, ecaAt: _lastChangeover.input.ecaAt || '' };
+  changeoverRecords().push(rec);
+  try{ await saveSetup(); }catch(_e){}
+  renderChangeoverLog();
+  if (_changeoverLogUi) _changeoverLogUi.select(rec.id);
+  document.getElementById('changeoverLogPanel')?.scrollIntoView({ block: 'start' });
+});
+
 document.getElementById('btnCoPrint')?.addEventListener('click', ()=>{
   if (!_lastChangeover){
     alert('Calculate first — there is nothing to print yet.');
@@ -16304,7 +16411,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'eca', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -17538,6 +17645,7 @@ function switchTab(pageName){
   if (isChengAioEmbedded() && /[?&]eorbEmbed=1\b/.test(location.search) && pageName !== 'orb') return;
   if (isChengAioEmbedded() && /[?&]page=bunkerplan\b/.test(location.search) && pageName !== 'bunkerplan') return;
   if (isChengAioEmbedded() && /[?&]page=spares\b/.test(location.search) && pageName !== 'spares') return;
+  if (isChengAioEmbedded() && /[?&]page=eca\b/.test(location.search) && pageName !== 'eca') return;
   if (pageName === 'orb' && !voyageEorbAllowed()){
     const aioOrb = isChengAioEmbedded() && /[?&]page=orb\b/.test(location.search);
     if (!aioOrb) {
@@ -17558,6 +17666,7 @@ function switchTab(pageName){
     requestAnimationFrame(()=> animateRobGauges());
     requestTankSurveyCompare();
   }
+  if (pageName === 'eca' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
   if (pageName === 'spares'){
     bindSparesUi();
     renderRequisitions();
@@ -28445,6 +28554,7 @@ async function purgeTombstonedFromDb(){
 const MISC_VESSEL_DATA_LISTS = [
   { key: 'requisitions', label: 'spares & stores requisitions', cap: 0 },
   { key: 'bunkerPlanHistory', label: 'consumption plan snapshots', cap: 50 },
+  { key: 'changeoverRecords', label: 'fuel changeover log', cap: 300 },
 ];
 
 /** A row's last-touched stamp, falling back through the names these lists use. */
@@ -28600,6 +28710,7 @@ function rememberVesselMiscForSync(){
   vesselMiscCarry = {
     requisitions: Array.isArray(setup.requisitions) ? setup.requisitions.slice() : [],
     bunkerPlanHistory: Array.isArray(setup.bunkerPlanHistory) ? setup.bunkerPlanHistory.slice() : [],
+    changeoverRecords: Array.isArray(setup.changeoverRecords) ? setup.changeoverRecords.slice() : [],
     bunkerPlan: setup.bunkerPlan && typeof setup.bunkerPlan === 'object' ? setup.bunkerPlan : null,
     orb: setup.orb && typeof setup.orb === 'object' ? setup.orb : null,
     orbEntries: (state.orbEntries || []).slice(),
@@ -28612,6 +28723,7 @@ function applyVesselMiscCarry(){
   mergeMiscVesselData(state.setup, {
     requisitions: vesselMiscCarry.requisitions,
     bunkerPlanHistory: vesselMiscCarry.bunkerPlanHistory,
+    changeoverRecords: vesselMiscCarry.changeoverRecords,
     bunkerPlan: vesselMiscCarry.bunkerPlan,
     orb: vesselMiscCarry.orb,
   }, state.setup, deleted, false);
@@ -28705,6 +28817,7 @@ function miscVesselDataCounts(){
   return {
     requisitions: (setup.requisitions || []).length,
     bunkerPlanHistory: (setup.bunkerPlanHistory || []).length,
+    changeoverRecords: (setup.changeoverRecords || []).length,
     orbEntries: (state.orbEntries || []).length,
     orbConfigured: !!(setup.orb && (setup.orb.shipName || setup.orb.imo)),
   };
@@ -30188,6 +30301,7 @@ let androidInstallAssets = [
   './license.js',
   './save-file.js',
   './file-viewer.js',
+  './fuel-changeover-log.js',
   './camera-capture.js',
   './guide.js',
   './note-reminders.js',
@@ -37425,6 +37539,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       else if (qsPage === 'entry' || qsPage === 'log' || qsPage === 'logentry') switchTab('entry');
       else if (qsPage === 'rob') switchTab('rob');
       else if (qsPage === 'spares') switchTab('spares');
+      else if (qsPage === 'eca') switchTab('eca');
       else if (qsPage === 'bunkerplan'){
         switchTab('bunkerplan');
         if (isChengAioEmbedded()){
