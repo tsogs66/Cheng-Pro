@@ -259,6 +259,66 @@
     return rows;
   }
 
+
+  /* ------------------------------------------------------------ plan checks */
+
+  /**
+   * Low-sulphur fuel needed for an ECA passage against what is on board.
+   * Used up from the start of the changeover to the end of the time in the ECA:
+   * the low-sulphur share the changeover itself displaces, plus the full
+   * consumption while inside the area. The change back to residual fuel runs on
+   * a blend again and is not counted, so a small reserve is kept on top.
+   */
+  function ecaFuelCheck(p) {
+    var used = num(p && p.changeoverUsedMt);
+    var hours = num(p && p.transitHours);
+    var cons = num(p && p.consMtDay);
+    var onBoard = num(p && p.onBoardMt);
+    var reservePct = num(p && p.reservePct);
+    if (reservePct == null) reservePct = 10;
+    if (used == null || hours == null || cons == null || onBoard == null || hours < 0 || cons <= 0) {
+      return { ok: false, reason: 'Give the low-sulphur fuel on board, the time in the ECA and the consumption.' };
+    }
+    var transit = cons * hours / 24;
+    var need = used + transit;
+    var needWithReserve = need * (1 + reservePct / 100);
+    var spare = onBoard - needWithReserve;
+    return {
+      ok: true, changeoverMt: used, transitMt: transit, needMt: need, reservePct: reservePct,
+      needWithReserveMt: needWithReserve, onBoardMt: onBoard, spareMt: spare,
+      enough: onBoard >= need, comfortable: spare >= 0
+    };
+  }
+
+  /**
+   * An EU port call at 0.10 % S (Directive 2012/33/EU): change over as soon as
+   * possible after arrival, change back as late as possible before departure.
+   * Times are ms since epoch. A published stay of under two hours is exempt; the
+   * figure is reported, and the exemption is the operator's to confirm.
+   */
+  function euBerthPlan(p) {
+    var arr = num(p && p.arrivalMs), dep = num(p && p.departureMs);
+    var hours = num(p && p.changeoverHours), used = num(p && p.changeoverUsedMt);
+    var cons = num(p && p.consMtDay), onBoard = num(p && p.onBoardMt);
+    var back = num(p && p.changeBackMarginHours);
+    if (back == null) back = 0;
+    if (arr == null || dep == null || hours == null || cons == null || dep <= arr) {
+      return { ok: false, reason: 'Give the arrival and the departure (departure after arrival), and work the changeover time first.' };
+    }
+    var stayH = (dep - arr) / 3600000;
+    var compliantBy = arr + hours * 3600000;
+    var changeBackStart = dep - back * 3600000;
+    var compliantHours = Math.max(0, stayH - hours - back);
+    var transit = cons * Math.max(0, stayH - hours - back) / 24;
+    var need = (used == null ? 0 : used) + transit;
+    return {
+      ok: true, stayHours: stayH, startMs: arr, departureMs: dep, compliantByMs: compliantBy, changeBackStartMs: changeBackStart,
+      completesInTime: compliantBy <= changeBackStart, compliantHours: compliantHours,
+      exemptShortStay: stayH < 2, needMt: need, onBoardMt: onBoard,
+      enough: onBoard == null ? null : onBoard >= need
+    };
+  }
+
   /* ----------------------------------------------------------------- print */
 
   var PRINT_CSS =
@@ -568,7 +628,7 @@
     ECA_STAGES: ECA_STAGES, EU_STAGES: EU_STAGES, REQUIRED_STAGES: REQUIRED_STAGES, KIND_LABELS: KIND_LABELS,
     stagesFor: stagesFor, utcFromLocal: utcFromLocal, formatPosition: formatPosition, positionComplete: positionComplete,
     tankColumns: tankColumns, robOf: robOf, newRecord: newRecord, blankStage: blankStage,
-    validate: validate, compareToPlan: compareToPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
+    validate: validate, compareToPlan: compareToPlan, ecaFuelCheck: ecaFuelCheck, euBerthPlan: euBerthPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
     mount: mount
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.FuelChangeoverLog;
