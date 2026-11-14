@@ -39,8 +39,11 @@
   };
 
   /**
-   * beORB-style Part III rows appended to the same Part I entry (PART III C, item 3, …).
-   * Enabled for all supported flag states — Annex VI fuel specs, OWS/OCM, incinerator, etc.
+   * Part III C item 3 row appended to a bunkering entry (Part I Code H 26.3): the official Panama
+   * Part III asks for the SOx bunker data (type of fuel, API, density, sulphur) after every bunkering.
+   * Only for flags whose Oil Record Book has a Part III (flagHasPartIII — Panama's MMC-215).
+   * The other Part I entries (OWS tests, seals, de-bunkering, receipts, lube) are NOT Part III items
+   * on the official form, so they are no longer copied there.
    */
   const PART_III_SUPPLEMENT_RULES = [
     {
@@ -66,167 +69,20 @@
         const text = [head, typeBit, spec.join(', ')].filter(Boolean).join('. ');
         return text ? [{ itemNo: '3', text }] : [];
       }
-    },
-    {
-      id: 'bunker-lube-received',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'H' && ctx.items.indexOf('26.4') !== -1;
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const grade = String(v.lubeType || '').trim();
-        const qty = fmtVal(v.lubeQty);
-        const text = [
-          String(v.place || '').trim() ? ('At: ' + v.place + ' received') : 'Lubricating oil received',
-          grade ? ('Type: ' + grade) : '',
-          qty !== '' ? (qty + ' Ltrs bulk lubricating oil bunkered') : ''
-        ].filter(Boolean).join('. ');
-        return text ? [{ itemNo: '3', text }] : [];
-      }
-    },
-    {
-      id: 'ows-ocm-test',
-      code: 'C',
-      when(ctx) {
-        if (ctx.part !== 1 || ctx.code !== 'I') return false;
-        /* Recirculation prints one Code I sentence. A second supplement line would
-           repeat the test after that sentence. */
-        const r = String(ctx.val.remarks || '').toLowerCase();
-        if (ctx.scenarioId === 'ows-ocm-test' || r.indexOf('recirculation') !== -1) return false;
-        if (ctx.scenarioId === 'ows-weekly-test') return true;
-        return r.indexOf('ocm') !== -1 || r.indexOf('15 ppm') !== -1 ||
-          r.indexOf('oily-water separator') !== -1;
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const dur = numOrNull(v.testDurationMin);
-        const text = [
-          'OWS / 15 ppm equipment test supplement',
-          dur != null ? ('duration of test ' + fmtVal(dur) + ' minutes') : '',
-          v.timeStart ? ('start ' + v.timeStart + ' UTC') : '',
-          v.timeStop ? ('stop ' + v.timeStop + ' UTC') : '',
-          'recirculation line and OCM / 15 ppm alarm tested with satisfactory results'
-        ].filter(Boolean).join(', ');
-        return [{ itemNo: '3', text }];
-      }
-    },
-    {
-      id: 'ows-overboard-discharge',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'D' &&
-          (ctx.items.indexOf('15.1') !== -1 || ctx.scenarioId === 'bilge-ows-sea');
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        return [{
-          itemNo: '3',
-          text: [
-            'Overboard discharge through 15 ppm equipment — supplement',
-            'position start ' + (v.posStart || '—') + ', position stop ' + (v.posStop || '—'),
-            'same-day OWS / OCM test and overboard valve unsealing must be recorded under Code I before this discharge'
-          ].join('; ')
-        }];
-      }
-    },
-    {
-      id: 'ows-equipment-failure',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'F' &&
-          (ctx.scenarioId === 'ows-failure' || ctx.scenarioId === 'ows-restored' ||
-            ctx.items.some(n => n === '19' || n === '20' || n === '21'));
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const fail = ctx.scenarioId === 'ows-failure' || ctx.items.indexOf('19') !== -1;
-        const text = fail
-          ? ['15 ppm / oily-water separator failure supplement', String(v.failureReason || v.remarks || 'Equipment failure recorded').trim(),
-            v.failureTime ? ('time ' + v.failureTime) : ''].filter(Boolean).join(', ')
-          : ['15 ppm / oily-water separator restored supplement',
-            v.restoreTime ? ('restored ' + v.restoreTime + ' UTC') : '',
-            String(v.restoreAction || v.remarks || '').trim()].filter(Boolean).join(', ');
-        return text ? [{ itemNo: '3', text }] : [];
-      }
-    },
-    {
-      id: 'annex-i-seal',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'I' &&
-          (ctx.scenarioId === 'seal-broken' || ctx.scenarioId === 'seal-applied' ||
-            ctx.scenarioId === 'ows-overboard-unseal' || ctx.scenarioId === 'ows-overboard-reseal' ||
-            ctx.val.extraSealNo || ctx.val.extraEquipment);
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const broken = ctx.scenarioId === 'seal-broken' || ctx.scenarioId === 'ows-overboard-unseal';
-        const text = [
-          broken ? 'Annex I valve / equipment unsealed for operation' : 'Annex I valve / equipment sealed',
-          v.extraEquipment ? String(v.extraEquipment) : '',
-          v.extraSealNo ? ('seal no. ' + v.extraSealNo) : '',
-          v.timeStart ? ('time ' + v.timeStart + ' UTC') : ''
-        ].filter(Boolean).join(', ');
-        return text ? [{ itemNo: '3', text }] : [];
-      }
-    },
-    {
-      id: 'debunker-fuel',
-      code: 'C',
-      when(ctx) {
-        if (ctx.part !== 1 || ctx.code !== 'I') return false;
-        if (ctx.scenarioId === 'debunker-fuel' || ctx.scenarioId === 'debunker-diesel') return true;
-        return /de-bunker/i.test(String(ctx.val.remarks || ''));
-      },
-      lines(ctx) {
-        const v = ctx.val;
-        const qty = fmtVal(v.extraQtyT);
-        const tank = v.extraFromTank ? tankIdentity(ctx.setup, v.extraFromTank) : '';
-        const kind = ctx.scenarioId === 'debunker-diesel' ? 'Diesel oil' : 'Fuel oil';
-        const text = [
-          kind + ' de-bunkering supplement',
-          String(v.extraPlace || '').trim() ? ('at ' + v.extraPlace) : '',
-          qty !== '' ? (qty + ' t landed from vessel') : '',
-          tank ? ('from ' + tank) : '',
-          v.timeStart ? ('time ' + v.timeStart + ' UTC') : ''
-        ].filter(Boolean).join(', ');
-        return text ? [{ itemNo: '3', text }] : [];
-      }
-    },
-    {
-      id: 'sludge-reception-receipt',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'C' && ctx.items.indexOf('12.1') !== -1;
-      },
-      lines(ctx) {
-        const place = String((ctx.val && ctx.val.receptionPort) || '').trim();
-        return [{
-          itemNo: '3',
-          text: 'Sludge reception facility supplement — signed receipt to be retained with the ORB' +
-            (place ? (' (' + place + ')') : '')
-        }];
-      }
-    },
-    {
-      id: 'bilge-reception-receipt',
-      code: 'C',
-      when(ctx) {
-        return ctx.part === 1 && ctx.code === 'D' && ctx.items.indexOf('15.2') !== -1;
-      },
-      lines() {
-        return [{
-          itemNo: '3',
-          text: 'Bilge water reception facility supplement — signed receipt to be retained with the ORB'
-        }];
-      }
     }
   ];
 
+  /* Part III (fuel oil changeover, incinerator use, and the Part III C item 3 supplements) is only
+     part of the book for the flag states that require it. Panama's Oil Record Book and Emissions
+     (MMC-215) has a Part III; MARPOL Annex I does not, and no other administration is confirmed to
+     ask for one, so every other flag gets Parts I and II only. A flag is added by setting
+     `partIII: true` on its FLAGS entry once its circular says so. */
+  function flagHasPartIII(setup) {
+    return getFlag(setup && setup.flag).partIII === true;
+  }
+
   function partThreeSupplementsEnabled(setup) {
-    const f = getFlag(setup && setup.flag);
-    return f.partIIISupplements !== false;
+    return flagHasPartIII(setup);
   }
 
   function appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup, scenarioId) {
@@ -260,7 +116,8 @@
    * Burning sludge (C.12.3) and burning garbage (Code I description) both continue
    * into Part III E: start/stop position and time, oxygen, combustion temperature.
    */
-  function incineratorFollowOnActive(part, code, selectedItems, scenarioId) {
+  function incineratorFollowOnActive(part, code, selectedItems, scenarioId, setup) {
+    if (!flagHasPartIII(setup)) return false;
     if (Number(part) === 3 && code === 'E') return false;
     if (scenarioId === 'incinerator-garbage' && Number(part) === 1 && code === 'I') return true;
     const items = selectedItemNos(selectedItems);
@@ -268,7 +125,7 @@
   }
 
   function appendIncineratorFollowOnLines(lines, part, code, selectedItems, val, setup, scenarioId) {
-    if (!incineratorFollowOnActive(part, code, selectedItems, scenarioId)) return;
+    if (!incineratorFollowOnActive(part, code, selectedItems, scenarioId, setup)) return;
     const follow = buildItemLines(3, 'E', ['6', '7', '8'], val, setup, '');
     follow.forEach((ln, i) => {
       if (!ln || !ln.text) return;
@@ -300,55 +157,62 @@
     {
       code: 'LR', name: 'Liberia', admin: 'Liberia Maritime Authority (LISCR)',
       language: 'English',
-      signatory: dualSignatoryPolicy(
-        'Marine Notice 07 / POL-012: officer(s) in charge sign each operation; approved e-ORB printouts (e.g. beORB) commonly show the duty engineer and Chief Engineer.'
-      ),
-      erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry a Declaration of MARPOL Electronic Record Book (Marine Notice POL-012).',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Marine Operations Note 07/2010 (revised 10 Dec 2010): the officer or officers in charge sign each completed operation; the Master countersigns each completed page.'
+      },
+      erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry the Declaration of MARPOL Electronic Record Book; the e-ORB is used officially only after the Declaration is received (POL-012, Rev. 08/24).',
       tips: [
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
         'Recording retained quantity in IOPP 3.3 oily bilge water holding tanks is voluntary (MEPC.1/Circ.736) — use Code I if your SMS requires it.',
-        'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.',
-        'Part III C item 3 supplements (BDN specs, OWS tests, incinerator, de-bunkering) append automatically after the related Part I entry on print/export — all flag states.',
-        'Use D (manual start) vs E (automatic mode) carefully — mode of starting, not equipment capability.'
+        'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.'
       ]
     },
     {
       code: 'MH', name: 'Marshall Islands', admin: 'Republic of the Marshall Islands Maritime Administrator',
       language: 'English (required)',
-      signatory: dualSignatoryPolicy(
-        'Marine Guideline 2-13-3: the officer in charge signs the operation; the Chief Engineer (or SMS-named reviewer) checks completeness.'
-      ),
-      erbNote: 'RMI publishes approved ERB vendors (Marine Notice 7-041-5). Ship must hold ERB Declaration(s) from the registry portal.',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Marine Guideline 2-13-3 (Rev. Dec/2017) and MI-402A: the person responsible for the operation makes the entry directly on completion; the Chief Engineer, Chief Mate or other person named in the SMS reviews it for completeness at the earliest opportunity; each completed operation is signed and dated by the officer(s) in charge and each page is countersigned by the Master.'
+      },
+      erbNote: 'RMI publishes approved ERB software providers (Marine Notice 7-041-5, list MI-334C). The Administrator issues the ERB Declaration on application (form MI-334A, by email).',
       tips: [
         'ORB Part I entries for IOPP ships shall be in English.',
         'Weekly sludge inventory: C 11.1 tank identity, 11.2 capacity m³, 11.3 retention m³ — repeat for each 3.1 tank.',
-        'Follow MI-402A item list and MEPC.1/Circ.736 example wording for PSC consistency.',
+        'Follow MI-402A (Oil Record Book Instructions, Rev. Nov/2025) and the MEPC.1/Circ.736/Rev.2 example wording. A good-faith entry with a code letter, item number and an accurate account satisfies the intent (MG 2-13-3, item 6).',
+        'Inoperative oily-water equipment (F 19–21) and the numbered sealing of overboard discharge valves are recorded in the ORB and the other logs (MN 2-013-3, 2.4); the SMS records seal removal and replacement. Keep receipts for every shoreside discharge of oil and oily wastes (MN 2-013-3, 1.7) and check the ORB against the other ship logs (1.8).',
+        'Corrections: make them openly in the next available line, describe the circumstances and the entry being corrected; never erase, modify or rewrite earlier entries (MG 2-13-3, item 8). A missed entry is made at once on the next line with the reason it is late.',
+        'Ship management change: the former managers keep the book at least 3 years; leave a certified copy covering at least 6 months on board and start the new book with an entry stating the change of management (MG 2-13-3, item 13).',
         'Incineration of sludge: record under C.12.3 with total time of operation.'
       ]
     },
     {
       code: 'PA', name: 'Panama', admin: 'Panama Maritime Authority (AMP)',
+      partIII: true,
       language: 'English / Spanish (IMO languages prevail as applicable)',
       signatory: {
         mode: SIGNATORY_MODES.engineer_or_ce,
         label: 'Officer in charge',
         note: 'AMP / MARPOL: each completed operation signed by the officer or officers in charge; Master countersigns each page.'
       },
-      erbNote: 'Panama authorizes electronic record books under Resolution schemes aligned with MEPC.312(74); use only AMP-authorized manufacturers and keep the vessel license/declaration.',
+      erbNote: 'Panama\'s official book is the Oil Record Book and Emissions (MMC-215). Electronic books are allowed under MMC-193 with MEPC.312(74): use only AMP-authorized manufacturers and keep the vessel license/declaration.',
       tips: [
         'Record operations without delay; each completed operation signed by officer(s) in charge; pages by Master.',
         'Retain ORB for 3 years after the last entry.',
-        'Any OWS / 15 ppm equipment failure must be recorded under code F.'
+        'Any OWS / 15 ppm equipment failure must be recorded under code F.',
+        'Each use of the incinerator is recorded in the Garbage Record Book and in the Oil Record Book and Emissions Part I and Part III (MMC-215, revision of March 2026).'
       ]
     },
     {
       code: 'BS', name: 'Bahamas', admin: 'Bahamas Maritime Authority',
       language: 'English',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'Bahamas follows MARPOL Appendix III item list (see BMA Marine Notice on ORBs). ERB use requires Administration acceptance where applicable.',
+      erbNote: 'Bahamas follows the MARPOL Appendix III item list (Marine Notice MN056, MARPOL Oil Record Books). Electronic record books are covered by Marine Notice MN010: the system needs a BMA Document of Approval, issued on a Recognised Organisation\'s or a Contracting Government\'s approval.',
       tips: [
         'Transfers TO IOPP 3.1 tanks FROM non-3.1 locations use C.11.4 (with 11.1–11.3).',
-        'Transfers between 3.1 tanks use C.12.2.',
+        'Transfers between 3.1 tanks, and from a 3.1 tank to a non-3.1 tank, use C.12.2 (MN056 4.5).',
         'Manual start of an “automatic” bilge system still uses code D, plus E.18 when placed in manual.'
       ]
     },
@@ -356,36 +220,36 @@
       code: 'SG', name: 'Singapore', admin: 'Maritime and Port Authority of Singapore',
       language: 'English',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'Singapore-flagged ships must meet MARPOL recording standards; electronic books require MPA acceptance where used as official records.',
+      erbNote: 'Singapore Shipping Circular 10/2020: a Recognised Organisation approves the electronic record book and issues the Declaration on MPA\'s behalf; it is used officially only after the ship has the Declaration, and a new Declaration is needed for a version upgrade.',
       tips: ['Prefer clear Lat/Long or port name for ship position.', 'State quantities in m³ (sludge/bilge) or tonnes (bunkers) as required by the item.']
     },
     {
       code: 'CY', name: 'Cyprus', admin: 'Shipping Deputy Ministry — Cyprus',
       language: 'English',
       signatory: {
-        mode: SIGNATORY_MODES.chief_engineer_only,
-        label: 'Chief Engineer',
-        note: 'Cyprus SMS / PSC practice for Part I machinery-space entries: signature by the Chief Engineer unless your company SMS names another signing officer — confirm with your DPA.'
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation; the Master countersigns each page. Circular 22/2020 covers electronic record books only and states no signatory rule — ask your DPA if your SMS names a different signatory.'
       },
-      erbNote: 'Cyprus applies MARPOL Annex I ORB requirements; ERB subject to flag acceptance under IMO guidelines.',
-      tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.']
+      erbNote: 'Cyprus Circular 22/2020 (4 Nov 2020): the Oil Record Book Parts I and II may be kept electronically instead of on paper. A Recognised Organisation assesses the system and issues a Declaration by the RO; within 3 months the owner applies to the Shipping Deputy Ministry (environment@dms.gov.cy, EUR 20) for its Declaration, which stays on board. Keeping a hard copy on board for ERB failure is advised.',
+      tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.', 'Cyprus lists the Record of Fuel Oil Changeover (Annex VI Reg. 14.6) as a separate record book, not as a Part III of the Oil Record Book.', 'After an amendment to MARPOL or to the IMO guidelines a new Declaration by the RO and a new Declaration by the Ministry are needed (Circular 22/2020, para 8).']
     },
     {
       code: 'MT', name: 'Malta', admin: 'Transport Malta — Merchant Shipping Directorate',
       language: 'English',
       signatory: {
-        mode: SIGNATORY_MODES.chief_engineer_only,
-        label: 'Chief Engineer',
-        note: 'Transport Malta Part I entries are normally signed by the Chief Engineer as officer in charge of machinery-space operations.'
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation and the Master each page. The earlier Technical Notice MARPOL.7 (2018) said the same; Technical Notice MARPOL.11 Rev.1 (8 Aug 2023) supersedes it and states no signatory rule.'
       },
-      erbNote: 'Malta-flagged vessels must maintain ORB Part I (and Part II if tanker) per MARPOL; ERB requires Administration approval process.',
+      erbNote: 'Malta-flagged vessels maintain ORB Part I (and Part II if tanker) per MARPOL. Technical Notice MARPOL.11 Rev.1 (8 Aug 2023): an e-RB must meet MEPC.312(74) before the Administration approves it and issues a written Declaration of MARPOL Electronic Record Book, which stays on board; at an inspection the ship must produce the e-RB and the Declaration or may be asked for a verified copy or a hard-copy book.',
       tips: ['Ensure IOPP Supplement tank lists match the tanks selectable in this e-ORB setup.']
     },
     {
       code: 'HK', name: 'Hong Kong, China', admin: 'Hong Kong Marine Department',
-      language: 'English / Chinese as applicable',
+      language: 'English, or English and Chinese',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'HK ships follow MARPOL ORB form; electronic alternatives need MD acceptance.',
+      erbNote: 'HK ships use the Marine Department\'s Part I and Part II forms; an electronic record book must be approved by the Administration (MSIN 22/2019).',
       tips: ['Record accidental/exceptional discharges under G with circumstances and reasons.']
     },
     {
@@ -399,9 +263,225 @@
       code: 'NO', name: 'Norway (NIS)', admin: 'Norwegian Maritime Authority',
       language: 'English / Norwegian as applicable',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'NIS vessels follow MARPOL; electronic record books require NMA acceptance when used officially.',
+      erbNote: 'NIS vessels follow MARPOL; an electronic record book needs flag approval (NMA has authorised DNV for type approval and the ship-specific Declaration of MARPOL ERB, which stays on board).',
       tips: ['Keep printed/export copies available for PSC if the ERB system is offline.']
     }
+  ];
+
+  /* ---------------------------------------------------------------------------------------
+     Flag-state and IMO publications on the Oil Record Book, for the Entry Codes > Flag guide.
+
+     This is a REFERENCE LIST, not a copy of the publications: each entry names the document, its
+     number, date and where it is published, and says in a line what it is for. The administrations
+     reissue these often, so every entry is marked with how it was checked and the page always
+     tells the reader to open the original and confirm the current edition before relying on it.
+     `checked`: 'listed' = the title, number and date were found in the administration's own
+     publication list or a mirror of it (the document itself was not read in full here).
+     --------------------------------------------------------------------------------------- */
+  const FLAG_GUIDE_NOTICE =
+    'Reference list from a research pass on 14 Nov 2026. "Read" means the document was read at the link; "Listed" means ' +
+    'only its title, number and date were found, not the document. The administrations reissue these often: open the ' +
+    'original, confirm it is still the current edition, and keep the circular that applies to your ship with the Oil Record Book. ' +
+    'Full findings are in docs/eorb-flag-research/.';
+
+  const FLAG_PUBLICATIONS = {
+    IMO: {
+      title: 'IMO / MARPOL — applies to every flag',
+      documents: [
+        { ref: 'MARPOL Annex I, Reg. 17 and Reg. 36', title: 'Oil Record Book Part I (machinery space operations) and Part II (cargo / ballast operations)',
+          note: 'Part I: every ship of 400 GT and above, and every oil tanker of 150 GT and above. Part II: oil tankers of 150 GT and above. Each completed operation is signed by the officer in charge and each completed page by the Master; the book is kept three years after the last entry.', checked: 'listed' },
+        { ref: 'MARPOL Annex I, Appendix III', title: 'Form of Oil Record Book, as amended by MEPC.187(59) — in force 1 January 2011',
+          note: 'The letter codes and item numbers this e-ORB uses. Compared item by item (14 Nov 2026): every Part I code and item number matches; Part II codes A-R and items 1-85 match, including R 84 and R 85. Re-checked against the copy of the Appendix supplied by the user: the only difference is Part I item C 11.4 (manual collection), which that copy does not list; it comes from MEPC.1/Circ.736/Rev.2 and the later amendments, and the app keeps it.', checked: 'read' },
+        { ref: 'MEPC.1/Circ.736/Rev.2', title: 'Guidance for the recording of operations in the Oil Record Book Part I', date: '6 October 2011',
+          note: 'Worked examples for codes C to I. Incineration or landing ashore of oily garbage and used filters is recorded in the Garbage Record Book only; sludge burned in an incinerator is C 12.3, in a boiler C 12.4. Rev.2 itself was read (6 October 2011; it covers codes C to I only, and revokes Rev.1); the original circular was also read, as reproduced by Liberia.',
+          url: 'https://www.dco.uscg.mil/Portals/9/DCO%20Documents/5p/CG-5PC/CG-CVC/Marpol/sdoc/MEPC_1_Circ_736_rev_2.pdf', checked: 'read' },
+        { ref: 'MEPC.312(74)', title: 'Guidelines for the use of electronic record books under MARPOL (adopted 17 May 2019)',
+          note: 'Electronic record book amendments in force 1 October 2020. What an electronic record book has to do (non-deletable entries, authentication, printing, back-up) before a flag accepts it in place of the paper book.', checked: 'listed' },
+        { ref: 'MARPOL Annex V, Reg. 10', title: 'Garbage Record Book',
+          note: 'Each discharge or completed incineration of garbage is recorded in the Garbage Record Book, not in the Oil Record Book.', checked: 'listed' }
+      ],
+      history: [
+        { date: '8 Dec 2010', change: 'MEPC.1/Circ.736 examples circulated by Liberia (reissued with corrections 10 Dec 2010).' },
+        { date: '1 Jan 2011', change: 'Appendix III as amended by MEPC.187(59) takes effect (revised Part I and Part II forms).' },
+        { date: '6 Oct 2011', change: 'MEPC.1/Circ.736/Rev.2 — the current guidance (Rev.1 of 25 Aug 2011 revoked).' },
+        { date: '17 May 2019', change: 'MEPC.312(74): guidelines for electronic record books under MARPOL.' },
+        { date: '1 Oct 2020', change: 'Electronic record book amendments in force.' }
+      ]
+    },
+    LR: {
+      title: 'Liberia — Liberian Registry (LISCR)',
+      documents: [
+        { ref: 'POL-012', title: 'Electronic Record Books (ERB) for ships', date: 'Rev. 08/24 (supersedes Rev. 08/21)',
+          note: 'Only Administration-approved ERBs; the Declaration of MARPOL Electronic Record Book is issued by LISCR and the ERB is used officially only after the Declaration is received (s13.2, 13.3, 14.6).',
+          url: 'https://www.liscr.com/sites/default/files/online_library/POL-012.pdf', checked: 'read' },
+        { ref: 'Marine Operations Note 7/2010 (Revised)', title: 'New revised MARPOL Annex I Oil Record Books Part I and II', date: '10 Dec 2010',
+          note: 'Revises the note of 8 Dec 2010. Liberian books RLM-121 (Part I) and RLM-121A (Part II). Officer(s) in charge sign each operation, the Master each page; English; kept three years. Carries the Circ.736 example entries.',
+          url: 'https://www.liscr.com/marketing/liscr/media/liscr/online%20library/maritime/marine-operations-note-07_2010.pdf', checked: 'read' }
+      ],
+      history: [
+        { date: '8 Dec 2010', change: 'Marine Operations Note 7/2010 issued.' },
+        { date: '10 Dec 2010', change: 'Revised note issued correcting the example entries; Liberian ORB RLM-121 / RLM-121A Rev 2010.' },
+        { date: 'Nov 2016', change: 'POL-012 11/16 (IRClass Technical Circular 43/2016): e-ORB as the official book; at that date only the Liberian Registry\'s own e-ORB was approved.' },
+        { date: 'Rev. 08/21', change: 'POL-012 Rev. 08/21 (known only from the "Supersedes" line of Rev. 08/24).' },
+        { date: 'Rev. 08/24', change: 'POL-012 Rev. 08/24: BWM Convention ERB added; approval limited to Administration-approved ERBs.' }
+      ]
+    },
+    MH: {
+      title: 'Marshall Islands — Maritime Administrator (IRI)',
+      documents: [
+        { ref: 'MG 2-13-3', title: 'Oil Record Book Guidelines', date: 'Rev. Dec/2017 (supersedes Rev. 10/11)',
+          note: 'Part I: every oil tanker of 150 GT and above and every other ship of 400 GT and above; Part II as well for oil tankers of 150 GT and above (and a non-tanker carrying more than 200 m³ of oil in bulk as cargo). Written in English. The person responsible makes the entry on completion; the Chief Engineer, Chief Mate or an SMS-named person reviews it; the officer(s) in charge sign and date each operation; the Master countersigns each page. Rules on corrections, retention (3 years) and ship management changes.',
+          url: 'https://www.register-iri.com/wp-content/uploads/MG-2-13-3.pdf', checked: 'read' },
+        { ref: 'MI-402A', title: 'Oil Record Book Instructions — Part I and Part II item lists', date: 'Rev. Nov/2025',
+          note: 'The official item list: Part I codes A–I (items 1–26) and Part II codes A–R (items 1–85) with their footnotes. Same item numbers as MARPOL Appendix III; Part II R ends with item 85, date, signature and stamp of the port authority official.', checked: 'read' },
+        { ref: 'MI-332A', title: 'Oil Record Book General Instructions (earlier edition of the instructions)', date: 'Rev. 4/11',
+          url: 'https://www.register-iri.com/forms/upload/ORB_Instructions.pdf', checked: 'read' },
+        { ref: 'MN 7-041-5 (May 2020)', title: 'Electronic record books and logbook systems', note: 'Supersedes the version of 11/06. Approved software providers are listed; the Administrator issues the Declaration on application (form MI-334A, by email).',
+          url: 'https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf', checked: 'read' },
+        { ref: 'MI-334C', title: 'Approved software providers for MARPOL electronic record books', date: 'list as of 11 May 2020 (the notice links the current list)',
+          url: 'https://www.irclass.org/media/4948/mi-334c.pdf', checked: 'read' },
+        { ref: 'MN 2-013-3', title: 'Oil Filtering Equipment and Control of Operational Discharge of Oil', date: 'Rev. Mar/2017 (supersedes Rev. 12/10)',
+          note: 'Operational duties for the oily-water separator and its monitoring. Emergency bilge and other overboard discharge valves are kept closed and sealed with numbered seals; the SMS records removal and replacement of seal tags. Inoperative equipment and the numbered sealing of the overboard valves must be documented in the Oil Record Book and the other logs. Receipts are required for all shoreside discharges of oil and oily wastes, and the ORB is checked for consistency with the other ship logs. Reflects the sludge piping amendment to Reg. I/12 in force 1 Jan 2017; sludge may go to reception facilities, an incinerator or an auxiliary boiler suitable for burning oil residues.',
+          url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'read' }
+      ],
+      history: [
+        { date: 'Nov 2006', change: 'Earlier version (11/06) of the electronic record book notice, superseded by MN 7-041-5.' },
+        { date: 'Dec 2010', change: 'MN 2-013-3 Rev. 12/10.' },
+        { date: 'Apr 2011', change: 'MI-332A Oil Record Book General Instructions, Rev. 4/11.' },
+        { date: 'Oct 2011', change: 'MG 2-13-3 Rev. 10/11.' },
+        { date: 'Mar 2017', change: 'MN 2-013-3 reissued: supersedes Rev. 12/10 and reflects the amended sludge piping rules of Reg. I/12 (in force 1 Jan 2017).' },
+        { date: 'Dec 2017', change: 'MG 2-13-3 reissued: supersedes Rev. 10/11 and updates the policies on log and record book retention.' },
+        { date: 'May 2020', change: 'MN 7-041-5 and MI-334C issued for MEPC.312(74) electronic record books.' },
+        { date: '1 Oct 2020', change: 'MARPOL electronic record books usable under MN 7-041-5.' },
+        { date: 'Nov 2025', change: 'MI-402A Oil Record Book Instructions, Rev. Nov/2025.' }
+      ]
+    },
+    PA: {
+      title: 'Panama — Panama Maritime Authority (AMP)',
+      documents: [
+        { ref: 'MMC-215', title: 'Panama Oil Record Book and Emissions', date: 'Revision RB-1 of 6 March 2026',
+          note: 'The official book has Part I, Part II and a Part III (prevention of air pollution from ships: ozone-depleting substances, low-sulphur fuel oil, vapour collection, incinerators, NOx Tier III). Officer(s) in charge sign, the Master each page, kept 3 years. Para 5.6.6: each use of the incinerator goes in the Garbage Record Book and in the ORB and Emissions Part I and Part III. Replaces MMC-23, 83, 148, 154 and 177. The Part III form itself is a non-public file, so its item numbers are not confirmed.',
+          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/03/MMC-215-CM-Rev.-RB-1-06-03-2026.pdf', checked: 'read' },
+        { ref: 'MMC-215 Part III form', title: 'Panama official Part III — Oil Record Book and Emissions (specimen pages, English pp. 23–24 and Spanish)', date: 'as supplied by the Administration',
+          note: 'Read against the app, item by item. Code A (ODS): 1, 1.1, 1.4, 1.5. Code B (NOx Tier III, item 2): time, position and each engine\'s Tier and ON/OFF status on entering or leaving a NOx ECA or starting or stopping an engine in it; emergency-only engines are not recorded. Code C: item 3 (bunker data: start/stop position and time, type of fuel, API, density at 15 °C, sulphur) and item 4 (low-sulphur fuel volume in each tank, with date, time and position). Code D (vapour collection, tankers): item 5. Code E (incinerator): items 6, 7 (oxygen 6–12 %) and 8 (temperature).', checked: 'read' },
+        { ref: 'IRClass Technical Circular 130/2017', title: 'Panama Oil Record Book and Emissions (18 Oct 2017)', date: '18 October 2017',
+          note: 'Reports the 2017 edition of MMC-215 after MEPC.271(69) took effect on 1 Sep 2017: Part III covers ozone-depleting substances, low-sulphur fuel oil, the vapour collection system (tankers), incinerators and NOx Tier III record requirements. A classification-society summary, not the Administration\'s own text.', checked: 'read' },
+        { ref: 'MMC-193', title: 'Optional and voluntary system for electronic books', date: 'latest log entry July 2026',
+          note: 'Licensed system from an AMP-authorised manufacturer (one-year licence); Declaration from a Recognised Organisation; MEPC.312(74) applies.',
+          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/04/MMC-193-Julio-2026-rev-2026.pdf', checked: 'read' }
+      ],
+      history: [
+        { date: 'Dec 2010', change: 'First entry in the MMC-215 revision log.' },
+        { date: 'Jun 2011 – Nov 2017', change: 'Revisions: Jun 2011, Oct 2013 (Part III changed), Jun 2014, May 2016 (Part III updated), Oct 2017, Nov 2017.' },
+        { date: 'Oct 2018', change: 'The Part III letter for the incinerator corrected to E (it was D).' },
+        { date: 'Dec 2021', change: 'References updated; paragraphs renumbered.' },
+        { date: 'Sep / Oct 2023', change: 'Part III unit corrected (cm³ to m³); 5.6.4 and 5.6.5 amended; tankers under 150 GT; replaces MMC-177.' },
+        { date: '6 Mar 2026', change: 'RB-1: 5.6.11 amended (holding tanks), new para 5.8 (use of codes); lists MMC-23, 83, 148, 154 and 177 as replaced.' },
+        { date: 'Mar 2020 – Jul 2026', change: 'MMC-193 (electronic books) revised repeatedly; latest entry July 2026.' }
+      ]
+    },
+    BS: {
+      title: 'Bahamas — Bahamas Maritime Authority',
+      documents: [
+        { ref: 'Marine Notice MN056 v1.2', title: 'MARPOL Oil Record Books', date: '5 April 2022 (effective 11 April 2022)',
+          note: 'The Bahamas guide to the ORB: the person responsible for the operation makes the entry, the Chief Engineer or Master checks it within 24 hours, the Master signs each page; kept at least 3 years. Supersedes Information Bulletin 84.',
+          url: 'https://www.bahamasmaritime.com/wp-content/uploads/2022/04/MN056-MARPOL-Oil-Record-Books-v1.2.pdf', checked: 'read' },
+        { ref: 'Marine Notice MN010 v2.3', title: 'MARPOL electronic record books', date: '2 October 2025',
+          note: 'The system needs a BMA Document of Approval; approval by a BMA Recognised Organisation or a Contracting Government.',
+          url: 'https://www.bahamasmaritime.com/wp-content/uploads/2025/10/MN010-MARPOL-Electronic-Record-Books-v2.3-ID-20602598.pdf', checked: 'read' }
+      ],
+      history: [
+        { date: 'Jan 2021', change: 'MN056 v1.0 first issue.' },
+        { date: '5 Apr 2022', change: 'MN056 v1.2 (date format change); supersedes Information Bulletin 84.' },
+        { date: '2 Oct 2025', change: 'MN010 v2.3 in force (an earlier copy published July 2021 is superseded).' }
+      ]
+    },
+    SG: {
+      title: 'Singapore — Maritime and Port Authority (MPA)',
+      documents: [
+        { ref: 'Shipping Circular 10/2020', title: 'Use of electronic record books under MARPOL', date: '5 May 2020',
+          note: 'A Recognised Organisation approves the electronic record book and issues the Declaration; it is used officially only after the ship holds the Declaration; a new Declaration is needed for a version upgrade. Entries by the Officer in Charge, pages by the Master.',
+          url: 'https://www.mpa.gov.sg/api/media/74ccfc31-5f35-4d66-afcd-345b98b8719d/-sc_no_10_of_2020.pdf', checked: 'read' }
+      ],
+      history: [{ date: '5 May 2020', change: 'Shipping Circular 10/2020 issued; electronic record book amendments in force 1 Oct 2020.' }]
+    },
+    MT: {
+      title: 'Malta — Transport Malta, Merchant Shipping Directorate',
+      documents: [
+        { ref: 'Technical Notice MARPOL.11 Rev.1', title: 'Electronic record books and electronic bunker delivery notes for MARPOL related record keeping', date: '8 August 2023',
+          note: 'Supersedes Technical Notices MARPOL.7 and MARPOL.11. E-RBs are accepted for record keeping; the system must comply with MEPC.312(74) before the Administration approves it and issues a written Declaration of MARPOL Electronic Record Book, carried on board. An electronic BDN is acceptable (Annex VI Reg. 18.5 and 18.6; MEPC.1/Circ.795/Rev.8 para 12.2) if it is protected from modification and can be authenticated. At an inspection the ship must produce the e-RB and the Declaration. The notice states no signatory rule.',
+          checked: 'read' },
+        { ref: 'Technical Notice MARPOL.7', title: 'Electronic record books for MARPOL related records (superseded)', date: '15 June 2018',
+          note: 'Superseded by MARPOL.11 Rev.1. It had each printed entry signed by the Officer in Charge and each page by the Master.',
+          url: 'https://www.irclass.org/media/3763/technical-notice-marpol-7-electronic-record-books-for-marpol-related.pdf', checked: 'read' }
+      ],
+      history: [
+        { date: '15 Jun 2018', change: 'Technical Notice MARPOL.7 issued (the printout is the official record; approval pending IMO guidance).' },
+        { date: '8 Aug 2023', change: 'Technical Notice MARPOL.11 Rev.1 supersedes MARPOL.7 and MARPOL.11: e-RBs approved against MEPC.312(74), Declaration on board, electronic BDN rules.' }
+      ]
+    },
+    HK: {
+      title: 'Hong Kong — Marine Department',
+      documents: [
+        { ref: 'Oil Record Book Part I', title: 'Official bilingual form — machinery space operations', url: 'https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_1.pdf', checked: 'read' },
+        { ref: 'Oil Record Book Part II', title: 'Official bilingual form — cargo / ballast operations', url: 'https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_2.pdf', checked: 'read' },
+        { ref: 'MSIN 22/2019', title: 'Guidelines for the use of electronic record books', date: '12 August 2019',
+          note: 'An electronic record book must be approved by the Administration. The book is in English, or English and Chinese; kept 3 years.',
+          url: 'https://www.mardep.gov.hk/en/msnote/pdf/msin1922.pdf', checked: 'read' }
+      ],
+      history: [{ date: '12 Aug 2019', change: 'MSIN 22/2019 issued.' }]
+    },
+    CY: {
+      title: 'Cyprus — Shipping Deputy Ministry (SDM)',
+      documents: [
+        { ref: 'Circular 22/2020', title: 'Use of Electronic Record Books (ERB) under MARPOL Convention', date: '4 November 2020',
+          note: 'The ORB Parts I and II (Annex I Regs 17.1 and 36.1) may be kept electronically instead of on paper; a ship using an ERB need not keep a hard copy of the same record. A Recognised Organisation assesses the system and issues a Declaration by the RO (it informs the Ministry within 5 working days); within 3 months the owner applies to the Ministry for its Declaration (EUR 20), carried on board. Reflagged ships need the Ministry\'s Declaration within 3 months of registration. After an amendment a new pair of Declarations is needed. A hard copy on board is advised for ERB failure. The Annex VI fuel changeover record, the ODS record, the NOx records and the Garbage Record Book are listed as separate ERBs. States no signatory rule.',
+          checked: 'read' },
+        { ref: 'Circular 36/2010', title: 'Entry into force on 1 January 2011 of amendments to MARPOL Annex I', date: '2010', checked: 'listed' }
+      ],
+      history: [
+        { date: '4 Sep 2017', change: 'Circular 19/2017 on electronic Oil Record Books (ceased 4 Nov 2020; approvals issued under it stay valid until they expire).' },
+        { date: '16 Dec 2009', change: 'Circular 29/2009 (paragraph 4, electronic record book for fuel oil changeover) — ceased 4 Nov 2020.' },
+        { date: '1 Oct 2020', change: 'MARPOL amendments in force allowing electronic record books.' },
+        { date: '4 Nov 2020', change: 'Circular 22/2020: SDM accepts ERBs as an alternative to hard-copy record books, with a Declaration by an RO and a Declaration by the Ministry.' }
+      ]
+    },
+    GB: {
+      title: 'United Kingdom — MCA',
+      documents: [
+        { ref: 'MIN 644 (M+F)', title: 'Approval and acceptance of electronic record books and related systems', note: 'Seen only in a search result; the page was not readable.', checked: 'listed' }
+      ],
+      history: []
+    },
+    NO: {
+      title: 'Norway — Norwegian Maritime Authority (NMA)',
+      documents: [
+        { ref: 'DNV article', title: 'Electronic Record Books – An available option to hard copy records', date: 'DNV quarterly newsletter (after 1 Oct 2025)',
+          note: 'Since 1 Oct 2020 the MARPOL record books (ORB Parts I and II, Cargo, Garbage, ODS, engine Tier and on/off status, fuel oil changeover, NOx engine parameters, EGCS) may be electronic if the flag approves the system against MEPC.312(74), and a ship-specific Declaration of MARPOL ERB is kept on board. NMA has authorised DNV for type approval and for the declaration. The tier / on-off status and fuel changeover records are listed as separate Annex VI records, not as part of the Oil Record Book, so the app gives a Norwegian ship Parts I and II only. A classification-society article, not an NMA text.', checked: 'read' }
+      ],
+      history: [
+        { date: '1 Oct 2020', change: 'MARPOL and NOx Technical Code amendments allow electronic record books approved by the flag.' }
+      ]
+    }
+  };
+
+  /** Which book records the burning of each kind of waste. */
+  const WASTE_RECORDING_GUIDE = [
+    { waste: 'Oil residue (sludge) burned in the incinerator',
+      book: 'Oil Record Book Part I — Code C, item 12.3 (quantity, quantity retained, total time of operation)',
+      basis: 'MARPOL Annex I, Appendix III; MEPC.1/Circ.736/Rev.2' },
+    { waste: 'Oil residue (sludge) burned in a boiler',
+      book: 'Oil Record Book Part I — Code C, item 12.4 (other method).',
+      basis: 'MEPC.1/Circ.736, example 7' },
+    { waste: 'Paper, wood, cardboard and other domestic garbage burned',
+      book: 'Garbage Record Book (MARPOL Annex V, Reg. 10). Not an Oil Record Book entry under MARPOL.',
+      basis: 'MARPOL Annex V, Reg. 10' },
+    { waste: 'Oily rags, used filters and other oily garbage burned or landed ashore',
+      book: 'Garbage Record Book only.',
+      basis: 'MEPC.1/Circ.736/Rev.2' },
+    { waste: 'Any of the above, on a Panama-flag ship',
+      book: 'Panama MMC-215 (rev. March 2026, para 5.6.6) asks for each use of the incinerator in the Garbage Record Book and in the Oil Record Book and Emissions Part I and Part III. Record it in both.',
+      basis: 'Panama MMC-215 5.6.6' }
   ];
 
   function field(name, label, type, opts) {
@@ -519,7 +599,7 @@
         { no: '11.1', label: 'Identity of tank(s)', fields: [field('tank', 'Sludge tank (IOPP 3.1)', 'tank', { tankGroup: 'sludge', required: true })] },
         { no: '11.2', label: 'Capacity of tank(s) (m³)', fields: [field('capacity', 'Capacity (m³)', 'number', { required: true })] },
         { no: '11.3', label: 'Total quantity of retention (m³)', fields: [field('retention', 'Retention ROB (m³)', 'number', { required: true })] },
-        { no: '11.4', label: 'Quantity collected by manual operation (m³)', fields: [field('manualCollected', 'Manual collection (m³)', 'number')] },
+        { no: '11.4', label: 'Quantity collected by manual operation (m³)', fields: [field('manualCollected', 'Manual collection (m³)', 'number'), field('manualSource', 'Collected from (source)', 'text')] },
         { no: '12.1', label: 'Disposal to reception facilities', fields: [
           field('qtyDisposed', 'Quantity disposed (m³)', 'number'),
           field('tankEmptied', 'Tank(s) emptied', 'tank', { tankGroup: 'sludge' }),
@@ -583,7 +663,7 @@
       items: [
         { no: '16', label: 'Automatic mode — discharge overboard via 15 ppm', fields: [
           field('timeStart', 'Time', 'time', { required: true }),
-          field('position', 'Position', 'text', { required: true }),
+          field('position', 'Position', 'position', { required: true }),
           field('fromTank', 'From tank (if applicable)', 'tank', { tankGroup: 'bilge' })
         ]},
         { no: '17', label: 'Automatic mode — transfer to holding tank', fields: [
@@ -716,7 +796,7 @@
       { no: '19.2', label: 'Time of start and end', fields: [field('timeStart', 'Start', 'time'), field('timeStop', 'End', 'time')] },
       { no: '19.3', label: 'Quantity of ballast received (m³)', fields: [field('qty', 'Quantity (m³)', 'number', { required: true })] }
     ]},
-    { code: 'F', title: 'Ballasting of dedicated clean ballast tanks (CBT)', items: [
+    { code: 'F', title: 'Ballasting of dedicated clean ballast tanks (CBT tankers only)', items: [
       { no: '20', label: 'Identity of tank(s) ballasted', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt', required: true })] },
       { no: '21', label: 'Position when flushing/port ballast taken', fields: [field('posFlush', 'Position', 'text')] },
       { no: '22', label: 'Position when pumps/lines flushed to slop', fields: [field('posLineFlush', 'Position', 'text')] },
@@ -734,7 +814,7 @@
       { no: '27', label: 'Identity of tank(s) cleaned', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
       { no: '28', label: 'Port or ship’s position', fields: [field('place', 'Port / position', 'text')] },
       { no: '29', label: 'Duration of cleaning', fields: [field('duration', 'Duration', 'text')] },
-      { no: '30', label: 'Method of cleaning', fields: [field('method', 'Method', 'text')] },
+      { no: '30', label: 'Method of cleaning (hand-hosing, machine washing, chemical cleaning — chemical type and quantity)', fields: [field('method', 'Method', 'text'), field('chemType', 'Chemical type (if used)', 'text'), field('chemQty', 'Chemical quantity (m³)', 'number')] },
       { no: '31.1', label: 'Washings to reception facilities', fields: [
         field('receptionPort', 'Port', 'text'), field('qty', 'Quantity (m³)', 'number')
       ]},
@@ -750,7 +830,7 @@
       { no: '34', label: 'Time & position on completion into the sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
       { no: '35', label: 'Quantity discharged into the sea (m³)', fields: [field('seaQty', 'Quantity (m³)', 'number')] },
       { no: '36', label: 'Ship’s speed(s) during discharge', fields: [field('speed', 'Speed (kn)', 'text')] },
-      { no: '37', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
+      { no: '37', label: 'Discharge monitoring and control system (ODME) in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
       { no: '38', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] },
       { no: '39', label: 'Oily water to slop tank(s)', fields: [
         field('slopTank', 'Slop tank(s)', 'tank', { tankGroup: 'slop' }),
@@ -770,13 +850,13 @@
       { no: '47', label: 'Bulk quantity discharged & rate', fields: [field('bulkQty', 'Bulk (m³)', 'number'), field('bulkRate', 'Rate (m³/h)', 'number')] },
       { no: '48', label: 'Final quantity discharged & rate', fields: [field('finalQty', 'Final (m³)', 'number'), field('finalRate', 'Rate (m³/h)', 'number')] },
       { no: '49', label: 'Time & position on completion', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
-      { no: '50', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
+      { no: '50', label: 'Discharge monitoring and control system (ODME) in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
       { no: '51', label: 'Interface ullage on completion (m)', fields: [field('ullageEnd', 'Ullage (m)', 'number')] },
       { no: '52', label: 'Ship’s speed(s)', fields: [field('speed', 'Speed (kn)', 'text')] },
       { no: '53', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] },
       { no: '54', label: 'Valves closed on completion?', fields: [field('valvesClosed', 'Confirmed closed?', 'select', { options: ['Yes', 'No'] })] }
     ]},
-    { code: 'J', title: 'Collection, transfer and disposal of residues/oily mixtures', items: [
+    { code: 'J', title: 'Collection, transfer and disposal of residues and oily mixtures not otherwise dealt with', items: [
       { no: '55', label: 'Identity of tank(s)', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'any', required: true })] },
       { no: '56', label: 'Quantity transferred/disposed (retained)', fields: [
         field('qty', 'Quantity (m³)', 'number', { required: true }),
@@ -798,7 +878,7 @@
       { no: '61', label: 'Position on completion (if different)', fields: [field('posEnd', 'Stop Position', 'position')] },
       { no: '62', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] }
     ]},
-    { code: 'L', title: 'Discharge of ballast from dedicated CBTs', items: [
+    { code: 'L', title: 'Discharge of ballast from dedicated clean ballast tanks (CBT tankers only)', items: [
       { no: '63', label: 'Identity of tank(s) discharged', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt' })] },
       { no: '64', label: 'Time & position at start into sea', fields: [field('timeStart', 'Start Time', 'time'), field('posStart', 'Start Position', 'position')] },
       { no: '65', label: 'Time & position on completion into sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
@@ -837,73 +917,107 @@
     { code: 'R', title: 'Specific trades — ballast water discharge to reception facility', items: [
       { no: '82', label: 'Port(s) where discharged', fields: [field('receptionPort', 'Port(s)', 'text', { required: true })] },
       { no: '83', label: 'Name/designation of reception facility', fields: [field('facility', 'Facility', 'text')] },
-      { no: '84', label: 'Quantity discharged (m³) and tank(s)', fields: [
+      { no: '84', label: 'Total quantity of ballast water discharged (m³)', fields: [
         field('qty', 'Quantity (m³)', 'number'),
         field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo' })
+      ]},
+      { no: '85', label: 'Date, signature and stamp of port authority official', fields: [
+        field('portOfficial', 'Port authority official — name, date, stamp', 'text')
       ]}
     ]}
   ];
 
-  /* Part III — Fuel oil changeover record.
-     Not part of the Annex I Oil Record Book: sulphur-limit changeover is an Annex VI
-     Regulation 14.6 record, which asks for the volume of low-sulphur fuel in each tank
-     and the date, time and position at the completion of changeover before entering an
-     ECA and at the commencement of changeover after leaving one. Flag e-ORB software
-     keeps it alongside Parts I and II because the engineer writes both from the same
-     watch, and this follows that convention. */
+  /* Part III — Panama "Oil Record Book and Emissions" (MMC-215), prevention of air pollution
+     from ships (MARPOL Annex VI). Codes and item numbers follow the official form:
+       A  Ozone-depleting substances (items 1, 1.1, 1.4, 1.5)
+       B  NOx Tier III engine status on entering / leaving a NOx ECA (item 2)
+       C  SOx — bunker data after every bunkering (item 3) and low-sulphur fuel changeover
+          for an ECA (item 4)
+       D  Vapour collection system, tankers (item 5)
+       E  Incinerator (items 6, 7, 8)
+     Not part of the Annex I Oil Record Book; shown only for flags that require it. */
+  const POS_TIME_FIELDS = () => [
+    field('posStart', 'Start Position', 'position', { required: true }),
+    field('timeStart', 'Start Time', 'time', { required: true }),
+    field('posEnd', 'Stop Position', 'position', { required: true }),
+    field('timeStop', 'Stop Time', 'time', { required: true })
+  ];
   const PART_III = [
     {
-      code: 'C', title: 'Fuel oil changeover (ECA / sulphur limit)',
-      guide: 'MARPOL Annex VI Reg. 14.6. Record each changeover as two entries — commencement and completion — with position, time and the volume of low-sulphur fuel on board.',
-      common: true,
+      code: 'A', title: 'Ozone-depleting substances (Annex VI Reg. 12)',
+      guide: 'Recharge, discharge to a reception facility and supply of ODS (refrigerant) equipment.',
+      common: false,
       items: [
-        { no: '1', label: 'Changeover commencement — residual (HFO) to distillate (MGO/LSMGO)', fields: [
-          field('coTime', 'Time', 'time', { required: true }),
-          field('coPosition', 'Position', 'text', { required: true }),
-          field('coToGrade', 'Fuel changing to', 'text', { required: true }),
-          field('coSulphur', 'Sulphur content of new fuel (% m/m)', 'number'),
-          field('coTanks', 'Tank(s) in service', 'tankMulti', { tankGroup: 'fuel' }),
-          field('coVolume', 'Volume of low-sulphur fuel on board (m³)', 'number')
+        { no: '1', label: 'Start and stop position and time of the operation', fields: POS_TIME_FIELDS() },
+        { no: '1.1', label: 'Recharge of ODS to equipment', fields: [
+          field('odsQty', 'Quantity (kg)', 'number', { required: true }),
+          field('odsType', 'Type of ODS used', 'text', { required: true }),
+          field('odsEquipment', 'Equipment', 'text', { required: true })
         ]},
-        { no: '2', label: 'Changeover completion — residual (HFO) to distillate (MGO/LSMGO)', fields: [
-          field('coTime', 'Time', 'time', { required: true }),
-          field('coPosition', 'Position', 'text', { required: true }),
-          field('coToGrade', 'Fuel changing to', 'text', { required: true }),
-          field('coSulphur', 'Sulphur content of new fuel (% m/m)', 'number'),
-          field('coTanks', 'Tank(s) in service', 'tankMulti', { tankGroup: 'fuel' }),
-          field('coVolume', 'Volume of low-sulphur fuel on board (m³)', 'number')
+        { no: '1.4', label: 'Discharge of ODS to reception facilities', fields: [
+          field('odsQty', 'Quantity (kg)', 'number', { required: true }),
+          field('odsType', 'Type of ODS', 'text', { required: true }),
+          field('odsFacility', 'Reception facility', 'text', { required: true })
         ]},
-        { no: '3', label: 'Changeover commencement — distillate (MGO/LSMGO) to residual (HFO)', fields: [
-          field('coTime', 'Time', 'time', { required: true }),
-          field('coPosition', 'Position', 'text', { required: true }),
-          field('coToGrade', 'Fuel changing to', 'text', { required: true }),
-          field('coSulphur', 'Sulphur content of new fuel (% m/m)', 'number'),
-          field('coTanks', 'Tank(s) in service', 'tankMulti', { tankGroup: 'fuel' }),
-          field('coVolume', 'Volume of low-sulphur fuel on board (m³)', 'number')
-        ]},
-        { no: '4', label: 'Changeover completion — distillate (MGO/LSMGO) to residual (HFO)', fields: [
-          field('coTime', 'Time', 'time', { required: true }),
-          field('coPosition', 'Position', 'text', { required: true }),
-          field('coToGrade', 'Fuel changing to', 'text', { required: true }),
-          field('coSulphur', 'Sulphur content of new fuel (% m/m)', 'number'),
-          field('coTanks', 'Tank(s) in service', 'tankMulti', { tankGroup: 'fuel' }),
-          field('coVolume', 'Volume of low-sulphur fuel on board (m³)', 'number')
+        { no: '1.5', label: 'Supply of ODS', fields: [
+          field('odsType', 'Type of ODS', 'text', { required: true }),
+          field('odsQty', 'Quantity (kg)', 'number', { required: true }),
+          field('odsPort', 'Port', 'text', { required: true })
         ]}
       ]
     },
     {
-      code: 'E', title: 'Use of incinerator for garbage',
+      code: 'B', title: 'NOx Tier III — engine status on entering / leaving a NOx ECA (Annex VI Reg. 13)',
+      guide: 'Record the date, time and position when the ship enters or leaves a NOx emission control area and when an engine is started or stopped inside it. Engines used only in an emergency are not recorded.',
+      common: false,
+      items: [
+        { no: '2', label: 'Engine Tier and status at entry / exit of the NOx ECA, or on a status change', fields: [
+          field('noxTime', 'Time', 'time', { required: true }),
+          field('noxPosition', 'Position', 'position', { required: true }),
+          field('noxEngines', 'Engines — e.g. MAIN ENGINE / TIER III / STATUS ON; NO. 1 GENERATOR ENGINE / TIER II / STATUS OFF', 'text', { required: true })
+        ]}
+      ]
+    },
+    {
+      code: 'C', title: 'SOx — fuel oil (Annex VI Reg. 14)',
+      guide: 'Item 3: bunker data after every bunkering. Item 4: low-sulphur fuel changeover for an ECA — completed before entering, or commenced after leaving.',
+      common: true,
+      items: [
+        { no: '3', label: 'Fuel oil bunkering — start / stop position and time, type of fuel, API, density at 15 °C, sulphur content', fields: POS_TIME_FIELDS().concat([
+          field('bkType', 'Type of fuel', 'text', { required: true }),
+          field('bkApi', 'API', 'number'),
+          field('bkDensity', 'Density at 15 °C (kg/m³)', 'number'),
+          field('bkSulphur', 'Sulphur content (% m/m)', 'number', { required: true })
+        ])},
+        { no: '4', label: 'Low-sulphur fuel changeover — volume in each tank, with date, time and position', fields: [
+          field('coEvent', 'Changeover', 'select', { required: true,
+            options: ['Completed before entering the ECA', 'Commenced after leaving the ECA'] }),
+          field('coTime', 'Time', 'time', { required: true }),
+          field('coPosition', 'Position', 'position', { required: true }),
+          field('coTanks', 'Tank(s) holding low-sulphur fuel', 'tankMulti', { tankGroup: 'fuel' }),
+          field('coVolume', 'Volume of low-sulphur fuel in the tank(s) (m³)', 'number', { required: true })
+        ]}
+      ]
+    },
+    {
+      code: 'D', title: 'Vapour collection system (tankers) (Annex VI Reg. 15)',
+      guide: 'Record where and at which port the vapour collection system was used.',
+      common: false,
+      items: [
+        { no: '5', label: 'Use of the vapour collection system', fields: [
+          field('vcPosition', "Ship's position", 'position', { required: true }),
+          field('vcPort', 'Port', 'text', { required: true })
+        ]}
+      ]
+    },
+    {
+      code: 'E', title: 'Use of incinerator (Annex VI Reg. 16)',
       guide: 'Sludge quantity burned stays under Part I Code C item 12.3.',
       common: true,
       items: [
-        { no: '6', label: 'Start and stop position and time', fields: [
-          field('posStart', 'Start Position', 'position', { required: true }),
-          field('timeStart', 'Start Time', 'time', { required: true }),
-          field('posEnd', 'Stop Position', 'position', { required: true }),
-          field('timeStop', 'Stop Time', 'time', { required: true })
-        ]},
-        { no: '7', label: 'Oxygen percentage in the combustion chamber', fields: [
-          field('oxygenPct', 'Oxygen Percentage', 'number', { required: true, suffix: 'in the combustion chamber' })
+        { no: '6', label: 'Start and stop position and time', fields: POS_TIME_FIELDS() },
+        { no: '7', label: 'Oxygen percentage in the combustion chamber (6–12 %)', fields: [
+          field('oxygenPct', 'Oxygen Percentage', 'number', { required: true, suffix: 'in the combustion chamber (6–12 %)' })
         ]},
         { no: '8', label: 'Combustion chamber temperature', fields: [
           field('chamberTempC', 'Combustion chamber temperature', 'number', { required: true, suffix: 'Deg Celsius' })
@@ -1100,8 +1214,9 @@
     { id: 'incinerator-garbage', group: 'Incineration & disposal', part: 1, code: 'I',
       title: 'Garbage incinerated',
       blurb: 'Burning garbage in the incinerator. Code I describes what was burned. Do not use this entry for incineration of oil residue (sludge) — that is Code C.12.3.',
-      items: ['I'], requires: { incinerator: true },
-      formNotes: ['Do NOT use this entry for incineration of oil residue (sludge). Use Code C.12.3.'] },
+      items: ['I'], requires: { incinerator: true }, flagOnly: ['PA'],
+      formNotes: ['Do NOT use this entry for incineration of oil residue (sludge). Use Code C.12.3.',
+        'Paper, wood, domestic garbage, oily rags and used filters are recorded in the Garbage Record Book (MARPOL Annex V, Reg. 10; MEPC.1/Circ.736/Rev.2). MARPOL does not ask for them in the Oil Record Book. Panama (MMC-215, rev. March 2026, 5.6.6) asks for each use of the incinerator in the Garbage Record Book and in ORB Part I and Part III, which is why this entry is offered on Panama-flag ships only.'] },
     { id: 'sludge-other-disposal', group: 'Incineration & disposal', part: 1, code: 'C',
       title: 'Sludge disposed by another method',
       blurb: 'Any disposal route other than reception facility, transfer or incineration — state the method.',
@@ -1235,37 +1350,52 @@
     { id: 'odme-condition', group: 'Cargo (tankers)', part: 2, code: 'M',
       title: 'Condition of the ODME system', blurb: 'Failure or condition of the oil discharge monitoring and control system.', items: ['70', '71', '72'], requires: { odme: true } },
 
-    /* ---- Part III — fuel changeover (Annex VI Reg. 14.6) ----
-       Circ.736 / beORB examples mark these standalone Part III C / E cards as
-       Panama-flag only. Other flags still get Part III supplements on the related
-       Part I entry. */
-    { id: 'changeover-to-ls-start', group: 'Fuel changeover', part: 3, code: 'C',
-      title: 'Changeover commencement — HFO to MGO',
-      blurb: 'Starting the change to low-sulphur fuel before entering an ECA. Record position, time and the volume of low-sulphur fuel on board.',
-      items: ['1'], flagOnly: ['PA'] },
-    { id: 'changeover-to-ls-complete', group: 'Fuel changeover', part: 3, code: 'C',
-      title: 'Changeover completion — HFO to MGO',
-      blurb: 'Changeover complete and low-sulphur fuel in service. This must be recorded before the ship enters the ECA.',
+    /* ---- Part III — Panama Oil Record Book and Emissions (MMC-215) ----
+       The cards follow the official form's codes A–E. Panama only; other flags have no Part III. */
+    { id: 'p3-ods-recharge', group: 'Ozone-depleting substances', part: 3, code: 'A',
+      title: 'Recharge of ODS equipment', blurb: 'Refrigerant (ODS) recharged to equipment, with start / stop position and time.',
+      items: ['1', '1.1'], flagOnly: ['PA'] },
+    { id: 'p3-ods-discharge', group: 'Ozone-depleting substances', part: 3, code: 'A',
+      title: 'Discharge of ODS to a reception facility', blurb: 'ODS landed to a shore reception facility.',
+      items: ['1', '1.4'], flagOnly: ['PA'] },
+    { id: 'p3-ods-supply', group: 'Ozone-depleting substances', part: 3, code: 'A',
+      title: 'Supply of ODS', blurb: 'ODS (refrigerant) supplied to the ship — type, quantity and port.',
+      items: ['1', '1.5'], flagOnly: ['PA'] },
+    { id: 'p3-nox-status', group: 'NOx Tier III', part: 3, code: 'B',
+      title: 'NOx ECA — engine Tier and status', blurb: 'On entering or leaving a NOx emission control area, or when an engine is started or stopped inside it: time, position and each engine\'s Tier and status.',
       items: ['2'], flagOnly: ['PA'] },
-    { id: 'changeover-to-hs-start', group: 'Fuel changeover', part: 3, code: 'C',
-      title: 'Changeover commencement — MGO to HFO',
-      blurb: 'Starting the change back to residual fuel after leaving an ECA. This must not begin before the ship is clear of the area.',
+    { id: 'p3-bunker-sox', group: 'Fuel oil (SOx)', part: 3, code: 'C',
+      title: 'Bunkering — SOx data', blurb: 'After every fuel oil bunkering: start / stop position and time, type of fuel, API, density at 15 °C and sulphur content. A Part I Code H bunkering already adds this line automatically.',
       items: ['3'], flagOnly: ['PA'] },
-    { id: 'changeover-to-hs-complete', group: 'Fuel changeover', part: 3, code: 'C',
-      title: 'Changeover completion — MGO to HFO',
-      blurb: 'Changeover back to residual fuel complete, with position, time and the low-sulphur volume remaining on board.',
-      items: ['4'], flagOnly: ['PA'] },
+    { id: 'p3-changeover-complete', group: 'Fuel oil (SOx)', part: 3, code: 'C',
+      title: 'Changeover completed before entering an ECA', blurb: 'Low-sulphur fuel in service before the ECA: volume of low-sulphur fuel in each tank, with date, time and position.',
+      items: ['4'], flagOnly: ['PA'], presets: { coEvent: 'Completed before entering the ECA' } },
+    { id: 'p3-changeover-start', group: 'Fuel oil (SOx)', part: 3, code: 'C',
+      title: 'Changeover commenced after leaving an ECA', blurb: 'Change back to residual fuel begun once clear of the ECA: volume of low-sulphur fuel remaining in each tank, with date, time and position.',
+      items: ['4'], flagOnly: ['PA'], presets: { coEvent: 'Commenced after leaving the ECA' } },
+    { id: 'p3-vapour-collection', group: 'Vapour collection (tankers)', part: 3, code: 'D',
+      title: 'Vapour collection system used', blurb: 'Position and port where the vapour collection system was used.',
+      items: ['5'], flagOnly: ['PA'], requires: { tanker: true } },
+    { id: 'p3-incinerator', group: 'Incinerator', part: 3, code: 'E',
+      title: 'Use of incinerator', blurb: 'Start / stop position and time, oxygen in the combustion chamber and chamber temperature. Burning sludge or garbage adds this automatically.',
+      items: ['6', '7', '8'], flagOnly: ['PA'] },
   ];
 
   /** Scenarios available for a part, filtered by what the ship is actually fitted with. */
   function getScenarios(setup, part) {
     const eq = (setup && setup.equipment) || {};
     const p = Number(part) || 1;
+    if (p === 3 && !flagHasPartIII(setup)) return [];
+    const flagCode = String((setup && setup.flag) || '').toUpperCase();
     return SCENARIOS.filter(s => {
       if (Number(s.part) !== p) return false;
+      /* A flag-only entry (Part III, and the garbage-incineration line Panama asks for in the ORB) is not
+         offered on other flags. */
+      if (s.flagOnly && s.flagOnly.length && s.flagOnly.map(c => String(c).toUpperCase()).indexOf(flagCode) === -1) return false;
       const req = s.requires || {};
       if (req.ows && eq.owsFitted === false) return false;
       if (req.incinerator && eq.incineratorFitted === false) return false;
+      if (req.tanker && !(setup && setup.shipType === 'tanker')) return false;
       if (req.odme && !eq.odmeFitted) return false;
       if (req.cow && !eq.cowFitted) return false;
       return true;
@@ -1651,7 +1781,6 @@
         /* Capacities used for auto-ROB checks / mismatch warnings */
         incineratorM3PerH: seed.equipment && seed.equipment.incineratorM3PerH != null ? seed.equipment.incineratorM3PerH : 0.05,
         sludgePumpM3PerH: seed.equipment && seed.equipment.sludgePumpM3PerH != null ? seed.equipment.sludgePumpM3PerH : 2,
-        bilgePumpM3PerH: seed.equipment && seed.equipment.bilgePumpM3PerH != null ? seed.equipment.bilgePumpM3PerH : 5,
         transferPumpM3PerH: seed.equipment && seed.equipment.transferPumpM3PerH != null ? seed.equipment.transferPumpM3PerH : 2,
         capacityWarnTolerancePct: seed.equipment && seed.equipment.capacityWarnTolerancePct != null ? seed.equipment.capacityWarnTolerancePct : 15
       }, seed.equipment || {}),
@@ -1678,7 +1807,8 @@
   function getFlag(code) {
     const f = FLAGS.find(x => x.code === code) || FLAGS[0];
     return Object.assign({}, f, {
-      partIIISupplements: f.partIIISupplements !== false,
+      partIII: f.partIII === true,
+      partIIISupplements: f.partIII === true,
       signatory: Object.assign({}, DEFAULT_SIGNATORY, f.signatory || {})
     });
   }
@@ -1749,6 +1879,35 @@
     });
     if (ceLine && ceLine !== primary) lines.push(ceLine);
     return lines;
+  }
+
+  /**
+   * Who the flag expects to sign, against who the ship's setup actually lists.
+   *   dual (officer in charge + Chief Engineer): both lines; warn when setup has a Chief Engineer
+   *     but no other officer in charge (or no Chief Engineer at all).
+   *   Chief Engineer only: the officer-in-charge line is switched off.
+   *   Officer in charge only (the Chief Engineer line is not needed): the Chief Engineer line is off.
+   */
+  function signatoryStaffing(setup) {
+    const pol = flagSignatoryPolicy(setup && setup.flag);
+    const officers = ((setup && setup.officers) || []).filter(o => String((o && o.name) || '').trim());
+    const ceName = String((setup && setup.chiefEng) || '').trim();
+    const sameAsCe = o => ceName && String(o.name).trim().toUpperCase() === ceName.toUpperCase();
+    const others = officers.filter(o => !isChiefEngineerRank(o.rank) && !sameAsCe(o));
+    const hasChief = !!ceName || officers.some(o => isChiefEngineerRank(o.rank));
+    const flagName = getFlag(setup && setup.flag).name;
+    const out = { mode: pol.mode, showOfficerInCharge: true, showChiefEngineer: false, warnings: [] };
+    if (pol.mode === SIGNATORY_MODES.engineer_and_chief_engineer) {
+      out.showChiefEngineer = true;
+      if (!hasChief) out.warnings.push(flagName + ' needs the Chief Engineer and an officer in charge to sign each entry, and no Chief Engineer is set. Set the Chief Engineer in Vessel Setup.');
+      if (!others.length) out.warnings.push(flagName + ' needs the Chief Engineer and an officer in charge to sign each entry, but only the Chief Engineer is set up. Add an engine officer (2/E, 3/E ...) under Engine Officers.');
+    } else if (pol.mode === SIGNATORY_MODES.chief_engineer_only) {
+      out.showOfficerInCharge = false;
+      if (!hasChief) out.warnings.push(flagName + ' needs the Chief Engineer to sign each entry, and no Chief Engineer is set. Set the Chief Engineer in Vessel Setup.');
+    } else if (!officers.length && !hasChief) {
+      out.warnings.push('No officer in charge is set up. Add the engine officers who sign ORB entries (or set the Chief Engineer in Vessel Setup).');
+    }
+    return out;
   }
 
   function getPartOps(part) {
@@ -1910,6 +2069,8 @@
     if (!id || !setup || !setup.tanks) return null;
     const groups = Object.keys(setup.tanks);
     for (let i = 0; i < groups.length; i++) {
+      /* Bilge wells are not a measured tank: no R.O.B. or capacity is tracked or checked for them. */
+      if (groups[i] === 'bilgeWells') continue;
       const list = setup.tanks[groups[i]] || [];
       const hit = list.find(t => t && (t.id === id || t.name === id));
       if (hit) return { tank: hit, group: groups[i] };
@@ -2163,8 +2324,9 @@
         const id = v.tank;
         const add = numOrNull(v.manualCollected);
         const base = tankRob(id);
-        if (id && add != null && (v.retention == null || v.retention === '') && base != null) {
+        if (id && add != null && base != null) {
           v.retention = round3(base + add);
+          markDerived('retention');
           if (v.capacity == null || v.capacity === '') {
             const c = tankCap(id);
             if (c != null) v.capacity = c;
@@ -2176,8 +2338,9 @@
         const id = v.tankEmptied;
         const qty = numOrNull(v.qtyDisposed);
         const prior = tankRob(id);
-        if (id && qty != null && (v.retained == null || v.retained === '') && prior != null) {
+        if (id && qty != null && prior != null) {
           v.retained = round3(Math.max(0, prior - qty));
+          markDerived('retained');
           notes.push('Retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.retained) + ' m³.');
         }
       }
@@ -2226,9 +2389,9 @@
         if (c != null) v.fromCap = c;
       }
       const tankToTank = want.has('15.3') && v.toTank;
-      if (fromId && qty != null && prior != null && (tankToTank || v.fromRetained == null || v.fromRetained === '')) {
+      if (fromId && qty != null && prior != null) {
         v.fromRetained = round3(Math.max(0, prior - qty));
-        if (tankToTank) markDerived('fromRetained');
+        markDerived('fromRetained');
         notes.push('Bilge holding retained auto-calculated: ' + fmtVal(prior) + ' − ' + fmtVal(qty) + ' = ' + fmtVal(v.fromRetained) + ' m³.');
       }
       if (tankToTank) {
@@ -2258,8 +2421,9 @@
         const prior = tankRob(id);
         if (prior != null) { total += prior + qty; known += 1; }
       });
-      if (known && (v[totalField] == null || v[totalField] === '')) {
+      if (known) {
         v[totalField] = round3(total);
+        markDerived(totalField);
         notes.push(label + ' total content auto-calculated: prior ROB + bunkered quantity'
           + (shares.size > 1 ? ' across ' + shares.size + ' tanks.' : '.'));
       }
@@ -2268,7 +2432,8 @@
       const ids = tankIdList(v[tankField]);
       const add = numOrNull(v[qtyField]);
       const shares = resolveTankShares(setup, ids, add, v[splitField]);
-      if (!shares || !(v[robField] == null || String(v[robField]).trim() === '')) return;
+      if (!shares) return;
+      markDerived(robField);
       const parts = [];
       shares.forEach((qty, id) => {
         const hit = findTank(setup, id);
@@ -2349,8 +2514,33 @@
   /**
    * Capacity / rate warnings (incinerator burn rate, pump transfer rate vs quantity & time).
    */
+  /** Part II code J: the same tank limits as Part I code C, for slop and cargo tanks. */
+  function partTwoCapacityWarnings(setup, code, selectedItems, values) {
+    const warnings = [];
+    if (code !== 'J') return warnings;
+    const v = values || {};
+    const want = new Set(selectedItemNos(selectedItems));
+    const qty = numOrNull(v.qty);
+    const ids = tankIdList(v.tanks);
+    if (want.has('56') && qty != null && ids.length === 1) {
+      const hit = findTank(setup, ids[0]);
+      if (hit && hit.tank.robM3 != null && qty - Number(hit.tank.robM3) > 0.001) {
+        warnings.push({ level: 'error', code: 'NEGATIVE_ROB', field: 'qty', message: 'Taking ' + fmtVal(qty) + ' m³ from ' + hit.tank.name + ' leaves ' + fmtVal(round3(Number(hit.tank.robM3) - qty)) + ' m³ — only ' + fmtVal(hit.tank.robM3) + ' m³ on board.' });
+      }
+    }
+    if (want.has('57.3') && v.toTank) {
+      const hit = findTank(setup, v.toTank);
+      const total = numOrNull(v.toTotal);
+      if (hit && total != null && hit.tank.capacityM3 != null && total - Number(hit.tank.capacityM3) > 0.001) {
+        warnings.push({ level: 'error', code: 'OVERFILL', field: 'qty', message: hit.tank.name + ' would hold ' + fmtVal(round3(total)) + ' m³, over its capacity of ' + fmtVal(hit.tank.capacityM3) + ' m³.' });
+      }
+    }
+    return warnings;
+  }
+
   function capacityWarnings(setup, part, code, selectedItems, values) {
     const warnings = [];
+    if (Number(part) === 2) return partTwoCapacityWarnings(setup, code, selectedItems, values);
     if (Number(part) !== 1) return warnings;
     const v = values || {};
     const want = new Set(selectedItemNos(selectedItems));
@@ -2362,8 +2552,15 @@
       const rate = numOrNull(eq.incineratorM3PerH);
       if (qty != null && hours != null && hours > 0 && rate != null && rate > 0) {
         const expected = rate * hours;
+        const actualRate = qty / hours;
         const w = mismatchWarning('Incinerator sludge burning capacity', qty, expected, 'm³', setup, 'qtyDisposed');
-        if (w) warnings.push(w);
+        if (actualRate > rate * (1 + tolPct(setup) / 100)) {
+          warnings.push({
+            level: 'error', code: 'INCIN_RATE_EXCEEDED', field: 'incinHours',
+            message: 'Incineration rate too high: ' + fmtVal(qty) + ' m³ in ' + fmtVal(hours) + ' h is ' + fmtVal(round3(actualRate)) +
+              ' m³/h, above the rated ' + fmtVal(rate) + ' m³/h. At the rated capacity this needs at least ' + fmtVal(round3(qty / rate)) + ' h.'
+          });
+        } else if (w) warnings.push(w);
         else warnings.push({
           level: 'info',
           code: 'INCIN_OK',
@@ -2406,18 +2603,51 @@
     if (code === 'D') {
       const qty = numOrNull(v.qty);
       const hours = hoursBetween(v.timeStart, v.timeStop);
-      const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
-      if (qty != null && hours != null && hours > 0 && rate != null && rate > 0) {
-        const expected = rate * hours;
-        const w = mismatchWarning('Bilge pump capacity', qty, expected, 'm³', setup, 'qty');
-        if (w) warnings.push(w);
-      } else if (qty != null && hours != null && hours > 0 && !(rate > 0)) {
-        warnings.push({ level: 'warn', code: 'BILGE_RATE_MISSING', field: 'qty', message: 'Set bilge pump capacity (m³/h) in ORB Vessel Setup to validate quantity vs pumping time.' });
-      }
+      /* No bilge pump rate check: the bilge quantity is checked against the tank it comes from. */
       const hit = findTank(setup, v.fromTank);
       if (hit && qty != null && hit.tank.robM3 != null && qty - Number(hit.tank.robM3) > 0.001) {
         warnings.push({ level: 'error', code: 'ROB_EXCEEDED', field: 'qty', message: 'Bilge quantity (' + fmtVal(qty) + ' m³) exceeds ROB in ' + hit.tank.name + ' (' + fmtVal(hit.tank.robM3) + ' m³).' });
       }
+    }
+
+    /* Tank limits for every entry that moves oil: a quantity cannot be taken from a tank that does not hold it,
+       and no tank can end up over its capacity or below empty. Bilge wells are not tracked. */
+    function tankInfo(id) {
+      const hit = findTank(setup, id);
+      return hit ? { name: hit.tank.name, cap: numOrNull(hit.tank.capacityM3), rob: numOrNull(hit.tank.robM3) } : null;
+    }
+    function overCap(label, id, total, field) {
+      const t = tankInfo(id);
+      if (!t || total == null) return;
+      if (total < -0.001) {
+        warnings.push({ level: 'error', code: 'NEGATIVE_ROB', field, message: label + ': ' + t.name + ' would end at ' + fmtVal(round3(total)) + ' m³, below empty. Check the quantity.' });
+      } else if (t.cap != null && total - t.cap > 0.001) {
+        warnings.push({ level: 'error', code: 'OVERFILL', field, message: label + ': ' + t.name + ' would hold ' + fmtVal(round3(total)) + ' m³, over its capacity of ' + fmtVal(t.cap) + ' m³ (' + fmtVal(round3(total - t.cap)) + ' m³ too much).' });
+      }
+    }
+    function takeFrom(label, id, qty, field) {
+      const t = tankInfo(id);
+      if (!t || qty == null || t.rob == null) return;
+      if (qty - t.rob > 0.001) {
+        warnings.push({ level: 'error', code: 'NEGATIVE_ROB', field, message: label + ': taking ' + fmtVal(qty) + ' m³ from ' + t.name + ' leaves ' + fmtVal(round3(t.rob - qty)) + ' m³ — only ' + fmtVal(t.rob) + ' m³ on board.' });
+      }
+    }
+    if (code === 'C' && (want.has('11.3') || want.has('11.4'))) {
+      const t = tankInfo(v.tank);
+      const cap = numOrNull(v.capacity) != null ? numOrNull(v.capacity) : (t ? t.cap : null);
+      let total = numOrNull(v.retention);
+      if (total == null && want.has('11.4') && t && t.rob != null && numOrNull(v.manualCollected) != null) total = t.rob + numOrNull(v.manualCollected);
+      if (total != null && total < -0.001) {
+        warnings.push({ level: 'error', code: 'NEGATIVE_ROB', field: 'retention', message: 'Retention cannot be negative (' + fmtVal(total) + ' m³).' });
+      } else if (total != null && cap != null && total - cap > 0.001) {
+        warnings.push({ level: 'error', code: 'OVERFILL', field: 'retention', message: 'Retention (' + fmtVal(round3(total)) + ' m³) is over the tank capacity (' + fmtVal(cap) + ' m³).' });
+      }
+    }
+    if (code === 'D' && want.has('15.3')) overCap('Bilge transfer', v.toTank, numOrNull(v.toRetained), 'qty');
+    if (code === 'I' && v.extraFromTank) {
+      const q = numOrNull(v.extraQty);
+      takeFrom('Transfer', v.extraFromTank, q, 'extraQty');
+      if (v.extraToTank) overCap('Transfer', v.extraToTank, numOrNull(v.extraToTotal), 'extraQty');
     }
 
     /* Bunkering: overfill per receiving tank, and flag a split we cannot resolve. */
@@ -2529,12 +2759,6 @@
       const rate = numOrNull(eq.sludgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
       const hours = hoursBetween(v.timeStart, v.timeStop);
       pushRateHint('Sludge / transfer pump', numOrNull(v.qtyDisposed), hours, rate, 'm³', 'qtyDisposed');
-    }
-
-    if (code === 'D') {
-      const rate = numOrNull(eq.bilgePumpM3PerH) || numOrNull(eq.transferPumpM3PerH);
-      const hours = hoursBetween(v.timeStart, v.timeStop);
-      pushRateHint('Bilge pump', numOrNull(v.qty), hours, rate, 'm³', 'qty');
     }
 
     function pushBunkerPairHint(rows, add, missingMsg, unit, field) {
@@ -2834,46 +3058,60 @@
       if (!parts.length && want.size && !want.has(item.no)) return;
       if (!parts.length && !want.size) return;
       let text = parts.join('; ');
-      /* Prefer MEPC-style compact phrases for common items */
-      if (code === 'C' && item.no === '11.1') text = resolve(item.fields[0]);
-      if (code === 'C' && item.no === '11.2') text = resolve(item.fields[0]) + ' m³';
-      if (code === 'C' && item.no === '11.3') text = resolve(item.fields[0]) + ' m³';
-      if (code === 'C' && item.no === '11.4' && resolve(item.fields[0])) text = resolve(item.fields[0]) + ' m³';
-      if (code === 'C' && item.no === '12.1') {
+      /* Prefer MEPC-style compact phrases for common items. These are Part I wordings: Part II has
+         codes C, D and H too (Unloading, Crude oil washing, Discharge of dirty ballast) and item
+         numbers 13 and 14 of Code D there are the washing pattern and line pressure, so the Part I
+         phrases must not be applied to them (they read fields that item does not have). */
+      const Part1 = Number(part) === 1;
+      if (Part1 && code === 'C' && item.no === '11.1') text = resolve(item.fields[0]);
+      if (Part1 && code === 'C' && item.no === '11.2') text = resolve(item.fields[0]) + ' m³';
+      if (Part1 && code === 'C' && item.no === '11.3') text = resolve(item.fields[0]) + ' m³';
+      if (Part1 && code === 'C' && item.no === '11.4' && resolve(item.fields[0])) {
+        text = resolve(item.fields[0]) + ' m³' + (resolve(item.fields[1]) ? (' collected from ' + resolve(item.fields[1])) : '');
+      }
+      if ((code === 'G' && item.no === '24') || (code === 'N' && item.no === '75')) {
+        const q = resolve(item.fields[0]); const o = resolve(item.fields[1]);
+        text = [q !== '' ? (q + ' m³') : '', o].filter(Boolean).join(' ');
+      }
+      if (Number(part) === 2 && code === 'G' && item.no === '30') {
+        const m = resolve(item.fields[0]); const ct = resolve(item.fields[1]); const cq = resolve(item.fields[2]);
+        text = [m, ct ? ('chemical cleaning with ' + ct + (cq !== '' ? (', ' + cq + ' m³') : '')) : ''].filter(Boolean).join(', ');
+      }
+      if (Part1 && code === 'C' && item.no === '12.1') {
         text = [resolve(item.fields[0]) && (resolve(item.fields[0]) + ' m³ sludge from ' + resolve(item.fields[1])),
           resolve(item.fields[2]) !== '' ? (resolve(item.fields[2]) + ' m³ retained') : '',
           resolve(item.fields[3]) ? ('to reception facilities at ' + resolve(item.fields[3])) : ''
         ].filter(Boolean).join(', ');
       }
-      if (code === 'C' && item.no === '12.2') {
+      if (Part1 && code === 'C' && item.no === '12.2') {
         text = [resolve(item.fields[0]) + ' m³ from ' + resolve(item.fields[1]) + ' to ' + resolve(item.fields[2]),
           resolve(item.fields[3]) !== '' ? ('total content ' + resolve(item.fields[3]) + ' m³') : '',
           resolve(item.fields[4]) !== '' ? (resolve(item.fields[4]) + ' m³ retained') : ''
         ].filter(Boolean).join(', ');
       }
-      if (code === 'C' && item.no === '12.3') {
+      if (Part1 && code === 'C' && item.no === '12.3') {
         text = [resolve(item.fields[0]) + ' m³ from ' + resolve(item.fields[1]),
           resolve(item.fields[2]) !== '' ? (resolve(item.fields[2]) + ' m³ retained') : '',
           'incinerated ' + resolve(item.fields[3]) + ' h'
         ].filter(Boolean).join(', ');
       }
-      if (code === 'D' && item.no === '13') {
+      if (Part1 && code === 'D' && item.no === '13') {
         const bits = [resolve(item.fields[0]) + ' m³ bilge water'];
         if (resolve(item.fields[1])) bits.push('from ' + resolve(item.fields[1]));
         if (resolve(item.fields[2])) bits.push('cap. ' + resolve(item.fields[2]) + ' m³');
         if (resolve(item.fields[3]) !== '') bits.push(resolve(item.fields[3]) + ' m³ retained');
         text = bits.join(', ');
       }
-      if (code === 'D' && item.no === '14') {
+      if (Part1 && code === 'D' && item.no === '14') {
         text = 'start: ' + resolve(item.fields[0]) + ' UTC, stop: ' + resolve(item.fields[1]) + ' UTC';
       }
-      if (code === 'D' && item.no === '15.1') {
+      if (Part1 && code === 'D' && item.no === '15.1') {
         text = 'through 15 ppm equipment overboard, position start ' + resolve(item.fields[0]) +
           ', position stop ' + resolve(item.fields[1]);
       }
-      if (code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
-      if (code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
-      if (code === 'H' && item.no === '26.3') {
+      if (Part1 && code === 'D' && item.no === '15.2') text = 'to reception facilities at ' + resolve(item.fields[0]);
+      if (Part1 && code === 'D' && item.no === '15.3') text = 'to ' + resolve(item.fields[0]) + (resolve(item.fields[1]) !== '' ? (', ' + resolve(item.fields[1]) + ' m³ retained') : '');
+      if (Part1 && code === 'H' && item.no === '26.3') {
         const grade = String(val.fuelType || '').trim();
         const qty = fmtVal(val.fuelQty);
         const iso = String(val.fuelIsoSpec || '').trim();
@@ -2902,7 +3140,7 @@
         if (sulphur !== '') spec.push('sulphur as per BDN ' + sulphur + '%');
         return;
       }
-      if (code === 'H' && item.no === '26.4') {
+      if (Part1 && code === 'H' && item.no === '26.4') {
         const grade = String(val.lubeType || '').trim();
         const qty = fmtVal(val.lubeQty);
         const summary = [qty !== '' ? (qty + ' Ltrs') : '', grade].filter(Boolean).join(' ') + ' bunkered in tanks:';
@@ -2944,15 +3182,36 @@
           text = [remark, extraDetailText(val, setup)].filter(Boolean).join(' ');
         }
       }
-      if (Number(part) === 3 && code === 'C') {
-        const dir = item.no === '1' || item.no === '2' ? 'to low-sulphur fuel' : 'to residual fuel';
-        const stage = item.no === '1' || item.no === '3' ? 'commenced' : 'completed';
-        text = ['Changeover ' + stage + ' ' + dir + ' (' + resolve(item.fields[2]) + ')',
-          'at ' + resolve(item.fields[0]) + ', position ' + resolve(item.fields[1]),
-          resolve(item.fields[3]) !== '' ? ('sulphur ' + resolve(item.fields[3]) + '% m/m') : '',
-          resolve(item.fields[4]) ? ('tank(s) ' + resolve(item.fields[4])) : '',
-          resolve(item.fields[5]) !== '' ? (resolve(item.fields[5]) + ' m³ low-sulphur fuel on board') : ''
+      if (Number(part) === 3 && code !== 'E') {
+        const pt = (p, t) => [p ? ('Position: ' + String(p).trim()) : '', t ? ('Time: ' + t + ' UTC') : ''].filter(Boolean).join(', ');
+        const run = [
+          val.posStart ? ('Start position: ' + String(val.posStart).trim()) : '',
+          val.timeStart ? ('Start time: ' + val.timeStart + ' UTC') : '',
+          val.posEnd ? ('Stop position: ' + String(val.posEnd).trim()) : '',
+          val.timeStop ? ('Stop time: ' + val.timeStop + ' UTC') : ''
         ].filter(Boolean).join(', ');
+        const q = (k) => { const x = fmtVal(val[k]); return x; };
+        const t = (k) => String(val[k] == null ? '' : val[k]).trim();
+        if (code === 'A') {
+          if (item.no === '1') text = run;
+          if (item.no === '1.1') text = ['Recharge of', q('odsQty') && (q('odsQty') + ' kg'), t('odsType') && ('(' + t('odsType') + ')'), t('odsEquipment') && ('to equipment ' + t('odsEquipment'))].filter(Boolean).join(' ');
+          if (item.no === '1.4') text = ['Discharge of ODS', t('odsType'), q('odsQty') && (q('odsQty') + ' kg'), t('odsFacility') && ('to ' + t('odsFacility') + ' reception facilities')].filter(Boolean).join(' ');
+          if (item.no === '1.5') text = ['Supply of', t('odsType') && ('(' + t('odsType') + ')'), q('odsQty') && (q('odsQty') + ' kg'), t('odsPort') && ('Port: ' + t('odsPort'))].filter(Boolean).join(' ');
+        } else if (code === 'B') {
+          text = ['Time: ' + (val.noxTime || ''), val.noxPosition ? ('Position: ' + String(val.noxPosition).trim()) : '', t('noxEngines')].filter(Boolean).join('. ');
+        } else if (code === 'C') {
+          if (item.no === '3') {
+            const spec = ['Type of fuel: ' + t('bkType'), q('bkApi') && ('API ' + q('bkApi')), q('bkDensity') && ('density at 15 °C ' + q('bkDensity') + ' kg/m³'), q('bkSulphur') && ('sulphur content ' + q('bkSulphur') + '% m/m')].filter(Boolean).join(', ');
+            text = [run, spec].filter(Boolean).join('. ');
+          }
+          if (item.no === '4') {
+            const ev = t('coEvent') || 'Changeover';
+            const tanks = resolve(item.fields[3]);
+            text = [ev, pt(val.coPosition, val.coTime), tanks ? ('Tank(s): ' + tanks) : '', q('coVolume') && ('low-sulphur fuel on board ' + q('coVolume') + ' m³')].filter(Boolean).join(', ');
+          }
+        } else if (code === 'D') {
+          text = [val.vcPosition ? ("Ship's position: " + String(val.vcPosition).trim()) : '', t('vcPort') && ('Port: ' + t('vcPort'))].filter(Boolean).join(', ');
+        }
       }
       if (!text) return;
       /* Code I (Part I) / Code O (Part II) remarks: letter sits in the Code column only;
@@ -3087,7 +3346,7 @@
           fmtVal(dur) + ' minutes.', 'testDurationMin');
       }
     }
-    if (incineratorFollowOnActive(part, code, selectedItems, followScenario)) {
+    if (incineratorFollowOnActive(part, code, selectedItems, followScenario, setup)) {
       const followErrs = validateEntry(3, 'E', ['6', '7', '8'], values, setup, '');
       followErrs.forEach((message, i) => {
         pushErr(message, (followErrs.focusFields && followErrs.focusFields[i]) || '');
@@ -3584,7 +3843,8 @@
       seen.add(f.name);
       let shown = f;
       if (opts && opts.scenarioId === 'incinerator-garbage' && f.name === 'remarks') {
-        shown = Object.assign({}, f, { label: 'Description' });
+        shown = Object.assign({}, f, { label: 'Description',
+          hint: 'State what was burned (paper and cardboard, wood, oily rags, used filters …) and the quantity. The Garbage Record Book carries the same incineration — this line is for flags and companies that also ask for it in the ORB.' });
       }
       inner += wizardLabeledField(shown, setup, opts, presets, bunkerFam);
     });
@@ -3735,7 +3995,7 @@
     if (code === 'C' && item.no === '11.2') return ctrl((item.fields[0] || {}).name) + ' m³ capacity.';
     if (code === 'C' && item.no === '11.3') return ctrl((item.fields[0] || {}).name) + ' m³ retained.';
     if (code === 'C' && item.no === '11.4') {
-      return ctrl('manualCollected') + ' m³ collected by manual operation.';
+      return ctrl('manualCollected') + ' m³ collected by manual operation from ' + ctrl('manualSource') + '.';
     }
     if (code === 'C' && item.no === '12.3') {
       return ctrl('qtyDisposed') + ' m³ from ' + ctrl('tankEmptied') + ', ' +
@@ -3803,7 +4063,7 @@
         runHtml + simpleHtml +
         '</section>';
     });
-    if (!opts.skipIncineratorFollowOn && incineratorFollowOnActive(part, code, selectedItems, opts.scenarioId)) {
+    if (!opts.skipIncineratorFollowOn && incineratorFollowOnActive(part, code, selectedItems, opts.scenarioId, setup)) {
       const followOp = getOperation(3, 'E');
       const followBuilt = buildWizardFormSheet(3, 'E', followOp, setup,
         Object.assign({}, opts, { skipIncineratorFollowOn: true }), ['6', '7', '8']);
@@ -3852,7 +4112,9 @@
    *   Item No. (number) → 13, 11.1, … ; blank for Code I remarks
    *   Signature → separate row: NAME - RANK, 24-AUG-2026 [SIGNATURE]
    */
-  function bookRowsHtml(entries, setup) {
+  function bookRowsHtml(entries, setup, opts) {
+    opts = opts || {};
+    const selected = opts.selected || null;
     let body = '';
     let lastHeaderKey = null;
     const sorted = sortEntriesForBook(entries);
@@ -3880,8 +4142,14 @@
           part: ln.recordPart != null ? Number(ln.recordPart) : (Number(e.part) || 1),
           code: ln.recordCode != null ? String(ln.recordCode) : e.code
         };
+        /* Browse / Print: the tick that picks this entry for printing or voiding sits in the date
+           cell of the entry's first line, so the table stays the book's four columns. */
+        const pick = (opts.selectable && idx === 0)
+          ? ('<input type="checkbox" class="orb-browse-check" value="' + escapeHtml(String(e.id)) + '"' +
+             (selected && selected.has(String(e.id)) ? ' checked' : '') + ' aria-label="Select this entry"> ')
+          : '';
         body += '<tr' + (voided ? ' class="orb-voided"' : '') + '>' +
-          '<td>' + (showDate ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
+          '<td>' + pick + (showDate ? escapeHtml(formatOrbDate(e.date)) : '') + '</td>' +
           '<td class="orb-code">' + (showCode ? escapeHtml(formatOrbBookCode(codeEntry)) : '') + '</td>' +
           '<td>' + escapeHtml(itemNo) + '</td>' +
           '<td class="orb-record">' + (voided ? ('<s>' + text + '</s>') : text) + '</td></tr>';
@@ -3961,7 +4229,31 @@
     '.orb-book-foot{margin-top:14px; padding-top:6px; border-top:1px solid #999; font-size:9px; color:#444; line-height:1.45;}',
     '.orb-book-foot-bar{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;}',
     '.orb-book-foot-legal{font-size:8px; color:#666; line-height:1.4;}',
-    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}'
+    '.orb-book-byline{margin-top:5px; font-size:8px; color:#888; letter-spacing:.04em;}',
+    /* Browse / Print: the book's table with no head and no foot, 10 lines tall, the rest scrolls. */
+    '.orb-browse{background:#fff; color:#111; border:1px solid #999; border-radius:3px; font-family:Arial,Helvetica,sans-serif;}',
+    '.orb-browse-scroll{overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}',
+    '.orb-browse table{width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:12px; color:#111;}',
+    '.orb-browse thead th{position:sticky; top:0; z-index:1; background:#d9d9d9; color:#111; font-size:12px; font-weight:700;',
+    '  text-align:left; text-transform:none; letter-spacing:0; line-height:1.2; border:1px solid #999; padding:6px 6px;}',
+    '.orb-browse td{border:1px solid #999; border-top:0; padding:5px 6px; vertical-align:top; color:#111; line-height:1.35;',
+    '  white-space:normal; overflow-wrap:anywhere;}',
+    '.orb-browse tbody tr:nth-child(even) td{background:#ececec;}',
+    '.orb-browse th, .orb-browse td{font-family:Arial,Helvetica,sans-serif;}',
+    '.orb-browse th{white-space:normal; overflow-wrap:anywhere;}',
+    '.orb-browse td:nth-child(1){white-space:nowrap; overflow-wrap:normal;}',
+    '.orb-browse th:nth-child(1), .orb-browse td:nth-child(1){width:34%;}',
+    '.orb-browse th:nth-child(2), .orb-browse td.orb-code{width:9%; text-align:center; font-weight:700;}',
+    '.orb-browse th:nth-child(3), .orb-browse td:nth-child(3){width:13%; text-align:center;}',
+    '@media (min-width:700px){.orb-browse th:nth-child(1), .orb-browse td:nth-child(1){width:17%;}',
+    '  .orb-browse th:nth-child(2), .orb-browse td.orb-code{width:9%;}.orb-browse th:nth-child(3), .orb-browse td:nth-child(3){width:10%;}}',
+    '.orb-browse th:nth-child(2), .orb-browse th:nth-child(3){text-align:center;}',
+    '.orb-browse td.orb-record{text-transform:uppercase;}',
+    '.orb-browse tr.orb-voided td{color:#666;}',
+    '.orb-browse .orb-sign{font-style:italic; color:#333; text-transform:none; font-size:12px;}',
+    '.orb-browse tr.orb-sign-row td{border-top:0;}',
+    '.orb-browse input.orb-browse-check{width:20px; height:20px; margin:0 4px 0 0; vertical-align:-4px; accent-color:#1f4e8c;}',
+    '.orb-browse-empty{padding:22px; text-align:center; color:#555; font-size:13px;}'
   ].join('\n');
 
   /** The part this set of entries belongs to, named as the book names it. */
@@ -3969,18 +4261,7 @@
     const parts = [...new Set((entries || []).map(e => Number(e.part) || 1))];
     const p = parts.length === 1 ? parts[0] : 1;
     if (parts.length > 1) return { title: 'Oil Record Book', subtitle: 'Machinery Space and Cargo Operations' };
-    if (p === 3) {
-      const codes = new Set((entries || []).map(e => String(e.code || '')));
-      const hasC = codes.has('C');
-      const hasE = codes.has('E');
-      if (hasE && !hasC) {
-        return { title: 'Incinerator Record — Part III', subtitle: 'Use of incinerator for garbage' };
-      }
-      if (hasC && hasE) {
-        return { title: 'Part III Record', subtitle: 'Fuel changeover (Annex VI) and incinerator' };
-      }
-      return { title: 'Fuel Oil Changeover Record — Part III', subtitle: 'Fuel Changeover (MARPOL Annex VI Reg. 14.6)' };
-    }
+    if (p === 3) return { title: 'Oil Record Book and Emissions — Part III', subtitle: 'Prevention of air pollution from ships (MARPOL Annex VI)' };
     if (p === 2) return { title: 'Oil Record Book — Part II', subtitle: 'Cargo / Ballast Operations (Oil Tankers)' };
     return { title: 'Oil Record Book — Part I', subtitle: 'Machinery Space Operations (All Ships)' };
   }
@@ -4041,6 +4322,20 @@
     '</div>';
   }
 
+  /**
+   * Browse / Print list: the record book's own table (Date, Code, Item No., Record of operations)
+   * with nothing around it — no ship header, no page footer — so a period reads like the pages of
+   * the book it will be printed into. Nothing is ticked unless the caller passes `selected`.
+   */
+  function browseTableHtml(setup, entries, opts) {
+    opts = opts || {};
+    const rows = sortEntriesForBook(entries);
+    const body = bookRowsHtml(rows, setup, { selectable: true, selected: opts.selected || null });
+    if (!body) return '<div class="orb-browse-empty">' + escapeHtml(opts.emptyText || 'No ORB entries in this range.') + '</div>';
+    return '<div class="orb-browse-scroll"><table><thead><tr><th>Date</th><th>Code</th><th>Item No.</th>' +
+      '<th>Record of operations / signature of officer in charge</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+
   function buildPrintHtml(setup, entries, rangeLabel, opts) {
     /* The printed sheet is the on-screen book on a page: same builder, same stylesheet,
        plus the Master's signature block and the flag note a signed record carries. */
@@ -4065,6 +4360,9 @@
 
   global.EORB = {
     FLAGS,
+    FLAG_PUBLICATIONS,
+    FLAG_GUIDE_NOTICE,
+    WASTE_RECORDING_GUIDE,
     PART_I,
     PART_II,
     PART_III,
@@ -4080,8 +4378,10 @@
     getScenarioGroups,
     defaultOrbSetup,
     getFlag,
+    flagHasPartIII,
     SIGNATORY_MODES,
     DEFAULT_SIGNATORY,
+    signatoryStaffing,
     flagSignatoryPolicy,
     requiresDualSignatory,
     isChiefEngineerRank,
@@ -4104,6 +4404,7 @@
     splitEntryPerItemLine,
     materializeOrbSaveRecords,
     bookRowsHtml,
+    browseTableHtml,
     bookDocumentHtml,
     bookPartTitles,
     BOOK_CSS,
