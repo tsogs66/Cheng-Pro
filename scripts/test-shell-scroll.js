@@ -223,7 +223,7 @@ for (const m of ['bunkerplan', 'bunkeringplan']) {
    declared alongside `voyage`, which is the sort of thing a path guessed from
    the module name gets wrong. */
 const embedModules = {
-  voyage: 'voyage.js', tanks: 'voyage.js', spares: 'spares.js',
+  voyage: 'voyage.js', tanks: 'voyage.js', spares: 'spares.js', eca: 'eca.js',
   bunkerplan: 'bunkerplan.js', bunkeringplan: 'bunkeringplan.js', eorb: 'eorb.js',
 };
 for (const [m, file] of Object.entries(embedModules)) {

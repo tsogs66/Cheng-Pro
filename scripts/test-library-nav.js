@@ -14,7 +14,7 @@ const css = fs.readFileSync(path.join(root, 'apps/web/css/shell.css'), 'utf8');
 const nav = html.slice(html.indexOf('id="mainNav"'), html.indexOf('id="sidebarFooter"'));
 const mods = [...nav.matchAll(/data-module="([^"]+)"/g)].map((m) => m[1]);
 assert.deepStrictEqual(mods, [
-  'home', 'voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb',
+  'home', 'voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eca', 'eorb',
   'performance', 'spares', 'notes', 'vessel', 'backup', 'license', 'about',
 ]);
 assert.ok(mods.indexOf('notes') === mods.indexOf('vessel') - 1, 'Notes sits above Vessel Setup');
@@ -25,7 +25,7 @@ assert.ok(!/>\s*Backup\s*</.test(nav), 'sidebar does not keep the short Backup l
 const more = html.slice(html.indexOf('id="bnMoreSheet"'), html.indexOf('id="aioReturnFabs"'));
 assert.ok(more.includes('Backup &amp; Restore'), 'phone More sheet uses the same name');
 const moreMods = [...more.matchAll(/data-module="([^"]+)"/g)].map((m) => m[1]);
-assert.deepStrictEqual(moreMods, ['notes', 'home', 'spares', 'vessel', 'backup', 'license', 'about']);
+assert.deepStrictEqual(moreMods, ['notes', 'home', 'spares', 'vessel', 'eca', 'backup', 'license', 'about']);
 assert.strictEqual(moreMods.indexOf('notes') % 3, moreMods.indexOf('vessel') % 3, 'Notes sits above Setup in the More grid');
 
 assert.ok(backup.includes("title: 'Backup & Restore'"));

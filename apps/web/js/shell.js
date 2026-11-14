@@ -84,13 +84,13 @@
   }
 
   function isSoftEmbedModule(id) {
-    return id === 'voyage' || id === 'tanks' || id === 'eorb' || id === 'bunkerplan' || id === 'bunkeringplan' || id === 'spares';
+    return id === 'voyage' || id === 'tanks' || id === 'eorb' || id === 'bunkerplan' || id === 'bunkeringplan' || id === 'spares' || id === 'eca';
   }
 
   /** Voyage-family and Tank-family embeds each keep one database. */
   function embedFamily(moduleId) {
     if (moduleId === 'tanks' || moduleId === 'bunkeringplan') return 'tanks';
-    if (moduleId === 'voyage' || moduleId === 'eorb' || moduleId === 'bunkerplan' || moduleId === 'spares') return 'voyage';
+    if (moduleId === 'voyage' || moduleId === 'eorb' || moduleId === 'bunkerplan' || moduleId === 'spares' || moduleId === 'eca') return 'voyage';
     return '';
   }
 
@@ -935,10 +935,10 @@
       if (page && d.module === 'tanks') {
         try { sessionStorage.setItem('chengAioPendingTankPage', page); } catch { /* ignore */ }
       }
-      if (page && (d.module === 'voyage' || d.module === 'spares')) {
+      if (page && (d.module === 'voyage' || d.module === 'spares' || d.module === 'eca')) {
         try { sessionStorage.setItem('chengAioPendingVoyagePage', page); } catch { /* ignore */ }
       }
-      const mod = d.module === 'spares' ? 'spares' : String(d.module);
+      const mod = String(d.module);
       navigate(mod, { force: true });
     }
     if (d.type === 'chengaio-bunker-alert') {
