@@ -334,6 +334,7 @@
         'ORB Part I entries for IOPP ships shall be in English.',
         'Weekly sludge inventory: C 11.1 tank identity, 11.2 capacity m³, 11.3 retention m³ — repeat for each 3.1 tank.',
         'Follow MI-402A (Oil Record Book Instructions, Rev. Nov/2025) and the MEPC.1/Circ.736/Rev.2 example wording. A good-faith entry with a code letter, item number and an accurate account satisfies the intent (MG 2-13-3, item 6).',
+        'Inoperative oily-water equipment (F 19–21) and the numbered sealing of overboard discharge valves are recorded in the ORB and the other logs (MN 2-013-3, 2.4); the SMS records seal removal and replacement. Keep receipts for every shoreside discharge of oil and oily wastes (MN 2-013-3, 1.7) and check the ORB against the other ship logs (1.8).',
         'Corrections: make them openly in the next available line, describe the circumstances and the entry being corrected; never erase, modify or rewrite earlier entries (MG 2-13-3, item 8). A missed entry is made at once on the next line with the reason it is late.',
         'Ship management change: the former managers keep the book at least 3 years; leave a certified copy covering at least 6 months on board and start the new book with an entry stating the change of management (MG 2-13-3, item 13).',
         'Incineration of sludge: record under C.12.3 with total time of operation.'
@@ -380,10 +381,10 @@
       signatory: {
         mode: SIGNATORY_MODES.engineer_or_ce,
         label: 'Officer in charge',
-        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation; the Master countersigns each page. No Cyprus circular could be read for this guide — ask your DPA if your SMS names a different signatory.'
+        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation; the Master countersigns each page. Circular 22/2020 covers electronic record books only and states no signatory rule — ask your DPA if your SMS names a different signatory.'
       },
-      erbNote: 'Cyprus applies MARPOL Annex I ORB requirements; ERB subject to flag acceptance under IMO guidelines.',
-      tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.']
+      erbNote: 'Cyprus Circular 22/2020 (4 Nov 2020): the Oil Record Book Parts I and II may be kept electronically instead of on paper. A Recognised Organisation assesses the system and issues a Declaration by the RO; within 3 months the owner applies to the Shipping Deputy Ministry (environment@dms.gov.cy, EUR 20) for its Declaration, which stays on board. Keeping a hard copy on board for ERB failure is advised.',
+      tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.', 'Cyprus lists the Record of Fuel Oil Changeover (Annex VI Reg. 14.6) as a separate record book, not as a Part III of the Oil Record Book.', 'After an amendment to MARPOL or to the IMO guidelines a new Declaration by the RO and a new Declaration by the Ministry are needed (Circular 22/2020, para 8).']
     },
     {
       code: 'MT', name: 'Malta', admin: 'Transport Malta — Merchant Shipping Directorate',
@@ -391,9 +392,9 @@
       signatory: {
         mode: SIGNATORY_MODES.engineer_or_ce,
         label: 'Officer in charge',
-        note: 'Technical Notice MARPOL.7 (15 Jun 2018): each printed entry is signed by the Officer in Charge and each page by the Master.'
+        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation and the Master each page. The earlier Technical Notice MARPOL.7 (2018) said the same; Technical Notice MARPOL.11 Rev.1 (8 Aug 2023) supersedes it and states no signatory rule.'
       },
-      erbNote: 'Malta-flagged vessels maintain ORB Part I (and Part II if tanker) per MARPOL. Technical Notice MARPOL.7 (2018): the printout of an electronic record book is the official record.',
+      erbNote: 'Malta-flagged vessels maintain ORB Part I (and Part II if tanker) per MARPOL. Technical Notice MARPOL.11 Rev.1 (8 Aug 2023): an e-RB must meet MEPC.312(74) before the Administration approves it and issues a written Declaration of MARPOL Electronic Record Book, which stays on board; at an inspection the ship must produce the e-RB and the Declaration or may be asked for a verified copy or a hard-copy book.',
       tips: ['Ensure IOPP Supplement tank lists match the tanks selectable in this e-ORB setup.']
     },
     {
@@ -491,13 +492,16 @@
           url: 'https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf', checked: 'read' },
         { ref: 'MI-334C', title: 'Approved software providers for MARPOL electronic record books', date: 'list as of 11 May 2020 (the notice links the current list)',
           url: 'https://www.irclass.org/media/4948/mi-334c.pdf', checked: 'read' },
-        { ref: 'MN 2-013-3', title: 'Oil filtering equipment and oil discharge monitoring and control systems', note: 'Could not be read; a search summary says it covers inoperative equipment and the sealing of overboard discharge valves.',
-          url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'listed' }
+        { ref: 'MN 2-013-3', title: 'Oil Filtering Equipment and Control of Operational Discharge of Oil', date: 'Rev. Mar/2017 (supersedes Rev. 12/10)',
+          note: 'Operational duties for the oily-water separator and its monitoring. Emergency bilge and other overboard discharge valves are kept closed and sealed with numbered seals; the SMS records removal and replacement of seal tags. Inoperative equipment and the numbered sealing of the overboard valves must be documented in the Oil Record Book and the other logs. Receipts are required for all shoreside discharges of oil and oily wastes, and the ORB is checked for consistency with the other ship logs. Reflects the sludge piping amendment to Reg. I/12 in force 1 Jan 2017; sludge may go to reception facilities, an incinerator or an auxiliary boiler suitable for burning oil residues.',
+          url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'read' }
       ],
       history: [
-        { date: 'Oct 2011', change: 'MG 2-13-3 Rev. 10/11.' },
-        { date: 'Apr 2011', change: 'MI-332A Oil Record Book General Instructions, Rev. 4/11.' },
         { date: 'Nov 2006', change: 'Earlier version (11/06) of the electronic record book notice, superseded by MN 7-041-5.' },
+        { date: 'Dec 2010', change: 'MN 2-013-3 Rev. 12/10.' },
+        { date: 'Apr 2011', change: 'MI-332A Oil Record Book General Instructions, Rev. 4/11.' },
+        { date: 'Oct 2011', change: 'MG 2-13-3 Rev. 10/11.' },
+        { date: 'Mar 2017', change: 'MN 2-013-3 reissued: supersedes Rev. 12/10 and reflects the amended sludge piping rules of Reg. I/12 (in force 1 Jan 2017).' },
         { date: 'Dec 2017', change: 'MG 2-13-3 reissued: supersedes Rev. 10/11 and updates the policies on log and record book retention.' },
         { date: 'May 2020', change: 'MN 7-041-5 and MI-334C issued for MEPC.312(74) electronic record books.' },
         { date: '1 Oct 2020', change: 'MARPOL electronic record books usable under MN 7-041-5.' },
@@ -550,13 +554,19 @@
       history: [{ date: '5 May 2020', change: 'Shipping Circular 10/2020 issued; electronic record book amendments in force 1 Oct 2020.' }]
     },
     MT: {
-      title: 'Malta — Transport Malta',
+      title: 'Malta — Transport Malta, Merchant Shipping Directorate',
       documents: [
-        { ref: 'Technical Notice MARPOL.7', title: 'Electronic record books for MARPOL related records', date: '15 June 2018',
-          note: 'Read through the IRClass mirror; whether it is still current was not confirmed. The printout is the official record; each entry signed by the Officer in Charge and each page by the Master.',
+        { ref: 'Technical Notice MARPOL.11 Rev.1', title: 'Electronic record books and electronic bunker delivery notes for MARPOL related record keeping', date: '8 August 2023',
+          note: 'Supersedes Technical Notices MARPOL.7 and MARPOL.11. E-RBs are accepted for record keeping; the system must comply with MEPC.312(74) before the Administration approves it and issues a written Declaration of MARPOL Electronic Record Book, carried on board. An electronic BDN is acceptable (Annex VI Reg. 18.5 and 18.6; MEPC.1/Circ.795/Rev.8 para 12.2) if it is protected from modification and can be authenticated. At an inspection the ship must produce the e-RB and the Declaration. The notice states no signatory rule.',
+          checked: 'read' },
+        { ref: 'Technical Notice MARPOL.7', title: 'Electronic record books for MARPOL related records (superseded)', date: '15 June 2018',
+          note: 'Superseded by MARPOL.11 Rev.1. It had each printed entry signed by the Officer in Charge and each page by the Master.',
           url: 'https://www.irclass.org/media/3763/technical-notice-marpol-7-electronic-record-books-for-marpol-related.pdf', checked: 'read' }
       ],
-      history: [{ date: '15 Jun 2018', change: 'Technical Notice MARPOL.7 issued.' }]
+      history: [
+        { date: '15 Jun 2018', change: 'Technical Notice MARPOL.7 issued (the printout is the official record; approval pending IMO guidance).' },
+        { date: '8 Aug 2023', change: 'Technical Notice MARPOL.11 Rev.1 supersedes MARPOL.7 and MARPOL.11: e-RBs approved against MEPC.312(74), Declaration on board, electronic BDN rules.' }
+      ]
     },
     HK: {
       title: 'Hong Kong — Marine Department',
@@ -570,12 +580,19 @@
       history: [{ date: '12 Aug 2019', change: 'MSIN 22/2019 issued.' }]
     },
     CY: {
-      title: 'Cyprus — Department of Merchant Shipping',
+      title: 'Cyprus — Shipping Deputy Ministry (SDM)',
       documents: [
-        { ref: 'Circular 22/2020', title: 'Use of Electronic Record Books (ERB) under MARPOL', date: '4 November 2020', note: 'Title and date from the Department\'s circular list only; the circular was not readable.', checked: 'listed' },
+        { ref: 'Circular 22/2020', title: 'Use of Electronic Record Books (ERB) under MARPOL Convention', date: '4 November 2020',
+          note: 'The ORB Parts I and II (Annex I Regs 17.1 and 36.1) may be kept electronically instead of on paper; a ship using an ERB need not keep a hard copy of the same record. A Recognised Organisation assesses the system and issues a Declaration by the RO (it informs the Ministry within 5 working days); within 3 months the owner applies to the Ministry for its Declaration (EUR 20), carried on board. Reflagged ships need the Ministry\'s Declaration within 3 months of registration. After an amendment a new pair of Declarations is needed. A hard copy on board is advised for ERB failure. The Annex VI fuel changeover record, the ODS record, the NOx records and the Garbage Record Book are listed as separate ERBs. States no signatory rule.',
+          checked: 'read' },
         { ref: 'Circular 36/2010', title: 'Entry into force on 1 January 2011 of amendments to MARPOL Annex I', date: '2010', checked: 'listed' }
       ],
-      history: []
+      history: [
+        { date: '4 Sep 2017', change: 'Circular 19/2017 on electronic Oil Record Books (ceased 4 Nov 2020; approvals issued under it stay valid until they expire).' },
+        { date: '16 Dec 2009', change: 'Circular 29/2009 (paragraph 4, electronic record book for fuel oil changeover) — ceased 4 Nov 2020.' },
+        { date: '1 Oct 2020', change: 'MARPOL amendments in force allowing electronic record books.' },
+        { date: '4 Nov 2020', change: 'Circular 22/2020: SDM accepts ERBs as an alternative to hard-copy record books, with a Declaration by an RO and a Declaration by the Ministry.' }
+      ]
     },
     GB: {
       title: 'United Kingdom — MCA',
