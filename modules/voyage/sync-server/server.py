@@ -1265,22 +1265,22 @@ class SyncHandler(BaseHTTPRequestHandler):
         if parts == ["api", "voyage-lan", "pair", "start"]:
             if not self._lan_is_local():
                 return json_response(self, HTTPStatus.FORBIDDEN, {"error": "A pairing code can only be shown on the server's own screen."})
-            return json_response(self, HTTPStatus.OK, LAN.start_pairing(body.get("vessel"), bool(body.get("shareAll"))))
+            return json_response(self, HTTPStatus.OK, LAN.start_pairing(body.get("vessel"), bool(body.get("shareAll")), str(body.get("license") or "")))
         if parts == ["api", "voyage-lan", "pair"]:
-            status, out = LAN.redeem(body.get("code"))
+            status, out = LAN.redeem(body.get("code"), str(body.get("license") or ""))
             if status != 200:
                 return json_response(self, status, out)
             cred = self._lan_credential(out["vessel"], out["shareAll"])
-            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), None)
+            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), None, str(body.get("license") or ""))
             return json_response(self, HTTPStatus.OK, {
-                "ok": True, "scope": cred["scope"], "token": cred["token"],
+                "ok": True, "scope": cred["scope"], "token": cred["token"], "license": out["license"],
                 "vessel": out["vessel"], "serverName": LAN.hello()["deviceName"], "deviceId": LAN.hello()["deviceId"],
             })
         if parts == ["api", "voyage-lan", "presence"]:
             principal = self._principal()
             if principal.get("reason"):
                 return self._reject_unauthorized(principal["reason"])
-            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), body.get("vessel"))
+            LAN.set_presence(str(body.get("deviceId") or ""), str(body.get("deviceName") or "Device"), body.get("vessel"), str(body.get("license") or ""))
             return json_response(self, HTTPStatus.OK, {"ok": True, "devices": LAN.presence()})
         json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
