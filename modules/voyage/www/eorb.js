@@ -40,7 +40,7 @@
 
   /**
    * beORB-style Part III rows appended to the same Part I entry (PART III C, item 3, …).
-   * Enabled for all supported flag states — Annex VI fuel specs, OWS/OCM, incinerator, etc.
+   * Only for flags whose Oil Record Book has a Part III (flagHasPartIII — Panama's MMC-215) — Annex VI fuel specs, OWS/OCM, incinerator, etc.
    */
   const PART_III_SUPPLEMENT_RULES = [
     {
@@ -224,9 +224,17 @@
     }
   ];
 
+  /* Part III (fuel oil changeover, incinerator use, and the Part III C item 3 supplements) is only
+     part of the book for the flag states that require it. Panama's Oil Record Book and Emissions
+     (MMC-215) has a Part III; MARPOL Annex I does not, and no other administration is confirmed to
+     ask for one, so every other flag gets Parts I and II only. A flag is added by setting
+     `partIII: true` on its FLAGS entry once its circular says so. */
+  function flagHasPartIII(setup) {
+    return getFlag(setup && setup.flag).partIII === true;
+  }
+
   function partThreeSupplementsEnabled(setup) {
-    const f = getFlag(setup && setup.flag);
-    return f.partIIISupplements !== false;
+    return flagHasPartIII(setup);
   }
 
   function appendPartThreeSupplementLines(lines, part, code, selectedItems, val, setup, scenarioId) {
@@ -260,7 +268,8 @@
    * Burning sludge (C.12.3) and burning garbage (Code I description) both continue
    * into Part III E: start/stop position and time, oxygen, combustion temperature.
    */
-  function incineratorFollowOnActive(part, code, selectedItems, scenarioId) {
+  function incineratorFollowOnActive(part, code, selectedItems, scenarioId, setup) {
+    if (!flagHasPartIII(setup)) return false;
     if (Number(part) === 3 && code === 'E') return false;
     if (scenarioId === 'incinerator-garbage' && Number(part) === 1 && code === 'I') return true;
     const items = selectedItemNos(selectedItems);
@@ -268,7 +277,7 @@
   }
 
   function appendIncineratorFollowOnLines(lines, part, code, selectedItems, val, setup, scenarioId) {
-    if (!incineratorFollowOnActive(part, code, selectedItems, scenarioId)) return;
+    if (!incineratorFollowOnActive(part, code, selectedItems, scenarioId, setup)) return;
     const follow = buildItemLines(3, 'E', ['6', '7', '8'], val, setup, '');
     follow.forEach((ln, i) => {
       if (!ln || !ln.text) return;
@@ -308,7 +317,6 @@
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
         'Recording retained quantity in IOPP 3.3 oily bilge water holding tanks is voluntary (MEPC.1/Circ.736) — use Code I if your SMS requires it.',
         'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.',
-        'Part III C item 3 supplements (BDN specs, OWS tests, incinerator, de-bunkering) append automatically after the related Part I entry on print/export — all flag states.',
         'Use D (manual start) vs E (automatic mode) carefully — mode of starting, not equipment capability.'
       ]
     },
@@ -328,6 +336,7 @@
     },
     {
       code: 'PA', name: 'Panama', admin: 'Panama Maritime Authority (AMP)',
+      partIII: true,
       language: 'English / Spanish (IMO languages prevail as applicable)',
       signatory: {
         mode: SIGNATORY_MODES.engineer_or_ce,
@@ -1378,6 +1387,7 @@
   function getScenarios(setup, part) {
     const eq = (setup && setup.equipment) || {};
     const p = Number(part) || 1;
+    if (p === 3 && !flagHasPartIII(setup)) return [];
     return SCENARIOS.filter(s => {
       if (Number(s.part) !== p) return false;
       const req = s.requires || {};
@@ -1795,7 +1805,8 @@
   function getFlag(code) {
     const f = FLAGS.find(x => x.code === code) || FLAGS[0];
     return Object.assign({}, f, {
-      partIIISupplements: f.partIIISupplements !== false,
+      partIII: f.partIII === true,
+      partIIISupplements: f.partIII === true,
       signatory: Object.assign({}, DEFAULT_SIGNATORY, f.signatory || {})
     });
   }
@@ -3208,7 +3219,7 @@
           fmtVal(dur) + ' minutes.', 'testDurationMin');
       }
     }
-    if (incineratorFollowOnActive(part, code, selectedItems, followScenario)) {
+    if (incineratorFollowOnActive(part, code, selectedItems, followScenario, setup)) {
       const followErrs = validateEntry(3, 'E', ['6', '7', '8'], values, setup, '');
       followErrs.forEach((message, i) => {
         pushErr(message, (followErrs.focusFields && followErrs.focusFields[i]) || '');
@@ -3925,7 +3936,7 @@
         runHtml + simpleHtml +
         '</section>';
     });
-    if (!opts.skipIncineratorFollowOn && incineratorFollowOnActive(part, code, selectedItems, opts.scenarioId)) {
+    if (!opts.skipIncineratorFollowOn && incineratorFollowOnActive(part, code, selectedItems, opts.scenarioId, setup)) {
       const followOp = getOperation(3, 'E');
       const followBuilt = buildWizardFormSheet(3, 'E', followOp, setup,
         Object.assign({}, opts, { skipIncineratorFollowOn: true }), ['6', '7', '8']);
@@ -4251,6 +4262,7 @@
     getScenarioGroups,
     defaultOrbSetup,
     getFlag,
+    flagHasPartIII,
     SIGNATORY_MODES,
     DEFAULT_SIGNATORY,
     flagSignatoryPolicy,

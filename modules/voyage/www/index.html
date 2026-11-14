@@ -33751,8 +33751,33 @@ function fillOrbSetupForm(){
   renderOrbOfficerEditors();
 }
 
+/* Part III (fuel changeover, incinerator) is in the book only for flags that require it — today Panama.
+   The other flags get Parts I and II. A flag change takes Part III away from the pickers at once; entries
+   already saved under Part III stay in the book and stay listed in Browse. */
+function applyOrbPartAvailability(){
+  if (!window.EORB) return;
+  const setupHas = EORB.flagHasPartIII({ flag: orbSetup().flag });
+  const codesFlag = document.getElementById('orb_codesFlag')?.value || orbSetup().flag;
+  const savedPartIII = (state.orbEntries || []).some(e => Number(e.part) === 3);
+  const rules = [
+    ['orb_part', setupHas],
+    ['orb_browsePart', setupHas || savedPartIII],
+    ['orb_codesPart', EORB.flagHasPartIII({ flag: codesFlag })]
+  ];
+  rules.forEach(([id, allowed]) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const opt = [...sel.options].find(o => o.value === '3');
+    if (!opt) return;
+    opt.hidden = !allowed;
+    opt.disabled = !allowed;
+    if (!allowed && sel.value === '3') sel.value = id === 'orb_browsePart' ? 'all' : '1';
+  });
+}
+
 function renderOrbOpGrid(){
   if (!window.EORB) return;
+  applyOrbPartAvailability();
   const part = Number(document.getElementById('orb_part')?.value || 1);
   const grid = document.getElementById('orbOpGrid');
   if (!grid) return;
@@ -34307,6 +34332,7 @@ function renderOrbCodesList(){
   if (!window.EORB) return;
   const part = Number(document.getElementById('orb_codesPart')?.value || 1);
   const flagCode = document.getElementById('orb_codesFlag')?.value || orbSetup().flag;
+  applyOrbPartAvailability();
   renderOrbFlagInfo('orbCodesFlagInfo', flagCode);
   renderOrbFlagGuide(flagCode);
   const host = document.getElementById('orbCodesList');
@@ -34386,6 +34412,7 @@ function fitOrbBrowseHeight(){
 function renderOrbBrowse(){
   const host = document.getElementById('orbBrowseBook');
   if (!host || !window.EORB) return;
+  applyOrbPartAvailability();
   const rows = filteredOrbEntries();
   const present = new Set(rows.map(e => String(e.id)));
   [...orbBrowseSelected].forEach(id => { if (!present.has(id)) orbBrowseSelected.delete(id); });
@@ -34575,6 +34602,9 @@ document.getElementById('orb_flag')?.addEventListener('change', ()=>{
   renderOrbFlagInfo('orbFlagInfo', document.getElementById('orb_flag').value);
   renderOrbSignatoryGuidance();
   fillFlagRegistrySelect('s_flag', vesselFlagCode());
+  applyOrbPartAvailability();
+  renderOrbOpGrid();
+  renderOrbBrowse();
 });
 document.getElementById('s_flag')?.addEventListener('change', ()=>{
   state.setup.flag = document.getElementById('s_flag').value || '';
@@ -34583,6 +34613,9 @@ document.getElementById('s_flag')?.addEventListener('change', ()=>{
   if (orbSel && state.setup.flag) orbSel.value = state.setup.flag;
   renderOrbFlagInfo('orbFlagInfo', state.setup.flag);
   renderOrbSignatoryGuidance();
+  applyOrbPartAvailability();
+  renderOrbOpGrid();
+  renderOrbBrowse();
 });
 document.getElementById('btnOrbPrefillFromVessel')?.addEventListener('click', ()=>{
   const setup = orbSetup();
