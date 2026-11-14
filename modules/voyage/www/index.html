@@ -1415,6 +1415,18 @@
   /* The book's own styles live in eorb.js (EORB.BOOK_CSS) and are injected at boot,
      so the on-screen book and the printed sheet are styled by one stylesheet. */
   .orb-book-wrap{margin-top:10px; overflow-x:auto;}
+  .orb-guide{margin-top:12px;}
+  .orb-guide h3{margin:14px 0 6px; font-size:14px;}
+  .orb-guide .orb-guide-notice{font-size:12px; color:var(--paper-dim); border-left:3px solid var(--teal); padding:6px 10px; margin:0 0 10px;}
+  .orb-guide .orb-guide-doc{border:1px solid var(--line); border-radius:6px; padding:9px 11px; margin:0 0 8px;}
+  .orb-guide .orb-guide-doc .ref{font-weight:700; font-size:13px;}
+  .orb-guide .orb-guide-doc .ttl{font-size:13px; margin-top:2px;}
+  .orb-guide .orb-guide-doc .note{font-size:12px; color:var(--paper-dim); margin-top:4px; line-height:1.45;}
+  .orb-guide .orb-guide-doc a{display:inline-block; margin-top:6px; min-height:36px; line-height:36px; font-size:12px; color:var(--brass-bright); text-decoration:underline;}
+  .orb-guide table{width:100%; min-width:520px; border-collapse:collapse; font-size:12px;}
+  .orb-guide .table-scroll{max-width:100%; overflow-x:auto;}
+  .orb-guide th,.orb-guide td{border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; line-height:1.4;}
+  .orb-guide ol.hist{margin:0; padding-left:18px; font-size:12px; line-height:1.5;}
   .orb-table tr.orb-voided td{color:var(--paper-dim); text-decoration:line-through;}
   .orb-table tr.orb-voided td .hint{text-decoration:none; color:var(--alert);}
   /* Chronology guidance for ORB dates — must stay visible on phones, so not .hint */
@@ -5111,6 +5123,7 @@ html.astrolabe body::before { opacity: 0.26; }
           <div class="field"><label>Flag guidance</label><select id="orb_codesFlag"></select></div>
         </div>
         <div class="orb-flag-box" id="orbCodesFlagInfo"></div>
+        <div class="orb-guide" id="orbFlagGuide"></div>
         <div id="orbCodesList" style="margin-top:12px;"></div>
       </div>
     </div>
@@ -34258,11 +34271,44 @@ function openOrbWizard(code, opts){
   renderOrbPreview();
 }
 
+/* Flag guide: the publications that govern the Oil Record Book for the flag picked above, with the
+   history of changes, and which book records the burning of each kind of waste. A reference list
+   with links to the originals, never a copy of them. */
+function renderOrbFlagGuide(flagCode){
+  const host = document.getElementById('orbFlagGuide');
+  if (!host || !window.EORB) return;
+  const pubs = EORB.FLAG_PUBLICATIONS || {};
+  const docHtml = (d) => `<div class="orb-guide-doc">
+      <div class="ref">${escHtml(d.ref || '')}${d.date ? ` <span style="font-weight:400;">· ${escHtml(d.date)}</span>` : ''}</div>
+      <div class="ttl">${escHtml(d.title || '')}</div>
+      ${d.note ? `<div class="note">${escHtml(d.note)}</div>` : ''}
+      ${d.url ? `<a href="${escAttr(d.url)}" target="_blank" rel="noopener noreferrer">Open the original ↗</a>` : ''}
+    </div>`;
+  const block = (key) => {
+    const p = pubs[key];
+    if (!p) return '';
+    return `<h3>${escHtml(p.title)}</h3>${(p.documents || []).map(docHtml).join('')}
+      ${(p.history || []).length ? `<div class="hint" style="margin:6px 0 4px;"><strong>History of changes</strong></div>
+      <ol class="hist">${p.history.map(h => `<li><strong>${escHtml(h.date)}</strong> — ${escHtml(h.change)}</li>`).join('')}</ol>` : ''}`;
+  };
+  const flag = EORB.getFlag(flagCode);
+  const own = pubs[flagCode]
+    ? block(flagCode)
+    : `<h3>${escHtml(flag.name)} — ${escHtml(flag.admin)}</h3>
+       <div class="hint">No circular for this flag has been added to the guide yet. The IMO rules below apply, and the notes above are this program's summary of the administration's practice — ask your DPA or the administration for the current circular.</div>`;
+  const waste = `<h3>Which book records the burning of waste?</h3>
+    <div class="table-scroll"><table><thead><tr><th>Waste burned</th><th>Recorded in</th><th>Basis</th></tr></thead><tbody>
+    ${EORB.WASTE_RECORDING_GUIDE.map(r => `<tr><td>${escHtml(r.waste)}</td><td>${escHtml(r.book)}</td><td>${escHtml(r.basis)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  host.innerHTML = `<div class="orb-guide-notice">${escHtml(EORB.FLAG_GUIDE_NOTICE)}</div>${own}${waste}${flagCode === 'IMO' ? '' : block('IMO')}`;
+}
+
 function renderOrbCodesList(){
   if (!window.EORB) return;
   const part = Number(document.getElementById('orb_codesPart')?.value || 1);
   const flagCode = document.getElementById('orb_codesFlag')?.value || orbSetup().flag;
   renderOrbFlagInfo('orbCodesFlagInfo', flagCode);
+  renderOrbFlagGuide(flagCode);
   const host = document.getElementById('orbCodesList');
   if (!host) return;
   host.innerHTML = EORB.getPartOps(part).map(op => `
