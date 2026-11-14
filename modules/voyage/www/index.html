@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <title>Voyage Chief — Engine Log</title>
 <meta name="author" content="Marvin C. Endozo (ts0gs)">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
 <meta name="theme-color" content="#0a1420">
 <meta name="license-api" content="">
 <meta name="mobile-web-app-capable" content="yes">
@@ -95,7 +95,7 @@
     /* Keep phone/tablet browsers on the mobile layout (block “Desktop site”). */
     (function lockMobileViewport() {
       /* resizes-visual: soft keyboard must not shrink the layout viewport (tablet scramble). */
-      const WANT = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual';
+      const WANT = 'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual';
       function apply() {
         let meta = document.querySelector('meta[name="viewport"]');
         if (!meta) {
@@ -2859,19 +2859,34 @@
      only the left quarter of the line and the rest of it hangs off to the left —
      clear of the name and the three-quarters of line the signature sits over. */
   .pr-sign-stamp{
-    position:absolute; left:25%; top:16.8mm;
-    transform:translate(-100%, -50%);
-    display:flex; align-items:center; justify-content:center;
+    /* Flex + relative offset, not absolute + transform: Android PrintManager drops
+       images placed that way (the signature already learned this). The wrapper is a
+       zero-height strip 10.5mm wide at the top of the block; justify-content:flex-end
+       lets the stamp overflow to the LEFT, so its right edge sits on the line's
+       quarter mark. The image is then lifted by half its height less the line's
+       offset (42.64/2 - 16.8 = 4.52mm) so it is centred on the signature line. */
+    position:relative; height:0; width:10.5mm; overflow:visible;
+    display:flex; align-items:flex-start; justify-content:flex-end;
   }
   .pr-sign-stamp img{
     height:42.64mm; width:auto; max-width:77.52mm; object-fit:contain; display:block;
+    flex:0 0 auto; position:relative; top:-4.52mm;
   }
   .pr-sign-block{ flex:0 0 42mm; text-align:right; position:relative; }
+  /* The stamp hangs 21.3mm below the signature line. It used to be out of flow, so the
+     fit pass and the paginator never counted it and a full sheet lost its lower half
+     off the bottom of the paper. With a stamp, the row is at least as tall as the
+     stamp's whole reach (38.1mm from the top of the block). */
+  .pr-sign-row.has-stamp{ min-height:38.2mm; }
   /* Height is the signature line's offset from the top of the block — the stamp's
      `top` is pinned to the same figure so it centres on the line. */
   .pr-sign-space{
     height:16.8mm; width:42mm; margin-left:auto; margin-bottom:0;
-    display:flex; align-items:flex-end; justify-content:center;
+    /* flex-end, not center: the signature image may be wider than the 42mm slot (50.4mm
+       max), and centred it hung 4.2mm off the right-hand side, past the sheet's margin and
+       into what a printer cannot reach. Right-aligned it overhangs to the left instead,
+       over the stamp, which is where it is meant to overlap. */
+    display:flex; align-items:flex-end; justify-content:flex-end;
   }
   /* Flex, not absolute+transform: Android PrintManager drops those images. */
   .pr-sign-space img{
@@ -20440,7 +20455,12 @@ function fitOnePortraitPage(page, inner){
   inner.style.width = '100%';
 
   const measure = ()=>{
-    const availH = Math.max(1, page.clientHeight - 2);
+    /* The page's own top padding is part of clientHeight but is not room for content: the
+       sheet starts below it. Leaving it in let a full sheet run past the paper by as much as
+       the padding, which is exactly where the byline and the stamp are. 8px is the margin for
+       the webfonts, which load after this measure and sit a little taller than the fallback. */
+    const padTop = parseFloat(getComputedStyle(page).paddingTop) || 0;
+    const availH = Math.max(1, page.clientHeight - padTop - 8);
     const availW = Math.max(1, page.clientWidth - 2);
     const contentH = Math.max(1, inner.scrollHeight);
     const contentW = Math.max(1, inner.scrollWidth);
@@ -20785,7 +20805,7 @@ function printSignatory(entry){
   const stamp = stampUrl ? `<div class="pr-sign-stamp"><img src="${stampUrl}" alt="Ship's stamp"></div>` : '';
   const sig = sigUrl ? `<img src="${sigUrl}" alt="">` : '';
   return `<footer class="pr-sign">
-    <div class="pr-sign-row">
+    <div class="pr-sign-row${stamp ? ' has-stamp' : ''}">
       <div class="pr-sign-block">
         ${stamp}
         <div class="pr-sign-space" aria-hidden="true">${sig}</div>

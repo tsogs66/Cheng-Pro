@@ -1,0 +1,14 @@
+{
+  "deviceId": "122802ca-52c2-4fa6-a241-718418b33426",
+  "deviceName": "",
+  "enabled": false,
+  "scope": "active",
+  "intervalSec": 20,
+  "userScope": null,
+  "license": {
+    "tag": "9bf151cf8df853405081631c2e203f0e8b588ea2c3f68cc38147ecd5dfc81350",
+    "email": "chief@example.com"
+  },
+  "paired": [],
+  "peers": []
+}
