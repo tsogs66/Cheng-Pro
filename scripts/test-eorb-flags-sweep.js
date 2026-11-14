@@ -121,6 +121,10 @@ Object.keys(pubs).forEach(k => {
 ok(pubs.IMO.history.some(h => /Rev\.2/.test(h.change) && /6 Oct 2011/.test(h.date)), 'MEPC.1/Circ.736/Rev.2 (6 October 2011) is in the history');
 ok(pubs.PA.history.some(h => /MMC-23/.test(h.change)), 'Panama MMC-215 replaces MMC-23, 83, 148, 154, 177');
 ok(pubs.LR.documents.some(d => /08\/24/.test(d.date || '')), 'Liberia POL-012 is Rev. 08/24');
+ok(pubs.MH.documents.some(d => d.ref === 'MI-402A' && /Nov\/2025/.test(d.date) && d.checked === 'read'), 'Marshall Islands MI-402A (Rev. Nov/2025) is listed and read');
+ok(pubs.MH.documents.some(d => d.ref === 'MG 2-13-3' && /Dec\/2017/.test(d.date) && d.checked === 'read'), 'Marshall Islands MG 2-13-3 (Rev. Dec/2017) is listed and read');
+ok(E.getFlag('MH').tips.some(t => /MI-402A/.test(t)), 'the Marshall Islands tips point at MI-402A');
+ok(E.flagSignatoryPolicy('MH').mode === 'engineer_or_ce', 'Marshall Islands: the officer in charge signs, the Chief Engineer reviews');
 ok(pubs.BS.documents.some(d => /MN056/.test(d.ref)) && pubs.BS.documents.some(d => /v2\.3/.test(d.ref)), 'Bahamas lists MN056 and MN010 v2.3');
 ok(/open the original/i.test(E.FLAG_GUIDE_NOTICE), 'the guide tells the reader to check the original');
 ok(E.WASTE_RECORDING_GUIDE.length === 5, 'sludge in an incinerator and in a boiler, domestic garbage, oily rags and the Panama exception are covered');

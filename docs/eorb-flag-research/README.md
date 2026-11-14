@@ -141,3 +141,14 @@ Full tables are in [`appendix-iii-comparison.md`](appendix-iii-comparison.md). I
 2. Obtain the real Panama Part III form (the printed book, or a Panama Registry link) to confirm letters and item numbers for fuel changeover and the incinerator, and whether ODS / VCS / NOx lines are needed.
 3. Decide whether Part III E and the "incinerator-garbage" code I scenario should be Panama-only. Under MARPOL both belong in the Garbage Record Book only.
 4. Fix (when the code is next touched): Part II R item 85 and R 84 label; Liberia, Malta and Cyprus signatory policies; MI-402A; POL-012 revision; Bahamas publications (add MN056, update MN010).
+
+
+## 7. Addendum — Marshall Islands documents supplied by the user (14 Nov 2026)
+
+The research pass could not read register-iri.com. The user then supplied three RMI PDFs, which were read in full:
+
+- **MG 2-13-3, Rev. Dec/2017** (supersedes Rev. 10/11; updates the policies on log and record book retention). English only. The person responsible makes the entry on completion; the Chief Engineer, Chief Mate or an SMS-named person (e.g. Environmental Officer) **reviews** it for completeness at the earliest opportunity; each completed operation is signed and dated by the officer(s) in charge; the Master reviews and countersigns each page. Part I for oil tankers of 150 GT and above and other ships of 400 GT and above; Part II as well for oil tankers of 150 GT and above (and a non-tanker carrying more than 200 m³ of oil in bulk as cargo). Corrections made openly on the next line, never erased or rewritten; missed entries made at once with the reason; retention 3 years; on a change of ship management the former managers keep the book 3 years, a certified copy covering at least 6 months stays on board and the new book starts with an entry stating the change.
+- **MI-402A, Rev. Nov/2025** — Oil Record Book Instructions with the Part I (A–I, items 1–26) and Part II (A–R, items 1–85) lists. Same item numbers as Appendix III; Part II R 84 "Total quantity of ballast water discharged in m³" and R 85 "Date, signature and stamp of port authority official" confirm the two Part II corrections made in the app. Part I footnote on C 11: only tanks listed in IOPP Supplement item 3.1 of forms A and B.
+- **MI-332A, Rev. 4/11** — the earlier edition of the instructions (same Part I list; its Part II lettering differs from the current one).
+
+Effect on the app: **MI-402A is a real RMI document** (the first-pass check that called it "UNVERIFIED, likely wrong" was mistaken and the reference is restored); Marshall Islands is no longer treated as a two-signature-row flag; the Marshall Islands publication list and tips were rewritten from these documents. Still unread: MN 2-013-3.

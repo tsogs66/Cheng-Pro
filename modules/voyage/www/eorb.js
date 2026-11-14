@@ -324,14 +324,18 @@
     {
       code: 'MH', name: 'Marshall Islands', admin: 'Republic of the Marshall Islands Maritime Administrator',
       language: 'English (required)',
-      signatory: dualSignatoryPolicy(
-        'Marine Guideline 2-13-3: the officer in charge signs the operation; the Chief Engineer (or SMS-named reviewer) checks completeness.'
-      ),
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Marine Guideline 2-13-3 (Rev. Dec/2017) and MI-402A: the person responsible for the operation makes the entry directly on completion; the Chief Engineer, Chief Mate or other person named in the SMS reviews it for completeness at the earliest opportunity; each completed operation is signed and dated by the officer(s) in charge and each page is countersigned by the Master.'
+      },
       erbNote: 'RMI publishes approved ERB software providers (Marine Notice 7-041-5, list MI-334C). The Administrator issues the ERB Declaration on application (form MI-334A, by email).',
       tips: [
         'ORB Part I entries for IOPP ships shall be in English.',
         'Weekly sludge inventory: C 11.1 tank identity, 11.2 capacity m³, 11.3 retention m³ — repeat for each 3.1 tank.',
-        'Follow the MEPC.1/Circ.736 example wording for PSC consistency.',
+        'Follow MI-402A (Oil Record Book Instructions, Rev. Nov/2025) and the MEPC.1/Circ.736/Rev.2 example wording. A good-faith entry with a code letter, item number and an accurate account satisfies the intent (MG 2-13-3, item 6).',
+        'Corrections: make them openly in the next available line, describe the circumstances and the entry being corrected; never erase, modify or rewrite earlier entries (MG 2-13-3, item 8). A missed entry is made at once on the next line with the reason it is late.',
+        'Ship management change: the former managers keep the book at least 3 years; leave a certified copy covering at least 6 months on board and start the new book with an entry stating the change of management (MG 2-13-3, item 13).',
         'Incineration of sludge: record under C.12.3 with total time of operation.'
       ]
     },
@@ -476,19 +480,28 @@
     MH: {
       title: 'Marshall Islands — Maritime Administrator (IRI)',
       documents: [
+        { ref: 'MG 2-13-3', title: 'Oil Record Book Guidelines', date: 'Rev. Dec/2017 (supersedes Rev. 10/11)',
+          note: 'Part I: every oil tanker of 150 GT and above and every other ship of 400 GT and above; Part II as well for oil tankers of 150 GT and above (and a non-tanker carrying more than 200 m³ of oil in bulk as cargo). Written in English. The person responsible makes the entry on completion; the Chief Engineer, Chief Mate or an SMS-named person reviews it; the officer(s) in charge sign and date each operation; the Master countersigns each page. Rules on corrections, retention (3 years) and ship management changes.',
+          url: 'https://www.register-iri.com/wp-content/uploads/MG-2-13-3.pdf', checked: 'read' },
+        { ref: 'MI-402A', title: 'Oil Record Book Instructions — Part I and Part II item lists', date: 'Rev. Nov/2025',
+          note: 'The official item list: Part I codes A–I (items 1–26) and Part II codes A–R (items 1–85) with their footnotes. Same item numbers as MARPOL Appendix III; Part II R ends with item 85, date, signature and stamp of the port authority official.', checked: 'read' },
+        { ref: 'MI-332A', title: 'Oil Record Book General Instructions (earlier edition of the instructions)', date: 'Rev. 4/11',
+          url: 'https://www.register-iri.com/forms/upload/ORB_Instructions.pdf', checked: 'read' },
         { ref: 'MN 7-041-5 (May 2020)', title: 'Electronic record books and logbook systems', note: 'Supersedes the version of 11/06. Approved software providers are listed; the Administrator issues the Declaration on application (form MI-334A, by email).',
           url: 'https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf', checked: 'read' },
         { ref: 'MI-334C', title: 'Approved software providers for MARPOL electronic record books', date: 'list as of 11 May 2020 (the notice links the current list)',
           url: 'https://www.irclass.org/media/4948/mi-334c.pdf', checked: 'read' },
-        { ref: 'MG 2-13-3', title: 'Oil Record Book guidelines', note: 'Could not be read in this research pass. A search summary says ORB entries are in English and available to port inspectors.',
-          url: 'https://www.register-iri.com/wp-content/uploads/MG-2-13-3.pdf', checked: 'listed' },
         { ref: 'MN 2-013-3', title: 'Oil filtering equipment and oil discharge monitoring and control systems', note: 'Could not be read; a search summary says it covers inoperative equipment and the sealing of overboard discharge valves.',
           url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'listed' }
       ],
       history: [
+        { date: 'Oct 2011', change: 'MG 2-13-3 Rev. 10/11.' },
+        { date: 'Apr 2011', change: 'MI-332A Oil Record Book General Instructions, Rev. 4/11.' },
         { date: 'Nov 2006', change: 'Earlier version (11/06) of the electronic record book notice, superseded by MN 7-041-5.' },
+        { date: 'Dec 2017', change: 'MG 2-13-3 reissued: supersedes Rev. 10/11 and updates the policies on log and record book retention.' },
         { date: 'May 2020', change: 'MN 7-041-5 and MI-334C issued for MEPC.312(74) electronic record books.' },
-        { date: '1 Oct 2020', change: 'MARPOL electronic record books usable under MN 7-041-5.' }
+        { date: '1 Oct 2020', change: 'MARPOL electronic record books usable under MN 7-041-5.' },
+        { date: 'Nov 2025', change: 'MI-402A Oil Record Book Instructions, Rev. Nov/2025.' }
       ]
     },
     PA: {
