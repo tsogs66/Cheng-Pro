@@ -91,6 +91,15 @@ for (const flag of E.FLAGS) {
 }
 ok(combos > 1500, 'a thorough sweep: ' + combos + ' combinations');
 
+/* Part II Code R ends with item 85, the port authority official's date, signature and stamp. */
+ok(E.getOperation(2, 'R').items.some(i => i.no === '85' && /port authority official/i.test(i.label)), 'Part II R has item 85');
+ok(/Total quantity of ballast water discharged/.test(E.getOperation(2, 'R').items.find(i => i.no === '84').label), 'Part II R 84 reads as the official form does');
+{
+  const pa = E.defaultOrbSetup({ flag: 'PA' }), lr = E.defaultOrbSetup({ flag: 'LR' });
+  ok(E.getScenarios(pa, 1).some(x => x.id === 'incinerator-garbage'), 'the garbage-incineration entry is offered on Panama ships');
+  ok(!E.getScenarios(lr, 1).some(x => x.id === 'incinerator-garbage'), 'and not on other flags');
+}
+
 /* Part II Code D 13 / 14 are the washing pattern and pressure. */
 {
   const setup = JSON.parse(JSON.stringify(base));
@@ -101,7 +110,7 @@ ok(combos > 1500, 'a thorough sweep: ' + combos + ' combinations');
 
 /* Flag guide */
 const pubs = E.FLAG_PUBLICATIONS;
-ok(pubs.IMO && pubs.PA && pubs.LR && pubs.MH && pubs.BS, 'IMO, Panama, Liberia, Marshall Islands and Bahamas have a publication list');
+['IMO', 'LR', 'MH', 'PA', 'BS', 'SG', 'MT', 'HK', 'CY', 'GB'].forEach(k => ok(pubs[k], k + ' has a publication list'));
 Object.keys(pubs).forEach(k => {
   ok((pubs[k].documents || []).length > 0, k + ' lists documents');
   pubs[k].documents.forEach(d => {
@@ -111,8 +120,12 @@ Object.keys(pubs).forEach(k => {
 });
 ok(pubs.IMO.history.some(h => /Rev\.2/.test(h.change) && /6 Oct 2011/.test(h.date)), 'MEPC.1/Circ.736/Rev.2 (6 October 2011) is in the history');
 ok(pubs.PA.history.some(h => /MMC-23/.test(h.change)), 'Panama MMC-215 replaces MMC-23, 83, 148, 154, 177');
+ok(pubs.LR.documents.some(d => /08\/24/.test(d.date || '')), 'Liberia POL-012 is Rev. 08/24');
+ok(pubs.BS.documents.some(d => /MN056/.test(d.ref)) && pubs.BS.documents.some(d => /v2\.3/.test(d.ref)), 'Bahamas lists MN056 and MN010 v2.3');
 ok(/open the original/i.test(E.FLAG_GUIDE_NOTICE), 'the guide tells the reader to check the original');
-ok(E.WASTE_RECORDING_GUIDE.length === 4, 'sludge, domestic garbage, oily rags and the Panama exception are covered');
-ok(/Garbage Record Book only/.test(E.WASTE_RECORDING_GUIDE[2].book) && /oily rags/i.test(E.WASTE_RECORDING_GUIDE[2].waste), 'oily rags and used filters: Garbage Record Book only');
+ok(E.WASTE_RECORDING_GUIDE.length === 5, 'sludge in an incinerator and in a boiler, domestic garbage, oily rags and the Panama exception are covered');
+const rags = E.WASTE_RECORDING_GUIDE.find(r => /oily rags/i.test(r.waste));
+ok(rags && /Garbage Record Book only/.test(rags.book), 'oily rags and used filters: Garbage Record Book only');
+ok(E.WASTE_RECORDING_GUIDE.some(r => /boiler/i.test(r.waste) && /12\.4/.test(r.book)), 'sludge burned in a boiler is C 12.4');
 ok(/Garbage Record Book/.test(E.getScenario('incinerator-garbage').formNotes.join(' ')), 'the garbage-incineration entry says where garbage is recorded');
 console.log(`e-ORB flags sweep: ${pass} checks passed (${combos} entry combinations)`);

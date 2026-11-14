@@ -309,15 +309,16 @@
     {
       code: 'LR', name: 'Liberia', admin: 'Liberia Maritime Authority (LISCR)',
       language: 'English',
-      signatory: dualSignatoryPolicy(
-        'Marine Operations Note 07/2010 and POL-012: officer(s) in charge sign each operation; approved e-ORB printouts (e.g. beORB) commonly show the duty engineer and Chief Engineer.'
-      ),
-      erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry a Declaration of MARPOL Electronic Record Book (Marine Notice POL-012).',
+      signatory: {
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Marine Operations Note 07/2010 (revised 10 Dec 2010): the officer or officers in charge sign each completed operation; the Master countersigns each completed page.'
+      },
+      erbNote: 'Liberian vessels may only use Administration-approved ERBs and must carry the Declaration of MARPOL Electronic Record Book; the e-ORB is used officially only after the Declaration is received (POL-012, Rev. 08/24).',
       tips: [
         'Weekly C.11 inventory of IOPP Form A/B item 3.1 sludge tanks is expected even on long voyages (record each tank 11.1 / 11.2 / 11.3).',
         'Recording retained quantity in IOPP 3.3 oily bilge water holding tanks is voluntary (MEPC.1/Circ.736) — use Code I if your SMS requires it.',
-        'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.',
-        'Use D (manual start) vs E (automatic mode) carefully — mode of starting, not equipment capability.'
+        'Keep reception-facility receipts with the ORB for C.12.1 / D.15.2 transfers.'
       ]
     },
     {
@@ -326,11 +327,11 @@
       signatory: dualSignatoryPolicy(
         'Marine Guideline 2-13-3: the officer in charge signs the operation; the Chief Engineer (or SMS-named reviewer) checks completeness.'
       ),
-      erbNote: 'RMI publishes approved ERB vendors (Marine Notice 7-041-5). Ship must hold ERB Declaration(s) from the registry portal.',
+      erbNote: 'RMI publishes approved ERB software providers (Marine Notice 7-041-5, list MI-334C). The Administrator issues the ERB Declaration on application (form MI-334A, by email).',
       tips: [
         'ORB Part I entries for IOPP ships shall be in English.',
         'Weekly sludge inventory: C 11.1 tank identity, 11.2 capacity m³, 11.3 retention m³ — repeat for each 3.1 tank.',
-        'Follow MI-402A item list and MEPC.1/Circ.736 example wording for PSC consistency.',
+        'Follow the MEPC.1/Circ.736 example wording for PSC consistency.',
         'Incineration of sludge: record under C.12.3 with total time of operation.'
       ]
     },
@@ -355,10 +356,10 @@
       code: 'BS', name: 'Bahamas', admin: 'Bahamas Maritime Authority',
       language: 'English',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'Bahamas follows the MARPOL Appendix III item list. Electronic record books are covered by BMA Marine Notice MN010 (MARPOL Electronic Record Books); ERB use requires Administration acceptance where applicable.',
+      erbNote: 'Bahamas follows the MARPOL Appendix III item list (Marine Notice MN056, MARPOL Oil Record Books). Electronic record books are covered by Marine Notice MN010: the system needs a BMA Document of Approval, issued on a Recognised Organisation\'s or a Contracting Government\'s approval.',
       tips: [
         'Transfers TO IOPP 3.1 tanks FROM non-3.1 locations use C.11.4 (with 11.1–11.3).',
-        'Transfers between 3.1 tanks use C.12.2.',
+        'Transfers between 3.1 tanks, and from a 3.1 tank to a non-3.1 tank, use C.12.2 (MN056 4.5).',
         'Manual start of an “automatic” bilge system still uses code D, plus E.18 when placed in manual.'
       ]
     },
@@ -366,16 +367,16 @@
       code: 'SG', name: 'Singapore', admin: 'Maritime and Port Authority of Singapore',
       language: 'English',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'Singapore-flagged ships must meet MARPOL recording standards; electronic books require MPA acceptance where used as official records.',
+      erbNote: 'Singapore Shipping Circular 10/2020: a Recognised Organisation approves the electronic record book and issues the Declaration on MPA\'s behalf; it is used officially only after the ship has the Declaration, and a new Declaration is needed for a version upgrade.',
       tips: ['Prefer clear Lat/Long or port name for ship position.', 'State quantities in m³ (sludge/bilge) or tonnes (bunkers) as required by the item.']
     },
     {
       code: 'CY', name: 'Cyprus', admin: 'Shipping Deputy Ministry — Cyprus',
       language: 'English',
       signatory: {
-        mode: SIGNATORY_MODES.chief_engineer_only,
-        label: 'Chief Engineer',
-        note: 'Cyprus SMS / PSC practice for Part I machinery-space entries: signature by the Chief Engineer unless your company SMS names another signing officer — confirm with your DPA.'
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'MARPOL Annex I Reg. 17: the officer or officers in charge sign each operation; the Master countersigns each page. No Cyprus circular could be read for this guide — ask your DPA if your SMS names a different signatory.'
       },
       erbNote: 'Cyprus applies MARPOL Annex I ORB requirements; ERB subject to flag acceptance under IMO guidelines.',
       tips: ['Code I is for additional procedures/remarks — do not use it to replace mandatory codes A–H.']
@@ -384,18 +385,18 @@
       code: 'MT', name: 'Malta', admin: 'Transport Malta — Merchant Shipping Directorate',
       language: 'English',
       signatory: {
-        mode: SIGNATORY_MODES.chief_engineer_only,
-        label: 'Chief Engineer',
-        note: 'Transport Malta Part I entries are normally signed by the Chief Engineer as officer in charge of machinery-space operations.'
+        mode: SIGNATORY_MODES.engineer_or_ce,
+        label: 'Officer in charge',
+        note: 'Technical Notice MARPOL.7 (15 Jun 2018): each printed entry is signed by the Officer in Charge and each page by the Master.'
       },
-      erbNote: 'Malta-flagged vessels must maintain ORB Part I (and Part II if tanker) per MARPOL; ERB requires Administration approval process.',
+      erbNote: 'Malta-flagged vessels maintain ORB Part I (and Part II if tanker) per MARPOL. Technical Notice MARPOL.7 (2018): the printout of an electronic record book is the official record.',
       tips: ['Ensure IOPP Supplement tank lists match the tanks selectable in this e-ORB setup.']
     },
     {
       code: 'HK', name: 'Hong Kong, China', admin: 'Hong Kong Marine Department',
-      language: 'English / Chinese as applicable',
+      language: 'English, or English and Chinese',
       signatory: DEFAULT_SIGNATORY,
-      erbNote: 'HK ships follow MARPOL ORB form; electronic alternatives need MD acceptance.',
+      erbNote: 'HK ships use the Marine Department\'s Part I and Part II forms; an electronic record book must be approved by the Administration (MSIN 22/2019).',
       tips: ['Record accidental/exceptional discharges under G with circumstances and reasons.']
     },
     {
@@ -425,9 +426,10 @@
      publication list or a mirror of it (the document itself was not read in full here).
      --------------------------------------------------------------------------------------- */
   const FLAG_GUIDE_NOTICE =
-    'Reference list. Titles, numbers and dates are taken from the administrations\' publication lists; the ' +
-    'documents themselves change often. Open the original and confirm the current edition before you rely on it, ' +
-    'and keep the circular that applies to your ship with the Oil Record Book.';
+    'Reference list from a research pass on 14 Nov 2026. "Read" means the document was read at the link; "Listed" means ' +
+    'only its title, number and date were found, not the document. The administrations reissue these often: open the ' +
+    'original, confirm it is still the current edition, and keep the circular that applies to your ship with the Oil Record Book. ' +
+    'Full findings are in docs/eorb-flag-research/.';
 
   const FLAG_PUBLICATIONS = {
     IMO: {
@@ -435,81 +437,139 @@
       documents: [
         { ref: 'MARPOL Annex I, Reg. 17 and Reg. 36', title: 'Oil Record Book Part I (machinery space operations) and Part II (cargo / ballast operations)',
           note: 'Part I: every ship of 400 GT and above, and every oil tanker of 150 GT and above. Part II: oil tankers of 150 GT and above. Each completed operation is signed by the officer in charge and each completed page by the Master; the book is kept three years after the last entry.', checked: 'listed' },
-        { ref: 'MARPOL Annex I, Appendix III', title: 'Form of Oil Record Book (codes and item numbers), as amended by MEPC.187(59)',
-          note: 'The letter codes and item numbers this e-ORB uses. The amended form applies from 1 January 2011.', checked: 'listed' },
+        { ref: 'MARPOL Annex I, Appendix III', title: 'Form of Oil Record Book, as amended by MEPC.187(59) — in force 1 January 2011',
+          note: 'The letter codes and item numbers this e-ORB uses. Compared item by item (14 Nov 2026): every Part I code and item number matches; Part II items 1-84 match.', checked: 'read' },
         { ref: 'MEPC.1/Circ.736/Rev.2', title: 'Guidance for the recording of operations in the Oil Record Book Part I', date: '6 October 2011',
-          note: 'Worked examples for codes C to I: weekly inventory of sludge tanks, OWS and oil content meter, sealing of valves, de-bunkering. Says incineration or landing ashore of oily garbage and used filters is recorded in the Garbage Record Book only.',
+          note: 'Worked examples for codes C to I. Incineration or landing ashore of oily garbage and used filters is recorded in the Garbage Record Book only; sludge burned in an incinerator is C 12.3, in a boiler C 12.4. Rev.2 itself was not read; the original circular was, as reproduced by Liberia.',
           url: 'https://www.dco.uscg.mil/Portals/9/DCO%20Documents/5p/CG-5PC/CG-CVC/Marpol/sdoc/MEPC_1_Circ_736_rev_2.pdf', checked: 'listed' },
-        { ref: 'MEPC.312(74)', title: 'Guidelines for the use of electronic record books under MARPOL (adopted 2019)',
-          note: 'What an electronic record book has to do (non-deletable entries, authentication, printing, back-up) before a flag can accept it in place of the paper book.', checked: 'listed' },
+        { ref: 'MEPC.312(74)', title: 'Guidelines for the use of electronic record books under MARPOL (adopted 17 May 2019)',
+          note: 'Electronic record book amendments in force 1 October 2020. What an electronic record book has to do (non-deletable entries, authentication, printing, back-up) before a flag accepts it in place of the paper book.', checked: 'listed' },
         { ref: 'MARPOL Annex V, Reg. 10', title: 'Garbage Record Book',
           note: 'Each discharge or completed incineration of garbage is recorded in the Garbage Record Book, not in the Oil Record Book.', checked: 'listed' }
       ],
       history: [
-        { date: '8 Nov 2010', change: 'MEPC.1/Circ.736 issued: guidance on recording operations in the ORB Part I.' },
+        { date: '8 Dec 2010', change: 'MEPC.1/Circ.736 examples circulated by Liberia (reissued with corrections 10 Dec 2010).' },
         { date: '1 Jan 2011', change: 'Appendix III as amended by MEPC.187(59) takes effect (revised Part I and Part II forms).' },
-        { date: '25 Aug 2011', change: 'MEPC.1/Circ.736/Rev.1.' },
-        { date: '6 Oct 2011', change: 'MEPC.1/Circ.736/Rev.2 — the current guidance; revokes Rev.1.' },
-        { date: '2019', change: 'MEPC.312(74): guidelines for electronic record books under MARPOL.' }
+        { date: '6 Oct 2011', change: 'MEPC.1/Circ.736/Rev.2 — the current guidance (Rev.1 of 25 Aug 2011 revoked).' },
+        { date: '17 May 2019', change: 'MEPC.312(74): guidelines for electronic record books under MARPOL.' },
+        { date: '1 Oct 2020', change: 'Electronic record book amendments in force.' }
       ]
     },
     LR: {
       title: 'Liberia — Liberian Registry (LISCR)',
       documents: [
-        { ref: 'POL-012', title: 'Electronic record books under MARPOL, SOLAS and the BWM Convention', date: 'Rev. 11/21 is the latest found',
-          note: 'The Declaration of MARPOL Electronic Record Book must be on board; the first electronic entry is dated after the date on the Declaration.',
-          url: 'https://www.liscr.com/sites/default/files/online_library/POL-012.pdf', checked: 'listed' },
-        { ref: 'Marine Operations Note 07/2010', title: 'New revised MARPOL Annex I Oil Record Books Part I and II',
-          url: 'https://www.liscr.com/marketing/liscr/media/liscr/online%20library/maritime/marine-operations-note-07_2010.pdf', checked: 'listed' }
+        { ref: 'POL-012', title: 'Electronic Record Books (ERB) for ships', date: 'Rev. 08/24 (supersedes Rev. 08/21)',
+          note: 'Only Administration-approved ERBs; the Declaration of MARPOL Electronic Record Book is issued by LISCR and the ERB is used officially only after the Declaration is received (s13.2, 13.3, 14.6).',
+          url: 'https://www.liscr.com/sites/default/files/online_library/POL-012.pdf', checked: 'read' },
+        { ref: 'Marine Operations Note 7/2010 (Revised)', title: 'New revised MARPOL Annex I Oil Record Books Part I and II', date: '10 Dec 2010',
+          note: 'Revises the note of 8 Dec 2010. Liberian books RLM-121 (Part I) and RLM-121A (Part II). Officer(s) in charge sign each operation, the Master each page; English; kept three years. Carries the Circ.736 example entries.',
+          url: 'https://www.liscr.com/marketing/liscr/media/liscr/online%20library/maritime/marine-operations-note-07_2010.pdf', checked: 'read' }
       ],
       history: [
-        { date: '2010', change: 'Marine Operations Note 07/2010 on the revised Part I and Part II books.' },
-        { date: '2016', change: 'Technical Circular 43/2016 (IRClass): at that date only the Registry\'s own e-ORB was approved. Later revisions of POL-012 refer to Administration-approved record books in general.' },
-        { date: 'Nov 2021', change: 'POL-012 Rev. 11/21 adds the MARPOL record book amendments and guidelines.' }
+        { date: '8 Dec 2010', change: 'Marine Operations Note 7/2010 issued.' },
+        { date: '10 Dec 2010', change: 'Revised note issued correcting the example entries; Liberian ORB RLM-121 / RLM-121A Rev 2010.' },
+        { date: 'Nov 2016', change: 'POL-012 11/16 (IRClass Technical Circular 43/2016): e-ORB as the official book; at that date only the Liberian Registry\'s own e-ORB was approved.' },
+        { date: 'Rev. 08/21', change: 'POL-012 Rev. 08/21 (known only from the "Supersedes" line of Rev. 08/24).' },
+        { date: 'Rev. 08/24', change: 'POL-012 Rev. 08/24: BWM Convention ERB added; approval limited to Administration-approved ERBs.' }
       ]
     },
     MH: {
       title: 'Marshall Islands — Maritime Administrator (IRI)',
       documents: [
-        { ref: 'MG 2-13-3', title: 'Oil Record Book guidelines', note: 'ORB Part I entries are kept in English and available to port inspectors. Part I for ships of 400 GT and above; Part II as well for oil tankers of 150 GT and above.',
+        { ref: 'MN 7-041-5 (May 2020)', title: 'Electronic record books and logbook systems', note: 'Supersedes the version of 11/06. Approved software providers are listed; the Administrator issues the Declaration on application (form MI-334A, by email).',
+          url: 'https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf', checked: 'read' },
+        { ref: 'MI-334C', title: 'Approved software providers for MARPOL electronic record books', date: 'list as of 11 May 2020 (the notice links the current list)',
+          url: 'https://www.irclass.org/media/4948/mi-334c.pdf', checked: 'read' },
+        { ref: 'MG 2-13-3', title: 'Oil Record Book guidelines', note: 'Could not be read in this research pass. A search summary says ORB entries are in English and available to port inspectors.',
           url: 'https://www.register-iri.com/wp-content/uploads/MG-2-13-3.pdf', checked: 'listed' },
-        { ref: 'MN 2-013-3', title: 'Oil filtering equipment and oil discharge monitoring and control systems', note: 'The ORB is checked for consistency with the other ship logs; inoperative equipment and the sealing of overboard discharge valves are recorded.',
-          url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'listed' },
-        { ref: 'MN 7-041-5 (May 2020)', title: 'Electronic record books (MARPOL) — based on MEPC.312(74)',
-          url: 'https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf', checked: 'listed' },
-        { ref: 'MI-334C', title: 'Approved software providers for MARPOL electronic record books (list dated 11 May 2020)',
-          url: 'https://www.irclass.org/media/4948/mi-334c.pdf', checked: 'listed' }
+        { ref: 'MN 2-013-3', title: 'Oil filtering equipment and oil discharge monitoring and control systems', note: 'Could not be read; a search summary says it covers inoperative equipment and the sealing of overboard discharge valves.',
+          url: 'https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf', checked: 'listed' }
       ],
       history: [
-        { date: 'May 2020', change: 'Marine Notice 7-041-5 and the approved-software list MI-334C for electronic record books.' }
+        { date: 'Nov 2006', change: 'Earlier version (11/06) of the electronic record book notice, superseded by MN 7-041-5.' },
+        { date: 'May 2020', change: 'MN 7-041-5 and MI-334C issued for MEPC.312(74) electronic record books.' },
+        { date: '1 Oct 2020', change: 'MARPOL electronic record books usable under MN 7-041-5.' }
       ]
     },
     PA: {
       title: 'Panama — Panama Maritime Authority (AMP)',
       documents: [
-        { ref: 'MMC-215', title: 'Panama Oil Record Book and Emissions', date: 'Revision of 6 March 2026 is the latest found',
-          note: 'The official book is the Oil Record Book and Emissions (Parts I, II and III). The circular says each use of the incinerator is recorded in the Garbage Record Book (Annex V) and in the Oil Record Book and Emissions Part I and Part III. The March 2026 edition replaces MMC-23, MMC-83, MMC-148, MMC-154 and MMC-177.',
-          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/03/MMC-215-CM-Rev.-RB-1-06-03-2026.pdf', checked: 'listed' },
-        { ref: 'MMC-193', title: 'Electronic record books', date: 'Rev. 2026 is the latest found (earlier: March 2020, amendment September 2023)',
-          note: 'Only systems from AMP-authorised manufacturers; the requirements of MEPC.312(74) apply.',
-          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/04/MMC-193-Julio-2026-rev-2026.pdf', checked: 'listed' }
+        { ref: 'MMC-215', title: 'Panama Oil Record Book and Emissions', date: 'Revision RB-1 of 6 March 2026',
+          note: 'The official book has Part I, Part II and a Part III (prevention of air pollution from ships: ozone-depleting substances, low-sulphur fuel oil, vapour collection, incinerators, NOx Tier III). Officer(s) in charge sign, the Master each page, kept 3 years. Para 5.6.6: each use of the incinerator goes in the Garbage Record Book and in the ORB and Emissions Part I and Part III. Replaces MMC-23, 83, 148, 154 and 177. The Part III form itself is a non-public file, so its item numbers are not confirmed.',
+          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/03/MMC-215-CM-Rev.-RB-1-06-03-2026.pdf', checked: 'read' },
+        { ref: 'MMC-193', title: 'Optional and voluntary system for electronic books', date: 'latest log entry July 2026',
+          note: 'Licensed system from an AMP-authorised manufacturer (one-year licence); Declaration from a Recognised Organisation; MEPC.312(74) applies.',
+          url: 'https://www.panamashipregistry.com/wp-content/uploads/2026/04/MMC-193-Julio-2026-rev-2026.pdf', checked: 'read' }
       ],
       history: [
-        { date: 'Jul 2014', change: 'MMC-215 (first edition found).' },
-        { date: 'Oct 2017 / Oct 2018', change: 'MMC-215 reissued.' },
-        { date: 'Dec 2021', change: 'MMC-215 Oil Record Book and Emissions, revised.' },
-        { date: 'Sep / Oct 2023', change: 'MMC-215 reissued; MMC-177 cancelled (Oct 2023).' },
-        { date: '6 Mar 2026', change: 'MMC-215 revision: replaces MMC-23, MMC-83, MMC-148, MMC-154 and MMC-177; incinerator use goes to the GRB and to ORB Part I and Part III.' },
-        { date: 'Mar 2020 – 2026', change: 'MMC-193 on electronic books issued March 2020, amended September 2023, revised 2026.' }
+        { date: 'Dec 2010', change: 'First entry in the MMC-215 revision log.' },
+        { date: 'Jun 2011 – Nov 2017', change: 'Revisions: Jun 2011, Oct 2013 (Part III changed), Jun 2014, May 2016 (Part III updated), Oct 2017, Nov 2017.' },
+        { date: 'Oct 2018', change: 'The Part III letter for the incinerator corrected to E (it was D).' },
+        { date: 'Dec 2021', change: 'References updated; paragraphs renumbered.' },
+        { date: 'Sep / Oct 2023', change: 'Part III unit corrected (cm³ to m³); 5.6.4 and 5.6.5 amended; tankers under 150 GT; replaces MMC-177.' },
+        { date: '6 Mar 2026', change: 'RB-1: 5.6.11 amended (holding tanks), new para 5.8 (use of codes); lists MMC-23, 83, 148, 154 and 177 as replaced.' },
+        { date: 'Mar 2020 – Jul 2026', change: 'MMC-193 (electronic books) revised repeatedly; latest entry July 2026.' }
       ]
     },
     BS: {
       title: 'Bahamas — Bahamas Maritime Authority',
       documents: [
-        { ref: 'Marine Notice MN010', title: 'MARPOL electronic record books', note: 'Oil Record Book Parts I and II may be kept electronically where the conditions in the notice are met (entries cannot be deleted, the record can be audited).',
-          url: 'https://www.bahamasmaritime.com/wp-content/uploads/2021/07/MN010-MARPOL-Electronic-Record-Books.pdf', checked: 'listed' }
+        { ref: 'Marine Notice MN056 v1.2', title: 'MARPOL Oil Record Books', date: '5 April 2022 (effective 11 April 2022)',
+          note: 'The Bahamas guide to the ORB: the person responsible for the operation makes the entry, the Chief Engineer or Master checks it within 24 hours, the Master signs each page; kept at least 3 years. Supersedes Information Bulletin 84.',
+          url: 'https://www.bahamasmaritime.com/wp-content/uploads/2022/04/MN056-MARPOL-Oil-Record-Books-v1.2.pdf', checked: 'read' },
+        { ref: 'Marine Notice MN010 v2.3', title: 'MARPOL electronic record books', date: '2 October 2025',
+          note: 'The system needs a BMA Document of Approval; approval by a BMA Recognised Organisation or a Contracting Government.',
+          url: 'https://www.bahamasmaritime.com/wp-content/uploads/2025/10/MN010-MARPOL-Electronic-Record-Books-v2.3-ID-20602598.pdf', checked: 'read' }
       ],
-      history: [{ date: '2021', change: 'MN010 on MARPOL electronic record books (copy published July 2021).' }]
+      history: [
+        { date: 'Jan 2021', change: 'MN056 v1.0 first issue.' },
+        { date: '5 Apr 2022', change: 'MN056 v1.2 (date format change); supersedes Information Bulletin 84.' },
+        { date: '2 Oct 2025', change: 'MN010 v2.3 in force (an earlier copy published July 2021 is superseded).' }
+      ]
+    },
+    SG: {
+      title: 'Singapore — Maritime and Port Authority (MPA)',
+      documents: [
+        { ref: 'Shipping Circular 10/2020', title: 'Use of electronic record books under MARPOL', date: '5 May 2020',
+          note: 'A Recognised Organisation approves the electronic record book and issues the Declaration; it is used officially only after the ship holds the Declaration; a new Declaration is needed for a version upgrade. Entries by the Officer in Charge, pages by the Master.',
+          url: 'https://www.mpa.gov.sg/api/media/74ccfc31-5f35-4d66-afcd-345b98b8719d/-sc_no_10_of_2020.pdf', checked: 'read' }
+      ],
+      history: [{ date: '5 May 2020', change: 'Shipping Circular 10/2020 issued; electronic record book amendments in force 1 Oct 2020.' }]
+    },
+    MT: {
+      title: 'Malta — Transport Malta',
+      documents: [
+        { ref: 'Technical Notice MARPOL.7', title: 'Electronic record books for MARPOL related records', date: '15 June 2018',
+          note: 'Read through the IRClass mirror; whether it is still current was not confirmed. The printout is the official record; each entry signed by the Officer in Charge and each page by the Master.',
+          url: 'https://www.irclass.org/media/3763/technical-notice-marpol-7-electronic-record-books-for-marpol-related.pdf', checked: 'read' }
+      ],
+      history: [{ date: '15 Jun 2018', change: 'Technical Notice MARPOL.7 issued.' }]
+    },
+    HK: {
+      title: 'Hong Kong — Marine Department',
+      documents: [
+        { ref: 'Oil Record Book Part I', title: 'Official bilingual form — machinery space operations', url: 'https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_1.pdf', checked: 'read' },
+        { ref: 'Oil Record Book Part II', title: 'Official bilingual form — cargo / ballast operations', url: 'https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_2.pdf', checked: 'read' },
+        { ref: 'MSIN 22/2019', title: 'Guidelines for the use of electronic record books', date: '12 August 2019',
+          note: 'An electronic record book must be approved by the Administration. The book is in English, or English and Chinese; kept 3 years.',
+          url: 'https://www.mardep.gov.hk/en/msnote/pdf/msin1922.pdf', checked: 'read' }
+      ],
+      history: [{ date: '12 Aug 2019', change: 'MSIN 22/2019 issued.' }]
+    },
+    CY: {
+      title: 'Cyprus — Department of Merchant Shipping',
+      documents: [
+        { ref: 'Circular 22/2020', title: 'Use of Electronic Record Books (ERB) under MARPOL', date: '4 November 2020', note: 'Title and date from the Department\'s circular list only; the circular was not readable.', checked: 'listed' },
+        { ref: 'Circular 36/2010', title: 'Entry into force on 1 January 2011 of amendments to MARPOL Annex I', date: '2010', checked: 'listed' }
+      ],
+      history: []
+    },
+    GB: {
+      title: 'United Kingdom — MCA',
+      documents: [
+        { ref: 'MIN 644 (M+F)', title: 'Approval and acceptance of electronic record books and related systems', note: 'Seen only in a search result; the page was not readable.', checked: 'listed' }
+      ],
+      history: []
     }
   };
 
@@ -518,6 +578,9 @@
     { waste: 'Oil residue (sludge) burned in the incinerator',
       book: 'Oil Record Book Part I — Code C, item 12.3 (quantity, quantity retained, total time of operation)',
       basis: 'MARPOL Annex I, Appendix III; MEPC.1/Circ.736/Rev.2' },
+    { waste: 'Oil residue (sludge) burned in a boiler',
+      book: 'Oil Record Book Part I — Code C, item 12.4 (other method).',
+      basis: 'MEPC.1/Circ.736, example 7' },
     { waste: 'Paper, wood, cardboard and other domestic garbage burned',
       book: 'Garbage Record Book (MARPOL Annex V, Reg. 10). Not an Oil Record Book entry under MARPOL.',
       basis: 'MARPOL Annex V, Reg. 10' },
@@ -525,8 +588,8 @@
       book: 'Garbage Record Book only.',
       basis: 'MEPC.1/Circ.736/Rev.2' },
     { waste: 'Any of the above, on a Panama-flag ship',
-      book: 'Panama MMC-215 (rev. March 2026) asks for each use of the incinerator in the Garbage Record Book and in the Oil Record Book and Emissions Part I and Part III. Record it in both.',
-      basis: 'Panama MMC-215' }
+      book: 'Panama MMC-215 (rev. March 2026, para 5.6.6) asks for each use of the incinerator in the Garbage Record Book and in the Oil Record Book and Emissions Part I and Part III. Record it in both.',
+      basis: 'Panama MMC-215 5.6.6' }
   ];
 
   function field(name, label, type, opts) {
@@ -841,7 +904,7 @@
       { no: '19.2', label: 'Time of start and end', fields: [field('timeStart', 'Start', 'time'), field('timeStop', 'End', 'time')] },
       { no: '19.3', label: 'Quantity of ballast received (m³)', fields: [field('qty', 'Quantity (m³)', 'number', { required: true })] }
     ]},
-    { code: 'F', title: 'Ballasting of dedicated clean ballast tanks (CBT)', items: [
+    { code: 'F', title: 'Ballasting of dedicated clean ballast tanks (CBT tankers only)', items: [
       { no: '20', label: 'Identity of tank(s) ballasted', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt', required: true })] },
       { no: '21', label: 'Position when flushing/port ballast taken', fields: [field('posFlush', 'Position', 'text')] },
       { no: '22', label: 'Position when pumps/lines flushed to slop', fields: [field('posLineFlush', 'Position', 'text')] },
@@ -875,7 +938,7 @@
       { no: '34', label: 'Time & position on completion into the sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
       { no: '35', label: 'Quantity discharged into the sea (m³)', fields: [field('seaQty', 'Quantity (m³)', 'number')] },
       { no: '36', label: 'Ship’s speed(s) during discharge', fields: [field('speed', 'Speed (kn)', 'text')] },
-      { no: '37', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
+      { no: '37', label: 'Discharge monitoring and control system (ODME) in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
       { no: '38', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] },
       { no: '39', label: 'Oily water to slop tank(s)', fields: [
         field('slopTank', 'Slop tank(s)', 'tank', { tankGroup: 'slop' }),
@@ -895,13 +958,13 @@
       { no: '47', label: 'Bulk quantity discharged & rate', fields: [field('bulkQty', 'Bulk (m³)', 'number'), field('bulkRate', 'Rate (m³/h)', 'number')] },
       { no: '48', label: 'Final quantity discharged & rate', fields: [field('finalQty', 'Final (m³)', 'number'), field('finalRate', 'Rate (m³/h)', 'number')] },
       { no: '49', label: 'Time & position on completion', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
-      { no: '50', label: 'ODME in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
+      { no: '50', label: 'Discharge monitoring and control system (ODME) in operation?', fields: [field('odme', 'ODME operating?', 'select', { options: ['Yes', 'No'] })] },
       { no: '51', label: 'Interface ullage on completion (m)', fields: [field('ullageEnd', 'Ullage (m)', 'number')] },
       { no: '52', label: 'Ship’s speed(s)', fields: [field('speed', 'Speed (kn)', 'text')] },
       { no: '53', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] },
       { no: '54', label: 'Valves closed on completion?', fields: [field('valvesClosed', 'Confirmed closed?', 'select', { options: ['Yes', 'No'] })] }
     ]},
-    { code: 'J', title: 'Collection, transfer and disposal of residues/oily mixtures', items: [
+    { code: 'J', title: 'Collection, transfer and disposal of residues and oily mixtures not otherwise dealt with', items: [
       { no: '55', label: 'Identity of tank(s)', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'any', required: true })] },
       { no: '56', label: 'Quantity transferred/disposed (retained)', fields: [
         field('qty', 'Quantity (m³)', 'number', { required: true }),
@@ -923,7 +986,7 @@
       { no: '61', label: 'Position on completion (if different)', fields: [field('posEnd', 'Stop Position', 'position')] },
       { no: '62', label: 'Regular check on effluent/surface?', fields: [field('surfaceCheck', 'Check kept?', 'select', { options: ['Yes', 'No'] })] }
     ]},
-    { code: 'L', title: 'Discharge of ballast from dedicated CBTs', items: [
+    { code: 'L', title: 'Discharge of ballast from dedicated clean ballast tanks (CBT tankers only)', items: [
       { no: '63', label: 'Identity of tank(s) discharged', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt' })] },
       { no: '64', label: 'Time & position at start into sea', fields: [field('timeStart', 'Start Time', 'time'), field('posStart', 'Start Position', 'position')] },
       { no: '65', label: 'Time & position on completion into sea', fields: [field('timeStop', 'Stop Time', 'time'), field('posEnd', 'Stop Position', 'position')] },
@@ -962,9 +1025,12 @@
     { code: 'R', title: 'Specific trades — ballast water discharge to reception facility', items: [
       { no: '82', label: 'Port(s) where discharged', fields: [field('receptionPort', 'Port(s)', 'text', { required: true })] },
       { no: '83', label: 'Name/designation of reception facility', fields: [field('facility', 'Facility', 'text')] },
-      { no: '84', label: 'Quantity discharged (m³) and tank(s)', fields: [
+      { no: '84', label: 'Total quantity of ballast water discharged (m³)', fields: [
         field('qty', 'Quantity (m³)', 'number'),
         field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo' })
+      ]},
+      { no: '85', label: 'Date, signature and stamp of port authority official', fields: [
+        field('portOfficial', 'Port authority official — name, date, stamp', 'text')
       ]}
     ]}
   ];
@@ -1017,7 +1083,7 @@
       ]
     },
     {
-      code: 'E', title: 'Use of incinerator for garbage',
+      code: 'E', title: 'Use of incinerator',
       guide: 'Sludge quantity burned stays under Part I Code C item 12.3.',
       common: true,
       items: [
@@ -1225,9 +1291,9 @@
     { id: 'incinerator-garbage', group: 'Incineration & disposal', part: 1, code: 'I',
       title: 'Garbage incinerated',
       blurb: 'Burning garbage in the incinerator. Code I describes what was burned. Do not use this entry for incineration of oil residue (sludge) — that is Code C.12.3.',
-      items: ['I'], requires: { incinerator: true },
+      items: ['I'], requires: { incinerator: true }, flagOnly: ['PA'],
       formNotes: ['Do NOT use this entry for incineration of oil residue (sludge). Use Code C.12.3.',
-        'Paper, wood, domestic garbage, oily rags and used filters are recorded in the Garbage Record Book (MARPOL Annex V, Reg. 10; MEPC.1/Circ.736/Rev.2). MARPOL does not ask for them in the Oil Record Book. Panama (MMC-215, rev. March 2026) asks for each use of the incinerator in the Garbage Record Book and in ORB Part I and Part III — use this entry where your flag, class or company requires it.'] },
+        'Paper, wood, domestic garbage, oily rags and used filters are recorded in the Garbage Record Book (MARPOL Annex V, Reg. 10; MEPC.1/Circ.736/Rev.2). MARPOL does not ask for them in the Oil Record Book. Panama (MMC-215, rev. March 2026, 5.6.6) asks for each use of the incinerator in the Garbage Record Book and in ORB Part I and Part III, which is why this entry is offered on Panama-flag ships only.'] },
     { id: 'sludge-other-disposal', group: 'Incineration & disposal', part: 1, code: 'C',
       title: 'Sludge disposed by another method',
       blurb: 'Any disposal route other than reception facility, transfer or incineration — state the method.',
@@ -1388,8 +1454,12 @@
     const eq = (setup && setup.equipment) || {};
     const p = Number(part) || 1;
     if (p === 3 && !flagHasPartIII(setup)) return [];
+    const flagCode = String((setup && setup.flag) || '').toUpperCase();
     return SCENARIOS.filter(s => {
       if (Number(s.part) !== p) return false;
+      /* A flag-only entry (Part III, and the garbage-incineration line Panama asks for in the ORB) is not
+         offered on other flags. */
+      if (s.flagOnly && s.flagOnly.length && s.flagOnly.map(c => String(c).toUpperCase()).indexOf(flagCode) === -1) return false;
       const req = s.requires || {};
       if (req.ows && eq.owsFitted === false) return false;
       if (req.incinerator && eq.incineratorFitted === false) return false;

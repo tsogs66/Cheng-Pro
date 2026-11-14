@@ -1,0 +1,148 @@
+[
+  {
+    "flag": "IMO (baseline, not a flag)",
+    "documents": [
+      {"title": "MARPOL Annex I Appendix III, Form of Oil Record Book, as amended by MEPC.187(59)", "number": "MEPC.187(59)", "date": "17 July 2009 (adopted); in force 1 Jan 2011", "revision": "n/a", "url": "https://assets.publishing.service.gov.uk/media/5bfbffcce5274a0fb45eed47/181025_MIN_XXX_M__MARPOL_Annex_I_-_Draft.pdf", "summary": "Replaces Sections A-H of ORB Part I and Section J of ORB Part II. The wording was read in the UK MCA draft MIN XXX (M) (25 Oct 2018), which reproduces the resolution text, and in the HK Marine Department Part I form. The IMO original was not on an allowed host.", "replaces": "Earlier Part I sections A-H and Part II section J", "status": "VERIFIED (via secondary reproduction; IMO original not read)"},
+      {"title": "MEPC.1/Circ.736/Rev.2 Guidance for the recording of operations in the ORB Part I", "number": "MEPC.1/Circ.736/Rev.2", "date": "6 Oct 2011", "revision": "Rev.2", "url": "https://www.dco.uscg.mil/Portals/9/DCO%20Documents/5p/CG-5PC/CG-CVC/Marpol/sdoc/MEPC_1_Circ_736_rev_2.pdf", "summary": "NOT READ: dco.uscg.mil is not on the allowed host list (proxy returned 403). Content was checked only through the Liberian reproduction of the ORIGINAL Circ.736 (10 Dec 2010) and quotations in Panama MMC-215 para 5.6.", "replaces": "Circ.736 and Rev.1", "status": "UNVERIFIED (document itself not read)"},
+      {"title": "Guidelines for the use of electronic record books under MARPOL", "number": "MEPC.312(74)", "date": "17 May 2019", "revision": "n/a", "url": "https://www.mpa.gov.sg/api/media/74ccfc31-5f35-4d66-afcd-345b98b8719d/-sc_no_10_of_2020.pdf", "summary": "Adopted with MEPC.314(74) (Annexes I, II, V), .316(74), .317(74); amendments in force 1 Oct 2020. The text is enclosed with Singapore Shipping Circular 10/2020; only the cover circular was read, not the guideline text. The flag circulars read cite MEPC.312(74) paragraph 5 for the Declaration.", "replaces": "n/a", "status": "VERIFIED (existence, date, in-force date via flag circulars); guideline text not read"}
+    ],
+    "history": [
+      {"date": "8 Dec 2010", "change": "Liberia circulates MEPC.1/Circ.736 examples (reissued with corrections 10 Dec 2010)."},
+      {"date": "1 Jan 2011", "change": "MEPC.187(59) Appendix III amendments in force (per Panama MMC-215 para 2.1 and Liberia MON 7/2010)."},
+      {"date": "17 May 2019", "change": "MEPC.312(74), .314(74), .316(74), .317(74) adopted."},
+      {"date": "1 Oct 2020", "change": "Electronic record book amendments in force (Singapore SC 10/2020, RMI MN 7-041-5, Liberia POL-012)."}
+    ],
+    "requiresPartIII": false
+  },
+  {
+    "flag": "Liberia",
+    "documents": [
+      {"title": "Electronic Record Books (ERB) for Ships", "number": "POL-012", "date": "Not dated on the page; revision code 08/24", "revision": "Rev. 08/24", "url": "https://www.liscr.com/sites/default/files/online_library/POL-012.pdf", "summary": "Only Administration-approved ERBs (s13.2); approval valid 3 years; Declaration of MARPOL ERB must be on board; ERB may officially be used only after the Declaration is received (s14.6); latest approved software version must be installed; offline record in PDF digitally signed by the master (s5.4).", "replaces": "POL-012 Rev. 08/21 (changes: added BWM refs MEPC.383(81)/372(80), BWM Declaration, Appendix III)", "status": "VERIFIED current at the URL when fetched 14 Nov 2026"},
+      {"title": "Marine Operations Note 7/2010 - Revised: New revised MARPOL Annex I Oil Record Books Part I and Part II", "number": "Marine Operations Note 7/2010 (Revised)", "date": "10 Dec 2010", "revision": "Revision of the note of 8 Dec 2010", "url": "https://www.liscr.com/marketing/liscr/media/liscr/online%20library/maritime/marine-operations-note-07_2010.pdf", "summary": "Corrects errors in the Circ.736 example entries included in Liberian ORB RLM-121 Part I (Rev 2010) and Part II RLM-121A (Rev 2010). Instructions: English, DD-MONTH-YYYY, each operation signed by the officer(s) in charge, each page countersigned by the Master, 3-year retention, incineration/landing ashore of oily garbage and used filters recorded in the Garbage Record Book only.", "replaces": "Marine Operations Note 7/2010 of 8 Dec 2010; Rev 2006 books may be used until exhausted with inserts", "status": "VERIFIED"},
+      {"title": "IRClass Technical Circular 43/2016 Electronic Oil Record Books (Part I & Part II)", "number": "IRClass TC 43/2016 (encl. POL-012 11/16)", "date": "2016", "revision": "POL-012 11/16", "url": "https://www.irclass.org/technical-circulars/electronic-oil-record-books-part-i-part-ii/", "summary": "In 2016 only the Registry's own e-ORB was approved; transition period 1 Jan 2017 to 1 Jan 2018; Declaration renewed annually then.", "replaces": "n/a", "status": "VERIFIED (mirror page read)"}
+    ],
+    "history": [
+      {"date": "8 Dec 2010", "change": "Marine Operations Note 7/2010 issued."},
+      {"date": "10 Dec 2010", "change": "Revised note issued correcting example entries; Liberian ORB RLM-121 / RLM-121A Rev 2010 books."},
+      {"date": "Nov 2016", "change": "POL-012 11/16 (per IRClass TC 43/2016): e-ORB as official book, only Liberian Registry e-ORB approved; transition 1 Jan 2017 - 1 Jan 2018."},
+      {"date": "Rev. 08/21", "change": "POL-012 Rev. 08/21 (date known only from the 'Supersedes' line of Rev. 08/24; not seen)."},
+      {"date": "Rev. 08/24", "change": "POL-012 Rev. 08/24: BWM Convention ERB added; approval limited to Administration-approved ERBs moved to s13."}
+    ],
+    "requiresPartIII": false
+  },
+  {
+    "flag": "Marshall Islands",
+    "documents": [
+      {"title": "Marine Notice 7-041-5 Electronic Record Books and Logbook Systems", "number": "MN 7-041-5", "date": "May 2020", "revision": "May/2020", "url": "https://www.irclass.org/media/4949/mn-7-041-5-05-2020pdf.pdf", "summary": "MARPOL ERBs may be used from 1 Oct 2020; must be Administrator-approved (conform to MEPC.312(74)); ship carries a 'Declaration of MARPOL Electronic Record Book(s)' applied for on form MI-334A to technical@register-iri.com; printout capability to certify a true copy; hard-copy fallback advised. Official URL (not fetched): https://www.register-iri.com/wp-content/uploads/MN-7-041-5.pdf", "replaces": "Version 11/06", "status": "VERIFIED (IRClass mirror read)"},
+      {"title": "Approved software providers for MARPOL electronic record books", "number": "MI-334C", "date": "11 May 2020", "revision": "as of 11 May 2020 (the notice says the current list is linked from MN 7-041-5)", "url": "https://www.irclass.org/media/4948/mi-334c.pdf", "summary": "List of providers and ERBs; 2020 snapshot only. No Voyage Chief / ChEng entry appears in this snapshot.", "replaces": "n/a", "status": "VERIFIED (snapshot; probably outdated)"},
+      {"title": "Marine Guideline 2-13-3 Oil Record Book", "number": "MG 2-13-3", "date": "Rev. Dec/2017 according to a search-result summary", "revision": "unknown", "url": "https://www.register-iri.com/wp-content/uploads/MG-2-13-3.pdf", "summary": "NOT READ: www.register-iri.com failed TLS verification through the proxy, and a fetch via a subagent was denied. A search-engine summary says English required, officer in charge signs, Chief Engineer/Chief Mate/SMS person reviews, Master countersigns pages. Treat as unverified.", "replaces": "unknown", "status": "UNVERIFIED"},
+      {"title": "Marine Notice 2-013-3 Oil filtering equipment and oil discharge monitoring and control systems", "number": "MN 2-013-3", "date": "unknown", "revision": "unknown", "url": "https://www.register-iri.com/wp-content/uploads/MN-2-013-3.pdf", "summary": "NOT READ (same TLS failure).", "replaces": "unknown", "status": "UNVERIFIED"},
+      {"title": "MI-332A Oil Record Book instructions", "number": "MI-332A", "date": "Rev. 4/11", "revision": "Rev. 4/11", "url": "https://www.register-iri.com/wp-content/uploads/ORB_Instructions.pdf", "summary": "Appears in search results as the RMI ORB instructions; NOT READ. No document numbered MI-402A was found anywhere.", "replaces": "unknown", "status": "UNVERIFIED"}
+    ],
+    "history": [
+      {"date": "Rev. 4/11", "change": "MI-332A ORB instructions (title/revision from search result only)."},
+      {"date": "Nov 2006", "change": "Earlier version 11/06 of the ERB notice (superseded by MN 7-041-5)."},
+      {"date": "Dec 2017", "change": "MG 2-13-3 revision (per search summary only; UNVERIFIED)."},
+      {"date": "May 2020", "change": "MN 7-041-5 and MI-334C issued for MEPC.312(74) ERBs."},
+      {"date": "1 Oct 2020", "change": "MARPOL ERBs usable (MN 7-041-5)."}
+    ],
+    "requiresPartIII": "unknown"
+  },
+  {
+    "flag": "Panama",
+    "documents": [
+      {"title": "Merchant Marine Circular MMC-215 Panama Oil Record Book and Emissions (Amendments and Guidelines)", "number": "MMC-215", "date": "6 March 2026 (file MMC-215-CM-Rev.-RB-1-06-03-2026)", "revision": "Revision RB-1; revision log runs Dec 2010 to Mar 2026", "url": "https://www.panamashipregistry.com/wp-content/uploads/2026/03/MMC-215-CM-Rev.-RB-1-06-03-2026.pdf", "summary": "Official book is the Oil Record Book and Emissions: Part I machinery space, Part II cargo/ballast (tankers), Part III air pollution (all ships). Para 5.4: ships of 400 GT and above also make ODS entries in Part III. Para 5.6.6: each use of the incinerator is recorded in the Garbage Record Book and in the ORB and Emissions Parts I and III. Para 5.6.7: entries signed by officer(s) in charge, pages by Master. Para 4.3: kept 3 years after last entry. Para 5.6.11 (amended Mar 2026): holding tanks not required but if fitted list them in IOPP 3.3. Para 5.8 (new Mar 2026): code usage list per Circ.736/Rev.2 ('only as recommendation'). The Part III text itself is a hyperlink to an internal file server and is NOT in the PDF.", "replaces": "MMC-23, MMC-83, MMC-148, MMC-154, MMC-177", "status": "VERIFIED (read in full)"},
+      {"title": "Merchant Marine Circular MMC-193 Optional and voluntary system for electronic books / electronic record books", "number": "MMC-193", "date": "July 2026 (latest log entry); file 'MMC-193-Julio-2026'", "revision": "Latest amendment July 2026", "url": "https://www.panamashipregistry.com/wp-content/uploads/2026/04/MMC-193-Julio-2026-rev-2026.pdf", "summary": "Voluntary; MEPC.312(74) compliance; manufacturer list in 4.5.8 (e.g. Kongsberg, Navtor, Napa, Prevention at Sea, RINA); one-year licence per ship (USD 100); Declaration issued by an RO delegated for MARPOL; ships with a licensed e-book need not keep the hard copy (4.5.7).", "replaces": "Earlier editions (Sept 2020 template update, Sept 2023 etc. per log)", "status": "VERIFIED (read in full)"},
+      {"title": "MMC-215 Part III - Regulations for the prevention of air pollution from ships (all ships)", "number": "MMC-215 Part III", "date": "unknown", "revision": "unknown", "url": "https://www.panamashipregistry.com/wp-content/uploads/2023/09/PART-III-REGULATIONS-FOR-THE-PREVENTION-OF-AIR.pdf", "summary": "NOT OBTAINED: this URL returns 404 on www.panamashipregistry.com; the non-www copy is blocked; the circular's own links point to an internal file server. Part III item numbers remain UNVERIFIED. The circular's log says the incinerator Part III letter is E (Oct 2018 correction 'E instead of D').", "replaces": "n/a", "status": "UNVERIFIED"}
+    ],
+    "history": [
+      {"date": "Dec 2010", "change": "First entry in the MMC-215 revision log."},
+      {"date": "Jun 2011", "change": "Revision."},
+      {"date": "Oct 2013", "change": "Changes in 1.1, 3.3, Part III and 4.5.3."},
+      {"date": "Jun 2014", "change": "Erratum, Part III points 4.4 and 4.5.3."},
+      {"date": "May 2016", "change": "Changes in 1.1, 3.2, 3.3, 4.5.7; Part III updated."},
+      {"date": "Oct 2017", "change": "Added MEPC.271(69) reference and a note after 4.5.10; clarifications in 3.2 and 4.5.4."},
+      {"date": "Nov 2017", "change": "Paragraph 3.3 amended."},
+      {"date": "Oct 2018", "change": "Part III letter for the incinerator corrected to E (was D)."},
+      {"date": "Dec 2021", "change": "References updated; paragraphs renumbered."},
+      {"date": "Sep 2023", "change": "Part III 'c' unit corrected from cm3 to m3; paragraphs renumbered."},
+      {"date": "Oct 2023", "change": "5.6.4 and 5.6.5 amended; tankers under 150 GT rules; replaces MMC-177."},
+      {"date": "6 Mar 2026", "change": "5.6.11 amended (holding tanks), new para 5.8 (code usage), old 5.8 becomes 5.9; lists MMC-23/83/148/154/177 as replaced."},
+      {"date": "Jul 2026", "change": "MMC-193 log entry: Mariapps added as MARPOL record book provider."}
+    ],
+    "requiresPartIII": true
+  },
+  {
+    "flag": "Bahamas",
+    "documents": [
+      {"title": "Marine Notice 56 MARPOL Oil Record Books", "number": "MN056 (MN 56)", "date": "Issue 05/04/2022, effective 11/04/2022", "revision": "v1.2 (v1.0 first issue; v1.1 periodic update)", "url": "https://www.bahamasmaritime.com/wp-content/uploads/2022/04/MN056-MARPOL-Oil-Record-Books-v1.2.pdf", "summary": "Parts I and II only (BMA books: Part I Revision 6, Part II Revision 3). Entries made on completion; checked by Chief Engineer or Master within 24 h; amendments endorsed by both CE/Master and the responsible officer; pages endorsed by the Master; dd-MONTH-yyyy; 3-year retention; C11.4/C12.2 guidance; D vs E is the mode of starting; sulphur content not required in ORB. BMA cautions against relying on Circ.736 and industry guidance (4.2.1).", "replaces": "BMA Information Bulletin 84", "status": "VERIFIED (read in full)"},
+      {"title": "Marine Notice 10 MARPOL Electronic Record Books", "number": "MN010 (MN 10)", "date": "Issue and effective 02/10/2025", "revision": "v2.3", "url": "https://www.bahamasmaritime.com/wp-content/uploads/2025/10/MN010-MARPOL-Electronic-Record-Books-v2.3-ID-20602598.pdf", "summary": "E-ORB Parts I and II allowed if entries cannot be deleted, changes shown with user identity, auditable, prints in Appendix III format, system approved by a BMA Recognised Organisation or a MARPOL Contracting Government, and the vessel holds a BMA Document of Approval. The 2021 URL cited in the app now returns 404; the notice page is https://www.bahamasmaritime.com/notices/marine-notices/mn010-marpol-electronic-record-books/", "replaces": "Earlier versions (2021 copy)", "status": "VERIFIED (read in full)"}
+    ],
+    "history": [
+      {"date": "Jan 2021", "change": "MN056 v1.0 first issue (upload path 2021/01; exact date not stated)."},
+      {"date": "Jul 2021", "change": "MN010 copy published (upload path 2021/07; superseded)."},
+      {"date": "5 Apr 2022", "change": "MN056 v1.2 (date format change; supersedes Information Bulletin 84); effective 11 Apr 2022."},
+      {"date": "2 Oct 2025", "change": "MN010 v2.3 in force."}
+    ],
+    "requiresPartIII": false
+  },
+  {
+    "flag": "Singapore",
+    "documents": [
+      {"title": "Shipping Circular No. 10 of 2020 Use of electronic record books under MARPOL on board Singapore-registered ships", "number": "SC 10/2020", "date": "5 May 2020", "revision": "n/a", "url": "https://www.mpa.gov.sg/api/media/74ccfc31-5f35-4d66-afcd-345b98b8719d/-sc_no_10_of_2020.pdf", "summary": "ERBs permitted after 1 Oct 2020 if they comply with MEPC.312(74); approval by any listed Recognised Organisation, which issues a 'Declaration of Electronic Record Book'; official use only after the Declaration; a new Declaration after any version upgrade; printouts accepted as certified true copies if each entry is physically signed by the Officer in Charge and each page by the Master.", "replaces": "n/a", "status": "VERIFIED (read in full)"}
+    ],
+    "history": [
+      {"date": "5 May 2020", "change": "SC 10/2020 issued."},
+      {"date": "1 Oct 2020", "change": "ERB amendments in force."}
+    ],
+    "requiresPartIII": "unknown"
+  },
+  {
+    "flag": "Cyprus",
+    "documents": [
+      {"title": "Circular 22/2020 Use of Electronic Record Books (ERB) under MARPOL Convention", "number": "Circular 22/2020", "date": "4 Nov 2020 (listing: 05/11/2020)", "revision": "unknown", "url": "https://www.dms.gov.cy/dms/shipping.nsf/circulars_en/circulars_en?OpenDocument=", "summary": "NOT READ. dms.gov.cy redirects to www.gov.cy, which the proxy blocks (403). The title and date come only from a search-result listing.", "replaces": "unknown", "status": "UNVERIFIED"},
+      {"title": "Circular 36/2010 Entry into force on 1 January 2011 of amendments to MARPOL Annex I (incl. ORB Parts I and II)", "number": "Circular 36/2010", "date": "2010", "revision": "n/a", "url": "https://www.dms.gov.cy/dms/shipping.nsf/circulars_en/circulars_en?OpenDocument=", "summary": "NOT READ (blocked); title from search listing only.", "replaces": "unknown", "status": "UNVERIFIED"}
+    ],
+    "history": [],
+    "requiresPartIII": "unknown"
+  },
+  {
+    "flag": "Malta",
+    "documents": [
+      {"title": "Technical Notice MARPOL.7 Electronic record books for MARPOL related record keeping", "number": "Technical Notice MARPOL.7", "date": "15 June 2018", "revision": "n/a", "url": "https://www.irclass.org/media/3763/technical-notice-marpol-7-electronic-record-books-for-marpol-related.pdf", "summary": "Pending the IMO guidance, a sequentially numbered printout is the official record; each printed entry physically signed by the Officer in Charge; each page signed and dated by the Master; printout must include the Appendix III introduction and lists of items (Parts I and II). Pre-dates MEPC.312(74) and the 1 Oct 2020 amendments; whether it was replaced could not be checked (Transport Malta site is not an allowed host).", "replaces": "n/a", "status": "VERIFIED (IRClass mirror read); currency UNVERIFIED"},
+      {"title": "IRClass Technical Circular 50/2018 Malta Technical Notice regarding Electronic Record Books", "number": "IRClass TC 50/2018", "date": "2018", "revision": "n/a", "url": "https://www.irclass.org/technical-circulars/malta-technical-notice-regarding-electronic-record-books-for-marpol-related-record-keeping/", "summary": "Cover circular for MARPOL.7; repeats the printout and signature requirements.", "replaces": "n/a", "status": "VERIFIED"}
+    ],
+    "history": [
+      {"date": "15 Jun 2018", "change": "Technical Notice MARPOL.7 issued."}
+    ],
+    "requiresPartIII": false
+  },
+  {
+    "flag": "Hong Kong",
+    "documents": [
+      {"title": "Oil Record Book Part I - Machinery Space Operations (official bilingual form)", "number": "Marine Department publication marpol_oil_record_1", "date": "undated", "revision": "unknown", "url": "https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_1.pdf", "summary": "Entries in English only, or English and Chinese; each completed operation signed by the officer(s) in charge and each page signed by the master; kept 3 years; list of items matches MEPC.187(59); item I points to Circ.736/Rev.2.", "replaces": "unknown", "status": "VERIFIED (form read)"},
+      {"title": "Oil Record Book Part II - Cargo/Ballast Operations (official bilingual form)", "number": "Marine Department publication marpol_oil_record_2", "date": "undated", "revision": "unknown", "url": "https://www.mardep.gov.hk/filemanager/en/share/publications/pdf/marpol_oil_record_2.pdf", "summary": "Same signature rule; includes R item 85 (date, signature and stamp of port authority official).", "replaces": "unknown", "status": "VERIFIED (form read)"},
+      {"title": "Merchant Shipping Information Note 22/2019 Guidelines for the use of ERBs under MARPOL and amendments to MARPOL Annexes I, II, V, VI", "number": "MSIN 22/2019", "date": "12 Aug 2019", "revision": "n/a", "url": "https://www.mardep.gov.hk/en/msnote/pdf/msin1922.pdf", "summary": "Informs that ERBs approved by the Administration are an alternative; copies of MEPC.312/314/316/317(74) attached. No Hong Kong-specific procedure stated.", "replaces": "n/a", "status": "VERIFIED"},
+      {"title": "MSIN 42/2023 Electronic Certificates and Electronic Logbooks", "number": "MSIN 42/2023", "date": "2023", "revision": "unknown", "url": "https://www.mardep.gov.hk/en/msnote/msin.html", "summary": "Title seen only in the MSIN list spreadsheet; the note itself was not read.", "replaces": "unknown", "status": "UNVERIFIED"}
+    ],
+    "history": [
+      {"date": "12 Aug 2019", "change": "MSIN 22/2019 issued."},
+      {"date": "2023", "change": "MSIN 42/2023 on electronic certificates and logbooks (title only)."}
+    ],
+    "requiresPartIII": false
+  },
+  {
+    "flag": "United Kingdom",
+    "documents": [
+      {"title": "MIN 644 (M+F) Approval and acceptance of electronic record books and recording requirements under MARPOL", "number": "MIN 644 (M+F)", "date": "page updated Jan 2022 (per search snippet)", "revision": "unknown", "url": "https://www.gov.uk/government/publications/min-644-mf-approval-and-acceptance-of-electronic-record-books-and-recording-requirements-under-marpol", "summary": "NOT READ: www.gov.uk is not an allowed host (403). A search snippet says UK ships may use any system approved on behalf of the UK Administration and must hold a valid Declaration.", "replaces": "unknown", "status": "UNVERIFIED"}
+    ],
+    "history": [],
+    "requiresPartIII": "unknown"
+  },
+  {
+    "flag": "Norway (NIS)",
+    "documents": [],
+    "history": [],
+    "requiresPartIII": "unknown"
+  }
+]

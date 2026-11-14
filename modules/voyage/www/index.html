@@ -1421,6 +1421,8 @@
   .orb-guide .orb-guide-doc{border:1px solid var(--line); border-radius:6px; padding:9px 11px; margin:0 0 8px;}
   .orb-guide .orb-guide-doc .ref{font-weight:700; font-size:13px;}
   .orb-guide .orb-guide-doc .ttl{font-size:13px; margin-top:2px;}
+  .orb-guide .tag{display:inline-block; font-size:12px; font-weight:600; padding:1px 7px; border-radius:10px; border:1px solid var(--line-strong); color:var(--paper-dim); vertical-align:1px;}
+  .orb-guide .tag.read{color:var(--good); border-color:var(--good);}
   .orb-guide .orb-guide-doc .note{font-size:12px; color:var(--paper-dim); margin-top:4px; line-height:1.45;}
   .orb-guide .orb-guide-doc a{display:inline-block; margin-top:6px; min-height:36px; line-height:36px; font-size:12px; color:var(--brass-bright); text-decoration:underline;}
   .orb-guide table{width:100%; min-width:520px; border-collapse:collapse; font-size:12px;}
@@ -34304,7 +34306,7 @@ function renderOrbFlagGuide(flagCode){
   if (!host || !window.EORB) return;
   const pubs = EORB.FLAG_PUBLICATIONS || {};
   const docHtml = (d) => `<div class="orb-guide-doc">
-      <div class="ref">${escHtml(d.ref || '')}${d.date ? ` <span style="font-weight:400;">· ${escHtml(d.date)}</span>` : ''}</div>
+      <div class="ref">${escHtml(d.ref || '')}${d.date ? ` <span style="font-weight:400;">· ${escHtml(d.date)}</span>` : ''} <span class="tag ${d.checked === 'read' ? 'read' : ''}">${d.checked === 'read' ? 'Read' : 'Listed only'}</span></div>
       <div class="ttl">${escHtml(d.title || '')}</div>
       ${d.note ? `<div class="note">${escHtml(d.note)}</div>` : ''}
       ${d.url ? `<a href="${escAttr(d.url)}" target="_blank" rel="noopener noreferrer">Open the original ↗</a>` : ''}

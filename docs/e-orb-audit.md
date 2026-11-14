@@ -1,34 +1,24 @@
 # e-ORB audit — what was checked, what was found, what is still open
 
-Voyage Chief / ChEng AIO `eorb.js`. Written 14 Nov 2026.
+Voyage Chief / ChEng AIO `eorb.js`. Updated 14 Nov 2026 after a research pass on the Cheng Marine Suite environment. The full findings, each marked VERIFIED or UNVERIFIED with its link, are in [`docs/eorb-flag-research/`](eorb-flag-research/README.md).
 
-## Checked and fixed
+## Checked and fixed in the program
 
 | Area | Result |
 |---|---|
-| Every entry type × every flag (Part I, II, III items and all scenarios, 10 flags) | `tests/test_eorb_flags_sweep.js` builds each one with sample values: 1,970 combinations, nothing throws, every entry produces record lines, no `undefined`/`NaN` in the wording, signatory rules follow each flag's policy. |
-| **Fault found by the sweep** | Part II Code D (crude oil washing) items 13 and 14 were run through the *Part I* Code D wording (bilge water, start/stop time), which reads fields those items do not have. A crude-oil-washing entry could not be built. Part I wording is now applied to Part I only. |
-| Changing the flag | Changes the signatory policy (officer in charge / Chief Engineer only / both), the notes and tips, the ERB note and whether Part III is offered (Panama only). It never blocks writing an entry. |
-| Burning of waste | MEPC.1/Circ.736/Rev.2: incineration or landing ashore of oily garbage and used filters is recorded in the **Garbage Record Book only**. Paper, wood and other domestic garbage: Garbage Record Book (MARPOL Annex V Reg. 10). Sludge burned in the incinerator: ORB Part I Code C item 12.3. **Panama** MMC-215 (revision of 6 March 2026) asks for every use of the incinerator in the Garbage Record Book *and* in the Oil Record Book and Emissions Part I and Part III. The "Garbage incinerated" entry and the Flag guide now say this. |
-| Flag guide | Entry Codes › Flag guide: publication list per flag (title, number, date, link to the original), history of changes, and the "which book" table for waste. A reference list with links, not a copy of the publications. |
-| Browse & Print | The record book's table with no heading or footer, 10 lines then scroll, nothing ticked by default. |
+| Every entry type × every flag | `tests/test_eorb_flags_sweep.js` builds every item and scenario for all 10 flags (1,935 combinations): nothing throws, every entry produces record lines, no `undefined`/`NaN`, signatory rules follow each flag's policy. It found that Part II Code D (crude oil washing) items 13 and 14 were run through the Part I bilge wording and threw. Fixed. |
+| Appendix III, Part I | Compared with the official form (Hong Kong and Liberian reproductions): every code letter A–I and item number matches. |
+| Appendix III, Part II | Items 1–84 match. **Added** the missing item **85** (R: date, signature and stamp of port authority official); **R 84** now reads "Total quantity of ballast water discharged"; titles of F, J and L and items 37 and 50 follow the official wording. |
+| Part III | Part III is **not** an IMO form. Only Panama's book has one (MMC-215, 6 Mar 2026). It is now offered, supplemented and followed on **only for flags that require it** (`partIII: true`, Panama). Other flags get Parts I and II; Part III entries already saved stay in the book. |
+| Burning of waste | Sludge in an incinerator: Code C 12.3; in a **boiler**: C 12.4 (Circ.736 example 7). Paper, wood, domestic garbage, **oily rags and used filters**: Garbage Record Book only (MEPC.1/Circ.736; Annex V Reg. 10). Panama MMC-215 para 5.6.6 also wants each incinerator use in ORB Part I and Part III, so the "Garbage incinerated" entry is offered on Panama-flag ships only. |
+| Signatories | **Liberia** (Marine Operations Note 7/2010) and **Malta** (Technical Notice MARPOL.7): the officer in charge signs, the Master each page. They were set to "officer + Chief Engineer" (Liberia) and "Chief Engineer only" (Malta); both corrected. **Cyprus** "Chief Engineer only" could not be traced to any document and now follows the Convention default. Marshall Islands keeps the officer + Chief Engineer layout, which is unverified (MG 2-13-3 could not be read). |
+| Flag notes | Corrected: Liberia POL-012 is **Rev. 08/24**; RMI "MI-402A" removed; RMI Declaration is issued on application (form MI-334A); Singapore: a Recognised Organisation approves the book and issues the Declaration; Hong Kong: English, or English and Chinese; Bahamas: MN056 added, MN010 is v2.3 of 2 Oct 2025. |
+| Flag guide | Entry Codes › Flag guide lists each flag's publications with a "Read" or "Listed only" tag, links to the originals and the history of changes (IMO, Liberia, Marshall Islands, Panama, Bahamas, Singapore, Malta, Hong Kong, Cyprus, UK), and a "which book records the burning of each kind of waste" table. A reference list with links, not a copy. |
 
-## Checked against sources only by title / number / date
+## Still open
 
-These were found in search results and the administrations' own publication lists. The documents themselves were **not** read in full in this session, because the registry sites are outside the session's network allow-list:
-
-- IMO: MARPOL Annex I Reg. 17 / Reg. 36 / Appendix III (MEPC.187(59), in force 1 Jan 2011); MEPC.1/Circ.736 (8 Nov 2010), Rev.1 (25 Aug 2011), Rev.2 (6 Oct 2011); MEPC.312(74) (electronic record books); MARPOL Annex V Reg. 10.
-- Liberia: POL-012 (Rev. 11/21 latest found; Declaration of MARPOL ERB; first entry after the Declaration date); Marine Operations Note 07/2010.
-- Marshall Islands: MG 2-13-3; MN 2-013-3; MN 7-041-5 (May 2020); MI-334C (11 May 2020).
-- Panama: MMC-215 Oil Record Book and Emissions (editions Jul 2014, Oct 2017, Oct 2018, Dec 2021, Sep/Oct 2023, 6 Mar 2026; the 2026 edition replaces MMC-23, 83, 148, 154, 177); MMC-193 electronic books (Mar 2020, Sep 2023, 2026).
-- Bahamas: Marine Notice MN010 (MARPOL Electronic Record Books, 2021).
-
-## Still open — needs the primary documents
-
-1. **Item-by-item comparison with Appendix III.** The codes and the item numbers of Part I C–I match the structure of Appendix III and MEPC.1/Circ.736/Rev.2. Part I A and B (items 1–10) and Part II (A–R) were **not** compared word-for-word with the amended form.
-2. **Panama Part III.** The program's Part III has C (fuel changeover) and E (incinerator: position, time, oxygen %, combustion chamber temperature). The 2026 circular reportedly uses Part III for the incinerator; its code letters and item numbers were not read. One unofficial copy calls the incinerator entry "III-D".
-3. **Part III by flag.** Decided: Part III (fuel oil changeover, incinerator use, and the Part III C item 3 supplements) is in the book only for flags that require it. Panama is the only flag confirmed to (MMC-215); every other flag gets Parts I and II, the pickers hide Part III, and sludge burning is Code C 12.3 only. Entries already saved under Part III stay in the book. A flag is added with `partIII: true` on its `FLAGS` entry once its circular is read; the research session on **Cheng Marine Suite** is checking the other nine.
-4. **Flag notes the program prints** that could not be traced to a document: RMI "MI-402A item list", the Cyprus and Malta "Chief Engineer only" signatory policy, and the Singapore, Hong Kong, UK and Norway notes. No circulars for Singapore, Cyprus, Malta, Hong Kong, the UK or Norway are in the Flag guide yet.
-5. **Signatures.** Which flags want the officer in charge, the Chief Engineer or both is the program's reading of each administration's practice; it was not confirmed against a circular.
-
-To close 1–5, run a session on the **Cheng Marine Suite** environment (it allows the registry hosts), read the documents listed above and compare them with `PART_I`, `PART_II`, `PART_III` and `FLAGS` in `eorb.js`.
+1. **RMI** MG 2-13-3 and MN 2-013-3 (the register-iri.com TLS certificate failed through the proxy), **Cyprus**, **UK** (MIN 644) and **Norway** could not be read; they are "Listed only" or absent.
+2. **Panama Part III item numbers.** The Part III form is a non-public file. Letter E for the incinerator is confirmed (Oct 2018 log); items 6–8 and the fuel-changeover items C 1–4 are the program's own design. ODS, vapour-collection and NOx Tier III records are not modelled.
+3. **Other flags and Part III.** No document read for Liberia, Bahamas, Malta or Hong Kong has one. Marshall Islands, Singapore, Cyprus, UK and Norway are unknown; a flag is added with `partIII: true` once its circular says so.
+4. **MEPC.1/Circ.736/Rev.2** itself was not read (the original circular was, via Liberia).
+5. **Panama language** "English / Spanish" and the Marshall Islands "officer + Chief Engineer" layout are unverified.
