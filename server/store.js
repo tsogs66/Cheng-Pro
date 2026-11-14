@@ -460,7 +460,18 @@ function getTanksBundle(id) {
   };
 }
 
+/* Saved reports are listed newest first and read that way (the first row is the latest save), so a
+   union must not leave a new save at the bottom. See modules/tanks/public/js/store-core.js. */
 function unionById(currentList, incomingList, stampKey) {
+  const list = unionByIdRaw(currentList, incomingList, stampKey);
+  if (!stampKey) return list;
+  return list
+    .map((item, i) => ({ item, i, stamp: item && typeof item === 'object' ? String(item[stampKey] || '') : '' }))
+    .sort((x, y) => (x.stamp < y.stamp ? 1 : x.stamp > y.stamp ? -1 : x.i - y.i))
+    .map((e) => e.item);
+}
+
+function unionByIdRaw(currentList, incomingList, stampKey) {
   const current = Array.isArray(currentList) ? currentList : [];
   const incoming = Array.isArray(incomingList) ? incomingList : [];
   if (!current.length) return incoming;
