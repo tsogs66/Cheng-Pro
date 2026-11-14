@@ -23,3 +23,6 @@ Voyage Chief / ChEng AIO `eorb.js`. Updated 14 Nov 2026 after a research pass on
 3. **Other flags and Part III.** No document read for Liberia, Bahamas, Malta or Hong Kong has one. Marshall Islands, Singapore, Cyprus, UK and Norway are unknown; a flag is added with `partIII: true` once its circular says so.
 4. **MEPC.1/Circ.736/Rev.2** itself was not read (the original circular was, via Liberia).
 5. **Panama language** "English / Spanish" is unverified.
+
+
+**Re-check, 14 Nov 2026:** the user supplied the full Appendix III (Form of Oil Record Book). Part I codes A–I with items 1–26 and Part II codes A–R with items 1–85 match the app. Only difference: C 11.4 (manual collection) is in the app from Circ.736/Rev.2 but not in this older copy.
