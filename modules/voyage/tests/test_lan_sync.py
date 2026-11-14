@@ -144,6 +144,15 @@ def main() -> int:
         row = [d for d in pres.get("devices", []) if d["deviceId"] == "stranger"]
         check("presence carries each device's license hash, so the app can tell who matches", row[0].get("license") if row else None, OTHER_LIC)
 
+        print("\none code for more than one program")
+        st, chosen = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC, "code": "424242"})
+        check("a caller can choose the code (the AIO shows one code for Tank and Voyage)", (st, chosen.get("code")), (200, "424242"))
+        check("the PC that shows the code is handed the credential for its own server", (chosen.get("credential") or {}).get("scope") in ("all", "vessel"), True)
+        st, junk = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC, "code": "12ab"})
+        check("a code that is not six digits is replaced by a random one", (len(junk.get("code", "")), junk.get("code") != "12"), (6, True))
+        st, tied = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": junk["code"], "deviceId": "phone-c", "deviceName": "Phone C"})
+        check("and it pairs like any other", (st, tied.get("ok")), (200, True))
+
         print("\nthe ship's own token")
         st, made = call(b, "/api/admin/vessels", "POST", {"vesselName": "MV PAIR TEST", "imo": "9100001", "company": "T"}, token=MASTER)
         check("a ship is registered", (st, made.get("ok")), (200, True))

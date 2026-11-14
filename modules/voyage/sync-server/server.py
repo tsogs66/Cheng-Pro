@@ -1265,7 +1265,11 @@ class SyncHandler(BaseHTTPRequestHandler):
         if parts == ["api", "voyage-lan", "pair", "start"]:
             if not self._lan_is_local():
                 return json_response(self, HTTPStatus.FORBIDDEN, {"error": "A pairing code can only be shown on the server's own screen."})
-            return json_response(self, HTTPStatus.OK, LAN.start_pairing(body.get("vessel"), bool(body.get("shareAll")), str(body.get("license") or "")))
+            out = LAN.start_pairing(body.get("vessel"), bool(body.get("shareAll")), str(body.get("license") or ""), str(body.get("code") or ""))
+            # The person at this PC is handed the same credential a device that joins would be, so this
+            # device's own app can use its own server (and be seen by the one that joins) without typing it.
+            out["credential"] = self._lan_credential(body.get("vessel") or {}, bool(body.get("shareAll")))
+            return json_response(self, HTTPStatus.OK, out)
         if parts == ["api", "voyage-lan", "pair"]:
             status, out = LAN.redeem(body.get("code"), str(body.get("license") or ""))
             if status != 200:

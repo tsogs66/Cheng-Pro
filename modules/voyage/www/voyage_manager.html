@@ -32117,7 +32117,31 @@ async function onVoyageBackupMessage(ev){
     return;
   }
   try {
-    if (msg.action === 'export-db') {
+    if (msg.action && String(msg.action).indexOf('lan-') === 0) {
+      /* Live sync (Wi-Fi / hotspot): the AIO's Backup & Restore page controls it for every program. */
+      const LS = window.VoyageLanSync;
+      if (!LS) throw new Error('Live sync is not loaded in Voyage Chief');
+      if (msg.action === 'lan-state') {
+        reply({ lan: LS.snapshot() });
+      } else if (msg.action === 'lan-config') {
+        reply({ lan: LS.setConfig(msg.config || {}) });
+      } else if (msg.action === 'lan-code') {
+        await LS.showCode(!!msg.shareAll, msg.code || '');
+        reply({ lan: LS.snapshot() });
+      } else if (msg.action === 'lan-scan') {
+        const found = await LS.scan(msg.hosts || []);
+        LS._state.found = found;
+        reply({ lan: LS.snapshot(), found });
+      } else if (msg.action === 'lan-pair') {
+        await LS.pairWith(String(msg.url || '').replace(/\/$/, ''), String(msg.code || ''));
+        reply({ lan: LS.snapshot() });
+      } else if (msg.action === 'lan-now') {
+        await LS.tick(true);
+        reply({ lan: LS.snapshot() });
+      } else {
+        throw new Error('Unknown live sync action: ' + msg.action);
+      }
+    } else if (msg.action === 'export-db') {
       await commitOpenWorkBeforeSync();
       const payload = await buildFullDatabaseBackup();
       const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);

@@ -108,8 +108,10 @@ class LanSync:
 
     # ---------------------------------------------------------------- pairing
 
-    def start_pairing(self, vessel: dict | None, share_all: bool, license_tag: str = "") -> dict:
-        code = f"{secrets.randbelow(1_000_000):06d}"
+    def start_pairing(self, vessel: dict | None, share_all: bool, license_tag: str = "", code: str = "") -> dict:
+        # One code can serve more than one program: the AIO shows a single code and hands it to Tank and Voyage.
+        given = "".join(ch for ch in str(code or "") if ch.isdigit())
+        code = given if len(given) == 6 else f"{secrets.randbelow(1_000_000):06d}"
         with self._lock:
             self._pairing = {
                 "license": str(license_tag or "")[:128],
