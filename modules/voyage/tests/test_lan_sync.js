@@ -30,7 +30,10 @@ global.fetch = async (url, init) => {
   throw new Error('unexpected ' + url);
 };
 
+let ent = { email: 'Chief@Example.com', licenseId: 'lic-1' };
+global.ChengLicense = { loadEntitlement: () => ent, isValid: (e) => !!(e && !e.expired) };
 const L = require('../www/lan-sync.js');
+const TAG = L.licenseTagOf('chief@example.com', 'lic-1');
 
 (async () => {
   console.log('Same ship');
@@ -45,18 +48,18 @@ const L = require('../www/lan-sync.js');
   });
   await ok('the agent syncs only with devices on the same ship, and says why it does not', () => {
     const me = { name: 'MV TEST ONE', imo: '9000001' };
-    assert.strictEqual(L.decide(me, 'me', []).action, 'wait');
-    assert.strictEqual(L.decide(me, 'me', [{ deviceId: 'me', name: 'Me', vessel: me }]).action, 'wait');
-    const other = L.decide(me, 'me', [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV OTHER', imo: '9000009' } }]);
+    assert.strictEqual(L.decide(me, 'me', [], TAG).action, 'wait');
+    assert.strictEqual(L.decide(me, 'me', [{ deviceId: 'me', name: 'Me', vessel: me, license: TAG }], TAG).action, 'wait');
+    const other = L.decide(me, 'me', [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV OTHER', imo: '9000009' }, license: TAG }], TAG);
     assert.strictEqual(other.action, 'wait');
     assert.ok(other.different && /Laptop is on MV OTHER/.test(other.message), other.message);
-    assert.strictEqual(L.decide(me, 'me', [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' } }]).action, 'sync');
+    assert.strictEqual(L.decide(me, 'me', [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' }, license: TAG }], TAG).action, 'sync');
   });
 
   console.log('What it does each round');
   store.voyageLanSync = JSON.stringify({ enabled: true, scopeAll: false });
   await ok('another device on the same ship: the open leg is synced, in the background, merging', async () => {
-    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' } }];
+    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' }, license: TAG }];
     syncCalls = [];
     await L.tick(false);
     assert.strictEqual(syncCalls.length, 1);
@@ -64,14 +67,14 @@ const L = require('../www/lan-sync.js');
     assert.strictEqual(L._state.status, 'connected');
   });
   await ok('another device on a different ship: nothing is synced, and the status says so', async () => {
-    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV OTHER', imo: '9000009' } }];
+    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV OTHER', imo: '9000009' }, license: TAG }];
     syncCalls = [];
     await L.tick(false);
     assert.strictEqual(syncCalls.length, 0);
     assert.strictEqual(L._state.status, 'different-vessel');
   });
   await ok('legs one side lacks are listed, and not copied unless the whole database was chosen', async () => {
-    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' } }];
+    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' }, license: TAG }];
     legs = [{ voyage: '12', condition: 'L', action: 'pull' }, { voyage: '11', condition: 'B', action: 'same' }];
     reconcileCalls = [];
     L._touch(0);                              // idle for ages
@@ -105,6 +108,62 @@ const L = require('../www/lan-sync.js');
     syncCalls = [];
     await L.tick(true);
     assert.strictEqual(syncCalls.length, 0);
+  });
+  console.log('Only the same license');
+  await ok('the hash matches the real SHA-256 (it is computed in plain JS: http pages have no crypto.subtle)', () => {
+    const c = require('crypto');
+    for (const t of ['abc', '', 'lan-license|chief@example.com|lic-1', 'é ñ 日本']) {
+      assert.strictEqual(L.sha256(t), c.createHash('sha256').update(t, 'utf8').digest('hex'), t);
+    }
+  });
+  await ok('the same email in another case or with spaces is the same license; another license id or email is not', () => {
+    assert.strictEqual(L.licenseTagOf('  CHIEF@example.COM ', 'lic-1'), TAG);
+    assert.notStrictEqual(L.licenseTagOf('chief@example.com', 'lic-2'), TAG);
+    assert.notStrictEqual(L.licenseTagOf('other@example.com', 'lic-1'), TAG);
+    assert.strictEqual(L.licenseTagOf('chief@example.com', ''), '');
+    assert.ok(!TAG.includes('lic-1') && !/chief/i.test(TAG));
+  });
+  await ok('a device on another license is never synced with, even on the same ship, and the status says so', async () => {
+    store.voyageLanSync = JSON.stringify({ enabled: true, scopeAll: false });
+    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' }, license: L.licenseTagOf('someone@else.com', 'lic-9') }];
+    syncCalls = [];
+    await L.tick(false);
+    assert.strictEqual(syncCalls.length, 0);
+    assert.strictEqual(L._state.status, 'different-license');
+    assert.ok(/different licenses/i.test(L._state.message), L._state.message);
+  });
+  await ok('a device that sends no license (an older build) counts as a different one', () => {
+    const me = { name: 'MV TEST ONE', imo: '9000001' };
+    const d = L.decide(me, 'me', [{ deviceId: 'old', name: 'Old', vessel: me }], TAG);
+    assert.strictEqual(d.action, 'wait');
+    assert.strictEqual(d.license, 'different');
+  });
+  await ok('with a matching and a non-matching device, only the matching one is synced with', () => {
+    const me = { name: 'MV TEST ONE', imo: '9000001' };
+    const d = L.decide(me, 'me', [
+      { deviceId: 'a', name: 'Stranger', vessel: me, license: L.licenseTagOf('x@y.com', 'z') },
+      { deviceId: 'b', name: 'Mine', vessel: me, license: TAG }], TAG);
+    assert.strictEqual(d.action, 'sync');
+    assert.deepStrictEqual(d.peers.map((p) => p.name), ['Mine']);
+  });
+  await ok('with no valid license on this device nothing is synced and nothing is sent', async () => {
+    ent = { email: 'chief@example.com', licenseId: 'lic-1', expired: true };
+    devices = [{ deviceId: 'pc', name: 'Laptop', vessel: { name: 'MV TEST ONE', imo: '9000001' }, license: TAG }];
+    syncCalls = [];
+    let posted = 0;
+    const was = global.fetch;
+    global.fetch = async (u, i) => { posted++; return was(u, i); };
+    await L.tick(true);
+    global.fetch = was;
+    assert.strictEqual(syncCalls.length, 0);
+    assert.strictEqual(posted, 0, 'not even presence is sent');
+    assert.strictEqual(L._state.status, 'no-license');
+    ent = { email: 'Chief@Example.com', licenseId: 'lic-1' };
+  });
+  await ok('showing a pairing code or pairing needs a license on this device', async () => {
+    ent = null;
+    await assert.rejects(() => L.pairWith('http://192.168.0.5:8787', '123456'), /Activate your license/);
+    ent = { email: 'Chief@Example.com', licenseId: 'lic-1' };
   });
   await ok('a scan tries the page\'s own server first, then the usual router and hotspot ranges', () => {
     const c = L.candidates('http://192.168.0.5:8080', ['192.168.43.1']);

@@ -12,6 +12,10 @@ two devices are even on the same ship. This supplies both:
                five minutes, and locks after five wrong tries.
   * presence - each device tells the server which vessel it has open; a device asks who else is
                here and on what. The app syncs only while the other device is on the same ship.
+  * license  - devices sync only when they are on the SAME license (same email, same license id).
+               Each device sends a hash of the two (never the license id); a code is refused for a
+               different license without being spent, and presence carries the hash so the app
+               only syncs with devices that match.
 
 Stdlib only. The HTTP handlers live in server.py (they need its authentication).
 """
@@ -37,6 +41,18 @@ def _norm_name(value: object) -> str:
 
 def _norm_imo(value: object) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def _same_tag(a: object, b: object) -> bool:
+    a, b = str(a or ""), str(b or "")
+    return bool(a) and bool(b) and secrets.compare_digest(a.encode(), b.encode())
+
+
+LICENSE_MSG = {
+    "none": "Activate your license on the device showing the code first: live sync works only between devices on the same license.",
+    "different": "These two devices are on different licenses. Live sync works only when both use the same email and license.",
+    "older": "The other device runs a version that does not check licenses. Update it, then pair again.",
+}
 
 
 def same_hull(a: dict | None, b: dict | None) -> bool:
@@ -92,10 +108,11 @@ class LanSync:
 
     # ---------------------------------------------------------------- pairing
 
-    def start_pairing(self, vessel: dict | None, share_all: bool) -> dict:
+    def start_pairing(self, vessel: dict | None, share_all: bool, license_tag: str = "") -> dict:
         code = f"{secrets.randbelow(1_000_000):06d}"
         with self._lock:
             self._pairing = {
+                "license": str(license_tag or "")[:128],
                 "code": code,
                 "expires": time.time() + CODE_TTL_SECONDS,
                 "tries": 0,
@@ -104,8 +121,8 @@ class LanSync:
             }
         return {"code": code, "expiresIn": CODE_TTL_SECONDS, "shareAll": bool(share_all)}
 
-    def redeem(self, code: object) -> tuple[int, dict]:
-        """Check a code. Returns (http status, {"ok": True, "vessel", "shareAll"} or {"error"})."""
+    def redeem(self, code: object, license_tag: str = "") -> tuple[int, dict]:
+        """Check a code. Returns (http status, {"ok": True, "vessel", "shareAll", "license"} or {"error"})."""
         with self._lock:
             p = self._pairing
             if not p or time.time() > p["expires"]:
@@ -118,12 +135,18 @@ class LanSync:
             given = "".join(ch for ch in str(code or "") if ch.isdigit())
             if not secrets.compare_digest(given.encode(), p["code"].encode()):
                 return 403, {"error": "That code is not right."}
+            # The licenses must match before the code is spent: a wrong device must not use it up.
+            if not p.get("license"):
+                return 403, {"error": LICENSE_MSG["none"], "code": "no-license"}
+            if not _same_tag(license_tag, p["license"]):
+                msg = LICENSE_MSG["different"] if license_tag else LICENSE_MSG["older"]
+                return 403, {"error": msg, "code": "different-license"}
             self._pairing = None  # good once
-            return 200, {"ok": True, "vessel": dict(p["vessel"]), "shareAll": p["shareAll"]}
+            return 200, {"ok": True, "vessel": dict(p["vessel"]), "shareAll": p["shareAll"], "license": p["license"]}
 
     # --------------------------------------------------------------- presence
 
-    def set_presence(self, device_id: str, name: str, vessel: dict | None) -> None:
+    def set_presence(self, device_id: str, name: str, vessel: dict | None, license_tag: str = "") -> None:
         if not device_id:
             return
         with self._lock:
@@ -131,6 +154,7 @@ class LanSync:
                 "deviceId": str(device_id)[:80],
                 "name": str(name or "Device")[:80],
                 "vessel": {"name": str((vessel or {}).get("name") or "")[:120], "imo": str((vessel or {}).get("imo") or "")[:20]},
+                "license": str(license_tag or "")[:128],
                 "seen": time.time(),
             }
 

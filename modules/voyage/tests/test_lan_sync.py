@@ -20,6 +20,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVER = REPO_ROOT / "sync-server" / "server.py"
 MASTER = "master-secret-for-lan-test"
+LIC = "a" * 64          # what a device sends: a hash of its license email and id
+OTHER_LIC = "b" * 64
 
 failures: list[str] = []
 checks = 0
@@ -105,40 +107,59 @@ def main() -> int:
         check("presence needs a credential", call(b, "/api/voyage-lan/presence")[0], 401)
         check("a wrong token is refused", call(b, "/api/voyage-lan/presence", token="guess")[0], 401)
 
-        check("no code showing: pairing is refused", call(b, "/api/voyage-lan/pair", "POST", {"code": "123456"})[0], 403)
-        st, forwarded = call(b, "/api/voyage-lan/pair/start", "POST", {}, headers={"X-Forwarded-For": "203.0.113.9"})
+        check("no code showing: pairing is refused", call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": "123456"})[0], 403)
+        st, forwarded = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC}, headers={"X-Forwarded-For": "203.0.113.9"})
         check("a code cannot be started by a remote caller arriving through the gateway", st, 403)
 
-        st, started = call(b, "/api/voyage-lan/pair/start", "POST", {"vessel": {"name": "MV PAIR TEST", "imo": "9100001"}})
+        st, started = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC, "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}})
         check("the server's own screen can show a code", (st, len(started.get("code", ""))), (200, 6))
-        check("a wrong code is refused", call(b, "/api/voyage-lan/pair", "POST", {"code": "000000" if started["code"] != "000000" else "000001"})[0], 403)
-        st, paired = call(b, "/api/voyage-lan/pair", "POST", {"code": started["code"], "deviceId": "phone-1", "deviceName": "Phone"})
+        check("a wrong code is refused", call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": "000000" if started["code"] != "000000" else "000001"})[0], 403)
+        st, paired = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": started["code"], "deviceId": "phone-1", "deviceName": "Phone"})
         check("the right code pairs and hands over a credential", (st, paired.get("ok")), (200, True))
         check("an unregistered ship gets the server's token, and the answer says so", (paired.get("scope"), paired.get("token")), ("all", MASTER))
-        check("a code is good once", call(b, "/api/voyage-lan/pair", "POST", {"code": started["code"]})[0], 403)
+        check("a code is good once", call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": started["code"]})[0], 403)
 
-        code = call(b, "/api/voyage-lan/pair/start", "POST", {})[1]["code"]
+        code = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC})[1]["code"]
         wrong = "999999" if code != "999999" else "999998"
         for _ in range(5):
-            call(b, "/api/voyage-lan/pair", "POST", {"code": wrong})
-        check("five wrong codes lock the code out", call(b, "/api/voyage-lan/pair", "POST", {"code": code})[0] in (403, 429), True)
+            call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": wrong})
+        check("five wrong codes lock the code out", call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": code})[0] in (403, 429), True)
+
+        print("\nonly the same license")
+        code = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC})[1]["code"]
+        st, refused = call(b, "/api/voyage-lan/pair", "POST", {"license": OTHER_LIC, "code": code, "deviceId": "x", "deviceName": "X"})
+        check("a device on another license is refused", (st, refused.get("code"), "token" in refused), (403, "different-license", False))
+        check("the refusal says why, in plain words", "different licenses" in refused.get("error", ""), True)
+        st, older = call(b, "/api/voyage-lan/pair", "POST", {"code": code, "deviceId": "old", "deviceName": "Old build"})
+        check("a device that sends no license (an older build) is refused", (st, older.get("code")), (403, "different-license"))
+        check("a device with no license is refused too", call(b, "/api/voyage-lan/pair", "POST", {"license": "", "code": code})[0], 403)
+        st, good = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": code, "deviceId": "phone-9", "deviceName": "Phone 9"})
+        check("the wrong device did not use the code up: the right one still pairs, and is told whose license answered", (st, good.get("ok"), good.get("license")), (200, True, LIC))
+        st, nolic = call(b, "/api/voyage-lan/pair/start", "POST", {})
+        code = nolic["code"]
+        st, none = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": code})
+        check("a server showing a code with no license behind it pairs nobody", (st, none.get("code")), (403, "no-license"))
+        call(b, "/api/voyage-lan/presence", "POST", {"license": OTHER_LIC, "deviceId": "stranger", "deviceName": "Stranger", "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}}, token=MASTER)
+        st, pres = call(b, "/api/voyage-lan/presence", token=MASTER)
+        row = [d for d in pres.get("devices", []) if d["deviceId"] == "stranger"]
+        check("presence carries each device's license hash, so the app can tell who matches", row[0].get("license") if row else None, OTHER_LIC)
 
         print("\nthe ship's own token")
         st, made = call(b, "/api/admin/vessels", "POST", {"vesselName": "MV PAIR TEST", "imo": "9100001", "company": "T"}, token=MASTER)
         check("a ship is registered", (st, made.get("ok")), (200, True))
         vessel_token = made.get("vessel", {}).get("token")
-        code = call(b, "/api/voyage-lan/pair/start", "POST", {"vessel": {"name": "MV PAIR TEST", "imo": "9100001"}})[1]["code"]
-        st, p2 = call(b, "/api/voyage-lan/pair", "POST", {"code": code, "deviceId": "phone-2", "deviceName": "Phone 2"})
+        code = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC, "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}})[1]["code"]
+        st, p2 = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": code, "deviceId": "phone-2", "deviceName": "Phone 2"})
         check("a registered ship pairs with its own token, not the server's", (p2.get("scope"), p2.get("token") == vessel_token, p2.get("token") != MASTER), ("vessel", True, True))
-        code = call(b, "/api/voyage-lan/pair/start", "POST", {"vessel": {"name": "MV PAIR TEST", "imo": "9100001"}, "shareAll": True})[1]["code"]
-        p3 = call(b, "/api/voyage-lan/pair", "POST", {"code": code})[1]
+        code = call(b, "/api/voyage-lan/pair/start", "POST", {"license": LIC, "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}, "shareAll": True})[1]["code"]
+        p3 = call(b, "/api/voyage-lan/pair", "POST", {"license": LIC, "code": code})[1]
         check("'share every vessel' hands over the server's token", (p3.get("scope"), p3.get("token")), ("all", MASTER))
 
         print("\nwho is on which ship")
         tok = p2["token"]
-        st, _ = call(b, "/api/voyage-lan/presence", "POST", {"deviceId": "phone-2", "deviceName": "Phone 2", "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}}, token=tok)
+        st, _ = call(b, "/api/voyage-lan/presence", "POST", {"license": LIC, "deviceId": "phone-2", "deviceName": "Phone 2", "vessel": {"name": "MV PAIR TEST", "imo": "9100001"}}, token=tok)
         check("a paired device says which ship it has open", st, 200)
-        call(b, "/api/voyage-lan/presence", "POST", {"deviceId": "pc-1", "deviceName": "Laptop", "vessel": {"name": "MV OTHER", "imo": "9100002"}}, token=MASTER)
+        call(b, "/api/voyage-lan/presence", "POST", {"license": LIC, "deviceId": "pc-1", "deviceName": "Laptop", "vessel": {"name": "MV OTHER", "imo": "9100002"}}, token=MASTER)
         st, who = call(b, "/api/voyage-lan/presence", token=tok)
         names = {d["deviceId"]: d["vessel"]["name"] for d in who.get("devices", [])}
         check("it can see who else is here and on what", (st, names.get("phone-2"), names.get("pc-1")), (200, "MV PAIR TEST", "MV OTHER"))

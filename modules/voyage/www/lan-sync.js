@@ -24,6 +24,58 @@
   var KEY = 'voyageLanSync';
   var TICK_MS = 30000;
 
+  /* SHA-256, plain JS: crypto.subtle is missing on http:// pages, which is what a ship's LAN serves. */
+  function sha256(text) {
+    var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    var bytes = unescape(encodeURIComponent(String(text))).split('').map(function (c) { return c.charCodeAt(0); });
+    var bitLen = bytes.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (var i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bitLen >>> (i * 8)) & 255);
+    function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+    for (var off = 0; off < bytes.length; off += 64) {
+      var w = new Array(64);
+      for (var t = 0; t < 16; t++) w[t] = ((bytes[off + t * 4] << 24) | (bytes[off + t * 4 + 1] << 16) | (bytes[off + t * 4 + 2] << 8) | bytes[off + t * 4 + 3]) | 0;
+      for (t = 16; t < 64; t++) {
+        var s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+        var s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+        w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+      }
+      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g2 = H[6], h = H[7];
+      for (t = 0; t < 64; t++) {
+        var S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+        var ch = (e & f) ^ (~e & g2);
+        var t1 = (h + S1 + ch + K[t] + w[t]) | 0;
+        var S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        var maj = (a & b) ^ (a & c) ^ (b & c);
+        var t2 = (S0 + maj) | 0;
+        h = g2; g2 = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+      H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g2) | 0; H[7] = (H[7] + h) | 0;
+    }
+    return H.map(function (x) { return ('00000000' + (x >>> 0).toString(16)).slice(-8); }).join('');
+  }
+
+  /** What two devices compare: a hash of the license's email and id, so the id itself is never sent. */
+  function licenseTagOf(email, licenseId) {
+    var e = String(email || '').trim().toLowerCase(), id = String(licenseId || '').trim();
+    return e && id ? sha256('lan-license|' + e + '|' + id) : '';
+  }
+  /** This device's license tag, or '' when there is no valid license here. */
+  function licenseTag() {
+    try {
+      var L = root.ChengLicense;
+      var ent = L && L.loadEntitlement && L.loadEntitlement();
+      if (!ent || !ent.email || !ent.licenseId) return '';
+      if (L.isValid && !L.isValid(ent)) return '';
+      return licenseTagOf(ent.email, ent.licenseId);
+    } catch (_) { return ''; }
+  }
+  var LICENSE_NONE = 'Activate your license on this device first: live sync works only between devices on the same license (same email and license).';
+  var LICENSE_DIFFERENT = 'These two devices are on different licenses. Live sync works only when both use the same email and license.';
+
   function norm(s) { return String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   function imoOf(v) { return String((v && (v.imo || v.imoNo)) || '').replace(/\D/g, ''); }
   function nameOf(v) { return norm(v && (v.name || v.vesselName)); }
@@ -38,8 +90,13 @@
   }
 
   /** What to do this round, from who else is here. Pure, so it can be tested. */
-  function decide(me, myId, devices) {
-    var others = (devices || []).filter(function (d) { return d.deviceId !== myId; });
+  function decide(me, myId, devices, myTag) {
+    if (!myTag) return { action: 'wait', message: LICENSE_NONE, license: 'none' };
+    var all = (devices || []).filter(function (d) { return d.deviceId !== myId; });
+    var others = all.filter(function (d) { return d.license && d.license === myTag; });
+    if (all.length && !others.length) {
+      return { action: 'wait', message: 'Not syncing: ' + LICENSE_DIFFERENT, license: 'different' };
+    }
     if (!others.length) return { action: 'wait', message: 'No other device is connected to the server right now' };
     var same = others.filter(function (d) { return sameHull(d.vessel, me); });
     if (!same.length) {
@@ -128,14 +185,16 @@
   async function tick(forceWide) {
     var cfg = load();
     if (!cfg.enabled || !base() || st.busy) return;
+    var tag = licenseTag();
+    if (!tag) { st.status = 'no-license'; st.message = LICENSE_NONE; render(); return; }
     var why = blockedReason();
     if (why) return;
     st.busy = true;
     try {
       var mine = me();
-      var out = await api('/api/voyage-lan/presence', 'POST', { deviceId: deviceId(), deviceName: deviceName(), vessel: mine });
-      var d = decide(mine, deviceId(), out && out.devices);
-      st.status = d.action === 'sync' ? 'connected' : (d.different ? 'different-vessel' : 'waiting');
+      var out = await api('/api/voyage-lan/presence', 'POST', { deviceId: deviceId(), deviceName: deviceName(), vessel: mine, license: tag });
+      var d = decide(mine, deviceId(), out && out.devices, tag);
+      st.status = d.action === 'sync' ? 'connected' : (d.license === 'different' ? 'different-license' : (d.different ? 'different-vessel' : 'waiting'));
       st.message = d.message;
       if (d.action === 'sync') {
         var sync = g('syncNow');
@@ -201,17 +260,23 @@
   }
 
   async function showCode(shareAll) {
-    var out = await api('/api/voyage-lan/pair/start', 'POST', { vessel: me(), shareAll: !!shareAll });
+    var tag = licenseTag();
+    if (!tag) throw new Error(LICENSE_NONE);
+    var out = await api('/api/voyage-lan/pair/start', 'POST', { vessel: me(), shareAll: !!shareAll, license: tag });
     st.pairing = { code: out.code, shareAll: !!shareAll, until: Date.now() + (out.expiresIn || 300) * 1000, address: base() };
   }
 
   async function pairWith(url, code) {
+    var tag = licenseTag();
+    if (!tag) throw new Error(LICENSE_NONE);
     var r = await timedFetch(url + '/api/voyage-lan/pair', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code, deviceId: deviceId(), deviceName: deviceName() })
+      body: JSON.stringify({ code: code, deviceId: deviceId(), deviceName: deviceName(), license: tag })
     }, 10000);
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) throw new Error(j.error || 'Pairing failed');
+    /* The server must be on this license too (an older server says nothing). */
+    if (!j.license || j.license !== tag) throw new Error(j.license ? LICENSE_DIFFERENT : 'The other device runs a version that does not check licenses. Update it, then pair again.');
     var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = v; };
     set('sync_serverUrl', url);
     set('sync_apiToken', j.token || '');
@@ -233,7 +298,7 @@
     var typing = host.contains(document.activeElement) || Array.prototype.some.call(host.querySelectorAll('input[type=text],input:not([type])'), function (i) { return i.value; });
     if (typing && host.dataset.drawn) return;
     var cfg = load();
-    var tone = { connected: 'var(--teal,#2a9d8f)', 'different-vessel': 'var(--brass,#c99a53)', unpaired: '#c0392b', offline: '#c0392b' }[st.status] || '#667';
+    var tone = { connected: 'var(--teal,#2a9d8f)', 'different-vessel': 'var(--brass,#c99a53)', 'different-license': '#c0392b', 'no-license': '#c0392b', unpaired: '#c0392b', offline: '#c0392b' }[st.status] || '#667';
     var code = st.pairing && Date.now() < st.pairing.until
       ? '<div style="font-size:26px;letter-spacing:6px;font-weight:700;margin:6px 0">' + esc(st.pairing.code) + '</div>' +
         '<div class="hint">Type this on the other device. It works once, for five minutes' + (st.pairing.shareAll ? ', and hands over access to every vessel on this server' : ', and gives access to this vessel only') + '. This server is at <code>' + esc(st.pairing.address) + '</code>.</div>'
@@ -251,6 +316,9 @@
     host.dataset.drawn = '1';
     host.innerHTML =
       '<h2>Live sync (Wi-Fi / hotspot)</h2>' +
+      (licenseTag()
+        ? '<div class="hint">Only devices on this same license (same email and license) can pair and sync with this one.</div>'
+        : '<div class="hint" style="color:#c0392b"><b>No active license on this device.</b> ' + esc(LICENSE_NONE) + '</div>') +
       '<div class="hint">Keep this device level with another one on the same Wi-Fi or phone hotspot. Voyage Chief syncs through the server (the PC that runs it); this finds it, pairs once with a code, and syncs the open voyage leg while the other device has the <b>same vessel</b> open. Nothing is deleted.</div>' +
       '<label style="display:block;margin:8px 0"><input type="checkbox" id="lanEnabled" ' + (cfg.enabled ? 'checked' : '') + '> Sync automatically while the other device is on this vessel</label>' +
       '<div style="margin:6px 0;font-size:13px">' +
@@ -264,7 +332,7 @@
       '<div id="lanFound" style="margin-top:8px">' + found + '</div>' +
       '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="lanUrl" placeholder="or type the server: http://192.168.43.1:8787" style="flex:1;min-width:200px">' +
       '<input id="lanCode" placeholder="code" inputmode="numeric" maxlength="6" style="width:90px"><button type="button" class="ghost small" id="lanPairUrl">Pair</button></div>' +
-      '<div style="margin-top:10px;font-size:13px"><b style="color:' + tone + '">' + esc({ connected: 'Connected', 'different-vessel': 'Different vessel', unpaired: 'Pair again', offline: 'Not reachable', waiting: 'Waiting' }[st.status] || (base() ? 'Checking…' : 'Not paired')) + '</b> ' + esc(st.message) +
+      '<div style="margin-top:10px;font-size:13px"><b style="color:' + tone + '">' + esc({ connected: 'Connected', 'different-vessel': 'Different vessel', 'different-license': 'Different license', 'no-license': 'No license', unpaired: 'Pair again', offline: 'Not reachable', waiting: 'Waiting' }[st.status] || (base() ? 'Checking…' : 'Not paired')) + '</b> ' + esc(st.message) +
       (st.last ? ' · last ' + new Date(st.last.at).toLocaleTimeString() : '') + '</div>' + legs + vessels +
       '<div class="hint" style="margin-top:8px">A phone always makes the connection. Bluetooth is not used. Syncing runs while the app is open.</div>';
     wire();
@@ -315,7 +383,7 @@
   }
 
   var api2 = {
-    sameHull: sameHull, decide: decide, candidates: candidates, mount: mount, scan: scan,
+    sameHull: sameHull, decide: decide, sha256: sha256, licenseTagOf: licenseTagOf, licenseTag: licenseTag, candidates: candidates, mount: mount, scan: scan,
     tick: tick, pairWith: pairWith, _state: st, _touch: function (t) { lastInput = t; }
   };
   if (typeof module === 'object' && module.exports) module.exports = api2;
