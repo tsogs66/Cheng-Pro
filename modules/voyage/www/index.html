@@ -1164,6 +1164,8 @@
     font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.45;
     background:rgba(0,0,0,0.18); border:1px solid var(--line); border-radius:4px; padding:10px 12px; white-space:pre-wrap;
   }
+  .orb-staff-warn{border-left-color:#d9822b; background:rgba(217,130,43,0.12);}
+  .orb-staff-warn[hidden]{display:none;}
   .orb-flag-box{border-left:3px solid var(--teal); padding:8px 12px; margin-top:10px; background:rgba(87,179,171,0.08);}
   /* ---- IOPP / ORB tank rows ----
      Name flexes; frame, capacity and ROB take fixed columns so every tank lines up
@@ -4972,6 +4974,7 @@ html.astrolabe body::before { opacity: 0.26; }
       <div class="panel">
         <h2>Engine Officers</h2>
         <div class="hint">Officers who sign ORB entries. Once listed they can be picked from a dropdown on every entry, and Browse / Print can produce a report for one officer.</div>
+        <div class="orb-flag-box orb-staff-warn" id="orbSetupSignatoryStaffWarn" role="alert" hidden></div>
         <div id="orbOfficerEditors"></div>
         <div class="btn-row">
           <button class="ghost small" type="button" id="btnOrbAddOfficer">+ Add engine officer</button>
@@ -5023,6 +5026,7 @@ html.astrolabe body::before { opacity: 0.26; }
           <div class="field"><label>Signature date</label><input type="date" id="orb_weeklyOfficerSignDate"></div>
         </div>
         <div class="orb-flag-box" id="orbWeeklySignatoryGuidance" hidden></div>
+        <div class="orb-flag-box orb-staff-warn" id="orbWeeklySignatoryStaffWarn" role="alert" hidden></div>
         <div class="form-grid cols2" id="orbWeeklyDualChiefEngBlock" style="display:none;margin-top:10px;">
           <div class="field"><label>Chief Engineer — name (second signature)</label><input id="orb_weeklyChiefEngSignName" placeholder="From vessel setup"></div>
           <div class="field"><label>Chief Engineer — rank</label><input id="orb_weeklyChiefEngSignRank" placeholder="C/E" value="C/E"></div>
@@ -5059,6 +5063,7 @@ html.astrolabe body::before { opacity: 0.26; }
           <div class="field"><label>Signature date</label><input type="date" id="orb_officerSignDate"></div>
         </div>
         <div class="orb-flag-box" id="orbSignatoryGuidance" hidden></div>
+        <div class="orb-flag-box orb-staff-warn" id="orbSignatoryStaffWarn" role="alert" hidden></div>
         <div class="form-grid cols2" id="orbDualChiefEngBlock" style="display:none;margin-top:10px;">
           <div class="field"><label>Chief Engineer — name (second signature)</label><input id="orb_chiefEngSignName" placeholder="From vessel setup"></div>
           <div class="field"><label>Chief Engineer — rank</label><input id="orb_chiefEngSignRank" placeholder="C/E" value="C/E"></div>
@@ -33538,9 +33543,31 @@ function renderOrbSignatoryGuidance(){
   });
   const dual = pol.mode === EORB.SIGNATORY_MODES.engineer_and_chief_engineer;
   const ceOnly = pol.mode === EORB.SIGNATORY_MODES.chief_engineer_only;
+  const staff = EORB.signatoryStaffing(setup);
   ['orbDualChiefEngBlock', 'orbWeeklyDualChiefEngBlock'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = dual ? '' : 'none';
+    if (el) el.style.display = staff.showChiefEngineer ? '' : 'none';
+  });
+  /* A line the flag does not need is switched off, not just hidden: it is not read into the entry. */
+  ['orb_chiefEngSignName', 'orb_chiefEngSignRank', 'orb_weeklyChiefEngSignName', 'orb_weeklyChiefEngSignRank'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !staff.showChiefEngineer;
+  });
+  ['orb_officerSelect', 'orb_weeklyOfficerSelect', 'orb_officerName', 'orb_weeklyOfficerName',
+   'orb_officerRank', 'orb_weeklyOfficerRank'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !staff.showOfficerInCharge;
+    if (!staff.showOfficerInCharge && el.tagName === 'INPUT') {
+      if (/Name$/.test(id)) el.value = setup.chiefEng || el.value;
+      if (/Rank$/.test(id)) el.value = EORB.chiefEngRankFromSetup(setup);
+    }
+  });
+  ['orbSignatoryStaffWarn', 'orbWeeklySignatoryStaffWarn', 'orbSetupSignatoryStaffWarn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = staff.warnings.map(w => '<div>⚠ ' + escHtml(w) + '</div>').join('');
+    el.hidden = !staff.warnings.length;
   });
   const ce = setup.chiefEng || String(state.setup?.chEng || '').trim();
   if (dual) {
@@ -33632,6 +33659,7 @@ function renderOrbOfficerEditors(){
         <button type="button" class="ghost small" data-orb-officer-del="${i}">Remove</button>
       </div>
     </div>`).join('') || `<div class="hint">No engine officers listed yet — add the officers who sign ORB entries.</div>`;
+  if (typeof renderOrbSignatoryGuidance === 'function') renderOrbSignatoryGuidance();
 }
 
 /** Fill an officer picker; keeps the current value where it is still valid. */
@@ -34671,6 +34699,10 @@ document.getElementById('btnOrbAddOfficer')?.addEventListener('click', ()=>{
   setup.officers.push({ id: 'off_' + uid(), rank: '', name: '' });
   state.setup.orb = setup;
   renderOrbOfficerEditors();
+});
+document.getElementById('orbOfficerEditors')?.addEventListener('change', ()=>{
+  readOrbSetupFromForm();
+  renderOrbSignatoryGuidance();
 });
 document.getElementById('orbOfficerEditors')?.addEventListener('click', (e)=>{
   const del = e.target.closest('[data-orb-officer-del]');

@@ -1882,6 +1882,35 @@
     return lines;
   }
 
+  /**
+   * Who the flag expects to sign, against who the ship's setup actually lists.
+   *   dual (officer in charge + Chief Engineer): both lines; warn when setup has a Chief Engineer
+   *     but no other officer in charge (or no Chief Engineer at all).
+   *   Chief Engineer only: the officer-in-charge line is switched off.
+   *   Officer in charge only (the Chief Engineer line is not needed): the Chief Engineer line is off.
+   */
+  function signatoryStaffing(setup) {
+    const pol = flagSignatoryPolicy(setup && setup.flag);
+    const officers = ((setup && setup.officers) || []).filter(o => String((o && o.name) || '').trim());
+    const ceName = String((setup && setup.chiefEng) || '').trim();
+    const sameAsCe = o => ceName && String(o.name).trim().toUpperCase() === ceName.toUpperCase();
+    const others = officers.filter(o => !isChiefEngineerRank(o.rank) && !sameAsCe(o));
+    const hasChief = !!ceName || officers.some(o => isChiefEngineerRank(o.rank));
+    const flagName = getFlag(setup && setup.flag).name;
+    const out = { mode: pol.mode, showOfficerInCharge: true, showChiefEngineer: false, warnings: [] };
+    if (pol.mode === SIGNATORY_MODES.engineer_and_chief_engineer) {
+      out.showChiefEngineer = true;
+      if (!hasChief) out.warnings.push(flagName + ' needs the Chief Engineer and an officer in charge to sign each entry, and no Chief Engineer is set. Set the Chief Engineer in Vessel Setup.');
+      if (!others.length) out.warnings.push(flagName + ' needs the Chief Engineer and an officer in charge to sign each entry, but only the Chief Engineer is set up. Add an engine officer (2/E, 3/E ...) under Engine Officers.');
+    } else if (pol.mode === SIGNATORY_MODES.chief_engineer_only) {
+      out.showOfficerInCharge = false;
+      if (!hasChief) out.warnings.push(flagName + ' needs the Chief Engineer to sign each entry, and no Chief Engineer is set. Set the Chief Engineer in Vessel Setup.');
+    } else if (!officers.length && !hasChief) {
+      out.warnings.push('No officer in charge is set up. Add the engine officers who sign ORB entries (or set the Chief Engineer in Vessel Setup).');
+    }
+    return out;
+  }
+
   function getPartOps(part) {
     const p = Number(part);
     if (p === 2) return PART_II;
@@ -4288,6 +4317,7 @@
     flagHasPartIII,
     SIGNATORY_MODES,
     DEFAULT_SIGNATORY,
+    signatoryStaffing,
     flagSignatoryPolicy,
     requiresDualSignatory,
     isChiefEngineerRank,
