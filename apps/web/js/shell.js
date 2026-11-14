@@ -372,6 +372,9 @@
         });
       }
     } catch (e) {
+      /* A page that finished late, after another one was opened, must not put its
+         error over the page now showing. */
+      if (current !== next) return;
       setFullscreenEmbed(false);
       pageHost().innerHTML = `<section class="panel"><p class="empty">${escapeHtml(e.message)}</p></section>`;
     }

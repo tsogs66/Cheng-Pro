@@ -110,6 +110,11 @@ window.ChengProModules.vessel = {
     `;
 
     await renderFleet(root.querySelector('#fleetTable tbody'));
+    /* The fleet register is a network read. If the engineer has already opened
+       another page by the time it answers, this page is gone: stop here instead of
+       wiring buttons that no longer exist (which threw and put an error over the
+       page they had moved to). */
+    if (!root.querySelector('#vesselForm')) return;
 
     const flagSel = root.querySelector('#vesselFlag');
     const flagHintEl = root.querySelector('#vesselFlagHint');
