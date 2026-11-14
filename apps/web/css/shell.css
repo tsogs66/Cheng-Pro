@@ -1904,7 +1904,7 @@ html.bright code { color: var(--accent-2); }
      46px is a phone's bar: it has to leave room for the page. */
   --nav-item-h: 46px;
   --nav-ic: 18px;
-  --nav-label: 8px;
+  --nav-label: 12px;
   --nav-pad-y: 3px;
 }
 @media (pointer: coarse) {
@@ -1923,7 +1923,7 @@ html.bright code { color: var(--accent-2); }
   :root {
     --nav-item-h: 72px;
     --nav-ic: 26px;
-    --nav-label: 11px;
+    --nav-label: 12px;
     --nav-pad-y: 7px;
   }
 }
@@ -2169,7 +2169,7 @@ html.aio-suite .main .calc-result {
   }
 }
 @media (pointer: coarse) and (max-width: 700px) {
-  :root { --nav-label: 11px; --nav-item-h: 56px; }
+  :root { --nav-label: 12px; --nav-item-h: 56px; }
 }
 @media (pointer: coarse) and (min-width: 700px) and (min-height: 700px) {
   .toggle-row button,
@@ -2182,7 +2182,7 @@ html.aio-suite .main .calc-result {
   :root { --nav-label: 12px; --nav-item-h: 64px; }
 }
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
-  :root { --nav-label: 11px; --nav-item-h: 52px; }
+  :root { --nav-label: 12px; --nav-item-h: 52px; }
 }
 
 /* A ship under the suite pages, drawn in the theme's brass. It stays behind
@@ -2293,3 +2293,9 @@ html.aio-bunker-alert::after {
 @keyframes aio-bunker-pulse { from { opacity: .45; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { html.aio-bunker-alert::after { animation: none; } }
 @media print { html.aio-bunker-alert::after { display: none; } }
+
+/* Bottom-bar labels are 12px like all on-screen text; the narrowest phones (360px) cannot fit seven of them
+   at 12px, so they keep 11px. Same rule in the Tank and Voyage modules (scripts/test-suite-scale.js). */
+@media screen and (max-width: 380px) {
+  :root { --nav-label: 11px; }
+}
