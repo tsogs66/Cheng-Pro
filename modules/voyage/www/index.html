@@ -4983,7 +4983,7 @@ html.astrolabe body::before { opacity: 0.26; }
       <div class="panel">
         <h2>Guided New Entry</h2>
         <div class="form-grid cols3">
-          <div class="field"><label>ORB Part</label><select id="orb_part"><option value="1">Part I — Machinery space</option><option value="2">Part II — Cargo/ballast (tankers)</option><option value="3">Part III — Fuel changeover &amp; incinerator</option></select></div>
+          <div class="field"><label>ORB Part</label><select id="orb_part"><option value="1">Part I — Machinery space</option><option value="2">Part II — Cargo/ballast (tankers)</option><option value="3">Part III — Air emissions &amp; incinerator (Panama)</option></select></div>
           <div class="field"><label>Date of operation</label><input type="date" id="orb_entryDate"></div>
           <div class="field"><label>Ship position / place (optional default)</label><input id="orb_defaultPos" placeholder="Lat/Long or port"></div>
         </div>
@@ -33753,7 +33753,7 @@ function fillOrbSetupForm(){
   renderOrbOfficerEditors();
 }
 
-/* Part III (fuel changeover, incinerator) is in the book only for flags that require it — today Panama.
+/* Part III (ODS, NOx, SOx, vapour collection, incinerator) is in the book only for flags that require it — today Panama.
    The other flags get Parts I and II. A flag change takes Part III away from the pickers at once; entries
    already saved under Part III stay in the book and stay listed in Browse. */
 function applyOrbPartAvailability(){
