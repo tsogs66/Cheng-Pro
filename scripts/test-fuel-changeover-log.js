@@ -83,5 +83,54 @@ check('start was 48 min after the plan', cmp.startDiffMin, 48);
 check('duration from commencement to completion', cmp.durationMin, 162);
 check('no plan, no comparison', L.compareToPlan(L.newRecord('eca', {})), null);
 
+
+console.log('\nlow-sulphur fuel for the passage');
+{
+  const ok1 = L.ecaFuelCheck({ changeoverUsedMt: 5.2, transitHours: 30, consMtDay: 24, onBoardMt: 40 });
+  check('need = changeover + transit', [ok1.changeoverMt, ok1.transitMt, Math.round(ok1.needMt * 100) / 100], [5.2, 30, 35.2]);
+  check('enough with a reserve to spare', [ok1.enough, ok1.comfortable], [true, true]);
+  const tight = L.ecaFuelCheck({ changeoverUsedMt: 5.2, transitHours: 30, consMtDay: 24, onBoardMt: 36 });
+  check('enough but inside the reserve', [tight.enough, tight.comfortable], [true, false]);
+  const short = L.ecaFuelCheck({ changeoverUsedMt: 5.2, transitHours: 30, consMtDay: 24, onBoardMt: 30 });
+  check('not enough is flagged', short.enough, false);
+  check('a missing figure gives no verdict', L.ecaFuelCheck({ changeoverUsedMt: 5.2, consMtDay: 24, onBoardMt: 30 }).ok, false);
+  check('a zero reserve is respected', L.ecaFuelCheck({ changeoverUsedMt: 1, transitHours: 24, consMtDay: 10, onBoardMt: 11, reservePct: 0 }).comfortable, true);
+}
+
+console.log('\nEU port call');
+{
+  const arr = Date.UTC(2026, 0, 1, 8), dep = Date.UTC(2026, 0, 1, 20);
+  const p = L.euBerthPlan({ arrivalMs: arr, departureMs: dep, changeoverHours: 3, changeoverUsedMt: 1.2, consMtDay: 4, onBoardMt: 5 });
+  check('start on arrival, compliant three hours later', [p.startMs === arr, p.compliantByMs - arr], [true, 3 * 3600000]);
+  check('change back at departure when no margin', p.changeBackStartMs, dep);
+  check('stay and compliant hours', [p.stayHours, p.compliantHours], [12, 9]);
+  check('low-sulphur fuel for the stay', Math.round(p.needMt * 100) / 100, 2.7);
+  check('covered by what is on board', p.enough, true);
+  const shortStay = L.euBerthPlan({ arrivalMs: arr, departureMs: arr + 90 * 60000, changeoverHours: 3, consMtDay: 4 });
+  check('a stay shorter than the changeover cannot finish in time', shortStay.completesInTime, false);
+  check('a stay under two hours is reported as exempt', shortStay.exemptShortStay, true);
+  const margin = L.euBerthPlan({ arrivalMs: arr, departureMs: dep, changeoverHours: 3, consMtDay: 4, changeBackMarginHours: 1 });
+  check('change back an hour before departure', margin.changeBackStartMs, dep - 3600000);
+  check('departure before arrival gives no plan', L.euBerthPlan({ arrivalMs: dep, departureMs: arr, changeoverHours: 3, consMtDay: 4 }).ok, false);
+}
+
+
+console.log('\nhand-over to the e-ORB Part III C item 4 (Panama)');
+{
+  const rec2 = L.newRecord('eca', { offsetMin: 480 });
+  const st2 = Object.assign(L.blankStage(2, { offsetMin: 480 }), { dateLT: '2021-10-27', timeLT: '00:30', latDeg: 29, latMin: 46.2, lonDeg: 123, lonMin: '02.0', rob: { a: 1.8, b: 15.6 } });
+  const pv = L.partThreeValues(rec2, st2, 890);
+  check('completion before the ECA', [pv.event, pv.scenarioId], ['Completed before entering the ECA', 'p3-changeover-complete']);
+  check('the UTC date and time, not the local ones', [pv.date, pv.time], ['2021-10-26', '16:30']);
+  check('tanks and the volume in m³ from the MT and the density', [pv.tankIds, pv.volumeM3], [['a', 'b'], 19.55]);
+  check('position carried over', [pv.position.latDeg, pv.position.lonMin], [29, '02.0']);
+  const st5 = Object.assign({}, st2, { no: 5 });
+  check('the change back after the ECA', L.partThreeValues(rec2, st5, 890).scenarioId, 'p3-changeover-start');
+  check('entry into the ECA has no Part III item', L.partThreeValues(rec2, Object.assign({}, st2, { no: 3 }), 890), null);
+  check('an EU port call has none either', L.partThreeValues(L.newRecord('eu', {}), st2, 890), null);
+  check('a stage with no time gives nothing', L.partThreeValues(rec2, L.blankStage(2, { offsetMin: 480 }), 890), null);
+  check('no density falls back to 890', L.partThreeValues(rec2, st2, null).volumeM3, 19.55);
+}
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);

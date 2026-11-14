@@ -4428,6 +4428,21 @@ html.astrolabe body::before { opacity: 0.26; }
         <div class="field" style="align-self:end;"><button type="button" class="primary small" id="btnCoCalc" style="width:100%;">Calculate</button></div>
       </div>
       <div class="stat-strip cols4" id="coResults"></div>
+      <details id="coConsumersBox" style="margin:10px 0;">
+        <summary>Per-consumer windows (optional)</summary>
+        <p class="hint">The main engine, the generators and the boiler each have their own service volume and burn at their own rate, so each finishes its changeover at a different time. List them here and the changeover is complete when the slowest one is under the limit. Leave empty to use the single volume and consumption above.</p>
+        <div id="coConsumerRows"></div>
+        <div class="btn-row"><button type="button" class="ghost small" id="btnCoAddConsumer">+ Add consumer</button></div>
+      </details>
+      <div id="coConsumerTable"></div>
+      <h3 class="sub" style="margin-top:14px;">Low-sulphur fuel for the passage</h3>
+      <div class="form-grid cols3">
+        <div class="field"><label>Low-sulphur fuel on board (MT)</label><input type="number" step="0.01" min="0" id="co_lsOnBoard" placeholder="compliant grade"></div>
+        <div class="field"><label>Time inside the ECA (hours)</label><input type="number" step="0.25" min="0" id="co_ecaHours" placeholder="e.g. 30"></div>
+        <div class="field"><label>Reserve on top (%)</label><input type="number" step="1" min="0" id="co_reserve" value="10"></div>
+      </div>
+      <div class="btn-row" style="margin:4px 0;"><button type="button" class="ghost small" id="btnCoUseRob">Use ROB of the grade in Voyage Setup</button></div>
+      <div class="hint" id="coFuelCheck">Calculate the changeover, then fill the figures above to see whether the low-sulphur fuel on board covers it.</div>
       <div class="hint" id="coVerdict" role="status" aria-live="polite">Fill in the figures above and press Calculate.</div>
       <div class="table-scroll" style="margin-top:10px;">
         <table id="coCurveTable">
@@ -4443,6 +4458,17 @@ html.astrolabe body::before { opacity: 0.26; }
         <code>S(t) = S_low + (S_high − S_low) · e^(−Qt/V)</code>, so <code>t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)]</code>.<br>
         Put the whole blending volume into <em>V</em> — service tank, mixing/deaeration tank, supply and circulating pipes and the engine itself — because anything left out makes the answer shorter than the truth. Under MARPOL Annex VI Reg. 14.3 the limit inside an ECA is 0.10&nbsp;% m/m. The figure is an estimate for planning: the completion time that goes in the record is the one actually observed, and Reg. 14.6 wants it with the position and the volume of low-sulphur fuel on board.</div>
       <div class="hint" id="coThermalHint"></div>
+      <h3 class="sub" style="margin-top:16px;">EU port call — 0.10 % S at berth</h3>
+      <p class="hint">Directive 2012/33/EU: change over as soon as possible after arrival, and back as late as possible before departure. Uses the sulphur, volume and density above, at the consumption you expect in port. A published stay of under two hours is exempt — confirm that for the call.</p>
+      <div class="form-grid cols3">
+        <div class="field"><label>Arrival at berth</label><input type="datetime-local" id="co_euArrive"></div>
+        <div class="field"><label>Departure from berth</label><input type="datetime-local" id="co_euDepart"></div>
+        <div class="field"><label>Consumption in port (MT/day)</label><input type="number" step="0.01" min="0" id="co_euCons" placeholder="e.g. 4"></div>
+        <div class="field"><label>Change back — hours before departure</label><input type="number" step="0.25" min="0" id="co_euBack" value="0"></div>
+        <div class="field" style="align-self:end;"><button type="button" class="primary small" id="btnCoEu" style="width:100%;">Plan the port call</button></div>
+      </div>
+      <div class="hint" id="coEuResult">Fill the arrival, the departure and the port consumption.</div>
+      <div class="btn-row"><button type="button" class="ghost small" id="btnCoEuPrint">Print port call plan</button></div>
     </div>
     <div class="panel" id="changeoverLogPanel">
       <h2>Fuel Changeover Record — Appendix VI log</h2>
@@ -14032,6 +14058,43 @@ function computeFuelChangeover(input){
   };
 }
 
+/**
+ * The changeover when several consumers each have their own service volume and
+ * burn rate. Each is worked on its own; the changeover is complete when the
+ * slowest is under the limit, and the low-sulphur fuel displaced is the sum.
+ * The slowest one supplies the curve and the times, so the rest of the page
+ * (plan sheet, start time) works from the figure that actually governs.
+ */
+function computeFuelChangeoverMulti(input, consumers){
+  const list = (consumers || []).filter(c => c && numOrNull(c.volumeM3) != null && numOrNull(c.consMtDay) != null);
+  if (!list.length) return computeFuelChangeover(input);
+  const rows = [];
+  for (const c of list){
+    const res = computeFuelChangeover(Object.assign({}, input, { volumeM3: c.volumeM3, consMtDay: c.consMtDay }));
+    if (!res.ok) return { ok: false, reason: (c.name || 'A consumer') + ': ' + res.reason };
+    rows.push({ name: c.name || 'Consumer', consMtDay: Number(c.consMtDay), volumeM3: Number(c.volumeM3), res });
+  }
+  if (rows.every(r => r.res.alreadyCompliant)) return rows[0].res;
+  const live = rows.filter(r => !r.res.alreadyCompliant);
+  let slow = live[0];
+  live.forEach(r => { if (r.res.hours > slow.res.hours) slow = r; });
+  const sumMt = live.reduce((a, r) => a + r.res.lowSulphurUsedMt, 0);
+  const sumM3 = live.reduce((a, r) => a + r.res.lowSulphurUsedM3, 0);
+  return Object.assign({}, slow.res, {
+    lowSulphurUsedMt: sumMt,
+    lowSulphurUsedM3: sumM3,
+    consMtDayTotal: rows.reduce((a, r) => a + r.consMtDay, 0),
+    slowest: slow.name,
+    perConsumer: rows.map(r => ({
+      name: r.name, volumeM3: r.volumeM3, consMtDay: r.consMtDay,
+      hours: r.res.alreadyCompliant ? 0 : r.res.hours,
+      usedMt: r.res.alreadyCompliant ? 0 : r.res.lowSulphurUsedMt,
+      alreadyCompliant: !!r.res.alreadyCompliant,
+      slowest: r === slow
+    }))
+  });
+}
+
 /** How long a safe temperature ramp needs, so the thermal limit is not the
     thing that makes the changeover late. */
 function changeoverThermalMinutes(fromC, toC){
@@ -14111,6 +14174,7 @@ function printChangeoverPlan(res){
     ${printDocHeader({ title: 'Fuel Changeover Plan', subtitle: 'MARPOL Annex VI Reg. 14 — sulphur limit at engine inlet' })}
     ${printSection('Worked from', givens)}
     ${printSection('Plan', plan)}
+    ${res.perConsumer ? printSection('Consumers — each with its own service volume', `<table class="pr-table"><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/day</th><th>Changeover time</th><th>Low-S (MT)</th></tr>${res.perConsumer.map(r => `<tr><td class="row-lbl">${escPrint(r.name)}${r.slowest ? ' — slowest, sets the time' : ''}</td><td>${escPrint(fmt(r.volumeM3, 2))}</td><td>${escPrint(fmt(r.consMtDay, 2))}</td><td>${escPrint(r.alreadyCompliant ? 'under the limit' : hm(r.hours))}</td><td>${escPrint(fmt(r.usedMt, 2))}</td></tr>`).join('')}</table>`) : ''}
     ${printSection('Sulphur at the engine inlet', curve)}
     ${printSection('To be recorded (Annex VI Reg. 14.6)', observed)}
     <div class="pr-note">S(t) = S_low + (S_high − S_low) · e^(−Qt/V); t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)].
@@ -14141,6 +14205,183 @@ function readChangeoverForm(){
 
 let _lastChangeover = null;
 
+/* ---- Low-sulphur fuel for the passage, and the EU port call --------------------
+   The arithmetic is in fuel-changeover-log.js (ecaFuelCheck, euBerthPlan) so it is
+   tested on its own; this is the form and the sheet. */
+let _lastCoFuelCheck = null;
+let _lastCoEu = null;
+
+/* Per-consumer windows: a few rows kept with the ship's setup. */
+function changeoverConsumers(){
+  if (!Array.isArray(state.setup.changeoverConsumers)) state.setup.changeoverConsumers = [];
+  return state.setup.changeoverConsumers;
+}
+
+function renderCoConsumerRows(){
+  const host = document.getElementById('coConsumerRows');
+  if (!host) return;
+  const list = changeoverConsumers();
+  host.innerHTML = list.map((c, i) => `
+    <div class="form-grid cols4" data-co-consumer="${i}" style="margin-bottom:6px;">
+      <div class="field"><label>Consumer</label><input data-co-cf="name" value="${escAttr(c.name || '')}" placeholder="M/E, G/E 1, Boiler"></div>
+      <div class="field"><label>Service volume (m³)</label><input type="number" step="0.01" min="0" data-co-cf="volumeM3" value="${escAttr(c.volumeM3 == null ? '' : c.volumeM3)}"></div>
+      <div class="field"><label>Consumption (MT/day)</label><input type="number" step="0.01" min="0" data-co-cf="consMtDay" value="${escAttr(c.consMtDay == null ? '' : c.consMtDay)}"></div>
+      <div class="field" style="justify-content:flex-end;"><button type="button" class="ghost small" data-co-del="${i}">Remove</button></div>
+    </div>`).join('') || '<div class="hint">No consumers listed — the single volume and consumption above are used.</div>';
+}
+
+function renderCoConsumerTable(res){
+  const host = document.getElementById('coConsumerTable');
+  if (!host) return;
+  if (!res || !res.ok || !res.perConsumer){ host.innerHTML = ''; return; }
+  const hm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
+  host.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/day</th><th>Changeover time</th><th>Low-S displaced (MT)</th><th></th></tr></thead><tbody>${
+    res.perConsumer.map(r => `<tr><td>${escHtml(r.name)}</td><td>${escHtml(fmt(r.volumeM3, 2))}</td><td>${escHtml(fmt(r.consMtDay, 2))}</td><td>${r.alreadyCompliant ? 'already under the limit' : escHtml(hm(r.hours))}</td><td>${escHtml(fmt(r.usedMt, 2))}</td><td>${r.slowest ? '<strong>slowest — sets the time</strong>' : ''}</td></tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+document.getElementById('btnCoAddConsumer')?.addEventListener('click', ()=>{
+  changeoverConsumers().push({ id: 'cc-' + Date.now().toString(36), name: '', volumeM3: null, consMtDay: null });
+  renderCoConsumerRows();
+});
+document.getElementById('coConsumerRows')?.addEventListener('input', (e)=>{
+  const row = e.target.closest('[data-co-consumer]');
+  const f = e.target.getAttribute('data-co-cf');
+  if (!row || !f) return;
+  const c = changeoverConsumers()[Number(row.getAttribute('data-co-consumer'))];
+  if (!c) return;
+  c[f] = f === 'name' ? e.target.value : (e.target.value === '' ? null : Number(e.target.value));
+  renderChangeover();
+});
+document.getElementById('coConsumerRows')?.addEventListener('change', async ()=>{ try { await saveSetup(); } catch (_) { /* the page reports save failures elsewhere */ } });
+document.getElementById('coConsumerRows')?.addEventListener('click', async (e)=>{
+  const del = e.target.closest('[data-co-del]');
+  if (!del) return;
+  state.setup.changeoverConsumers = changeoverConsumers().filter((_, i) => i !== Number(del.getAttribute('data-co-del')));
+  renderCoConsumerRows();
+  renderChangeover();
+  try { await saveSetup(); } catch (_) { /* ignore */ }
+});
+
+function coNum(id){
+  const el = document.getElementById(id);
+  const v = el ? el.value : '';
+  return v === '' ? null : Number(v);
+}
+
+function renderCoFuelCheck(res){
+  const box = document.getElementById('coFuelCheck');
+  if (!box || !window.FuelChangeoverLog) return;
+  _lastCoFuelCheck = null;
+  if (!res || !res.ok || res.alreadyCompliant){
+    box.textContent = 'Calculate the changeover, then fill the figures above to see whether the low-sulphur fuel on board covers it.';
+    box.className = 'hint';
+    return;
+  }
+  const chk = FuelChangeoverLog.ecaFuelCheck({
+    changeoverUsedMt: res.lowSulphurUsedMt,
+    transitHours: coNum('co_ecaHours'),
+    consMtDay: res.consMtDayTotal != null ? res.consMtDayTotal : Number(res.input && res.input.consMtDay),
+    onBoardMt: coNum('co_lsOnBoard'),
+    reservePct: coNum('co_reserve')
+  });
+  if (!chk.ok){
+    box.textContent = chk.reason;
+    box.className = 'hint';
+    return;
+  }
+  _lastCoFuelCheck = chk;
+  const t = (n) => escHtml(fmt(n, 2)) + ' MT';
+  const detail = `Changeover ${t(chk.changeoverMt)} + ${escHtml(fmt(coNum('co_ecaHours'), 1))} h in the ECA ${t(chk.transitMt)} = ${t(chk.needMt)}; with a ${escHtml(String(chk.reservePct))} % reserve ${t(chk.needWithReserveMt)}. On board ${t(chk.onBoardMt)}.`;
+  if (!chk.enough){
+    box.innerHTML = `<strong>Not enough low-sulphur fuel.</strong> Short by ${t(chk.needMt - chk.onBoardMt)}. ${detail} Bunker compliant fuel, shorten the time in the ECA, or plan the changeover differently.`;
+    box.className = 'hint alert-text';
+  } else if (!chk.comfortable){
+    box.innerHTML = `<strong>Enough, but inside the reserve.</strong> ${detail} Short of the reserve by ${t(-chk.spareMt)}.`;
+    box.className = 'hint alert-text';
+  } else {
+    box.innerHTML = `<strong>Enough low-sulphur fuel.</strong> ${detail} Spare after the reserve ${t(chk.spareMt)}.`;
+    box.className = 'hint good-text';
+  }
+}
+
+function renderCoEu(){
+  const out = document.getElementById('coEuResult');
+  if (!out || !window.FuelChangeoverLog) return;
+  _lastCoEu = null;
+  const base = readChangeoverForm();
+  const cons = coNum('co_euCons');
+  const arr = document.getElementById('co_euArrive')?.value;
+  const dep = document.getElementById('co_euDepart')?.value;
+  const res = computeFuelChangeover(Object.assign({}, base, { consMtDay: cons == null ? base.consMtDay : cons }));
+  if (!res.ok){ out.textContent = res.reason; out.className = 'hint alert-text'; return; }
+  if (res.alreadyCompliant){ out.textContent = res.reason; out.className = 'hint good-text'; return; }
+  const plan = FuelChangeoverLog.euBerthPlan({
+    arrivalMs: arr ? new Date(arr).getTime() : null,
+    departureMs: dep ? new Date(dep).getTime() : null,
+    changeoverHours: res.hours, changeoverUsedMt: res.lowSulphurUsedMt,
+    consMtDay: cons == null ? Number(base.consMtDay) : cons,
+    onBoardMt: coNum('co_lsOnBoard'), changeBackMarginHours: coNum('co_euBack')
+  });
+  if (!plan.ok){ out.textContent = plan.reason; out.className = 'hint'; return; }
+  _lastCoEu = Object.assign({ res, input: base }, plan);
+  const when = (ms) => new Date(ms).toLocaleString(undefined, { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const hmm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
+  const lines = [
+    `Stay ${hmm(plan.stayHours)}. Start the changeover on arrival (${when(plan.startMs)}); the fuel is under the limit by ${when(plan.compliantByMs)} (${hmm(res.hours)} at ${escHtml(fmt(cons == null ? Number(base.consMtDay) : cons, 2))} MT/day).`,
+    `Change back to residual fuel from ${when(plan.changeBackStartMs)}.`,
+    `Low-sulphur fuel for the stay about ${escHtml(fmt(plan.needMt, 2))} MT` + (plan.onBoardMt != null ? (plan.enough ? ' — covered by what is on board.' : ' — more than the ' + escHtml(fmt(plan.onBoardMt, 2)) + ' MT on board.') : '.')
+  ];
+  let cls = 'hint';
+  if (!plan.completesInTime){
+    lines.unshift('<strong>The stay is too short to finish the changeover before the change back.</strong>');
+    cls = 'hint alert-text';
+  }
+  if (plan.exemptShortStay) lines.push('A stay under two hours on the published timetable is exempt from the 0.10 % rule — confirm this for the call.');
+  if (plan.enough === false) cls = 'hint alert-text';
+  out.innerHTML = lines.join('<br>');
+  out.className = cls;
+}
+
+function printCoEuPlan(){
+  if (!_lastCoEu){ alert('Plan the port call first — there is nothing to print yet.'); return; }
+  const p = _lastCoEu;
+  const when = (ms) => new Date(ms).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const hmm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
+  const row = (a, b) => `<tr><td class="row-lbl">${escPrint(a)}</td><td>${escPrint(b)}</td></tr>`;
+  const html = `<div class="pr-sheet">
+    ${printDocHeader({ title: 'EU Port Call — Fuel Changeover Plan', subtitle: 'Directive 2012/33/EU — 0.10 % sulphur at berth' })}
+    ${printSection('Plan', `<table class="pr-table"><tr><th>Item</th><th>Value</th></tr>
+      ${row('Arrival at berth', when(p.startMs))}
+      ${row('Changeover to 0.10 % fuel starts', when(p.startMs))}
+      ${row('Under the limit by', when(p.compliantByMs))}
+      ${row('Change back to residual fuel from', when(p.changeBackStartMs))}
+      ${row('Departure', when(p.departureMs))}
+      ${row('Stay', hmm(p.stayHours))}
+      ${row('Changeover duration', hmm(p.res.hours))}
+      ${row('Low-sulphur fuel for the stay', fmt(p.needMt, 2) + ' MT')}
+    </table>`)}
+    ${printSection('To be recorded', `<table class="pr-table"><tr><th>As carried out</th><th>To be entered</th></tr>
+      ${row('Changeover commenced — time', '')}${row('Changeover completed — time', '')}
+      ${row('Change back commenced — time', '')}${row('Signed — officer in charge / Chief Engineer', '')}</table>`)}
+    <div class="pr-note">Enter what was actually done in the Fuel Changeover Record (EU port call). The Directive asks for the changeover as soon as possible after arrival and the change back as late as possible before departure, with the times in a logbook countersigned by the Master or Chief Engineer.</div>
+  </div>`;
+  printPortraitPages([html]);
+}
+
+document.getElementById('btnCoUseRob')?.addEventListener('click', ()=>{
+  const grade = document.getElementById('vs_ecaGrade')?.value || 'LSMGO';
+  let rob = null;
+  try { rob = typeof currentRobForGrade === 'function' ? currentRobForGrade(grade) : null; } catch (_e) { rob = null; }
+  const el = document.getElementById('co_lsOnBoard');
+  if (el && rob != null && isFinite(Number(rob))) el.value = String(Math.round(Number(rob) * 100) / 100);
+  else alert('No ROB is held for ' + grade + ' yet — type the quantity.');
+  renderChangeover();
+});
+['co_lsOnBoard', 'co_ecaHours', 'co_reserve'].forEach(id => document.getElementById(id)?.addEventListener('input', renderChangeover));
+document.getElementById('btnCoEu')?.addEventListener('click', renderCoEu);
+document.getElementById('btnCoEuPrint')?.addEventListener('click', printCoEuPlan);
+
 function renderChangeover(){
   const box = document.getElementById('coResults');
   const verdict = document.getElementById('coVerdict');
@@ -14149,10 +14390,13 @@ function renderChangeover(){
   if (!box || !verdict || !body) return;
 
   const input = readChangeoverForm();
-  const res = computeFuelChangeover(input);
+  const consumers = typeof changeoverConsumers === 'function' ? changeoverConsumers() : [];
+  const res = computeFuelChangeoverMulti(input, consumers);
   _lastChangeover = res.ok ? Object.assign({ input }, res) : null;
+  renderCoConsumerTable(res);
 
   if (!res.ok || res.alreadyCompliant){
+    renderCoFuelCheck(null);
     box.innerHTML = '';
     verdict.textContent = res.reason;
     verdict.className = res.ok ? 'hint good-text' : 'hint alert-text';
@@ -14166,6 +14410,7 @@ function renderChangeover(){
     const hh = Math.floor(total / 60), mm = total % 60;
     return `${hh} h ${String(mm).padStart(2, '0')} min`;
   };
+  renderCoFuelCheck(_lastChangeover);
   const stat = (v, l) => `<div class="stat"><div class="num">${v}</div><div class="lbl">${escHtml(l)}</div></div>`;
   box.innerHTML = [
     stat(hm(res.hours), 'Changeover time to limit'),
@@ -15771,6 +16016,37 @@ function changeoverLogApi(){
     signatoryHtml: ()=> printSignatory({ chEng: (typeof currentChEngName === 'function' ? currentChEngName() : '') }),
     print: (html)=> printPortraitPages(['<div class="pr-sheet">' + html + '</div>']),
     density: ()=> Number(document.getElementById('co_density')?.value) || 890,
+    /* Panama's Oil Record Book has a Part III; the changeover is entered there as C item 4. */
+    partThreeAvailable: ()=>{ try { return !!(window.EORB && EORB.flagHasPartIII(orbSetup()) && (isChengAioEmbedded() || voyageEorbAllowed())); } catch (_e) { return false; } },
+    toOrbPartIII: (pv)=>{
+      try {
+        switchTab('orb');
+        const part = document.getElementById('orb_part');
+        if (part){ part.value = '3'; part.dispatchEvent(new Event('change', { bubbles: true })); }
+        const top = document.getElementById('orb_entryDate');
+        if (top) top.value = pv.date;
+        openOrbWizard('C', {
+          scenarioId: pv.scenarioId, items: ['4'],
+          title: pv.event, blurb: 'From the fuel changeover record.',
+          presets: { coEvent: pv.event, coTime: pv.time, coVolume: pv.volumeM3 }
+        });
+        /* A position and a tank list are controls with parts, so they are set after the form is drawn. */
+        const pos = document.querySelector('#orbEntryWizard [data-orb-position="coPosition"]');
+        if (pos && pv.position){
+          ['latDeg', 'latMin', 'latHem', 'lonDeg', 'lonMin', 'lonHem'].forEach(k => {
+            const el = pos.querySelector('[data-pos-part="' + k + '"]');
+            if (el && pv.position[k] != null){ el.value = String(pv.position[k]); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+          });
+        }
+        /* The entry takes one tank. Pick it when only one holds low-sulphur fuel; with several,
+           the volume entered is the total and the tank is the engineer's to name. */
+        const tanks = document.querySelector('#orbEntryWizard [data-orb-field="coTanks"]');
+        if (tanks && pv.tankIds.length === 1){
+          tanks.value = pv.tankIds[0];
+          tanks.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }catch(err){ console.warn(err); alert('Could not open the e-ORB entry: ' + err.message); }
+    },
     lastForm: ()=>{ try{ return JSON.parse(localStorage.getItem(CO_FORM_KEY) || '{}'); }catch(_e){ return {}; } },
     rememberForm: (f)=>{ try{ localStorage.setItem(CO_FORM_KEY, JSON.stringify(f || {})); }catch(_e){} }
   };
@@ -17667,6 +17943,7 @@ function switchTab(pageName){
     requestTankSurveyCompare();
   }
   if (pageName === 'eca' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
+  if (pageName === 'eca' && typeof renderCoConsumerRows === 'function') renderCoConsumerRows();
   if (pageName === 'spares'){
     bindSparesUi();
     renderRequisitions();
@@ -34354,7 +34631,8 @@ function renderOrbWizardFormSheet(){
   const op = EORB.getOperation(_orbWizard.part, _orbWizard.code);
   const sc = EORB.getScenario(_orbWizard.scenarioId) || _orbWizard.scenarioOpts || {};
   const opts = {
-    presets: sc.presets || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.presets),
+    /* Values the caller hands in (the changeover record) win over the card's own wording. */
+    presets: Object.assign({}, sc.presets || {}, (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.presets) || {}),
     fieldTankGroups: sc.fieldTankGroups || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.fieldTankGroups),
     extraFields: sc.extraFields || (_orbWizard.scenarioOpts && _orbWizard.scenarioOpts.extraFields),
     scenarioId: _orbWizard.scenarioId,

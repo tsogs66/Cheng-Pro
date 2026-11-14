@@ -259,6 +259,93 @@
     return rows;
   }
 
+
+  /**
+   * What a changeover stage hands to the e-ORB Part III C item 4 (Panama): the
+   * stage that completed the changeover before the ECA, or commenced the change
+   * back after it, with its UTC date and time, position, the tanks holding
+   * low-sulphur fuel and their volume in m³ (the record keeps MT, so it is taken
+   * through the density). Other stages and EU stages have no such item: null.
+   */
+  function partThreeValues(record, stage, densityKgM3) {
+    if (!record || record.kind === 'eu' || !stage) return null;
+    var event = stage.no === 2 ? 'Completed before entering the ECA' : (stage.no === 5 ? 'Commenced after leaving the ECA' : '');
+    if (!event) return null;
+    var utc = utcFromLocal(stage.dateLT, stage.timeLT, stage.offsetMin);
+    if (!utc) return null;
+    var dens = num(densityKgM3);
+    if (dens == null || dens <= 0) dens = 890;
+    var ids = Object.keys(stage.rob || {}).filter(function (id) { return num(stage.rob[id]) != null; });
+    var mt = ids.reduce(function (a, id) { return a + Number(stage.rob[id]); }, 0);
+    return {
+      event: event, date: utc.slice(0, 10), time: utc.slice(11, 16),
+      stageNo: stage.no, tankIds: ids, volumeM3: ids.length ? Math.round(mt / (dens / 1000) * 100) / 100 : null,
+      scenarioId: stage.no === 2 ? 'p3-changeover-complete' : 'p3-changeover-start',
+      position: positionComplete(stage) ? {
+        latDeg: stage.latDeg, latMin: stage.latMin, latHem: stage.latHem || 'N',
+        lonDeg: stage.lonDeg, lonMin: stage.lonMin, lonHem: stage.lonHem || 'E' } : null
+    };
+  }
+
+  /* ------------------------------------------------------------ plan checks */
+
+  /**
+   * Low-sulphur fuel needed for an ECA passage against what is on board.
+   * Used up from the start of the changeover to the end of the time in the ECA:
+   * the low-sulphur share the changeover itself displaces, plus the full
+   * consumption while inside the area. The change back to residual fuel runs on
+   * a blend again and is not counted, so a small reserve is kept on top.
+   */
+  function ecaFuelCheck(p) {
+    var used = num(p && p.changeoverUsedMt);
+    var hours = num(p && p.transitHours);
+    var cons = num(p && p.consMtDay);
+    var onBoard = num(p && p.onBoardMt);
+    var reservePct = num(p && p.reservePct);
+    if (reservePct == null) reservePct = 10;
+    if (used == null || hours == null || cons == null || onBoard == null || hours < 0 || cons <= 0) {
+      return { ok: false, reason: 'Give the low-sulphur fuel on board, the time in the ECA and the consumption.' };
+    }
+    var transit = cons * hours / 24;
+    var need = used + transit;
+    var needWithReserve = need * (1 + reservePct / 100);
+    var spare = onBoard - needWithReserve;
+    return {
+      ok: true, changeoverMt: used, transitMt: transit, needMt: need, reservePct: reservePct,
+      needWithReserveMt: needWithReserve, onBoardMt: onBoard, spareMt: spare,
+      enough: onBoard >= need, comfortable: spare >= 0
+    };
+  }
+
+  /**
+   * An EU port call at 0.10 % S (Directive 2012/33/EU): change over as soon as
+   * possible after arrival, change back as late as possible before departure.
+   * Times are ms since epoch. A published stay of under two hours is exempt; the
+   * figure is reported, and the exemption is the operator's to confirm.
+   */
+  function euBerthPlan(p) {
+    var arr = num(p && p.arrivalMs), dep = num(p && p.departureMs);
+    var hours = num(p && p.changeoverHours), used = num(p && p.changeoverUsedMt);
+    var cons = num(p && p.consMtDay), onBoard = num(p && p.onBoardMt);
+    var back = num(p && p.changeBackMarginHours);
+    if (back == null) back = 0;
+    if (arr == null || dep == null || hours == null || cons == null || dep <= arr) {
+      return { ok: false, reason: 'Give the arrival and the departure (departure after arrival), and work the changeover time first.' };
+    }
+    var stayH = (dep - arr) / 3600000;
+    var compliantBy = arr + hours * 3600000;
+    var changeBackStart = dep - back * 3600000;
+    var compliantHours = Math.max(0, stayH - hours - back);
+    var transit = cons * Math.max(0, stayH - hours - back) / 24;
+    var need = (used == null ? 0 : used) + transit;
+    return {
+      ok: true, stayHours: stayH, startMs: arr, departureMs: dep, compliantByMs: compliantBy, changeBackStartMs: changeBackStart,
+      completesInTime: compliantBy <= changeBackStart, compliantHours: compliantHours,
+      exemptShortStay: stayH < 2, needMt: need, onBoardMt: onBoard,
+      enough: onBoard == null ? null : onBoard >= need
+    };
+  }
+
   /* ----------------------------------------------------------------- print */
 
   var PRINT_CSS =
@@ -439,7 +526,10 @@
         '<label>Rank<input data-fcl="signRank" value="' + esc(st.signRank) + '"></label>' +
         '<label>Remarks<input data-fcl="remarks" value="' + esc(st.remarks) + '"></label></div>' +
         '<div class="fcl-row"><button type="button" class="ghost small" data-fcl-act="now">Set time to now</button>' +
-        '<button type="button" class="ghost small" data-fcl-act="fillrob">Fill tanks from tank ROB</button></div></div>';
+        '<button type="button" class="ghost small" data-fcl-act="fillrob">Fill tanks from tank ROB</button>' +
+        (api.partThreeAvailable && api.partThreeAvailable() && partThreeValues(rec, st, api.density ? api.density() : 890)
+          ? '<button type="button" class="ghost small" data-fcl-act="to-orb">Add to ORB Part III C (item 4)</button>' : '') +
+        '</div></div>';
     }
 
     function render() {
@@ -549,6 +639,11 @@
         st.timeLT = pad(l.getUTCHours()) + ':' + pad(l.getUTCMinutes());
         persist(rec); render(); return;
       }
+      if (act === 'to-orb') {
+        var pv = partThreeValues(rec, st, api.density ? api.density() : 890);
+        if (pv && api.toOrbPartIII) api.toOrbPartIII(pv);
+        return;
+      }
       if (act === 'fillrob') {
         var dens = (api.density ? api.density() : 890) / 1000;
         st.rob = st.rob || {}; st.tankNames = st.tankNames || {};
@@ -568,7 +663,7 @@
     ECA_STAGES: ECA_STAGES, EU_STAGES: EU_STAGES, REQUIRED_STAGES: REQUIRED_STAGES, KIND_LABELS: KIND_LABELS,
     stagesFor: stagesFor, utcFromLocal: utcFromLocal, formatPosition: formatPosition, positionComplete: positionComplete,
     tankColumns: tankColumns, robOf: robOf, newRecord: newRecord, blankStage: blankStage,
-    validate: validate, compareToPlan: compareToPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
+    validate: validate, compareToPlan: compareToPlan, partThreeValues: partThreeValues, ecaFuelCheck: ecaFuelCheck, euBerthPlan: euBerthPlan, buildLogHtml: buildLogHtml, planNotesHtml: planNotesHtml,
     mount: mount
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.FuelChangeoverLog;
