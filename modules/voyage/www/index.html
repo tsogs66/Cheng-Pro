@@ -4942,7 +4942,7 @@ html.astrolabe body::before { opacity: 0.26; }
           <div class="field"><label>ODME fitted (tankers)</label><select id="orb_odme"><option value="false">No</option><option value="true">Yes</option></select></div>
           <div class="field"><label>Incinerator sludge capacity (m³/h)</label><input type="number" step="0.001" id="orb_incinRate" placeholder="e.g. 0.05"></div>
           <div class="field"><label>Sludge pump capacity (m³/h)</label><input type="number" step="0.01" id="orb_sludgePump" placeholder="e.g. 2"></div>
-          <div class="field"><label>Bilge pump capacity (m³/h)</label><input type="number" step="0.01" id="orb_bilgePump" placeholder="e.g. 5"></div>
+          
           <div class="field"><label>Transfer pump capacity (m³/h)</label><input type="number" step="0.01" id="orb_xferPump" placeholder="e.g. 2"></div>
           <div class="field"><label>Capacity warning tolerance (%)</label><input type="number" step="1" id="orb_capTol" value="15"></div>
         </div>
@@ -33703,7 +33703,6 @@ function readOrbSetupFromForm(){
   const nOr = (id)=>{ const x=parseFloat(document.getElementById(id)?.value); return isFinite(x)?x:null; };
   setup.equipment.incineratorM3PerH = nOr('orb_incinRate');
   setup.equipment.sludgePumpM3PerH = nOr('orb_sludgePump');
-  setup.equipment.bilgePumpM3PerH = nOr('orb_bilgePump');
   setup.equipment.transferPumpM3PerH = nOr('orb_xferPump');
   const tol = nOr('orb_capTol');
   setup.equipment.capacityWarnTolerancePct = tol != null ? tol : 15;
@@ -33764,7 +33763,6 @@ function fillOrbSetupForm(){
   set('orb_odme', setup.equipment?.odmeFitted ? 'true' : 'false');
   set('orb_incinRate', setup.equipment?.incineratorM3PerH);
   set('orb_sludgePump', setup.equipment?.sludgePumpM3PerH);
-  set('orb_bilgePump', setup.equipment?.bilgePumpM3PerH);
   set('orb_xferPump', setup.equipment?.transferPumpM3PerH);
   set('orb_capTol', setup.equipment?.capacityWarnTolerancePct != null ? setup.equipment.capacityWarnTolerancePct : 15);
   const ack = document.getElementById('orb_disclaimer');
