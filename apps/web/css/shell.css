@@ -388,6 +388,20 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
   }
 }
 .nav { display: flex; flex-direction: column; gap: 6px; }
+/* A long license value wraps instead of being cut at the box edge. */
+.lic-wrap { width: 100%; resize: none; line-height: 1.4; }
+/* Short windows: the menu keeps all 14 entries on screen by tightening them. A very short window
+   scrolls the menu on its own rather than hiding the last entries. */
+@media (min-width: 901px) and (max-height: 960px) {
+  .nav { gap: 3px; }
+  .nav-item { padding: 8px 14px; }
+  .sidebar { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+}
+@media (min-width: 901px) and (max-height: 700px) {
+  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar .nav {
+    overflow-y: auto; scrollbar-width: thin;
+  }
+}
 .nav-item, .bottom-item, .btn, .icon-btn { border: 1px solid transparent; background: transparent; cursor: pointer; }
 .nav-item { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
 .nav-item:hover, .bottom-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
