@@ -627,11 +627,11 @@ html.use-bottom-nav .bottom-item .bn-ic { font-size: var(--nav-ic); line-height:
 /* Held sideways (900px and wider, 560px or more on the short side) the bar runs down the left edge. */
 html.tablet-rail.use-bottom-nav .bottom-nav {
   top: 0; bottom: 0; left: 0; right: auto; width: 84px; height: auto; min-height: 0;
-  flex-direction: column; justify-content: flex-start; gap: 2px;
+  flex-direction: column; justify-content: stretch; gap: 0;
   padding: 8px 4px calc(8px + var(--safe-bottom, 0px));
   border-top: 0; border-right: 1px solid var(--line); box-shadow: none; overflow-y: auto;
 }
-html.tablet-rail.use-bottom-nav .bottom-item { flex: 0 0 auto; width: 100%; min-height: 64px; }
+html.tablet-rail.use-bottom-nav .bottom-item { flex: 1 1 0; width: 100%; min-height: 64px; max-height: none; }
 html.tablet-rail.use-bottom-nav .app { padding-left: calc(84px + env(safe-area-inset-left, 0px)); }
 html.tablet-rail.use-bottom-nav .main { padding-bottom: 24px; }
 html.tablet-rail.use-bottom-nav .toast { bottom: 18px; }
