@@ -3,6 +3,8 @@
   let active = null;
   let activeAssets = { vesselLogo: null, chEngSignatures: {} };
   let list = [];
+  let listLoaded = false;
+  let listTriedAt = 0;
   let session = null;
   const HINT_KEY = 'chengProActiveVesselHint';
 
@@ -62,6 +64,7 @@
     try {
       const data = await ChengProApi.api('/api/shell/vessels');
       list = data.vessels || [];
+      listLoaded = true;
       const id = data.activeVesselId || ChengProApi.getActiveId();
       if (id) {
         ChengProApi.setActiveId(id);
@@ -108,9 +111,18 @@
       getAssets: () => activeAssets,
       notifyIdentity: () => notifyEmbeds(active),
       list: async () => {
-        if (!list.length) {
+        /* Read the register once, not every time it is empty. A ship with no
+           vessel yet has an empty list; refreshing on "empty" made every read
+           announce a change, the shell answered by redrawing Vessel Setup, and
+           Vessel Setup read the list again — a loop that redrew the page
+           hundreds of times a second and wiped whatever was being typed. After
+           a failed read, wait before trying again for the same reason. */
+        const now = Date.now();
+        if (!listLoaded && now - listTriedAt > 5000) {
+          listTriedAt = now;
           try {
             await refreshList();
+            listLoaded = true;
           } catch (err) {
             console.warn('ChEng AIO vessel list:', err.message);
           }
