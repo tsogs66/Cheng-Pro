@@ -1178,7 +1178,12 @@
   html.tablet-rail .masthead{flex-wrap:nowrap; align-items:center; gap:14px;}
   html.tablet-rail .masthead-left{flex:1 1 auto; min-width:0;}
   html.tablet-rail .status-row{flex:0 1 46%; max-width:46%; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:2px 14px; width:auto;}
-  html.tablet-rail .status-row .theme-toggle{padding:3px 10px; min-height:0;}
+  html.tablet-rail .status-row .theme-toggle{padding:3px 12px; min-height:44px;}
+  /* Held sideways on a screen under 1250px wide, the two fuel plans stack: side by side they leave no
+     room for the From and To names. */
+  @media (orientation:landscape) and (max-width:1250px){
+    html:root .bunker-plan-grid{grid-template-columns:1fr; gap:18px;}
+  }
   html.tablet-rail .panel .hint{max-width:110ch;}
   html.tablet-rail #logEntryFormPanel > .btn-row:has(#btnAdd){bottom:0;}
   /* Touch screens: every button is a comfortable target, the small red Delete included. */
