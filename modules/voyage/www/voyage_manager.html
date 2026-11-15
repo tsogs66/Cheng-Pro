@@ -1181,7 +1181,7 @@
   html.tablet-rail .status-row .theme-toggle{padding:3px 12px; min-height:44px;}
   /* Held sideways on a screen under 1250px wide, the two fuel plans stack: side by side they leave no
      room for the From and To names. */
-  @media (orientation:landscape) and (max-width:1250px){
+  @media (orientation:landscape) and (max-width:1700px){
     html:root .bunker-plan-grid{grid-template-columns:1fr; gap:18px;}
   }
   html.tablet-rail .panel .hint{max-width:110ch;}
@@ -2216,19 +2216,19 @@
       padding:8px;
       display:flex;
       flex-direction:row;
-      flex-wrap:nowrap;
+      flex-wrap:wrap;
       align-items:flex-end;
       gap:6px 8px;
     }
     #vsTurboScavRow .vs-tc-box > h3{
-      flex:0 0 auto;
+      flex:0 0 100%;
       margin:0;
-      align-self:center;
       white-space:nowrap;
     }
+    #vsTurboScavRow .vs-tc-box > .unit-note{flex:0 0 100%; margin:0;}
     #vsTurboScavRow .vs-tc-box > .field{
-      flex:1 1 0;
-      min-width:0;
+      flex:1 1 84px;
+      min-width:84px;
       margin-bottom:0;
     }
     #vsTurboScavRow .vs-tc-box .field label{font-size:12px;}
@@ -2309,19 +2309,19 @@
     padding:8px;
     display:flex;
     flex-direction:row;
-    flex-wrap:nowrap;
+    flex-wrap:wrap;
     align-items:flex-end;
     gap:6px 8px;
   }
   html.vm-land-rows #vsTurboScavRow .vs-tc-box > h3{
-    flex:0 0 auto;
+    flex:0 0 100%;
     margin:0;
-    align-self:center;
     white-space:nowrap;
   }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box > .unit-note{flex:0 0 100%; margin:0;}
   html.vm-land-rows #vsTurboScavRow .vs-tc-box > .field{
-    flex:1 1 0;
-    min-width:0;
+    flex:1 1 84px;
+    min-width:84px;
     margin-bottom:0;
   }
   html.vm-land-rows #vsTurboScavRow .vs-tc-box .field label{font-size:12px;}
@@ -3267,6 +3267,18 @@ html.astrolabe body::before { opacity: 0.26; }
 @media (max-width:700px){
   .form-grid .field:has(> #rangeFrom), .form-grid .field:has(> #rangeTo), .form-grid .field:has(> #orb_shipType),
   .form-grid .field:has(> #sync_conflict), .form-grid .field:has(> #s_shipCondition), .form-grid .field:has(> #sync_pullCondition){grid-column:1 / -1;}
+}
+
+/* controls that sit outside a .field (setup tables, textareas, LAN fields) take the theme too,
+   instead of the browser's white default box */
+#page-setup table input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+#page-setup table select, .field textarea, #lanUrl, #lanCode{
+  background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper);
+  font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 8px; min-width:0; box-sizing:border-box;
+}
+.field textarea{width:100%; resize:vertical;}
+#page-setup table input:focus, #page-setup table select:focus, .field textarea:focus, #lanUrl:focus, #lanCode:focus{
+  outline:none; border-color:var(--teal); box-shadow:0 0 0 2px rgba(87,179,171,0.28);
 }
 </style>
 <style>
