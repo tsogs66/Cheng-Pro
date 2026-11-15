@@ -1181,7 +1181,7 @@
   html.tablet-rail .status-row .theme-toggle{padding:3px 12px; min-height:44px;}
   /* Held sideways on a screen under 1250px wide, the two fuel plans stack: side by side they leave no
      room for the From and To names. */
-  @media (orientation:landscape) and (max-width:1250px){
+  @media (orientation:landscape) and (max-width:1700px){
     html:root .bunker-plan-grid{grid-template-columns:1fr; gap:18px;}
   }
   html.tablet-rail .panel .hint{max-width:110ch;}
@@ -2216,19 +2216,19 @@
       padding:8px;
       display:flex;
       flex-direction:row;
-      flex-wrap:nowrap;
+      flex-wrap:wrap;
       align-items:flex-end;
       gap:6px 8px;
     }
     #vsTurboScavRow .vs-tc-box > h3{
-      flex:0 0 auto;
+      flex:0 0 100%;
       margin:0;
-      align-self:center;
       white-space:nowrap;
     }
+    #vsTurboScavRow .vs-tc-box > .unit-note{flex:0 0 100%; margin:0;}
     #vsTurboScavRow .vs-tc-box > .field{
-      flex:1 1 0;
-      min-width:0;
+      flex:1 1 84px;
+      min-width:84px;
       margin-bottom:0;
     }
     #vsTurboScavRow .vs-tc-box .field label{font-size:12px;}
@@ -2309,19 +2309,19 @@
     padding:8px;
     display:flex;
     flex-direction:row;
-    flex-wrap:nowrap;
+    flex-wrap:wrap;
     align-items:flex-end;
     gap:6px 8px;
   }
   html.vm-land-rows #vsTurboScavRow .vs-tc-box > h3{
-    flex:0 0 auto;
+    flex:0 0 100%;
     margin:0;
-    align-self:center;
     white-space:nowrap;
   }
+  html.vm-land-rows #vsTurboScavRow .vs-tc-box > .unit-note{flex:0 0 100%; margin:0;}
   html.vm-land-rows #vsTurboScavRow .vs-tc-box > .field{
-    flex:1 1 0;
-    min-width:0;
+    flex:1 1 84px;
+    min-width:84px;
     margin-bottom:0;
   }
   html.vm-land-rows #vsTurboScavRow .vs-tc-box .field label{font-size:12px;}
@@ -3267,6 +3267,52 @@ html.astrolabe body::before { opacity: 0.26; }
 @media (max-width:700px){
   .form-grid .field:has(> #rangeFrom), .form-grid .field:has(> #rangeTo), .form-grid .field:has(> #orb_shipType),
   .form-grid .field:has(> #sync_conflict), .form-grid .field:has(> #s_shipCondition), .form-grid .field:has(> #sync_pullCondition){grid-column:1 / -1;}
+}
+
+/* controls that sit outside a .field (setup tables, textareas, LAN fields) take the theme too,
+   instead of the browser's white default box */
+#page-setup table input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),
+#page-setup table select, .field textarea, #lanUrl, #lanCode{
+  background:var(--ink); border:1px solid var(--line-strong); border-radius:3px; color:var(--paper);
+  font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 8px; min-width:0; box-sizing:border-box;
+}
+.field textarea{width:100%; resize:vertical;}
+#page-setup table input:focus, #page-setup table select:focus, .field textarea:focus, #lanUrl:focus, #lanCode:focus{
+  outline:none; border-color:var(--teal); box-shadow:0 0 0 2px rgba(87,179,171,0.28);
+}
+
+/* Landscape tablet: the More sheet is a floating panel beside the rail, not a full-width bottom sheet
+   (which slid under the rail and spread three buttons across 1200 px). */
+html.tablet-rail.use-bottom-nav .bn-more-sheet { left: calc(84px + env(safe-area-inset-left, 0px)); }
+html.tablet-rail.use-bottom-nav .bn-more-panel {
+  left: 12px; right: auto; bottom: 12px;
+  width: min(640px, calc(100% - 24px));
+  padding: 12px 12px 14px;
+  border: 1px solid var(--line-strong); border-radius: 14px;
+  max-height: calc(100dvh - 24px);
+}
+
+/* any control a page forgot to style takes the theme instead of the browser's white box (zero specificity: every real rule still wins) */
+:where(.page input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]), .page select, .page textarea) {
+  background: var(--ink); border: 1px solid var(--line-strong); border-radius: 7px; color: var(--paper); padding: 8px 10px; min-width: 0; box-sizing: border-box; color-scheme: inherit;
+}
+:where(html.bright .page input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]), html.bright .page select, html.bright .page textarea) { background: var(--ink); }
+:where(.page input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]), .page select, .page textarea):focus { outline: none; border-color: var(--teal); }
+
+.orb-form-input{font-family:'IBM Plex Mono',monospace;}
+
+/* file pickers: themed button instead of the browser's grey one */
+input[type=file] { color: var(--paper); font: inherit; max-width: 100%; }
+input[type=file]::file-selector-button {
+  background: transparent; color: var(--brass); border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 7px 14px; margin-right: 10px; font: inherit; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+}
+input[type=file]::file-selector-button:hover { border-color: var(--brass); }
+
+/* tablet / desktop: Add Entry sits at the right end of the button row, the secondary buttons stay on the left */
+@media (min-width:721px){
+  #logEntryFormPanel .btn-row:has(#btnAdd){align-items:center;}
+  #logEntryFormPanel .btn-row:has(#btnAdd) > #btnAdd{order:99; margin-left:auto;}
 }
 </style>
 <style>
