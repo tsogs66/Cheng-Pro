@@ -3280,6 +3280,17 @@ html.astrolabe body::before { opacity: 0.26; }
 #page-setup table input:focus, #page-setup table select:focus, .field textarea:focus, #lanUrl:focus, #lanCode:focus{
   outline:none; border-color:var(--teal); box-shadow:0 0 0 2px rgba(87,179,171,0.28);
 }
+
+/* Landscape tablet: the More sheet is a floating panel beside the rail, not a full-width bottom sheet
+   (which slid under the rail and spread three buttons across 1200 px). */
+html.tablet-rail.use-bottom-nav .bn-more-sheet { left: calc(84px + env(safe-area-inset-left, 0px)); }
+html.tablet-rail.use-bottom-nav .bn-more-panel {
+  left: 12px; right: auto; bottom: 12px;
+  width: min(640px, calc(100% - 24px));
+  padding: 12px 12px 14px;
+  border: 1px solid var(--line-strong); border-radius: 14px;
+  max-height: calc(100dvh - 24px);
+}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */

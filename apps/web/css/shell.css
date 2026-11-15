@@ -635,7 +635,9 @@ html.tablet-rail.use-bottom-nav .bottom-item { flex: 1 1 0; width: 100%; min-hei
 html.tablet-rail.use-bottom-nav .app { padding-left: calc(84px + env(safe-area-inset-left, 0px)); }
 html.tablet-rail.use-bottom-nav .main { padding-bottom: 24px; }
 html.tablet-rail.use-bottom-nav .toast { bottom: 18px; }
-html.tablet-rail .main > *:not(.aio-embed-wrap):not(.eorb-embed-wrap) { max-width: 1100px; margin-inline: auto; }
+html.tablet-rail:not(.aio-fullscreen-embed) .main > *:not(.aio-embed-wrap):not(.eorb-embed-wrap):not(:has(.aio-embed-wrap)):not(:has(.eorb-embed-wrap)) { max-width: 1100px; margin-inline: auto; }
+/* a module frame always takes the whole pane, whatever wraps it */
+html.aio-fullscreen-embed .main > *, html.aio-fullscreen-embed .aio-embed-wrap, html.aio-fullscreen-embed .eorb-embed-wrap { max-width: none; margin-inline: 0; align-self: stretch; }
 /* Touch screens: every button is a comfortable target. */
 @media (pointer: coarse) {
   .btn, button.small, button.ghost { min-height: 44px; }
@@ -2342,3 +2344,14 @@ html.aio-bunker-alert::after {
 
 /* Bright: amber/lime gauge ink was 1.6:1 on the cream card; darken the value text only */
 html.bright .gauge-value { color: color-mix(in srgb, var(--gauge-ink, var(--brass)) 50%, #000); }
+
+/* Landscape tablet: the More sheet is a floating panel beside the rail, not a full-width bottom sheet
+   (which slid under the rail and spread three buttons across 1200 px). */
+html.tablet-rail.use-bottom-nav .bn-more-sheet { left: calc(84px + env(safe-area-inset-left, 0px)); }
+html.tablet-rail.use-bottom-nav .bn-more-panel {
+  left: 12px; right: auto; bottom: 12px;
+  width: min(640px, calc(100% - 24px));
+  padding: 12px 12px 14px;
+  border: 1px solid var(--line); border-radius: 14px;
+  max-height: calc(100dvh - 24px);
+}
