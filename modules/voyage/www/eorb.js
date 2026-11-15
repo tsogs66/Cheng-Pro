@@ -795,7 +795,7 @@
       ]},
       { no: '19.1', label: 'Identity of tank(s) ballasted', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
       { no: '19.2', label: 'Time of start and end', fields: [field('timeStart', 'Start', 'time'), field('timeStop', 'End', 'time')] },
-      { no: '19.3', label: 'Quantity of ballast received (m³)', fields: [field('qty', 'Quantity (m³)', 'number', { required: true })] }
+      { no: '19.3', label: 'Quantity of ballast received (m³)', fields: [field('qty', 'Quantity (m³)', 'number', { required: true }), field('qtySplit', 'Per-tank quantity (tank=m³, …) — when several tanks', 'text')] }
     ]},
     { code: 'F', title: 'Ballasting of dedicated clean ballast tanks (CBT tankers only)', items: [
       { no: '20', label: 'Identity of tank(s) ballasted', fields: [field('tanks', 'CBT(s)', 'tankMulti', { tankGroup: 'cbt', required: true })] },
@@ -1342,10 +1342,14 @@
       title: 'Crude oil washing (COW)', blurb: 'COW operation record for crude carriers.', items: ['9', '10', '12', '15'], requires: { cow: true } },
     { id: 'cargo-ballast', group: 'Cargo (tankers)', part: 2, code: 'E',
       title: 'Ballasting cargo tanks', blurb: 'Taking ballast into cargo tanks.', items: ['18', '19.1', '19.2', '19.3'] },
+    { id: 'cargo-tank-cleaning', group: 'Cargo (tankers)', part: 2, code: 'G',
+      title: 'Cleaning of cargo tanks — washings to a slop tank', blurb: 'Tanks cleaned, how, and the washings transferred to a slop or cargo tank. The receiving tank R.O.B. follows.', items: ['27', '28', '29', '30', '31.2'] },
+    { id: 'cargo-tank-cleaning-ashore', group: 'Cargo (tankers)', part: 2, code: 'G',
+      title: 'Cleaning of cargo tanks — washings ashore', blurb: 'Tanks cleaned, how, and the washings landed to a reception facility.', items: ['27', '28', '29', '30', '31.1'] },
     { id: 'slop-decant', group: 'Cargo (tankers)', part: 2, code: 'I',
-      title: 'Discharge of water from slop tanks into the sea', blurb: 'Decanting slop tank water — ODME record required.', items: ['41', '44', '49', '50', '54'] },
+      title: 'Discharge of water from slop tanks into the sea', blurb: 'Decanting slop tank water — ODME record required. The quantities leave the slop tank.', items: ['41', '44', '47', '48', '49', '50', '54'] },
     { id: 'dirty-ballast-discharge', group: 'Cargo (tankers)', part: 2, code: 'H',
-      title: 'Discharge of dirty ballast', blurb: 'Discharge of dirty ballast from cargo tanks.', items: ['32', '33', '34', '35', '36', '37'] },
+      title: 'Discharge of dirty ballast', blurb: 'Discharge of dirty ballast from cargo tanks: to sea, to a slop tank, or ashore. Each quantity leaves the ballast tank.', items: ['32', '33', '34', '35', '36', '37', '39', '40'] },
     { id: 'residue-transfer', group: 'Cargo (tankers)', part: 2, code: 'J',
       title: 'Collection / transfer / disposal of residues', blurb: 'Slop and residue movements. Retained and receiving totals are calculated for you.', items: ['55', '56', '57.3'] },
     { id: 'odme-condition', group: 'Cargo (tankers)', part: 2, code: 'M',
@@ -2501,6 +2505,25 @@
         else if (v.emptied === 'No' && ret != null) ops.push({ id: from[0], set: ret, field: 'retained', what: 'transfer' });
       }
     }
+    if (code === 'E' && want.has('19.3')) {
+      const qty = numOrNull(v.qty);
+      const shares = qty != null ? resolveTankShares(setup, ids(v.tanks), qty, v.qtySplit) : null;
+      if (shares) shares.forEach((q, id) => ops.push({ id, delta: q, field: 'qty', what: 'ballasting' }));
+    }
+    if (code === 'H') {
+      const src = ids(v.tanks);
+      const out = (want.has('35') ? (numOrNull(v.seaQty) || 0) : 0) + (want.has('39') ? (numOrNull(v.slopQty) || 0) : 0) + (want.has('40') ? (numOrNull(v.shoreQty) || 0) : 0);
+      if (src.length === 1 && out > 0) ops.push({ id: src[0], delta: -out, field: want.has('35') && numOrNull(v.seaQty) ? 'seaQty' : (want.has('39') ? 'slopQty' : 'shoreQty'), what: 'discharge' });
+      if (want.has('39') && v.slopTank && numOrNull(v.slopQty) != null) ops.push({ id: v.slopTank, delta: numOrNull(v.slopQty), field: 'slopQty', what: 'discharge' });
+    }
+    if (code === 'I') {
+      const src = ids(v.tanks);
+      const out = (want.has('47') ? (numOrNull(v.bulkQty) || 0) : 0) + (want.has('48') ? (numOrNull(v.finalQty) || 0) : 0);
+      if (src.length === 1 && out > 0) ops.push({ id: src[0], delta: -out, field: want.has('47') && numOrNull(v.bulkQty) ? 'bulkQty' : 'finalQty', what: 'discharge' });
+    }
+    if (code === 'G' && want.has('31.2') && v.toTank && numOrNull(v.qty) != null) {
+      ops.push({ id: v.toTank, delta: numOrNull(v.qty), field: 'qty', what: 'washings' });
+    }
     if (code === 'C' && want.has('8')) {
       const tanks = ids(v.tanks);
       if (v.emptied === 'Yes') tanks.forEach(id => ops.push({ id, set: 0, field: 'emptied', what: 'unloading' }));
@@ -2518,6 +2541,13 @@
     if (code === 'B' && numOrNull(v.qty) != null && (tankIdList(v.fromTank).length > 1 || tankIdList(v.toTank).length > 1)) {
       notes.push('Transfer between several tanks: R.O.B. is updated only when one tank is the source and one the receiver.');
     }
+    if (code === 'E' && want.has('19.3') && numOrNull(v.qty) != null && tankIdList(v.tanks).length > 1 &&
+        !resolveTankShares(setup, v.tanks, numOrNull(v.qty), v.qtySplit)) {
+      notes.push('Ballasting several tanks: enter the quantity per tank (tank=m³, …) so each tank\u2019s R.O.B. can be updated.');
+    }
+    if ((code === 'H' || code === 'I') && tankIdList(v.tanks).length > 1) {
+      notes.push('Discharge from several tanks: R.O.B. is updated only when one tank is the source.');
+    }
     return notes;
   }
 
@@ -2530,7 +2560,7 @@
     const notes = [];
     const derived = [];
     const want = new Set(selectedItemNos(selectedItems));
-    if (code === 'A' || code === 'B' || code === 'C') {
+    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
       const rob = (id) => { const hit = findTank(setup, id); return hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null; };
       if (code === 'A' && want.has('3')) {
         const add = numOrNull(v.qtyAdded);
@@ -2552,6 +2582,10 @@
           v.toTotal = round3(rob(to[0]) + qty); derived.push('toTotal');
           notes.push('Receiving tank total: ' + fmtVal(rob(to[0])) + ' + ' + fmtVal(qty) + ' = ' + fmtVal(v.toTotal) + ' m³.');
         }
+      }
+      if (code === 'G' && want.has('31.2') && v.toTank && numOrNull(v.qty) != null && rob(v.toTank) != null) {
+        v.toTotal = round3(rob(v.toTank) + numOrNull(v.qty)); derived.push('toTotal');
+        notes.push('Receiving tank total: ' + fmtVal(rob(v.toTank)) + ' + ' + fmtVal(numOrNull(v.qty)) + ' = ' + fmtVal(v.toTotal) + ' m³.');
       }
       partTwoUnresolved(setup, code, want, v).forEach(n => notes.push(n));
       return { values: v, notes, derived };
@@ -2592,7 +2626,7 @@
   /** Part II code J: the same tank limits as Part I code C, for slop and cargo tanks. */
   function partTwoCapacityWarnings(setup, code, selectedItems, values) {
     const warnings = [];
-    if (code === 'A' || code === 'B' || code === 'C') {
+    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
       const vv = values || {};
       const w = new Set(selectedItemNos(selectedItems));
       partTwoOps(setup, code, w, vv).forEach(op => {
@@ -3072,7 +3106,7 @@
   function applyPartTwoRob(setup, code, selectedItems, values, setRob) {
     const v = values || {};
     const want = new Set(selectedItemNos(selectedItems));
-    if (code === 'A' || code === 'B' || code === 'C') {
+    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
       partTwoOps(setup, code, want, v).forEach(op => {
         const hit = findTank(setup, op.id);
         const base = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;

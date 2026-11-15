@@ -457,10 +457,13 @@
     '.fcl-ui .fcl-stage{border:1px solid var(--line,#3a4a5a);border-radius:6px;padding:10px;margin:10px 0;}' +
     '.fcl-ui .fcl-stage h4{margin:0 0 6px;font-size:14px;}' +
     '.fcl-ui .fcl-stage small{display:block;opacity:.75;margin-bottom:6px;}' +
-    '.fcl-ui .fcl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}' +
-    '.fcl-ui .fcl-grid label{display:flex;flex-direction:column;font-size:12px;gap:2px;}' +
+    '.fcl-ui .fcl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:10px;}' +
+    '.fcl-ui .fcl-grid .field,.fcl-ui .fcl-row .field{min-width:0;}' +
+    '.fcl-ui .fcl-grid input,.fcl-ui .fcl-grid select{width:100%;min-width:0;box-sizing:border-box;}' +
     '.fcl-ui .fcl-pos{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}' +
-    '.fcl-ui .fcl-pos input{width:62px;}' +
+    '.fcl-ui .fcl-pos{gap:6px;margin:4px 0;}' +
+    '.fcl-ui .fcl-pos input,.fcl-ui .fcl-pos select{background:var(--ink);border:1px solid var(--line-strong);border-radius:3px;color:var(--paper);font-family:"IBM Plex Mono",monospace;font-size:13px;padding:7px 8px;min-height:40px;box-sizing:border-box;}' +
+    '.fcl-ui .fcl-pos input{width:68px;}' +
     '.fcl-ui .fcl-warn{margin:8px 0;padding:8px 12px;border-left:3px solid #d9822b;background:rgba(217,130,43,.12);font-size:13px;}' +
     '.fcl-ui .fcl-warn.error{border-left-color:#c0392b;background:rgba(192,57,43,.14);}' +
     '.fcl-ui .fcl-warn.ok{border-left-color:#2e9d6a;background:rgba(46,157,106,.10);}' +
@@ -497,8 +500,8 @@
       if (!cols.length) return '<div class="fcl-warn">No distillate fuel tank is set up for this ship. Add them under ORB Vessel Setup → Fuel oil tanks (Bunker service: Distillate).</div>';
       return '<div class="fcl-grid">' + cols.map(function (col) {
         var v = robOf(stage, col);
-        return '<label>' + esc(col.name) + (col.group === 'other' ? ' (non-compliant)' : '') + ' — MT' +
-          '<input type="number" step="0.01" min="0" data-fcl-rob="' + esc(col.id) + '" data-fcl-grp="' + col.group + '" value="' + (v == null ? '' : esc(v)) + '"></label>';
+        return '<div class="field"><label>' + esc(col.name) + (col.group === 'other' ? ' (non-compliant)' : '') + ' — MT</label>' +
+          '<input type="number" step="0.01" min="0" data-fcl-rob="' + esc(col.id) + '" data-fcl-grp="' + col.group + '" value="' + (v == null ? '' : esc(v)) + '"></div>';
       }).join('') + '</div>';
     }
 
@@ -510,10 +513,10 @@
       return '<div class="fcl-stage" data-fcl-stage="' + def.no + '"><h4>' + def.no + '. ' + esc(def.label) + '</h4>' +
         (def.note ? '<small>' + esc(def.note) + '</small>' : '') +
         '<div class="fcl-grid">' +
-        '<label>Date (local)<input type="date" data-fcl="dateLT" value="' + esc(st.dateLT) + '"></label>' +
-        '<label>Time (local)<input type="time" data-fcl="timeLT" value="' + esc(st.timeLT) + '"></label>' +
-        '<label>Local − UTC (hours)<input type="number" step="0.5" data-fcl="offsetH" value="' + esc(num(st.offsetMin) == null ? '' : st.offsetMin / 60) + '"></label>' +
-        '<label>UTC<input type="text" readonly value="' + esc(utc ? utc.replace('T', ' ') : '') + '"></label></div>' +
+        '<div class="field"><label>Date (local)</label><input type="date" data-fcl="dateLT" value="' + esc(st.dateLT) + '"></div>' +
+        '<div class="field"><label>Time (local)</label><input type="time" data-fcl="timeLT" value="' + esc(st.timeLT) + '"></div>' +
+        '<div class="field"><label>Local − UTC (hours)</label><input type="number" step="0.5" data-fcl="offsetH" value="' + esc(num(st.offsetMin) == null ? '' : st.offsetMin / 60) + '"></div>' +
+        '<div class="field"><label>UTC</label><input type="text" readonly value="' + esc(utc ? utc.replace('T', ' ') : '') + '"></div></div>' +
         '<div class="fcl-row"><div class="fcl-pos">Latitude <input data-fcl="latDeg" inputmode="decimal" placeholder="deg" value="' + esc(st.latDeg) + '">° ' +
         '<input data-fcl="latMin" inputmode="decimal" placeholder="min" value="' + esc(st.latMin) + '">\' ' +
         '<select data-fcl="latHem"><option' + (st.latHem === 'N' ? ' selected' : '') + '>N</option><option' + (st.latHem === 'S' ? ' selected' : '') + '>S</option></select></div>' +
@@ -522,9 +525,9 @@
         '<select data-fcl="lonHem"><option' + (st.lonHem === 'E' ? ' selected' : '') + '>E</option><option' + (st.lonHem === 'W' ? ' selected' : '') + '>W</option></select></div></div>' +
         tankInputs(st, cols) +
         '<div class="fcl-grid" style="margin-top:8px;">' +
-        '<label>Officer in charge — name<input data-fcl="signName" value="' + esc(st.signName) + '"></label>' +
-        '<label>Rank<input data-fcl="signRank" value="' + esc(st.signRank) + '"></label>' +
-        '<label>Remarks<input data-fcl="remarks" value="' + esc(st.remarks) + '"></label></div>' +
+        '<div class="field"><label>Officer in charge — name</label><input data-fcl="signName" value="' + esc(st.signName) + '"></div>' +
+        '<div class="field"><label>Rank</label><input data-fcl="signRank" value="' + esc(st.signRank) + '"></div>' +
+        '<div class="field"><label>Remarks</label><input data-fcl="remarks" value="' + esc(st.remarks) + '"></div></div>' +
         '<div class="fcl-row"><button type="button" class="ghost small" data-fcl-act="now">Set time to now</button>' +
         '<button type="button" class="ghost small" data-fcl-act="fillrob">Fill tanks from tank ROB</button>' +
         (api.partThreeAvailable && api.partThreeAvailable() && partThreeValues(rec, st, api.density ? api.density() : 890)
@@ -541,9 +544,9 @@
       var h = '<div class="fcl-row">' +
         '<button type="button" class="primary small" data-fcl-act="new-eca">New ECA record</button>' +
         '<button type="button" class="ghost small" data-fcl-act="new-eu">New EU port record</button>' +
-        (list.length ? '<label>Record <select data-fcl-act="pick">' + list.map(function (r) {
+        (list.length ? '<div class="field" style="min-width:220px;flex:1;"><label>Record</label><select data-fcl-act="pick">' + list.map(function (r) {
           return '<option value="' + esc(r.id) + '"' + (r.id === selectedId ? ' selected' : '') + '>' + esc((KIND_LABELS[r.kind] || 'Record') + (r.title ? ' — ' + r.title : '') + ' (' + (r.createdAt || '').slice(0, 10) + ')') + '</option>';
-        }).join('') + '</select></label>' : '') + '</div>' +
+        }).join('') + '</select></div>' : '') + '</div>' +
         '<div class="fcl-tanks">Columns follow this ship\'s distillate tanks: <b>' + (names.length ? esc(names.join(', ')) : 'none set up') + '</b>.</div>';
       if (!rec) {
         host.innerHTML = '<div class="fcl-ui">' + h + '<div class="hint">No changeover record yet. Start one for the next ECA passage or EU port call.</div></div>';
@@ -551,12 +554,12 @@
       }
       var kind = rec.kind === 'eu' ? 'eu' : 'eca';
       var warnings = validate(rec, tanks);
-      h += '<div class="fcl-grid"><label>Title / area or port<input data-fcl-top="title" value="' + esc(rec.title || '') + '" placeholder="e.g. North American ECA, Rotterdam"></label>' +
-        '<label>Company<input data-fcl-form="company" value="' + esc((rec.form && rec.form.company) || '') + '" placeholder="Company name on the form"></label>' +
-        '<label>Prepared by<input data-fcl-form="preparedBy" value="' + esc((rec.form && rec.form.preparedBy) || '') + '"></label>' +
-        '<label>Approved by<input data-fcl-form="approvedBy" value="' + esc((rec.form && rec.form.approvedBy) || '') + '"></label>' +
-        '<label>Revision No.<input data-fcl-form="revision" value="' + esc((rec.form && rec.form.revision) || '') + '"></label>' +
-        '<label>Date effective<input data-fcl-form="effective" value="' + esc((rec.form && rec.form.effective) || '') + '"></label></div>' +
+      h += '<div class="fcl-grid"><div class="field"><label>Title / area or port</label><input data-fcl-top="title" value="' + esc(rec.title || '') + '" placeholder="e.g. North American ECA, Rotterdam"></div>' +
+        '<div class="field"><label>Company</label><input data-fcl-form="company" value="' + esc((rec.form && rec.form.company) || '') + '" placeholder="Company name on the form"></div>' +
+        '<div class="field"><label>Prepared by</label><input data-fcl-form="preparedBy" value="' + esc((rec.form && rec.form.preparedBy) || '') + '"></div>' +
+        '<div class="field"><label>Approved by</label><input data-fcl-form="approvedBy" value="' + esc((rec.form && rec.form.approvedBy) || '') + '"></div>' +
+        '<div class="field"><label>Revision No.</label><input data-fcl-form="revision" value="' + esc((rec.form && rec.form.revision) || '') + '"></div>' +
+        '<div class="field"><label>Date effective</label><input data-fcl-form="effective" value="' + esc((rec.form && rec.form.effective) || '') + '"></div></div>' +
         '<label style="display:flex;gap:6px;align-items:center;margin:8px 0;"><input type="checkbox" data-fcl-act="resid"' + (includeResidual ? ' checked' : '') + '> Show residual (non-compliant) tanks as well</label>';
       h += stagesFor(kind).map(function (d) { return stageHtml(rec, d); }).join('');
       h += warnings.length
