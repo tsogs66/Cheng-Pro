@@ -809,7 +809,7 @@
       { no: '25', label: 'Time/position valves closed separating CBT', fields: [
         field('valveTime', 'Time', 'time'), field('valvePos', 'Position', 'text')
       ]},
-      { no: '26', label: 'Quantity of clean ballast taken (m³)', fields: [field('qty', 'Quantity (m³)', 'number')] }
+      { no: '26', label: 'Quantity of clean ballast taken (m³)', fields: [field('qty', 'Quantity (m³)', 'number'), field('qtySplit', 'Per-tank quantity (tank=m³, …) — when several tanks', 'text')] }
     ]},
     { code: 'G', title: 'Cleaning of cargo tanks', items: [
       { no: '27', label: 'Identity of tank(s) cleaned', fields: [field('tanks', 'Tank(s)', 'tankMulti', { tankGroup: 'cargo', required: true })] },
@@ -1342,6 +1342,12 @@
       title: 'Crude oil washing (COW)', blurb: 'COW operation record for crude carriers.', items: ['9', '10', '12', '15'], requires: { cow: true } },
     { id: 'cargo-ballast', group: 'Cargo (tankers)', part: 2, code: 'E',
       title: 'Ballasting cargo tanks', blurb: 'Taking ballast into cargo tanks.', items: ['18', '19.1', '19.2', '19.3'] },
+    { id: 'cbt-ballasting', group: 'Cargo (tankers)', part: 2, code: 'F',
+      title: 'Ballasting of dedicated clean ballast tanks', blurb: 'Clean ballast taken into the CBT, with the positions and the oily water from flushing the lines. The tank R.O.B. follows.', items: ['20', '21', '22', '23', '24', '25', '26'], requires: { cbt: true } },
+    { id: 'cbt-discharge', group: 'Cargo (tankers)', part: 2, code: 'L',
+      title: 'Discharge of ballast from dedicated clean ballast tanks', blurb: 'Clean ballast to the sea or to a reception facility. Each quantity leaves the tank.', items: ['63', '64', '65', '66.1', '66.2', '67', '68', '69'], requires: { cbt: true } },
+    { id: 'clean-ballast-discharge', group: 'Cargo (tankers)', part: 2, code: 'K',
+      title: 'Discharge of clean ballast contained in cargo tanks', blurb: 'Clean ballast discharged from cargo tanks; a tank reported empty is set to zero.', items: ['58', '59', '60', '61', '62'] },
     { id: 'cargo-tank-cleaning', group: 'Cargo (tankers)', part: 2, code: 'G',
       title: 'Cleaning of cargo tanks — washings to a slop tank', blurb: 'Tanks cleaned, how, and the washings transferred to a slop or cargo tank. The receiving tank R.O.B. follows.', items: ['27', '28', '29', '30', '31.2'] },
     { id: 'cargo-tank-cleaning-ashore', group: 'Cargo (tankers)', part: 2, code: 'G',
@@ -1403,6 +1409,7 @@
       if (req.tanker && !(setup && setup.shipType === 'tanker')) return false;
       if (req.odme && !eq.odmeFitted) return false;
       if (req.cow && !eq.cowFitted) return false;
+      if (req.cbt && !eq.cbtFitted) return false;
       return true;
     });
   }
@@ -2478,6 +2485,9 @@
   }
 
 
+  /* The Part II entries that move liquid between tanks, so the tank R.O.B. follows them. */
+  const PART_TWO_TANK_CODES = new Set(['A', 'B', 'C', 'E', 'F', 'G', 'H', 'I', 'K', 'L']);
+
   /**
    * Tank movements of the Part II cargo entries (A loading, B internal transfer,
    * C unloading), as { id, delta } or { id, set }. A movement that cannot be put on
@@ -2509,6 +2519,24 @@
       const qty = numOrNull(v.qty);
       const shares = qty != null ? resolveTankShares(setup, ids(v.tanks), qty, v.qtySplit) : null;
       if (shares) shares.forEach((q, id) => ops.push({ id, delta: q, field: 'qty', what: 'ballasting' }));
+    }
+    if (code === 'F') {
+      if (want.has('26')) {
+        const qty = numOrNull(v.qty);
+        const shares = qty != null ? resolveTankShares(setup, ids(v.tanks), qty, v.qtySplit) : null;
+        if (shares) shares.forEach((q, id) => ops.push({ id, delta: q, field: 'qty', what: 'ballasting' }));
+      }
+      if (want.has('23') && v.slopTank && numOrNull(v.oilyQty) != null) {
+        ops.push({ id: v.slopTank, delta: numOrNull(v.oilyQty), field: 'oilyQty', what: 'washings' });
+      }
+    }
+    if (code === 'L') {
+      const src = ids(v.tanks);
+      const out = (want.has('66.1') ? (numOrNull(v.seaQty) || 0) : 0) + (want.has('66.2') ? (numOrNull(v.shoreQty) || 0) : 0);
+      if (src.length === 1 && out > 0) ops.push({ id: src[0], delta: -out, field: want.has('66.1') && numOrNull(v.seaQty) ? 'seaQty' : 'shoreQty', what: 'discharge' });
+    }
+    if (code === 'K' && want.has('60') && v.emptied === 'Yes') {
+      ids(v.tanks).forEach(id => ops.push({ id, set: 0, field: 'emptied', what: 'discharge' }));
     }
     if (code === 'H') {
       const src = ids(v.tanks);
@@ -2545,7 +2573,11 @@
         !resolveTankShares(setup, v.tanks, numOrNull(v.qty), v.qtySplit)) {
       notes.push('Ballasting several tanks: enter the quantity per tank (tank=m³, …) so each tank\u2019s R.O.B. can be updated.');
     }
-    if ((code === 'H' || code === 'I') && tankIdList(v.tanks).length > 1) {
+    if (code === 'F' && want.has('26') && numOrNull(v.qty) != null && tankIdList(v.tanks).length > 1 &&
+        !resolveTankShares(setup, v.tanks, numOrNull(v.qty), v.qtySplit)) {
+      notes.push('Ballasting several clean ballast tanks: enter the quantity per tank (tank=m³, …) so each tank\u2019s R.O.B. can be updated.');
+    }
+    if ((code === 'H' || code === 'I' || code === 'L') && tankIdList(v.tanks).length > 1) {
       notes.push('Discharge from several tanks: R.O.B. is updated only when one tank is the source.');
     }
     return notes;
@@ -2560,7 +2592,7 @@
     const notes = [];
     const derived = [];
     const want = new Set(selectedItemNos(selectedItems));
-    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
+    if (PART_TWO_TANK_CODES.has(code)) {
       const rob = (id) => { const hit = findTank(setup, id); return hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : null; };
       if (code === 'A' && want.has('3')) {
         const add = numOrNull(v.qtyAdded);
@@ -2626,7 +2658,7 @@
   /** Part II code J: the same tank limits as Part I code C, for slop and cargo tanks. */
   function partTwoCapacityWarnings(setup, code, selectedItems, values) {
     const warnings = [];
-    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
+    if (PART_TWO_TANK_CODES.has(code)) {
       const vv = values || {};
       const w = new Set(selectedItemNos(selectedItems));
       partTwoOps(setup, code, w, vv).forEach(op => {
@@ -3106,7 +3138,7 @@
   function applyPartTwoRob(setup, code, selectedItems, values, setRob) {
     const v = values || {};
     const want = new Set(selectedItemNos(selectedItems));
-    if (code === 'A' || code === 'B' || code === 'C' || code === 'E' || code === 'G' || code === 'H' || code === 'I') {
+    if (PART_TWO_TANK_CODES.has(code)) {
       partTwoOps(setup, code, want, v).forEach(op => {
         const hit = findTank(setup, op.id);
         const base = hit && hit.tank.robM3 != null ? Number(hit.tank.robM3) : 0;
