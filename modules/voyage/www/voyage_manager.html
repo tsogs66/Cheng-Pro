@@ -1132,7 +1132,7 @@
     }
     table.stack-phone td{display:block; border:0 !important; padding:0 !important; min-width:0; font-size:13px; overflow-wrap:anywhere;}
     table.stack-phone td[data-label]:not([data-label=""])::before{
-      content:attr(data-label); display:block; font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+      content:attr(data-label); display:block; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
       color:var(--paper-dim); margin-bottom:1px;
     }
     table.stack-phone td:first-child{grid-column:1 / -1; font-weight:600; font-size:14px;}
@@ -1162,6 +1162,30 @@
     #page-reference .ref-section.ref-off{display:none;}
   }
   .orb-steps{display:none;}
+
+  /* ---- Tablets ----------------------------------------------------------------------------- */
+  /* Held sideways (900px and wider, 560px or more on the short side) the bar runs down the left edge. */
+  html.tablet-rail.use-bottom-nav .bottom-nav{
+    top:0; bottom:0; left:0; right:auto; width:84px; flex-direction:column; justify-content:flex-start; gap:2px;
+    padding:8px 4px calc(8px + env(safe-area-inset-bottom, 0px)); border-top:0;
+    border-right:1px solid var(--line-strong); overflow-y:auto;
+  }
+  html.tablet-rail.use-bottom-nav .bn-item{flex:0 0 auto; width:100%; min-height:64px;}
+  html.tablet-rail.use-bottom-nav body{padding-bottom:0 !important; padding-left:calc(84px + env(safe-area-inset-left, 0px)) !important;}
+  html.tablet-rail .wrap{max-width:1080px;}
+  html.tablet-rail .masthead{padding-bottom:8px; margin-bottom:4px;}
+  html.tablet-rail .masthead .byline{display:none;}
+  html.tablet-rail .masthead{flex-wrap:nowrap; align-items:center; gap:14px;}
+  html.tablet-rail .masthead-left{flex:1 1 auto; min-width:0;}
+  html.tablet-rail .status-row{flex:0 1 46%; max-width:46%; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:2px 14px; width:auto;}
+  html.tablet-rail .status-row .theme-toggle{padding:3px 10px; min-height:0;}
+  html.tablet-rail .panel .hint{max-width:110ch;}
+  html.tablet-rail #logEntryFormPanel > .btn-row:has(#btnAdd){bottom:0;}
+  /* Touch screens: every button is a comfortable target, the small red Delete included. */
+  @media (pointer:coarse){
+    button.small, button.ghost, button.primary, button.danger{min-height:44px;}
+    button.small, button.danger{min-width:44px;}
+  }
   .table-scroll.scroll-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent); mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);}
   @media (max-width:640px){
     #changeoverPanel .field:has(#co_ecaAt), #changeoverPanel .field:has(#co_volume){grid-column:1 / -1;}
@@ -2342,7 +2366,7 @@
   .status-row{display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
   /* Phones: the status lines share one wrapped row beside the theme button instead of a column
      of five lines that pushes the page down by a fifth of the screen. */
-  @media (max-width:640px){
+  @media (max-width:900px){
     .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:2px 12px; width:100%;}
     .status-row #dbStatus, .status-row #syncStatus, .status-row #appVersion, .status-row #dataHealthStrip{font-size:11px;}
     .status-row .theme-toggle{padding:3px 8px;}
@@ -38233,6 +38257,117 @@ function askText(opts){
   window.addEventListener('resize', () => { const d = document.querySelector('#logEntryFormPanel > details.phone-hint'); if (d) d.open = !phone(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', all); else all();
   window.addEventListener('load', all);
+})();
+
+/* Tablet held sideways: the bar moves from the bottom edge to the left edge (class tablet-rail), so
+   the short side of the screen is not spent on it. Phones and tablets held upright keep the bottom bar. */
+(function(){
+  function apply(){
+    try{
+      var w = window.innerWidth || 0, h = window.innerHeight || 0;
+      var mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+        || window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      document.documentElement.classList.toggle('tablet-rail', !!(mobile && w > h && w >= 900 && Math.min(w, h) >= 560));
+    }catch(_e){}
+  }
+  apply();
+  window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', function(){ setTimeout(apply, 150); });
+})();
+
+/* Input boxes that sit side by side start at the same height. A long label or note over one box
+   pushes it down and leaves its neighbour looking out of line, so the boxes with less above them are
+   given the missing space instead. Re-run when the page changes or is resized. */
+(function(){
+  var CTRL = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), select, textarea';
+  function visible(e){
+    var r = e.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return false;
+    var cs = getComputedStyle(e);
+    return cs.visibility !== 'hidden' && cs.display !== 'none';
+  }
+  function clear(){
+    document.querySelectorAll('[data-fa]').forEach(function(e){
+      e.style.marginTop = e.getAttribute('data-fa-prev') || '';
+      e.removeAttribute('data-fa'); e.removeAttribute('data-fa-prev');
+    });
+  }
+  function run(){
+    clear();
+    var ctrls = [].slice.call(document.querySelectorAll(CTRL)).filter(visible);
+    var displays = new Map();
+    var flexOrGrid = function(p){
+      if (!displays.has(p)) displays.set(p, /grid|flex/.test(getComputedStyle(p).display));
+      return displays.get(p);
+    };
+    var containers = new Map();
+    ctrls.forEach(function(c){
+      var cell = c;
+      while (cell.parentElement && cell.parentElement !== document.body){
+        var p = cell.parentElement;
+        if (cell !== c && flexOrGrid(p)){
+          var m = containers.get(p); if (!m){ m = new Map(); containers.set(p, m); }
+          if (!m.has(cell)) m.set(cell, c);
+          break;
+        }
+        cell = p;
+      }
+    });
+    var moves = [];
+    containers.forEach(function(cells){
+      if (cells.size < 2) return;
+      var rows = {};
+      cells.forEach(function(c, cell){ var k = Math.round(cell.getBoundingClientRect().top / 4); (rows[k] = rows[k] || []).push({ cell: cell, c: c }); });
+      Object.keys(rows).forEach(function(k){
+        if (rows[k].length < 2) return;
+        var groups = {};
+        rows[k].forEach(function(x){ var g = Math.round(x.c.getBoundingClientRect().height / 8); (groups[g] = groups[g] || []).push(x); });
+        Object.keys(groups).forEach(function(g){
+          var list = groups[g]; if (list.length < 2) return;
+          var tops = list.map(function(x){ return x.c.getBoundingClientRect().top; });
+          var max = Math.max.apply(null, tops), min = Math.min.apply(null, tops);
+          if (max - min < 1 || max - min >= 90) return;
+          list.forEach(function(x, i){
+            var diff = max - tops[i];
+            if (diff < 1 || x.cell === x.c) return;
+            /* The whole field moves down, so its label stays right above its box. */
+            var el = null, kids = x.cell.children;
+            for (var q = 0; q < kids.length; q++){ if (visible(kids[q])){ el = kids[q]; break; } }
+            if (!el){ el = x.c; while (el.parentElement && el.parentElement !== x.cell) el = el.parentElement; }
+            moves.push({ el: el, c: x.c, target: max });
+          });
+        });
+      });
+    });
+    moves.forEach(function(m){
+      m.el.setAttribute('data-fa', '1');
+      m.el.setAttribute('data-fa-prev', m.el.style.marginTop || '');
+    });
+    /* Margins can merge with the label's own margin, so what a margin really moves the box is
+       measured, and the rest is added on (twice at most). */
+    for (var pass = 0; pass < 3; pass++){
+      moves.forEach(function(m){
+        var err = m.target - m.c.getBoundingClientRect().top;
+        if (Math.abs(err) < 0.5) return;
+        var cur = parseFloat(m.el.style.marginTop);
+        if (isNaN(cur)) cur = parseFloat(getComputedStyle(m.el).marginTop) || 0;
+        m.el.style.marginTop = Math.max(0, cur + err) + 'px';
+      });
+    }
+  }
+  var timer = null;
+  function later(){ clearTimeout(timer); timer = setTimeout(function(){ try{ run(); }catch(_e){} }, 160); }
+  var ignore = function(m){ return m.type === 'attributes' && m.target.hasAttribute && m.target.hasAttribute('data-fa'); };
+  new MutationObserver(function(muts){ if (muts.some(function(m){ return !ignore(m); })) later(); })
+    .observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open'] });
+  window.addEventListener('resize', later);
+  window.addEventListener('orientationchange', function(){ setTimeout(later, 200); });
+  document.addEventListener('click', later, true);
+  document.addEventListener('change', later, true);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(later);
+  window.addEventListener('load', later);
+  later();
+  window.alignFields = run;
 })();
 </script>
 </body>
