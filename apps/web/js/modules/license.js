@@ -53,13 +53,13 @@ window.ChengProModules.license = {
             <input readonly value="${escapeHtml(ent?.email || '—')}">
           </div>
           <div class="field"><label>SKU</label>
-            <input readonly value="${escapeHtml(ent?.sku || '—')}${Array.isArray(ent?.addons) && ent.addons.length ? ' · ' + escapeHtml(ent.addons.join(', ')) : ''}">
+            <textarea readonly rows="2" class="lic-wrap">${escapeHtml(ent?.sku || '—')}${Array.isArray(ent?.addons) && ent.addons.length ? ' · ' + escapeHtml(ent.addons.join(', ')) : ''}</textarea>
           </div>
           <div class="field"><label>Plan</label>
             <input readonly value="${escapeHtml(ent?.plan || '—')}${ent?.expiresAt ? ' · expires ' + escapeHtml(String(ent.expiresAt).slice(0, 10)) : ''}">
           </div>
           <div class="field"><label>Programs on this key</label>
-            <input readonly value="${valid ? escapeHtml(L.modulesAllowed(ent).filter((m) => m !== 'license' && m !== 'about').join(', ') || '—') : '—'}">
+            <textarea readonly rows="2" class="lic-wrap">${valid ? escapeHtml(L.modulesAllowed(ent).filter((m) => m !== 'license' && m !== 'about').join(', ') || '—') : '—'}</textarea>
           </div>
         </div>
 

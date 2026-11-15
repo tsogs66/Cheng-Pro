@@ -1115,6 +1115,57 @@
   tbody td{padding:6px 7px; border-bottom:1px solid var(--line); color:var(--paper); white-space:nowrap;}
   tbody tr:hover{background:rgba(255,255,255,0.03);}
   .table-scroll{overflow-x:auto; max-height:460px; overflow-y:auto;}
+  /* A table that scrolls sideways fades at the edge it continues past, so a clipped column
+     reads as "more this way" rather than as missing data. The class is set by a small script. */
+
+  /* ---- Phone layouts (640px and below) ------------------------------------------------------
+     1. Wide tables read as one card per row. 2. Long forms fold into sections.
+     3. The Add Entry bar stays reachable. 4. The e-ORB wizard goes one step at a time.
+     5. Reference shows one section at a time. Larger screens are untouched. */
+  @media (max-width:640px){
+    table.stack-phone, table.stack-phone tbody{display:block; width:100%; min-width:0 !important;}
+    table.stack-phone thead{display:none;}
+    table.stack-phone tr{
+      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:3px 10px;
+      padding:9px 10px; margin:0 0 8px; border:1px solid var(--line-strong); border-radius:8px;
+      background:var(--nav-item-bg);
+    }
+    table.stack-phone td{display:block; border:0 !important; padding:0 !important; min-width:0; font-size:13px; overflow-wrap:anywhere;}
+    table.stack-phone td[data-label]:not([data-label=""])::before{
+      content:attr(data-label); display:block; font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+      color:var(--paper-dim); margin-bottom:1px;
+    }
+    table.stack-phone td:first-child{grid-column:1 / -1; font-weight:600; font-size:14px;}
+    table.stack-phone td:first-child::before{display:none !important;}
+    table.stack-phone td[colspan]{grid-column:1 / -1;}
+    .table-scroll:has(> table.stack-phone){max-height:none; overflow:visible; -webkit-mask-image:none; mask-image:none;}
+
+    .phone-fold > h3.sub{cursor:pointer; display:flex; align-items:center; justify-content:space-between; padding:8px 2px; margin:0;}
+    .phone-fold > h3.sub::after{content:"\25BE"; color:var(--brass); font-size:14px;}
+    .phone-fold:not(.phone-open) > h3.sub::after{content:"\25B8";}
+    .phone-fold:not(.phone-open) > :not(h3.sub){display:none !important;}
+
+    #logEntryFormPanel > .btn-row:has(#btnAdd){
+      position:sticky; bottom:calc(66px + env(safe-area-inset-bottom, 0px)); z-index:20;
+      margin:10px -10px -10px; padding:8px 10px; background:var(--nav-bg); border-top:1px solid var(--line-strong);
+    }
+
+    #orbEntryWizard[data-step="1"] > [data-ostep="2"], #orbEntryWizard[data-step="1"] > [data-ostep="3"],
+    #orbEntryWizard[data-step="2"] > [data-ostep="1"], #orbEntryWizard[data-step="2"] > [data-ostep="3"],
+    #orbEntryWizard[data-step="3"] > [data-ostep="1"], #orbEntryWizard[data-step="3"] > [data-ostep="2"]{display:none !important;}
+    #orbEntryWizard > h2#orbWizardTitle{display:block !important;}
+    .orb-steps{
+      display:flex !important; align-items:center; gap:8px; margin:8px 0 10px;
+      font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim);
+    }
+    .orb-steps .orb-steps-label{flex:1; text-align:center; color:var(--teal);}
+    #page-reference .ref-section.ref-off{display:none;}
+  }
+  .orb-steps{display:none;}
+  .table-scroll.scroll-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent); mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);}
+  @media (max-width:640px){
+    #changeoverPanel .field:has(#co_ecaAt), #changeoverPanel .field:has(#co_volume){grid-column:1 / -1;}
+  }
   table.freeze-cols th:nth-child(1), table.freeze-cols td:nth-child(1){position:sticky; left:0; z-index:2; width:150px; min-width:150px;}
   table.freeze-cols th:nth-child(2), table.freeze-cols td:nth-child(2){position:sticky; left:150px; z-index:2; width:150px; min-width:150px;}
   table.freeze-cols th:nth-child(1), table.freeze-cols th:nth-child(2){z-index:3; background:var(--panel2);}
@@ -1320,7 +1371,7 @@
   }
   @keyframes orb-warn-flash{
     0%, 49%{opacity:1;}
-    50%, 100%{opacity:0.18;}
+    50%, 100%{opacity:0.6;}
   }
   .orb-warn-flash,
   .orb-weekly-due.err,
@@ -2289,6 +2340,13 @@
   .ref-item .rl{font-size:12px; letter-spacing:0.05em; text-transform:uppercase; color:var(--paper-dim); margin-top:1px;}
   .footer-note{text-align:center; color:var(--paper-dim); font-size:12px; margin-top:30px; letter-spacing:0.03em;}
   .status-row{display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+  /* Phones: the status lines share one wrapped row beside the theme button instead of a column
+     of five lines that pushes the page down by a fifth of the screen. */
+  @media (max-width:640px){
+    .status-row{flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:2px 12px; width:100%;}
+    .status-row #dbStatus, .status-row #syncStatus, .status-row #appVersion, .status-row #dataHealthStrip{font-size:11px;}
+    .status-row .theme-toggle{padding:3px 8px;}
+  }
   #syncStatus{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim);}
   #syncStatus.online{color:var(--good);}
   #syncStatus.pending{color:var(--brass);}
@@ -4422,7 +4480,7 @@ html.astrolabe body::before { opacity: 0.26; }
         <div class="field"><label>Sulphur now in service (% m/m)</label><input type="number" step="0.001" min="0" id="co_sHigh" placeholder="e.g. 0.48"></div>
         <div class="field"><label>Sulphur of fuel changing to (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLow" placeholder="e.g. 0.07"></div>
         <div class="field"><label>Limit at engine inlet (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLimit" value="0.10"></div>
-        <div class="field"><label>Service system volume (m³)</label><input type="number" step="0.01" min="0" id="co_volume" placeholder="service tank + mixing tank + pipework"></div>
+        <div class="field"><label>Service system volume (m³)</label><input type="number" step="0.01" min="0" id="co_volume" placeholder="tanks + pipework"></div>
         <div class="field"><label>Consumption at planned load (MT/day)</label><input type="number" step="0.01" min="0" id="co_consMtDay" placeholder="e.g. 24.5"></div>
         <div class="field"><label>Density of new fuel @15 °C (kg/m³)</label><input type="number" step="0.1" min="0" id="co_density" value="890"></div>
         <div class="field"><label>ECA boundary — planned crossing</label><input type="datetime-local" id="co_ecaAt"></div>
@@ -4581,6 +4639,7 @@ html.astrolabe body::before { opacity: 0.26; }
         </div>
       </div>
       <div class="hint" id="robAsOfHint">The gauges below show current R.O.B. Pick a report to see what was on board at that moment instead. Print uses the same Remaining On Board sheet as Reports.</div>
+      <div class="orb-date-note warn" id="robPendingReceipts" role="status" hidden></div>
     </div>
     <div class="panel">
       <h2>Fuel — Remaining On Board</h2>
@@ -13143,6 +13202,32 @@ function robGaugeSource(){
   return robAsOfEntry(robAsOfEntryId);
 }
 
+/* A bunker received after the latest report is not in any gauge yet: R.O.B. is carried from
+   report to report, so the receipt joins it with the next log entry. Say so on the page, with
+   the quantity, so the figure above is not read as the whole picture. */
+function pendingReceiptsAfterLatest(){
+  const list = sortedEntries();
+  if (!list.length) return [];
+  const lastDay = String(list[list.length - 1].datetime || '').slice(0, 10);
+  return (state.receipts || []).filter(r => r && r.category !== 'survey'
+    && receiptDayAfter(r.date, lastDay) && Number(r.qty) > 0);
+}
+
+function renderRobPendingReceipts(){
+  const el = document.getElementById('robPendingReceipts');
+  if (!el) return;
+  const pend = robAsOfEntryId ? [] : pendingReceiptsAfterLatest();
+  if (!pend.length){ el.hidden = true; el.textContent = ''; return; }
+  const line = r => {
+    const unit = r.category === 'fw' ? ' L' : (r.category === 'lube' ? ' L' : ' MT');
+    const q = Number(r.qty).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return `${r.type || r.category} +${q}${unit}${r.bdnNo ? ' (BDN ' + r.bdnNo + ')' : ''}, ${r.date}`;
+  };
+  el.hidden = false;
+  el.textContent = 'Received since the latest report, not in the gauges yet: ' + pend.map(line).join('; ')
+    + '. It joins R.O.B. with the next log entry.';
+}
+
 function renderRobAsOfSelector(){
   const sel = document.getElementById('robAsOfSelect');
   if (!sel) return;
@@ -13156,6 +13241,7 @@ function renderRobAsOfSelector(){
   sel.value = list.some(e => e.id === current) ? current : '';
   if (sel.value !== current) robAsOfEntryId = sel.value;
 
+  renderRobPendingReceipts();
   const hint = document.getElementById('robAsOfHint');
   if (hint){
     const chosen = state.entries.find(e => e.id === robAsOfEntryId);
@@ -16495,8 +16581,8 @@ function render(){
   document.getElementById('perfTotalsStrip').innerHTML = `
     <div class="stat"><div class="num">${withUnit(perf.avgRpm===null?'—':fmt(perf.avgRpm,2), 'rpm')}</div><div class="lbl">RPM</div></div>
     <div class="stat"><div class="num">${withUnit(perf.avgSlip===null?'—':fmt(perf.avgSlip,2), '%')}</div><div class="lbl">Slip</div></div>
-    <div class="stat"><div class="num">${withUnit(perf.avgKw===null?'—':fmt(perf.avgKw,1), 'kW')}</div><div class="lbl">Load</div></div>
-    <div class="stat"><div class="num">${withUnit(perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2), '% MCR')}</div><div class="lbl">Load</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgKw===null?'—':fmt(perf.avgKw,1), 'kW')}</div><div class="lbl">Load (kW)</div></div>
+    <div class="stat"><div class="num">${withUnit(perf.avgMcrTimeWeighted===null?(perf.avgMcr===null?'—':fmt(perf.avgMcr,2)):fmt(perf.avgMcrTimeWeighted,2), '% MCR')}</div><div class="lbl">Load (% MCR)</div></div>
     <div class="stat"><div class="num">${withUnit((() => {
       const samples = rows.filter(r => r.distEngine != null && !isNaN(r.distEngine) && r.distEngine > 0);
       return samples.length ? fmt(samples.reduce((s, r) => s + r.distEngine, 0) / samples.length, 2) : '—';
@@ -24829,7 +24915,8 @@ function updateVsRunCalcDisplays(){
     if (distEngine!=null && hrs>0 && dailyRevs!=null && operationNeedsMeData(curEntry.operation)) speedEngine = distEngine / hrs;
   }
   if (wallHrs>0 && curEntry.distanceShip!=null) shipSpeed = curEntry.distanceShip / wallHrs;
-  if (distEngine!=null && distEngine>0 && curEntry.distanceShip!=null){
+  /* A ship distance of 0 means the run has not been typed yet: 100 % slip would read as a fault. */
+  if (distEngine!=null && distEngine>0 && curEntry.distanceShip!=null && curEntry.distanceShip>0){
     slip = ((distEngine - curEntry.distanceShip) / distEngine) * 100;
   }
   const set = (id, val)=>{ const el=document.getElementById(id); if (el) el.value = val==null?'—':fmt(val,2); };
@@ -30287,7 +30374,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v363';
+let androidInstallCacheName = 'noon-report-v367';
 
 /*
  * What the program is called.
@@ -34200,6 +34287,18 @@ function applyOrbPartAvailability(){
     opt.disabled = !allowed;
     if (!allowed && sel.value === '3') sel.value = id === 'orb_browsePart' ? 'all' : '1';
   });
+  /* Part II is the tanker's cargo and ballast record. A cargo ship has nothing to put in it, so
+     its cards are not offered; a book that already holds Part II lines keeps the part visible. */
+  const tanker = orbSetup().shipType === 'tanker';
+  const savedPartII = (state.orbEntries || []).some(e => Number(e.part) === 2);
+  [['orb_part', tanker], ['orb_browsePart', tanker || savedPartII]].forEach(([id, allowed]) => {
+    const sel = document.getElementById(id);
+    const opt = sel && [...sel.options].find(o => o.value === '2');
+    if (!opt) return;
+    opt.hidden = !allowed;
+    opt.disabled = !allowed;
+    if (!allowed && sel.value === '2') sel.value = id === 'orb_browsePart' ? 'all' : '1';
+  });
 }
 
 function renderOrbOpGrid(){
@@ -35063,6 +35162,7 @@ document.getElementById('btnOrbSaveSetup')?.addEventListener('click', async ()=>
   readOrbSetupFromForm();
   await saveSetup();
   markPendingSync();
+  try { renderOrbOpGrid(); } catch (_) { /* the part list follows the ship type */ }
   alert('ORB vessel setup saved for ' + (orbSetup().shipName || 'this vessel') + '.\nFlag: ' + EORB.getFlag(orbSetup().flag).name);
 });
 document.getElementById('orb_disclaimer')?.addEventListener('change', ()=>{
@@ -38003,6 +38103,137 @@ function askText(opts){
   });
 }
 </script>
-<script>try{ if(window.ChengClockPicker) ChengClockPicker.install(); }catch(_e){}</script>
+<script>try{ if(window.ChengClockPicker) ChengClockPicker.install(); }catch(_e){}
+/* Sideways-scrolling tables: mark the ones that still continue to the right (see .scroll-more). */
+(function(){
+  function mark(el){
+    const more = el.scrollWidth - el.clientWidth > 4 && el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    el.classList.toggle('scroll-more', more);
+  }
+  function all(){ document.querySelectorAll('.table-scroll').forEach(mark); }
+  window.addEventListener('resize', all);
+  document.addEventListener('scroll', (e)=>{ const t = e.target; if (t && t.classList && t.classList.contains('table-scroll')) mark(t); }, true);
+  let queued = false;
+  new MutationObserver(()=>{ if (queued) return; queued = true; requestAnimationFrame(()=>{ queued = false; all(); }); })
+    .observe(document.body, { childList: true, subtree: true });
+  all();
+})();
+
+/* ---- Phone layouts: the script half (see the "Phone layouts" block in the stylesheet) ---- */
+(function(){
+  const phone = () => window.matchMedia('(max-width:640px)').matches;
+
+  /* 1. Tables in the list pages: give every cell its column name so a row can stand as a card. */
+  const STACK = ['#page-rob', '#page-rangetotals', '#page-receipts', '#page-consumption', '#page-voyageabstract', '#page-reports'];
+  function labelTables(){
+    STACK.forEach(sel => document.querySelectorAll(sel + ' table').forEach(tb => {
+      const head = tb.tHead && tb.tHead.rows[0];
+      if (!head || head.cells.length < 2 || head.cells.length > 14 || tb.querySelector('input, select, textarea')) return;
+      const labels = [...head.cells].map(c => c.textContent.trim());
+      tb.classList.add('stack-phone');
+      [...tb.tBodies].forEach(body => [...body.rows].forEach(tr => [...tr.cells].forEach((td, i) => {
+        if (td.colSpan > 1) return;
+        const l = labels[i] != null ? labels[i] : '';
+        if (td.dataset.label !== l) td.dataset.label = l;
+      })));
+    }));
+  }
+
+  /* 2. Long sectioned forms fold on a phone. The first section stays open. */
+  function foldSections(){
+    document.querySelectorAll('#voyageSummaryPanel .panel').forEach((p) => {
+      if (p.classList.contains('vs-fold') || p.classList.contains('phone-fold')) return;
+      if (!p.querySelector(':scope > h3.sub')) return;
+      p.classList.add('phone-fold');
+      /* The first two sections (run, weather) start open; the rest open on a tap. */
+      if (document.querySelectorAll('#voyageSummaryPanel .phone-open').length < 2) p.classList.add('phone-open');
+    });
+  }
+  document.addEventListener('click', (ev) => {
+    const h = ev.target.closest && ev.target.closest('.phone-fold > h3.sub');
+    if (h && phone()) h.parentElement.classList.toggle('phone-open');
+  });
+  /* The two long notes under the log entry form sit behind one line on a phone. */
+  function foldLogNotes(){
+    const panel = document.getElementById('logEntryFormPanel');
+    if (!panel || panel.querySelector(':scope > details.phone-hint')) return;
+    const hints = [...panel.querySelectorAll(':scope > .hint')].slice(0, 2);
+    if (hints.length < 2) return;
+    const d = document.createElement('details');
+    d.className = 'vs-fold phone-hint';
+    d.innerHTML = '<summary>About the clock and the distance run <span class="vs-fold-hint">notes</span></summary>';
+    hints[0].parentNode.insertBefore(d, hints[0]);
+    hints.forEach(h => d.appendChild(h));
+    d.open = !phone();
+  }
+
+  /* 3. e-ORB operation wizard: what / when and who / check and save, one at a time. */
+  function setupOrbSteps(){
+    const w = document.getElementById('orbEntryWizard');
+    if (!w || w.querySelector(':scope > .orb-steps')) return;
+    const kids = [...w.children];
+    const iGrid = kids.indexOf(document.getElementById('orbFieldGrid'));
+    const iDual = kids.indexOf(document.getElementById('orbDualChiefEngBlock'));
+    if (iGrid < 0 || iDual < 0) return;
+    kids.forEach((k, i) => {
+      if (k.id === 'orbWizardTitle') return;
+      k.dataset.ostep = i <= iGrid ? '1' : (i <= iDual ? '2' : '3');
+    });
+    const bar = document.createElement('div');
+    bar.className = 'orb-steps';
+    bar.innerHTML = '<button type="button" class="ghost small" data-ostep-go="-1">Back</button>' +
+      '<span class="orb-steps-label"></span><button type="button" class="primary small" data-ostep-go="1">Next</button>';
+    const title = document.getElementById('orbWizardTitle');
+    title.insertAdjacentElement('afterend', bar);
+    const names = ['What', 'When and who', 'Check and save'];
+    window.setOrbStep = function(n){
+      n = Math.max(1, Math.min(3, n));
+      w.dataset.step = String(n);
+      bar.querySelector('.orb-steps-label').textContent = 'Step ' + n + ' of 3 — ' + names[n - 1];
+      bar.querySelector('[data-ostep-go="-1"]').disabled = n === 1;
+      bar.querySelector('[data-ostep-go="1"]').disabled = n === 3;
+      if (phone()) w.scrollIntoView({ block: 'start' });
+    };
+    bar.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-ostep-go]');
+      if (b) window.setOrbStep(Number(w.dataset.step || 1) + Number(b.dataset.ostepGo));
+    });
+    window.setOrbStep(1);
+  }
+  const wrapOpen = () => {
+    if (typeof window.openOrbWizard !== 'function' || window.openOrbWizard.__steps) return;
+    const orig = window.openOrbWizard;
+    const wrapped = function(){ const r = orig.apply(this, arguments); if (window.setOrbStep) window.setOrbStep(1); return r; };
+    wrapped.__steps = true;
+    window.openOrbWizard = wrapped;
+  };
+
+  /* 5. Reference: the contents chips choose the one section shown on a phone. */
+  function setupRefTabs(){
+    const page = document.getElementById('page-reference');
+    if (!page || page.dataset.refTabs) return;
+    page.dataset.refTabs = '1';
+    const secs = [...page.querySelectorAll('.ref-section')];
+    if (!secs.length) return;
+    const show = (id) => secs.forEach(s => s.classList.toggle('ref-off', s.id !== id));
+    show(secs[0].id);
+    page.addEventListener('click', (ev) => {
+      const a = ev.target.closest('a[href^="#ref-"]');
+      if (!a || !phone()) return;
+      ev.preventDefault();
+      show(a.getAttribute('href').slice(1));
+      page.scrollIntoView({ block: 'start' });
+    });
+  }
+
+  function all(){ labelTables(); foldSections(); foldLogNotes(); setupOrbSteps(); wrapOpen(); setupRefTabs(); }
+  let queued = false;
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; labelTables(); }); })
+    .observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', () => { const d = document.querySelector('#logEntryFormPanel > details.phone-hint'); if (d) d.open = !phone(); });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', all); else all();
+  window.addEventListener('load', all);
+})();
+</script>
 </body>
 </html>
