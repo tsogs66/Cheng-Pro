@@ -3308,6 +3308,12 @@ input[type=file]::file-selector-button {
   padding: 7px 14px; margin-right: 10px; font: inherit; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
 }
 input[type=file]::file-selector-button:hover { border-color: var(--brass); }
+
+/* tablet / desktop: Add Entry sits at the right end of the button row, the secondary buttons stay on the left */
+@media (min-width:721px){
+  #logEntryFormPanel .btn-row:has(#btnAdd){align-items:center;}
+  #logEntryFormPanel .btn-row:has(#btnAdd) > #btnAdd{order:99; margin-left:auto;}
+}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
