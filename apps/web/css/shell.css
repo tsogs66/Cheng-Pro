@@ -2339,3 +2339,6 @@ html.aio-bunker-alert::after {
   .vessel-switcher-row { flex-wrap: nowrap !important; }
   .vessel-switcher-row .btn { width: auto !important; }
 }
+
+/* Bright: amber/lime gauge ink was 1.6:1 on the cream card; darken the value text only */
+html.bright .gauge-value { color: color-mix(in srgb, var(--gauge-ink, var(--brass)) 50%, #000); }

@@ -1189,7 +1189,9 @@
   /* Touch screens: every button is a comfortable target, the small red Delete included. */
   @media (pointer:coarse){
     button.small, button.ghost, button.primary, button.danger{min-height:44px;}
-    button.small, button.danger{min-width:44px;}
+    /* The short red delete mark gets side padding to be 44px wide. A width floor on every small button
+       would let a long label shrink under its text, so there is none. */
+    button.small.danger{padding-left:14px; padding-right:14px;}
   }
   .table-scroll.scroll-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent); mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);}
   @media (max-width:640px){
@@ -3260,6 +3262,12 @@ html.astrolabe body::before { opacity: 0.26; }
   body::before { display: none !important; }
 }
 
+
+/* long list-box values: give them the full row on phones/narrow panes so the selected text is not cut */
+@media (max-width:700px){
+  .form-grid .field:has(> #rangeFrom), .form-grid .field:has(> #rangeTo), .form-grid .field:has(> #orb_shipType),
+  .form-grid .field:has(> #sync_conflict), .form-grid .field:has(> #s_shipCondition), .form-grid .field:has(> #sync_pullCondition){grid-column:1 / -1;}
+}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
@@ -6314,7 +6322,16 @@ function pipeInk(hex, liftAmt){
 }
 function gaugeArcColor(hex){ return pipeInk(hex, 0.72); }
 function gaugeTextColor(hex){
-  if (document.documentElement.classList.contains('bright')) return hex;
+  if (document.documentElement.classList.contains('bright')) {
+    /* amber / lime ink on the cream card is 1.6:1; darken until it reads (4.5:1) */
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    if (!m) return hex;
+    const ch = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+    const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    let k = 1;
+    while (k > 0.2 && (0.96 + 0.05) / (lum(ch.map((v) => v * k)) + 0.05) < 4.5) k -= 0.05;
+    return '#' + ch.map((v) => Math.round(v * k).toString(16).padStart(2, '0')).join('');
+  }
   return pipeInk(hex, 0.78);
 }
 function lubeKindToLabel(kind){ return LUBE_KIND_LABELS[kind] || kind; }
