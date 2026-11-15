@@ -4992,6 +4992,8 @@ html.astrolabe body::before { opacity: 0.26; }
           <div class="field"><label>OWS / 15 ppm fitted</label><select id="orb_ows"><option value="true">Yes</option><option value="false">No</option></select></div>
           <div class="field"><label>Incinerator fitted</label><select id="orb_incin"><option value="true">Yes</option><option value="false">No</option></select></div>
           <div class="field"><label>ODME fitted (tankers)</label><select id="orb_odme"><option value="false">No</option><option value="true">Yes</option></select></div>
+          <div class="field"><label>Crude oil washing (COW) fitted (tankers)</label><select id="orb_cow"><option value="false">No</option><option value="true">Yes</option></select></div>
+          <div class="field"><label>Dedicated clean ballast tanks (CBT) fitted (tankers)</label><select id="orb_cbt"><option value="false">No</option><option value="true">Yes</option></select></div>
           <div class="field"><label>Incinerator sludge capacity (m³/h)</label><input type="number" step="0.001" id="orb_incinRate" placeholder="e.g. 0.05"></div>
           <div class="field"><label>Sludge pump capacity (m³/h)</label><input type="number" step="0.01" id="orb_sludgePump" placeholder="e.g. 2"></div>
           
@@ -34093,6 +34095,8 @@ function readOrbSetupFromForm(){
   setup.equipment.owsFitted = document.getElementById('orb_ows')?.value === 'true';
   setup.equipment.incineratorFitted = document.getElementById('orb_incin')?.value === 'true';
   setup.equipment.odmeFitted = document.getElementById('orb_odme')?.value === 'true';
+  setup.equipment.cowFitted = document.getElementById('orb_cow')?.value === 'true';
+  setup.equipment.cbtFitted = document.getElementById('orb_cbt')?.value === 'true';
   const nOr = (id)=>{ const x=parseFloat(document.getElementById(id)?.value); return isFinite(x)?x:null; };
   setup.equipment.incineratorM3PerH = nOr('orb_incinRate');
   setup.equipment.sludgePumpM3PerH = nOr('orb_sludgePump');
@@ -34154,6 +34158,8 @@ function fillOrbSetupForm(){
   set('orb_ows', setup.equipment?.owsFitted !== false ? 'true' : 'false');
   set('orb_incin', setup.equipment?.incineratorFitted !== false ? 'true' : 'false');
   set('orb_odme', setup.equipment?.odmeFitted ? 'true' : 'false');
+  set('orb_cow', setup.equipment?.cowFitted ? 'true' : 'false');
+  set('orb_cbt', setup.equipment?.cbtFitted ? 'true' : 'false');
   set('orb_incinRate', setup.equipment?.incineratorM3PerH);
   set('orb_sludgePump', setup.equipment?.sludgePumpM3PerH);
   set('orb_xferPump', setup.equipment?.transferPumpM3PerH);
