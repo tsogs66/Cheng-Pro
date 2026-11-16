@@ -430,7 +430,7 @@
         "New ECA record / New EU port record — a log for this passage",
         "Fetch from log entry / Fetch all stages from the voyage log — takes the time, position and consumption from the log",
         "Fill tanks from tank ROB — fills the tank columns",
-        "Print log — prints the changeover log; Print blank form — an empty one"
+        "Print log — prints the changeover log on A4 landscape, with the date, time in LT and UTC and position in one column, and a note on each stage saying when to make the entry; Print blank form — an empty one"
 ],
       undo: [
         "A stage that has no log entry says so. Add the ECA entry in Log Entry, then fetch again.",
@@ -507,7 +507,10 @@
         "If Distance, Speed and Days are blank or 0 and both From and To are filled in, the Daily Cons is taken as the quantity for that line.",
         "If From or To is empty and nothing else is entered, the quantity stays empty.",
         "Use Margin % on a line for a reserve on that line only. Add destination / stay adds the next line. Remove last line removes the last one.",
-        "Enter Current ROB and Quantity to Receive to see Arrival ROB and Next Departure ROB. Load Voyage ROB or Load Tank ROB fill the ROB for you."
+        "Enter Current ROB and Quantity to Receive to see Arrival ROB and Next Departure ROB. Load Voyage ROB or Load Tank ROB fill the ROB for you.",
+        "Enter the Delivery / Redelivery ROB to see two excess figures. Excess (Margin) Quantity = Next Departure ROB − Delivery ROB. Excess (Actual) Quantity = ((Current ROB + Quantity to Receive) − Total Consumption) − Delivery ROB, with no margin. A negative figure makes its box glow red.",
+        "The result boxes are in three columns with the tablet upright and six sideways. Days are shown to one decimal; the quantity still uses the exact days.",
+        "Saved Calculations is folded away. Tap its heading to open it, then search by date or name."
 ],
       buttons: [
         "Add destination / stay — next line",

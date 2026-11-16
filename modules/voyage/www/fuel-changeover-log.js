@@ -365,17 +365,18 @@
     '.fcl-step .nm{display:block;font-family:Oswald,sans-serif;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:#122238;margin:1mm 0 .6mm;line-height:1.15;}' +
     '.fcl-step .tm{display:block;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;}' +
     '.fcl-step .dd{display:block;font-size:8.5px;color:#5a6578;}' +
-    '.fcl-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px;}' +
-    '.fcl-tbl th{background:#122238;color:#fff;font-family:Oswald,sans-serif;font-weight:500;text-transform:uppercase;letter-spacing:.03em;padding:1mm .8mm;border:1px solid #122238;font-size:9px;text-align:center;}' +
+    '.fcl-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;}' +
+    '.fcl-tbl th{background:#122238;color:#fff;font-family:Oswald,sans-serif;font-weight:500;text-transform:uppercase;letter-spacing:.03em;padding:1.6mm .8mm;border:1px solid #122238;font-size:9.5px;text-align:center;}' +
     '.fcl-tbl th.grp{background:#2a6b7a;border-color:#2a6b7a;}' +
     '.fcl-tbl th.grp.other{background:#7a5a2a;border-color:#7a5a2a;}' +
     '.fcl-tbl th small{display:block;font-weight:400;font-size:7.5px;opacity:.85;letter-spacing:0;text-transform:none;}' +
-    '.fcl-tbl td{color:#0a1420;padding:1.2mm .9mm;border:1px solid #d4dce8;text-align:center;vertical-align:middle;font-family:"IBM Plex Mono",monospace;word-wrap:break-word;overflow-wrap:anywhere;}' +
+    '.fcl-tbl th{overflow-wrap:break-word;word-break:break-word;hyphens:auto;line-height:1.15;}' +
+    '.fcl-tbl td{color:#0a1420;padding:2.6mm 1.2mm;border:1px solid #d4dce8;text-align:center;vertical-align:middle;font-family:"IBM Plex Mono",monospace;word-wrap:break-word;overflow-wrap:anywhere;}' +
     '.fcl-tbl tr:nth-child(even) td{background:#f7f9fc;}' +
     '.fcl-tbl td.st{white-space:normal;overflow-wrap:break-word;text-align:left;font-family:Inter,Arial,sans-serif;font-weight:600;color:#122238;}' +
     '.fcl-tbl td.st b{display:inline-block;min-width:4.4mm;margin-right:1mm;padding:0 1mm;border-radius:2px;background:#122238;color:#fff;font-family:Oswald,sans-serif;font-size:9px;text-align:center;}' +
-    '.fcl-tbl td.st small{display:block;font-weight:400;font-size:8px;color:#5a6578;margin-top:.6mm;}' +
-    '.fcl-tbl td.dt,.fcl-tbl td.ps{text-align:left;line-height:1.35;font-size:9px;}' +
+    '.fcl-tbl td.st small{display:block;font-weight:400;font-size:9.5px;color:#5a6578;margin-top:1mm;line-height:1.35;}' +
+    '.fcl-tbl td.dt,.fcl-tbl td.ps{text-align:left;line-height:1.45;font-size:10.5px;}' +
     '.fcl-tbl td.dt b,.fcl-tbl td.ps b{font-weight:600;}' +
     '.fcl-tbl td.dt i,.fcl-tbl td.ps i{font-style:normal;display:inline-block;min-width:7mm;color:#5a6578;font-size:8px;text-transform:uppercase;letter-spacing:.05em;}' +
     '.fcl-tbl td.cs{font-weight:600;}' +
@@ -408,15 +409,24 @@
     var defs = stagesFor(kind);
     var nCols = Math.max(1, cols.length);
     var withCons = kind === 'eca';
-    var stageW = 19, dtW = 15, posW = 14, consW = withCons ? 8 : 0, sigW = 13;
-    var tankW = Math.max(5, Math.floor((100 - stageW - dtW - posW - consW - sigW) / nCols * 10) / 10);
+    var stageW = 25, dtW = 17, consW = withCons ? 6 : 0, sigW = 11;
+    var tankW = Math.max(4, Math.floor((100 - stageW - dtW - consW - sigW) / nCols * 10) / 10);
 
     /* Printed wording: shorter than the entry screen's, same five steps. */
     var PRINT_LABEL = {
-      eca: [['Changeover commenced', 'HFO valve closed'], ['Changeover completed', 'Compliant fuel in service before the boundary'],
-            ['Entered ECA', ''], ['Departed ECA', ''], ['After departure', 'Not before the ship is clear of the area']],
-      eu: [['Arrived at berth — changeover commenced', 'As soon as possible after arrival'], ['Changeover completed', 'Compliant fuel (0.10 % S) in use at berth'],
-           ['Change back commenced', 'As late as possible before departure'], ['Change back completed / departed berth', '']]
+      eca: [
+        ['Changeover commenced', 'Make this entry when the changeover starts: the HFO supply is shut and compliant fuel is being introduced. Record the date, time (LT and UTC) and position. Tank quantities are not required at this stage.'],
+        ['Changeover completed', 'Make this entry when only compliant fuel is in service, before the ship enters the ECA. Record the date, time (LT and UTC), position and the compliant fuel in each tank (Reg. 14.6).'],
+        ['Entered ECA', 'Make this entry as the ship crosses the ECA boundary. Record the date, time (LT and UTC) and position.'],
+        ['Departed ECA', 'Make this entry as the ship leaves the ECA. Record the date, time (LT and UTC) and position.'],
+        ['After departure', 'Make this entry when changing back from compliant fuel, not before the ship is clear of the area. Record the date, time (LT and UTC), position and the compliant fuel in each tank (Reg. 14.6).']
+      ],
+      eu: [
+        ['Arrived at berth — changeover commenced', 'Make this entry on arrival, as soon as the changeover to compliant fuel (0.10 % S) begins.'],
+        ['Changeover completed', 'Make this entry when compliant fuel is in use at berth. Record the date, time (LT and UTC), position and the compliant fuel in each tank.'],
+        ['Change back commenced', 'Make this entry when the change back starts, as late as possible before departure.'],
+        ['Change back completed / departed berth', 'Make this entry when the change back is complete or the ship leaves the berth. Record the date, time (LT and UTC), position and the compliant fuel in each tank.']
+      ]
     }[kind];
 
     function stageOf(def) {
@@ -431,26 +441,10 @@
       };
     }
 
-    /* A strip along the top: where the ship was in the passage, stage by stage. */
-    function timeline() {
-      var short = {
-        eca: ['Changeover start', 'Changeover complete', 'Entry into ECA', 'Departure from ECA', 'After departure'],
-        eu: ['Arrival', 'Compliant fuel in use', 'Change back start', 'Change back done']
-      }[kind];
-      return '<div class="fcl-line">' + defs.map(function (def, i) {
-        var st = stageOf(def), w = when(st);
-        return '<div class="fcl-step' + (w.lt ? '' : ' empty') + '"><span class="n">' + def.no + '</span>' +
-          '<span class="nm">' + esc(short[i] || def.label) + '</span>' +
-          '<span class="tm">' + (w.lt ? esc(w.lt) + ' LT' : '—') + '</span>' +
-          '<span class="dd">' + esc(w.date || '') + '</span></div>';
-      }).join('') + '</div>';
-    }
-
     function head() {
       var span = (compliant.length ? 1 : 0) + (other.length ? 1 : 0);
-      var top = '<tr><th rowspan="2" style="width:' + stageW + '%">Stage</th>' +
-        '<th rowspan="2" style="width:' + dtW + '%">Date &amp; time</th>' +
-        '<th rowspan="2" style="width:' + posW + '%">Position</th>' +
+      var top = '<tr><th rowspan="2" style="width:' + stageW + '%">Stage and when to make the entry</th>' +
+        '<th rowspan="2" style="width:' + dtW + '%">Date, time &amp; position</th>' +
         (withCons ? '<th rowspan="2" style="width:' + consW + '%">Total cons.<small>MT</small></th>' : '');
       if (compliant.length) top += '<th class="grp" colspan="' + compliant.length + '">Compliant fuel (0.10 % S) in tanks — MT</th>';
       if (other.length) top += '<th class="grp other" colspan="' + other.length + '">Non-compliant fuel in tanks — MT</th>';
@@ -466,10 +460,11 @@
       var w = when(st);
       var lat = posAxis(st.latDeg, st.latMin, st.latHem, 'N');
       var lon = posAxis(st.lonDeg, st.lonMin, st.lonHem, 'E');
+      /* One cell, as in the logbook: the date, then the time in both LT and UTC, then the position. */
       var dt = (w.date ? '<b>' + esc(w.date) + '</b><br>' : '') +
         (w.lt ? '<i>LT</i> ' + esc(w.lt) + ' h<br>' : '') +
-        (w.utc ? '<i>UTC</i> ' + esc(w.utc) + ' h' : '');
-      var ps = (lat || lon) ? ('<i>Lat</i> ' + esc(lat || '—') + '<br><i>Long</i> ' + esc(lon || '—')) : '';
+        (w.utc ? '<i>UTC</i> ' + esc(w.utc) + ' h<br>' : '') +
+        ((lat || lon) ? '<i>Lat</i> ' + esc(lat || '—') + '<br><i>Long</i> ' + esc(lon || '—') : '');
       var cells = cols.map(function (col) {
         var v = robOf(st, col);
         return v == null ? '<td class="na">—</td>' : '<td>' + esc(fmt(v)) + '</td>';
@@ -484,7 +479,6 @@
       var pl = PRINT_LABEL[def.no - 1] || [def.label, def.note];
       return '<tr><td class="st"><b>' + def.no + '</b>' + esc(pl[0]) + (pl[1] ? '<small>' + esc(pl[1]) + '</small>' : '') + '</td>' +
         '<td class="dt">' + (dt || '') + '</td>' +
-        '<td class="ps">' + ps + '</td>' +
         (withCons ? (st.totalCons != null ? '<td class="cs">' + esc(fmt(st.totalCons)) + '</td>' : '<td class="na">—</td>') : '') +
         (cells || '<td class="na">—</td>') + '<td class="sg">' + sig + '</td></tr>';
     }
@@ -509,7 +503,7 @@
     if (form.revision) fine.push('<span><b>Revision</b> ' + esc(form.revision) + '</span>');
     if (form.effective) fine.push('<span><b>Effective</b> ' + esc(form.effective) + '</span>');
 
-    return '<style>' + PRINT_CSS + '</style><div class="fcl">' + header + meta + timeline() +
+    return '<style>' + PRINT_CSS + '</style><div class="fcl">' + header + meta +
       '<table class="fcl-tbl">' + head() + '<tbody>' + defs.map(rowFor).join('') + '</tbody></table>' +
       '<div class="fcl-basis"><b>Basis.</b> ' + esc(NOTE[kind]) +
       ' Quantities are the compliant fuel held in each tank at that stage, from the tank soundings' +
