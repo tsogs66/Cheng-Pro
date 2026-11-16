@@ -634,7 +634,7 @@ html.tablet-rail.use-bottom-nav .bottom-item { flex: 1 1 0; width: 100%; min-hei
 html.tablet-rail.use-bottom-nav .app { padding-left: calc(84px + env(safe-area-inset-left, 0px)); }
 html.tablet-rail.use-bottom-nav .main { padding-bottom: 24px; }
 html.tablet-rail.use-bottom-nav .toast { bottom: 18px; }
-html.tablet-rail:not(.aio-fullscreen-embed) .main > *:not(.aio-embed-wrap):not(.eorb-embed-wrap):not(:has(.aio-embed-wrap)):not(:has(.eorb-embed-wrap)) { max-width: 1100px; margin-inline: auto; }
+html.tablet-rail:not(.aio-fullscreen-embed) .main > *:not(.aio-embed-wrap):not(.eorb-embed-wrap):not(:has(.aio-embed-wrap)):not(:has(.eorb-embed-wrap)) { max-width: none; margin-inline: 0; }
 /* a module frame always takes the whole pane, whatever wraps it */
 html.aio-fullscreen-embed .main > *, html.aio-fullscreen-embed .aio-embed-wrap, html.aio-fullscreen-embed .eorb-embed-wrap { max-width: none; margin-inline: 0; align-self: stretch; }
 /* Touch screens: every button is a comfortable target. */
@@ -2373,6 +2373,7 @@ input[type=file]::file-selector-button:hover { border-color: var(--brass); }
 /* ---- Full-screen modules ------------------------------------------------------------------ */
 /* The shell's own menu is hidden here, so it must not leave its space behind (the 84px rail padding was a blank strip). */
 html.aio-fullscreen-embed:not(.aio-embed-menu).tablet-rail.use-bottom-nav .app { padding-left: 0 !important; }
+.bn-more-fs[hidden] { display: none !important; }
 /* Consumption Plan, Bunkering Plan and e-ORB keep the main menu: the bar along the bottom, or the rail at the left. */
 html.aio-fullscreen-embed.aio-embed-menu .bottom-nav { display: flex !important; }
 html.aio-fullscreen-embed.aio-embed-menu .bn-more-sheet.open { display: block !important; }

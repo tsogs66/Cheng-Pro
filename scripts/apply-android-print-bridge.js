@@ -29,6 +29,11 @@ import android.os.Looper;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -59,6 +64,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   private WebView printWebView;
   private boolean printBridgeInstalled = false;
+  private boolean fullscreenWanted = false;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -70,6 +76,52 @@ public class MainActivity extends BridgeActivity {
   public void onStart() {
     super.onStart();
     installPrintBridgeSoon();
+  }
+
+  /** The system bars come back after a dialog or the share sheet; hide them again while full screen is wanted. */
+  @Override
+  public void onWindowFocusChanged(boolean hasFocus) {
+    super.onWindowFocusChanged(hasFocus);
+    if (hasFocus && fullscreenWanted) applyFullscreen(true);
+  }
+
+  private void applyFullscreen(final boolean on) {
+    try {
+      final Window window = getWindow();
+      if (on && Build.VERSION.SDK_INT >= 28) {
+        WindowManager.LayoutParams attrs = window.getAttributes();
+        attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        window.setAttributes(attrs);
+      }
+      if (Build.VERSION.SDK_INT >= 30) {
+        WindowInsetsController controller = window.getInsetsController();
+        if (controller == null) return;
+        if (on) {
+          controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+          controller.hide(WindowInsets.Type.systemBars());
+        } else {
+          controller.show(WindowInsets.Type.systemBars());
+        }
+      } else {
+        View decor = window.getDecorView();
+        decor.setSystemUiVisibility(on
+            ? (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+               | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+               | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
+            : View.SYSTEM_UI_FLAG_VISIBLE);
+      }
+    } catch (Exception ignored) {
+      /* Full screen is a nicety; never let it stop the app. */
+    }
+  }
+
+  /** The program's "Full screen" switch in the More menu. */
+  private class FullscreenBridge {
+    @JavascriptInterface
+    public void set(final boolean on) {
+      fullscreenWanted = on;
+      runOnUiThread(() -> applyFullscreen(on));
+    }
   }
 
   private void installPrintBridgeSoon() {
@@ -89,10 +141,11 @@ public class MainActivity extends BridgeActivity {
         webView.addJavascriptInterface(new ReminderBridge(this), "ChengAndroidReminders");
         webView.addJavascriptInterface(new SpeechBridge(this, webView), "ChengAndroidSpeech");
         webView.addJavascriptInterface(new BunkerAlarmBridge(this), "ChengAndroidBunker");
+        webView.addJavascriptInterface(new FullscreenBridge(), "ChengAndroidFullscreen");
         printBridgeInstalled = true;
       }
       webView.post(() -> webView.evaluateJavascript(
-          "window.__CHENG_ANDROID_PRINT__=true;window.__CHENG_ANDROID_FILES__=true;window.__CHENG_ANDROID_REMINDERS__=true;window.__CHENG_ANDROID_SPEECH__=true;window.__CHENG_ANDROID_BUNKER__=true;"
+          "window.__CHENG_ANDROID_PRINT__=true;window.__CHENG_ANDROID_FILES__=true;window.__CHENG_ANDROID_REMINDERS__=true;window.__CHENG_ANDROID_SPEECH__=true;window.__CHENG_ANDROID_BUNKER__=true;window.__CHENG_ANDROID_FULLSCREEN__=true;"
               + "try{window.dispatchEvent(new CustomEvent('cheng-android-print-ready'));}catch(e){}",
           null
       ));
