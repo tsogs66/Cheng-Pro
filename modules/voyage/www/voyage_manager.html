@@ -3326,6 +3326,12 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
   .bunker-remarks textarea{width:100%; min-height:110px;}
   .bunker-plan-actions{justify-content:flex-end;}
 }
+.hist-search{display:block;width:100%;max-width:420px;margin:8px 0 10px}
+.bp-hist-name{max-width:260px;overflow-wrap:anywhere}
+.eca-pos-inputs{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.eca-pos-inputs input{width:5.5em;min-width:0;flex:1 1 5em}
+.eca-pos-inputs select{width:4.5em;flex:0 0 auto}
+#inEcaPosRow[hidden]{display:none !important}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
@@ -3951,6 +3957,24 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
         </div>
         <div class="field log-entry-always-hide" hidden><label>Condition</label><select id="in_condition"><option value="B">B — Ballasted</option><option value="L">L — Laden</option></select></div>
       </div>
+      <div class="field-group" id="inEcaPosRow" hidden>
+        <h3 class="sub" style="margin:10px 0 4px;">ECA position</h3>
+        <div class="form-grid cols2">
+          <div class="field"><label>Latitude</label>
+            <div class="eca-pos-inputs">
+              <input id="in_ecaLatDeg" inputmode="decimal" placeholder="deg" aria-label="Latitude degrees">°
+              <input id="in_ecaLatMin" inputmode="decimal" placeholder="min" aria-label="Latitude minutes">'
+              <select id="in_ecaLatHem" aria-label="Latitude hemisphere"><option>N</option><option>S</option></select>
+            </div></div>
+          <div class="field"><label>Longitude</label>
+            <div class="eca-pos-inputs">
+              <input id="in_ecaLonDeg" inputmode="decimal" placeholder="deg" aria-label="Longitude degrees">°
+              <input id="in_ecaLonMin" inputmode="decimal" placeholder="min" aria-label="Longitude minutes">'
+              <select id="in_ecaLonHem" aria-label="Longitude hemisphere"><option>E</option><option>W</option></select>
+            </div></div>
+        </div>
+        <div class="hint">Position of the ship at this ECA report. It is carried to the ECA / fuel changeover log.</div>
+      </div>
       <input type="hidden" id="in_clockChangeMin" value="0">
       <div class="tz-clock-row">
         <span class="tz-clock-label">Change clocks</span>
@@ -4556,10 +4580,11 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
     </div>
     <div class="panel" id="bunkerPlanHistory" style="display:none;">
       <h2>Saved Calculations</h2>
+      <input type="search" id="bpHistorySearch" class="hist-search" placeholder="Search by date, name or description" aria-label="Search saved calculations" autocomplete="off">
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Date</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
-          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="5">No saved calculations yet.</td></tr></tbody>
+          <thead><tr><th>Date</th><th>Name</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
+          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="6">No saved calculations yet.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -7991,7 +8016,7 @@ function buildDemoPackCircumnav(){
   const lsmgoMe = { meType:'LSMGO', geType:'LSMGO', blrType:'LSMGO', meSg:0.86, geSg:0.86, blrSg:0.86 };
   const entries = [];
 
-  const seaOps = new Set(['START OF SEA PASSAGE','NOON - AT SEA','END OF SEA PASSAGE','DRIFTING','ECA - ENTRY','ECA - EXIT','CHANGE SPEED','HEAVY WEATHER']);
+  const seaOps = new Set(['START OF SEA PASSAGE','NOON - AT SEA','END OF SEA PASSAGE','DRIFTING','ECA - ENTRY','ECA - DEPARTURE','ECA - EXIT','CHANGE SPEED','HEAVY WEATHER']);
   let lastDt = '2026-06-01T10:00';
   function pushSea(id, dt, op, cond, delta, extra){
     const hrs = (new Date(dt) - new Date(lastDt)) / 3600000;
@@ -16197,6 +16222,30 @@ function changeoverTanks(){
   return out;
 }
 
+/** The voyage log's ECA reports, newest first: when each was made, where, and what
+ *  the ship burned in it. This is what the changeover log fetches its stages from. */
+function changeoverLogEntries(){
+  const ops = ecaOperationNames();
+  let rows = [];
+  try { rows = computeDerived().rows || []; } catch (_e) { rows = []; }
+  const byId = new Map(rows.map(r => [r.id, r]));
+  return (state.entries || [])
+    .filter(e => e && ops.includes(canonicalOperation(e.operation)))
+    .sort((a, b) => String(b.datetime).localeCompare(String(a.datetime)))
+    .map(e => {
+      const r = byId.get(e.id);
+      const total = r && r.total != null && isFinite(r.total) ? Math.round(r.total * 1000) / 1000 : null;
+      const dt = String(e.datetime || '');
+      return {
+        id: e.id, operation: canonicalOperation(e.operation),
+        date: dt.slice(0, 10), time: dt.slice(11, 16),
+        offsetMin: e.tzOffsetMin != null ? e.tzOffsetMin : 0,
+        position: e.ecaPosition || null,
+        totalCons: total
+      };
+    });
+}
+
 function changeoverLogApi(){
   return {
     records: changeoverRecords,
@@ -16205,6 +16254,7 @@ function changeoverLogApi(){
     confirm: (m)=> confirm(m),
     vessel: ()=>({ name: state.setup.vesselName || '', imo: state.setup.imoNo || '', company: state.setup.company || '' }),
     tanks: changeoverTanks,
+    logEntries: changeoverLogEntries,
     defaultOffsetMin: ()=> defaultShipTzOffsetMin(),
     officer: ()=>({ name: (typeof currentChEngName === 'function' ? currentChEngName() : '') || '', rank: 'C/E' }),
     signature: (name)=> (typeof signatureForChEng === 'function' ? (signatureForChEng(name) || '') : ''),
@@ -17313,9 +17363,26 @@ function buildBunkerPlanPrintHtml(){
   </div>`;
 }
 
-function saveBunkerPlanToHistory(){
+/* Ask what to call this save so it can be found again in Saved Calculations.
+   Resolves with the text (maybe empty), or null when the engineer cancels. */
+async function askBunkerPlanName(){
   readBunkerPlanFromDom();
   const bp = ensureBunkerPlan();
+  const name = await askText({
+    title: 'Save calculation',
+    message: 'Give this calculation a name or short description so it is easy to find later in Saved Calculations.',
+    label: 'Name / description',
+    placeholder: 'e.g. Singapore to Rotterdam via Cape',
+    value: bp.saveName || '',
+    okLabel: 'Save'
+  });
+  return name;
+}
+
+function saveBunkerPlanToHistory(name){
+  readBunkerPlanFromDom();
+  const bp = ensureBunkerPlan();
+  if (name != null) bp.saveName = name;
   const snapshot = JSON.parse(JSON.stringify(bp));
   snapshot.savedAt = new Date().toISOString();
   if (!Array.isArray(state.setup.bunkerPlanHistory)) state.setup.bunkerPlanHistory = [];
@@ -17335,12 +17402,23 @@ function renderBunkerPlanHistory(){
     return;
   }
   panel.style.display = '';
-  body.innerHTML = history.map((h, i)=>{
+  const q = (document.getElementById('bpHistorySearch')?.value || '').trim().toLowerCase();
+  const shown = [];
+  history.forEach((h, i)=>{
+    const date = h.date || h.savedAt?.slice(0,10) || '—';
+    const hay = [date, h.savedAt, h.voyageNo, h.saveName, h.remarks].join(' ').toLowerCase();
+    if (!q || hay.includes(q)) shown.push([h, i, date]);
+  });
+  if (!shown.length){
+    body.innerHTML = '<tr class="empty-row"><td colspan="6">No saved calculation matches your search.</td></tr>';
+    return;
+  }
+  body.innerHTML = shown.map(([h, i, date])=>{
     const resSum = summarizeBunkerSide(h.residual || emptyBunkerSide('HFO'));
     const distSum = summarizeBunkerSide(h.distillate || emptyBunkerSide('MDO/MGO'));
-    const date = h.date || h.savedAt?.slice(0,10) || '—';
     return `<tr>
       <td>${escAttr(date)}</td>
+      <td class="bp-hist-name">${escAttr(h.saveName || '—')}</td>
       <td>${escAttr(h.voyageNo || '—')}</td>
       <td>${fmtFuel(resSum.required)} MT req</td>
       <td>${fmtFuel(distSum.required)} MT req</td>
@@ -17349,9 +17427,11 @@ function renderBunkerPlanHistory(){
   }).join('');
 }
 
-function printBunkerPlan(){
+async function printBunkerPlan(){
+  const name = await askBunkerPlanName();
+  if (name === null) return;
   const sheetHtml = buildBunkerPlanPrintHtml();
-  saveBunkerPlanToHistory();
+  saveBunkerPlanToHistory(name);
   beginPrintHold();
   try {
     printPortraitSinglePage(sheetHtml);
@@ -17372,8 +17452,10 @@ function printBunkerPlanOnly(){
   }
 }
 
-function saveBunkerPlanOnly(){
-  saveBunkerPlanToHistory();
+async function saveBunkerPlanOnly(){
+  const name = await askBunkerPlanName();
+  if (name === null) return;
+  saveBunkerPlanToHistory(name);
   try{ showToast('Bunker plan saved'); }catch(_){}
 }
 
@@ -17461,6 +17543,7 @@ function bindBunkerPlanUi(){
   document.getElementById('btnBpPrint')?.addEventListener('click', printBunkerPlan);
   document.getElementById('btnBpPrintOnly')?.addEventListener('click', printBunkerPlanOnly);
   document.getElementById('btnBpSaveOnly')?.addEventListener('click', saveBunkerPlanOnly);
+  document.getElementById('bpHistorySearch')?.addEventListener('input', renderBunkerPlanHistory);
   document.getElementById('bp_voyageNo')?.addEventListener('change', ()=>{
     ensureBunkerPlan().voyageNo = document.getElementById('bp_voyageNo').value.trim();
     scheduleBunkerPlanSave();
@@ -18314,7 +18397,7 @@ const OPERATION_GROUPS = [
     'ARRIVAL - FINISHED ENGINE'
   ]},
   { label:'ECA', ops:[
-    'ECA - CHANGEOVER START', 'ECA - ENTRY', 'ECA - EXIT', 'ECA - CHANGEOVER COMPLETE'
+    'ECA - CHANGEOVER START', 'ECA - CHANGEOVER COMPLETE', 'ECA - ENTRY', 'ECA - DEPARTURE', 'ECA - EXIT'
   ]},
   { label:'Bunkering', ops:['BUNKERING', 'BUNKER SURVEY'] }
 ];
@@ -18361,6 +18444,37 @@ function buildOperationSelect(){
    anything prefills the form or opens an entry for editing. */
 buildOperationSelect();
 
+/* ECA position on the log entry: shown only when the operation is an ECA one. */
+const ECA_POS_IDS = ['in_ecaLatDeg','in_ecaLatMin','in_ecaLatHem','in_ecaLonDeg','in_ecaLonMin','in_ecaLonHem'];
+function ecaOperationNames(){
+  const g = OPERATION_GROUPS.find(x => x.label === 'ECA');
+  return g ? g.ops : [];
+}
+function refreshEcaPositionRow(){
+  const row = document.getElementById('inEcaPosRow');
+  const sel = document.getElementById('in_operation');
+  if (!row || !sel) return;
+  row.hidden = !ecaOperationNames().includes(canonicalOperation(sel.value));
+}
+function readEcaPositionFromForm(){
+  const sel = document.getElementById('in_operation');
+  if (!sel || !ecaOperationNames().includes(canonicalOperation(sel.value))) return null;
+  const v = id => (document.getElementById(id)?.value ?? '').toString().trim();
+  const pos = { latDeg: v('in_ecaLatDeg'), latMin: v('in_ecaLatMin'), latHem: v('in_ecaLatHem') || 'N',
+                lonDeg: v('in_ecaLonDeg'), lonMin: v('in_ecaLonMin'), lonHem: v('in_ecaLonHem') || 'E' };
+  return (pos.latDeg !== '' || pos.lonDeg !== '') ? pos : null;
+}
+function writeEcaPositionToForm(pos){
+  const p = pos || {};
+  const map = { in_ecaLatDeg:'latDeg', in_ecaLatMin:'latMin', in_ecaLatHem:'latHem', in_ecaLonDeg:'lonDeg', in_ecaLonMin:'lonMin', in_ecaLonHem:'lonHem' };
+  ECA_POS_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const def = id.endsWith('Hem') ? (id.includes('Lat') ? 'N' : 'E') : '';
+    el.value = p[map[id]] != null && p[map[id]] !== '' ? String(p[map[id]]) : def;
+  });
+}
+document.getElementById('in_operation')?.addEventListener('change', refreshEcaPositionRow);
+
 /**
  * Select an operation, adding it to the list first if it is one no longer offered.
  * Assigning a value a select has no option for silently blanks it, which on an old
@@ -18370,6 +18484,7 @@ function setOperationSelectValue(sel, op){
   if (!sel) return;
   const want = canonicalOperation(op);
   if (!want) return;
+  if (sel.id === 'in_operation') setTimeout(refreshEcaPositionRow, 0);
   if (![...sel.options].some(o => o.value === want)){
     let grp = sel.querySelector('optgroup[label="As Logged"]');
     if (!grp){
@@ -18388,7 +18503,7 @@ function setOperationSelectValue(sel, op){
 const SEA_TYPE_OPS = new Set([
   'START OF SEA PASSAGE', 'END OF SEA PASSAGE', 'NOON - AT SEA', 'NOON - DRIFTING',
   'CHANGE SPEED', 'DRIFTING - START', 'DRIFTING - END',
-  'ECA - CHANGEOVER START', 'ECA - ENTRY', 'ECA - EXIT', 'ECA - CHANGEOVER COMPLETE',
+  'ECA - CHANGEOVER START', 'ECA - CHANGEOVER COMPLETE', 'ECA - ENTRY', 'ECA - DEPARTURE', 'ECA - EXIT',
   /* No longer offered, still logged against older entries. */
   'DRIFTING', 'HEAVY WEATHER'
 ]);
@@ -21391,6 +21506,8 @@ function loadEntryIntoForm(id){
   document.getElementById('in_datetime').value = e.datetime;
   setShipTzUi(e.tzOffsetMin != null ? e.tzOffsetMin : defaultShipTzOffsetMin(), e.clockChangeMin);
   setOperationSelectValue(document.getElementById('in_operation'), e.operation);
+  writeEcaPositionToForm(e.ecaPosition);
+  refreshEcaPositionRow();
   document.getElementById('in_condition').value = normalizeCondition(e.condition);
   document.getElementById('in_distanceShip').value = e.distanceShip ?? 0;
   document.getElementById('in_rpm').value = e.rpm ?? '';
@@ -24665,7 +24782,7 @@ const VS_ME_ONLY_PANELS = ['vsReferenceBlock', 'vsRunBlock', 'vsEcaBlock', 'vsMe
 /* Changeover is only recorded crossing an ECA boundary, so the block is shown on
    those legs alone — and on any older entry that already carries changeover data,
    which must stay correctable. */
-const ECA_OPS = new Set(['ECA - CHANGEOVER START', 'ECA - ENTRY', 'ECA - EXIT', 'ECA - CHANGEOVER COMPLETE']);
+const ECA_OPS = new Set(['ECA - CHANGEOVER START', 'ECA - CHANGEOVER COMPLETE', 'ECA - ENTRY', 'ECA - DEPARTURE', 'ECA - EXIT']);
 function entryHasEcaData(entry){
   const eca = entry?.report?.eca;
   if (!eca) return false;
@@ -26526,6 +26643,7 @@ async function saveLogEntryFromForm(opts){
     tzOffsetMin: formTzOffsetMin(),
     clockChangeMin: formClockChangeMin(),
     operation: canonicalOperation(document.getElementById('in_operation').value),
+    ecaPosition: readEcaPositionFromForm(),
     condition: normalizeCondition(document.getElementById('in_condition').value),
     distanceShip: parseFloat(document.getElementById('in_distanceShip').value)||0,
     rpm: document.getElementById('in_rpm').value===''? null : parseFloat(document.getElementById('in_rpm').value),
@@ -26764,6 +26882,7 @@ document.getElementById('btnClearForm').addEventListener('click', ()=>{
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('in_datetime').value = now.toISOString().slice(0,16);
   document.getElementById('in_distanceShip').value = '0';
+  writeEcaPositionToForm(null);
   ['in_rpm','in_revCounter','me_meter','ge_meter','me_meter_in','me_meter_out','ge_meter_in','ge_meter_out',
    'blr_meter','me_runtime','cyl_meter','in_rpm_display','in_fwProd','in_fwRob','in_fwProdD','in_fwConsD','in_fwTotalRob'].forEach(id=>{
     const el = document.getElementById(id); if (el) el.value='';

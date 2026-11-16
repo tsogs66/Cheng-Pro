@@ -46,6 +46,12 @@
 
   function stagesFor(kind) { return kind === 'eu' ? EU_STAGES : ECA_STAGES; }
 
+  /* The voyage log operation that each ECA stage is taken from. */
+  var ECA_STAGE_OPS = {
+    1: 'ECA - CHANGEOVER START', 2: 'ECA - CHANGEOVER COMPLETE', 3: 'ECA - ENTRY',
+    4: 'ECA - DEPARTURE', 5: 'ECA - EXIT'
+  };
+
   function num(v) {
     if (v == null || v === '') return null;
     var n = Number(v);
@@ -408,6 +414,7 @@
       if (utcHm) dt += utcHm + ' H UTC<br>';
       if (utcDate || st.dateLT) dt += (utcDate && utcDate !== formatDateUpper(st.dateLT) ? formatDateUpper(st.dateLT) : (utcDate || formatDateUpper(st.dateLT))) + '<br>';
       if (pos.text) dt += 'POS<br>' + esc(pos.lat) + '<br>' + esc(pos.lon);
+      if (kind === 'eca' && st.totalCons != null) dt += '<br>CONS ' + esc(fmt(st.totalCons)) + ' MT';
       var cells = cols.map(function (col) {
         var v = robOf(st, col);
         return '<td>' + (v == null ? '' : esc(fmt(v)) + ' MT') + '</td>';
@@ -455,6 +462,9 @@
   var CSS =
     '.fcl-ui .fcl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:6px 0;}' +
     '.fcl-ui .fcl-stage{border:1px solid var(--line,#3a4a5a);border-radius:6px;padding:10px;margin:10px 0;}' +
+    '.fcl-ui .fcl-loginfo{font-size:13px;margin:4px 0 8px;opacity:.95;}' +
+    '.fcl-ui .fcl-nolog{font-size:12px;opacity:.75;align-self:center;}' +
+    '.fcl-ui .fcl-logrow select{min-width:0;max-width:100%;flex:1 1 220px;}' +
     '.fcl-ui .fcl-stage h4{margin:0 0 6px;font-size:14px;}' +
     '.fcl-ui .fcl-stage small{display:block;opacity:.75;margin-bottom:6px;}' +
     '.fcl-ui .fcl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:10px;}' +
@@ -505,6 +515,43 @@
       }).join('') + '</div>';
     }
 
+    var logList = [];
+    function logChoices(no) {
+      return logList.filter(function (x) { return x.operation === ECA_STAGE_OPS[no]; });
+    }
+    function logLabel(x) {
+      return x.date + ' ' + x.time + (x.totalCons == null ? '' : ' · ' + fmt(x.totalCons) + ' MT');
+    }
+    /** Copy a log entry's time, position and total consumption into a stage. */
+    function applyLogEntry(st, x) {
+      st.logEntryId = x.id;
+      st.dateLT = x.date; st.timeLT = x.time; st.offsetMin = x.offsetMin;
+      if (x.position) {
+        ['latDeg', 'latMin', 'latHem', 'lonDeg', 'lonMin', 'lonHem'].forEach(function (k) {
+          if (x.position[k] != null && x.position[k] !== '') st[k] = x.position[k];
+        });
+      }
+      st.reportAt = x.date + ' ' + x.time;
+      st.totalCons = x.totalCons;
+    }
+    function logInfoHtml(rec, st, def) {
+      if (rec.kind === 'eu' || !api.logEntries) return '';
+      var opts = logChoices(def.no);
+      var linked = logList.filter(function (x) { return x.id === st.logEntryId; })[0];
+      var live = linked ? linked.totalCons : st.totalCons;
+      var sel = opts.length
+        ? '<select data-fcl-logpick aria-label="Log entry for this stage">' + opts.map(function (x) {
+            return '<option value="' + esc(x.id) + '"' + (x.id === (st.logEntryId || opts[0].id) ? ' selected' : '') + '>' + esc(logLabel(x)) + '</option>';
+          }).join('') + '</select>' +
+          '<button type="button" class="ghost small" data-fcl-act="fetchlog">Fetch from log entry</button>'
+        : '<span class="fcl-nolog">No “' + esc(ECA_STAGE_OPS[def.no]) + '” entry in the voyage log yet.</span>';
+      var info = (st.reportAt
+        ? '<div class="fcl-loginfo">Report <b>' + esc(st.reportAt) + '</b> · total consumption <b>' +
+          (live == null ? '—' : esc(fmt(live)) + ' MT') + '</b></div>'
+        : '');
+      return '<div class="fcl-row fcl-logrow">' + sel + '</div>' + info;
+    }
+
     function stageHtml(rec, def) {
       var st = (rec.stages || []).filter(function (s) { return s.no === def.no; })[0];
       if (!st) { st = blankStage(def.no, ctxNew()); rec.stages.push(st); }
@@ -512,6 +559,7 @@
       var utc = utcFromLocal(st.dateLT, st.timeLT, st.offsetMin);
       return '<div class="fcl-stage" data-fcl-stage="' + def.no + '"><h4>' + def.no + '. ' + esc(def.label) + '</h4>' +
         (def.note ? '<small>' + esc(def.note) + '</small>' : '') +
+        logInfoHtml(rec, st, def) +
         '<div class="fcl-grid">' +
         '<div class="field"><label>Date (local)</label><input type="date" data-fcl="dateLT" value="' + esc(st.dateLT) + '"></div>' +
         '<div class="field"><label>Time (local)</label><input type="time" data-fcl="timeLT" value="' + esc(st.timeLT) + '"></div>' +
@@ -540,6 +588,7 @@
       if (!selectedId && list.length) selectedId = list[0].id;
       var rec = current();
       var tanks = api.tanks();
+      logList = (rec && rec.kind !== 'eu' && api.logEntries) ? (api.logEntries() || []) : [];
       var names = ((tanks.distillate) || []).map(function (t) { return t.name; });
       var h = '<div class="fcl-row">' +
         '<button type="button" class="primary small" data-fcl-act="new-eca">New ECA record</button>' +
@@ -561,6 +610,10 @@
         '<div class="field"><label>Revision No.</label><input data-fcl-form="revision" value="' + esc((rec.form && rec.form.revision) || '') + '"></div>' +
         '<div class="field"><label>Date effective</label><input data-fcl-form="effective" value="' + esc((rec.form && rec.form.effective) || '') + '"></div></div>' +
         '<label style="display:flex;gap:6px;align-items:center;margin:8px 0;"><input type="checkbox" data-fcl-act="resid"' + (includeResidual ? ' checked' : '') + '> Show residual (non-compliant) tanks as well</label>';
+      if (kind === 'eca' && api.logEntries) {
+        h += '<div class="fcl-row"><button type="button" class="ghost small" data-fcl-act="fetchall">Fetch all stages from the voyage log</button>' +
+          '<span class="fcl-nolog">Takes the time, position and total consumption of each ECA report in the log.</span></div>';
+      }
       h += stagesFor(kind).map(function (d) { return stageHtml(rec, d); }).join('');
       h += warnings.length
         ? warnings.map(function (w) { return '<div class="fcl-warn ' + w.level + '" role="alert">⚠ ' + esc(w.msg) + '</div>'; }).join('')
@@ -592,6 +645,11 @@
       }
       var st = stageOf(rec, el);
       if (!st) return;
+      if (el.hasAttribute('data-fcl-logpick')) {
+        var pick = logList.filter(function (x) { return x.id === el.value; })[0];
+        if (pick) { applyLogEntry(st, pick); persist(rec); render(); }
+        return;
+      }
       if (el.hasAttribute('data-fcl-rob')) {
         var id = el.getAttribute('data-fcl-rob');
         var other = el.getAttribute('data-fcl-grp') === 'other';
@@ -632,8 +690,23 @@
         selectedId = keep.length ? keep[0].id : null;
         api.save(keep); render(); return;
       }
+      if (act === 'fetchall') {
+        logList = api.logEntries ? (api.logEntries() || []) : [];
+        rec.stages.forEach(function (s) {
+          var c = logChoices(s.no)[0];
+          if (c) applyLogEntry(s, c);
+        });
+        persist(rec); render(); return;
+      }
       var st = stageOf(rec, btn);
       if (!st) return;
+      if (act === 'fetchlog') {
+        var box = btn.closest('[data-fcl-stage]');
+        var selEl = box ? box.querySelector('[data-fcl-logpick]') : null;
+        var chosen = logList.filter(function (x) { return selEl && x.id === selEl.value; })[0];
+        if (chosen) { applyLogEntry(st, chosen); persist(rec); render(); }
+        return;
+      }
       if (act === 'now') {
         var d = new Date();
         var off = st.offsetMin != null ? st.offsetMin : 0;
