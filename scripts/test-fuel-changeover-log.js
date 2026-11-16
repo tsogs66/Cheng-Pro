@@ -48,13 +48,13 @@ check('residual tanks only when asked', L.tankColumns(tanks, rec, { includeResid
 
 console.log('\nthe printed log');
 const html = L.buildLogHtml(rec, { vessel: { name: 'M/V FLAG EVI', imo: '9619799', company: 'GOLDEN UNION SHIPPING CO. S.A.' }, tanks });
-ok('company form heading', html.indexOf('APPENDIX VI') !== -1 && html.indexOf('Fuel Changeover Regulation Log Book') !== -1);
-ok('ship and IMO', html.indexOf("Ship's Name: M/V FLAG EVI") !== -1 && html.indexOf('IMO Number: 9619799') !== -1);
-ok('stage 1 times and position as the form writes them', html.indexOf('2148 H LT') !== -1 && html.indexOf('1348 H UTC') !== -1 && html.indexOf('LAT.30°-11.5 N') !== -1 && html.indexOf('LONG.123°-20.7 E') !== -1);
-ok('every tank is a column with its quantity', html.indexOf('MDO SETTL. TANK') !== -1 && html.indexOf('18.4 MT') !== -1);
-ok('all five stages', [1, 2, 3, 4, 5].every(n => html.indexOf('>' + n + '. ') !== -1));
-ok('signature column', html.indexOf('J.R. SOLUTA') !== -1 && html.indexOf('Signature of officer in charge') !== -1);
-ok('the form footer', html.indexOf('Revision No.') !== -1 && html.indexOf('Date effective') !== -1);
+ok('own heading, not the company form', html.indexOf('Fuel Changeover Log') !== -1 && html.indexOf('APPENDIX VI') === -1);
+ok('ship and IMO', html.indexOf('M/V FLAG EVI') !== -1 && html.indexOf('9619799') !== -1);
+ok('stage 1 times and position', html.indexOf('2148 h') !== -1 && html.indexOf('1348 h') !== -1 && html.indexOf('30° 11.5′ N') !== -1 && html.indexOf('123° 20.7′ E') !== -1);
+ok('every tank is a column with its quantity', html.indexOf('MDO SETTL. TANK') !== -1 && html.indexOf('>18.4<') !== -1);
+ok('all five stages', [1, 2, 3, 4, 5].every(n => html.indexOf('<b>' + n + '</b>') !== -1));
+ok('signature column', html.indexOf('J.R. SOLUTA') !== -1 && html.indexOf('Officer in charge') !== -1);
+ok('the form footer appears only when its fields are filled', html.indexOf('Revision') === -1);
 const eu = L.newRecord('eu', {});
 check('EU berth record has four stages', L.buildLogHtml(eu, { tanks }).match(/<td class="st">/g).length, 4);
 ok('EU note mentions the directive', L.buildLogHtml(eu, { tanks }).indexOf('Directive 2005/33/EC') !== -1);

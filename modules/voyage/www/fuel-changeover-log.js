@@ -355,28 +355,47 @@
   /* ----------------------------------------------------------------- print */
 
   var PRINT_CSS =
-    '.fcl{font-family:Calibri,Arial,Helvetica,sans-serif;color:#111;font-size:11pt;}' +
-    '.fcl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6mm;}' +
-    '.fcl-co{font-weight:700;font-style:italic;font-size:13pt;}' +
-    '.fcl-ref{font-style:italic;font-size:10pt;text-align:right;}' +
-    '.fcl-title{text-align:center;font-weight:700;font-size:15pt;line-height:1.25;margin:2mm 0 3mm;}' +
-    '.fcl-ship{display:flex;justify-content:space-between;font-weight:700;font-size:13pt;margin-bottom:1mm;}' +
-    '.fcl-note{font-style:italic;font-size:9pt;margin-bottom:2mm;}' +
-    '.fcl table{width:100%;border-collapse:collapse;table-layout:fixed;}' +
-    '.fcl th,.fcl td{border:1px solid #333;padding:2mm 1.4mm;vertical-align:middle;text-align:center;font-size:9.5pt;word-wrap:break-word;}' +
-    '.fcl th{background:#d9d9d9;font-weight:700;}' +
-    '.fcl td.st{text-align:left;font-weight:700;background:#ececec;}' +
-    '.fcl td.st small{display:block;font-weight:400;font-size:8pt;margin-top:1mm;}' +
-    '.fcl td.dt{text-align:left;font-size:9pt;line-height:1.35;}' +
-    '.fcl td.sg{font-size:9pt;line-height:1.3;}' +
-    '.fcl th small{display:block;font-weight:400;font-size:7.5pt;margin-top:.6mm;}' +
-    '.fcl-sub{font-weight:700;margin:3mm 0 1mm;font-size:9.5pt;}' +
-    '.fcl-rule{font-weight:700;font-size:10pt;margin:3mm 0 0;}' +
-    '.fcl-foot{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:3mm;margin-top:4mm;font-size:8.5pt;border-top:1px solid #333;padding-top:1.6mm;}' +
-    '.fcl-foot b{display:block;font-weight:400;font-size:7.5pt;color:#444;}' +
-    '.fcl-sig{width:20mm;max-height:9mm;display:block;margin:0 auto 1mm;}';
+    '.fcl{color:#0a1420;font-size:10px;}' +
+    '.fcl-step{color:#0a1420;}' +
+    '.fcl-line{display:flex;gap:2mm;align-items:stretch;margin:0 0 2mm;}' +
+    '.fcl-line .fcl-step{flex:1 1 0;min-width:0;text-align:center;position:relative;padding:1.6mm 1mm 1.4mm;background:#f7f9fc;border:1px solid #d4dce8;border-top:2px solid #2a6b7a;}' +
+    '.fcl-line .fcl-step.empty{border-top-color:#c5cdd8;color:#8a95a6;}' +
+    '.fcl-step .n{display:inline-block;width:5mm;height:5mm;line-height:5mm;border-radius:50%;background:#122238;color:#fff;font-family:Oswald,sans-serif;font-size:9px;font-weight:600;}' +
+    '.fcl-step.empty .n{background:#c5cdd8;}' +
+    '.fcl-step .nm{display:block;font-family:Oswald,sans-serif;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em;color:#122238;margin:1mm 0 .6mm;line-height:1.15;}' +
+    '.fcl-step .tm{display:block;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;}' +
+    '.fcl-step .dd{display:block;font-size:8.5px;color:#5a6578;}' +
+    '.fcl-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px;}' +
+    '.fcl-tbl th{background:#122238;color:#fff;font-family:Oswald,sans-serif;font-weight:500;text-transform:uppercase;letter-spacing:.03em;padding:1mm .8mm;border:1px solid #122238;font-size:9px;text-align:center;}' +
+    '.fcl-tbl th.grp{background:#2a6b7a;border-color:#2a6b7a;}' +
+    '.fcl-tbl th.grp.other{background:#7a5a2a;border-color:#7a5a2a;}' +
+    '.fcl-tbl th small{display:block;font-weight:400;font-size:7.5px;opacity:.85;letter-spacing:0;text-transform:none;}' +
+    '.fcl-tbl td{color:#0a1420;padding:1.2mm .9mm;border:1px solid #d4dce8;text-align:center;vertical-align:middle;font-family:"IBM Plex Mono",monospace;word-wrap:break-word;overflow-wrap:anywhere;}' +
+    '.fcl-tbl tr:nth-child(even) td{background:#f7f9fc;}' +
+    '.fcl-tbl td.st{white-space:normal;overflow-wrap:break-word;text-align:left;font-family:Inter,Arial,sans-serif;font-weight:600;color:#122238;}' +
+    '.fcl-tbl td.st b{display:inline-block;min-width:4.4mm;margin-right:1mm;padding:0 1mm;border-radius:2px;background:#122238;color:#fff;font-family:Oswald,sans-serif;font-size:9px;text-align:center;}' +
+    '.fcl-tbl td.st small{display:block;font-weight:400;font-size:8px;color:#5a6578;margin-top:.6mm;}' +
+    '.fcl-tbl td.dt,.fcl-tbl td.ps{text-align:left;line-height:1.35;font-size:9px;}' +
+    '.fcl-tbl td.dt b,.fcl-tbl td.ps b{font-weight:600;}' +
+    '.fcl-tbl td.dt i,.fcl-tbl td.ps i{font-style:normal;display:inline-block;min-width:7mm;color:#5a6578;font-size:8px;text-transform:uppercase;letter-spacing:.05em;}' +
+    '.fcl-tbl td.cs{font-weight:600;}' +
+    '.fcl-tbl td.sg{font-family:Inter,Arial,sans-serif;font-size:9px;line-height:1.3;}' +
+    '.fcl-tbl td.na{color:#aab3c0;}' +
+    '.fcl-sig{width:20mm;max-height:9mm;display:block;margin:0 auto 1mm;}' +
+    '.fcl-basis{margin:2mm 0 0;padding:1.4mm 2mm;border-left:2px solid #2a6b7a;background:#f7f9fc;font-size:9px;color:#33415a;}' +
+    '.fcl-basis b{color:#122238;}' +
+    '.fcl-fine{margin-top:2mm;font-size:8.5px;color:#5a6578;display:flex;flex-wrap:wrap;gap:1mm 5mm;}' +
+    '.fcl-fine b{color:#122238;font-weight:600;}' +
+    '.fcl-note{font-size:9px;color:#33415a;margin:2mm 0 0;}';
 
-  /** The log page for one record, in the company's layout. ctx: vessel, tanks, form, signature(name)->dataUrl, signatoryHtml. */
+  /** "30°-11.5′ N" for one axis, '' when the degrees are empty. */
+  function posAxis(deg, min, hem, def) {
+    if (deg == null || deg === '') return '';
+    return String(deg).trim() + '° ' + (min == null || min === '' ? '00.0' : String(min).trim()) + '′ ' + (hem || def);
+  }
+
+  /** The log page for one record, in the program's own print style.
+   *  ctx: vessel, tanks, signature(name)->dataUrl, signatoryHtml, docHeader(opts)->html, metaGrid(cells, cols)->html. */
   function buildLogHtml(record, ctx) {
     var c = ctx || {};
     var rec = record || newRecord('eca', {});
@@ -388,63 +407,115 @@
     var other = cols.filter(function (x) { return x.group === 'other'; });
     var defs = stagesFor(kind);
     var nCols = Math.max(1, cols.length);
-    var stageW = 17, dateW = 17, sigW = 15;
-    var tankW = Math.max(6, Math.floor((100 - stageW - dateW - sigW) / nCols * 10) / 10);
+    var withCons = kind === 'eca';
+    var stageW = 19, dtW = 15, posW = 14, consW = withCons ? 8 : 0, sigW = 13;
+    var tankW = Math.max(5, Math.floor((100 - stageW - dtW - posW - consW - sigW) / nCols * 10) / 10);
+
+    /* Printed wording: shorter than the entry screen's, same five steps. */
+    var PRINT_LABEL = {
+      eca: [['Changeover commenced', 'HFO valve closed'], ['Changeover completed', 'Compliant fuel in service before the boundary'],
+            ['Entered ECA', ''], ['Departed ECA', ''], ['After departure', 'Not before the ship is clear of the area']],
+      eu: [['Arrived at berth — changeover commenced', 'As soon as possible after arrival'], ['Changeover completed', 'Compliant fuel (0.10 % S) in use at berth'],
+           ['Change back commenced', 'As late as possible before departure'], ['Change back completed / departed berth', '']]
+    }[kind];
+
+    function stageOf(def) {
+      return (rec.stages || []).filter(function (s) { return s.no === def.no; })[0] || blankStage(def.no, {});
+    }
+    function when(st) {
+      var utc = utcFromLocal(st.dateLT, st.timeLT, st.offsetMin);
+      return {
+        lt: st.timeLT ? hhmm(st.timeLT) : '',
+        utc: utc ? (utc.slice(11, 13) + utc.slice(14, 16)) : '',
+        date: st.dateLT ? formatDateUpper(st.dateLT) : ''
+      };
+    }
+
+    /* A strip along the top: where the ship was in the passage, stage by stage. */
+    function timeline() {
+      var short = {
+        eca: ['Changeover start', 'Changeover complete', 'Entry into ECA', 'Departure from ECA', 'After departure'],
+        eu: ['Arrival', 'Compliant fuel in use', 'Change back start', 'Change back done']
+      }[kind];
+      return '<div class="fcl-line">' + defs.map(function (def, i) {
+        var st = stageOf(def), w = when(st);
+        return '<div class="fcl-step' + (w.lt ? '' : ' empty') + '"><span class="n">' + def.no + '</span>' +
+          '<span class="nm">' + esc(short[i] || def.label) + '</span>' +
+          '<span class="tm">' + (w.lt ? esc(w.lt) + ' LT' : '—') + '</span>' +
+          '<span class="dd">' + esc(w.date || '') + '</span></div>';
+      }).join('') + '</div>';
+    }
 
     function head() {
+      var span = (compliant.length ? 1 : 0) + (other.length ? 1 : 0);
       var top = '<tr><th rowspan="2" style="width:' + stageW + '%">Stage</th>' +
-        '<th rowspan="2" style="width:' + dateW + '%">Date, Time and Position</th>';
-      if (compliant.length) top += '<th colspan="' + compliant.length + '">ROB of compliant Fuel Oil (SO 0.1%) per Tank</th>';
-      if (other.length) top += '<th colspan="' + other.length + '">ROB of non-compliant fuel per Tank</th>';
-      top += '<th rowspan="2" style="width:' + sigW + '%">Signature of officer in charge of fuel Changeover Operation</th></tr>';
+        '<th rowspan="2" style="width:' + dtW + '%">Date &amp; time</th>' +
+        '<th rowspan="2" style="width:' + posW + '%">Position</th>' +
+        (withCons ? '<th rowspan="2" style="width:' + consW + '%">Total cons.<small>MT</small></th>' : '');
+      if (compliant.length) top += '<th class="grp" colspan="' + compliant.length + '">Compliant fuel (0.10 % S) in tanks — MT</th>';
+      if (other.length) top += '<th class="grp other" colspan="' + other.length + '">Non-compliant fuel in tanks — MT</th>';
+      top += '<th rowspan="2" style="width:' + sigW + '%">Officer in charge</th></tr>';
       var tanksRow = '<tr>' + cols.map(function (col) {
-        return '<th style="width:' + tankW + '%">' + esc(col.name) + (col.note ? '<small>' + esc(col.note) + '</small>' : '') + '<small>MT</small></th>';
+        return '<th style="width:' + tankW + '%">' + esc(col.name) + (col.note ? '<small>' + esc(col.note) + '</small>' : '') + '</th>';
       }).join('') + '</tr>';
       return '<thead>' + top + tanksRow + '</thead>';
     }
 
     function rowFor(def) {
-      var st = (rec.stages || []).filter(function (s) { return s.no === def.no; })[0] || blankStage(def.no, {});
-      var pos = formatPosition(st);
-      var utc = utcFromLocal(st.dateLT, st.timeLT, st.offsetMin);
-      var utcHm = utc ? (utc.slice(11, 13) + utc.slice(14, 16)) : '';
-      var utcDate = utc ? formatDateUpper(utc.slice(0, 10)) : '';
-      var dt = '';
-      if (st.timeLT) dt += hhmm(st.timeLT) + ' H LT<br>';
-      if (utcHm) dt += utcHm + ' H UTC<br>';
-      if (utcDate || st.dateLT) dt += (utcDate && utcDate !== formatDateUpper(st.dateLT) ? formatDateUpper(st.dateLT) : (utcDate || formatDateUpper(st.dateLT))) + '<br>';
-      if (pos.text) dt += 'POS<br>' + esc(pos.lat) + '<br>' + esc(pos.lon);
-      if (kind === 'eca' && st.totalCons != null) dt += '<br>CONS ' + esc(fmt(st.totalCons)) + ' MT';
+      var st = stageOf(def);
+      var w = when(st);
+      var lat = posAxis(st.latDeg, st.latMin, st.latHem, 'N');
+      var lon = posAxis(st.lonDeg, st.lonMin, st.lonHem, 'E');
+      var dt = (w.date ? '<b>' + esc(w.date) + '</b><br>' : '') +
+        (w.lt ? '<i>LT</i> ' + esc(w.lt) + ' h<br>' : '') +
+        (w.utc ? '<i>UTC</i> ' + esc(w.utc) + ' h' : '');
+      var ps = (lat || lon) ? ('<i>Lat</i> ' + esc(lat || '—') + '<br><i>Long</i> ' + esc(lon || '—')) : '';
       var cells = cols.map(function (col) {
         var v = robOf(st, col);
-        return '<td>' + (v == null ? '' : esc(fmt(v)) + ' MT') + '</td>';
+        return v == null ? '<td class="na">—</td>' : '<td>' + esc(fmt(v)) + '</td>';
       }).join('');
       var sig = '';
-      if (st.signName || st.signRank) {
+      var filled = !!(st.dateLT || st.timeLT || Object.keys(st.rob || {}).length || Object.keys(st.resid || {}).length);
+      if (filled && (st.signName || st.signRank)) {
         var img = c.signature ? c.signature(st.signName) : '';
         sig = (img ? '<img class="fcl-sig" src="' + esc(img) + '" alt="">' : '') +
-          esc(st.signRank || '') + '<br>' + esc(st.signName || '');
+          esc(st.signRank || '') + '<br><b>' + esc(st.signName || '') + '</b>';
       }
-      return '<tr><td class="st">' + def.no + '. ' + esc(def.label) + (def.note ? '<small>*(' + esc(def.note) + ')</small>' : '') + '</td>' +
-        '<td class="dt">' + dt + '</td>' + (cells || '<td></td>') + '<td class="sg">' + sig + '</td></tr>';
+      var pl = PRINT_LABEL[def.no - 1] || [def.label, def.note];
+      return '<tr><td class="st"><b>' + def.no + '</b>' + esc(pl[0]) + (pl[1] ? '<small>' + esc(pl[1]) + '</small>' : '') + '</td>' +
+        '<td class="dt">' + (dt || '') + '</td>' +
+        '<td class="ps">' + ps + '</td>' +
+        (withCons ? (st.totalCons != null ? '<td class="cs">' + esc(fmt(st.totalCons)) + '</td>' : '<td class="na">—</td>') : '') +
+        (cells || '<td class="na">—</td>') + '<td class="sg">' + sig + '</td></tr>';
     }
 
-    var title = (kind === 'eu' ? 'Fuel Changeover Regulation Log Book — EU Port' : 'Fuel Changeover Regulation Log Book');
-    var sub = rec.title ? '<div class="fcl-note" style="text-align:center;font-style:normal;font-weight:700;">' + esc(rec.title) + '</div>' : '';
-    return '<style>' + PRINT_CSS + '</style><div class="fcl">' +
-      '<div class="fcl-head"><div class="fcl-co">' + esc(form.company || vessel.company || '') + '</div>' +
-      '<div class="fcl-ref">Requirements &amp; Implementation<br>of Annex VI of Marpol 73/78</div></div>' +
-      '<div class="fcl-title">APPENDIX VI<br>' + esc(title) + '</div>' + sub +
-      '<div class="fcl-ship"><span>Ship\'s Name: ' + esc(vessel.name || '') + '</span><span>IMO Number: ' + esc(vessel.imo || '') + '</span></div>' +
-      '<div class="fcl-note"><b>Note:</b> ' + esc(NOTE[kind]) + '</div>' +
-      '<table>' + head() + '<tbody>' + defs.map(rowFor).join('') + '</tbody></table>' +
-      '<div class="fcl-rule">NOTE: AT EACH STAGE FILL IN THE RESPECTIVE CELLS WITH THE QUANTITY OF LS MGO IN EACH TANK ACCORDING TO YOUR SHIP\'S TANK ARRANGEMENT</div>' +
-      (c.signatoryHtml ? c.signatoryHtml : '') +
-      '<div class="fcl-foot"><div>Sulphur Oxide: Marpol 73/78 Annex VI Reg. 14 – change over procedures.</div>' +
-      '<div><b>Prepared by</b>' + esc(form.preparedBy || '') + '</div>' +
-      '<div><b>Approved by</b>' + esc(form.approvedBy || '') + '</div>' +
-      '<div><b>Revision No.</b>' + esc(form.revision || '') + '</div>' +
-      '<div><b>Date effective</b>' + esc(form.effective || '') + '</div></div></div>';
+    var title = kind === 'eu' ? 'Fuel Changeover Log — EU Port' : 'Fuel Changeover Log — ECA Passage';
+    var sub = kind === 'eu' ? 'Directive 2005/33/EC as amended — compliant fuel at berth' : 'MARPOL Annex VI Reg. 14.6 — sulphur-compliant fuel changeover';
+    var header = c.docHeader
+      ? c.docHeader({ title: title, subtitle: sub, badge: kind === 'eu' ? 'EU' : 'ECA' })
+      : '<div style="border-bottom:1.5px solid #122238;margin-bottom:2mm;"><b style="font-family:Oswald,sans-serif;text-transform:uppercase;font-size:14px;color:#122238;">' + esc(title) + '</b><div style="font-size:9px;color:#5a6578;">' + esc(sub) + '</div></div>';
+    var metaCells = [
+      { label: 'Vessel', value: esc(vessel.name || '—') },
+      { label: 'IMO No.', value: esc(vessel.imo || '—') },
+      { label: kind === 'eu' ? 'Port / berth' : 'ECA / area', value: esc(rec.title || '—') },
+      { label: 'Company', value: esc(form.company || vessel.company || '—') }
+    ];
+    var meta = c.metaGrid ? c.metaGrid(metaCells, 4)
+      : '<div class="fcl-fine">' + metaCells.map(function (m) { return '<span><b>' + m.label + ':</b> ' + m.value + '</span>'; }).join('') + '</div>';
+
+    var fine = [];
+    if (form.preparedBy) fine.push('<span><b>Prepared by</b> ' + esc(form.preparedBy) + '</span>');
+    if (form.approvedBy) fine.push('<span><b>Approved by</b> ' + esc(form.approvedBy) + '</span>');
+    if (form.revision) fine.push('<span><b>Revision</b> ' + esc(form.revision) + '</span>');
+    if (form.effective) fine.push('<span><b>Effective</b> ' + esc(form.effective) + '</span>');
+
+    return '<style>' + PRINT_CSS + '</style><div class="fcl">' + header + meta + timeline() +
+      '<table class="fcl-tbl">' + head() + '<tbody>' + defs.map(rowFor).join('') + '</tbody></table>' +
+      '<div class="fcl-basis"><b>Basis.</b> ' + esc(NOTE[kind]) +
+      ' Quantities are the compliant fuel held in each tank at that stage, from the tank soundings' +
+      (withCons ? '; total consumption is the ship’s fuel burned in the log report made at that stage.' : '.') + '</div>' +
+      (fine.length ? '<div class="fcl-fine">' + fine.join('') + '</div>' : '') +
+      (c.signatoryHtml ? c.signatoryHtml : '') + '</div>';
   }
 
   /** Planned against actual, as a short block under the log. */
@@ -503,7 +574,8 @@
     }
     function printCtx() {
       return { vessel: api.vessel(), tanks: api.tanks(), includeResidual: includeResidual,
-        signature: api.signature, signatoryHtml: api.signatoryHtml ? api.signatoryHtml() : '' };
+        signature: api.signature, signatoryHtml: api.signatoryHtml ? api.signatoryHtml() : '',
+        docHeader: api.docHeader, metaGrid: api.metaGrid };
     }
 
     function tankInputs(stage, cols) {

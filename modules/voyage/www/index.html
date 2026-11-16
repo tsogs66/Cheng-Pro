@@ -5203,6 +5203,10 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
           <button class="ghost small" type="button" data-orb-tank-add="slop">+ Slop tank</button>
           <button class="ghost small" type="button" data-orb-tank-add="cbt">+ CBT</button>
         </div>
+        <div class="btn-row" id="orbTankImportRow" hidden>
+          <button class="primary small" type="button" id="btnOrbImportTanks">Get fuel &amp; lube oil tanks from Tank Chief</button>
+          <span class="hint" id="orbTankImportNote">Name, capacity, frame no. (if Tank Chief has one), ROB and — for fuel — residual or distillate.</span>
+        </div>
       </div>
       <div class="panel">
         <h2>Engine Officers</h2>
@@ -16255,6 +16259,8 @@ function changeoverLogApi(){
     vessel: ()=>({ name: state.setup.vesselName || '', imo: state.setup.imoNo || '', company: state.setup.company || '' }),
     tanks: changeoverTanks,
     logEntries: changeoverLogEntries,
+    docHeader: (o)=> printDocHeader(o),
+    metaGrid: (cells, cols)=> printMetaGrid(cells, cols),
     defaultOffsetMin: ()=> defaultShipTzOffsetMin(),
     officer: ()=>({ name: (typeof currentChEngName === 'function' ? currentChEngName() : '') || '', rank: 'C/E' }),
     signature: (name)=> (typeof signatureForChEng === 'function' ? (signatureForChEng(name) || '') : ''),
@@ -34306,6 +34312,8 @@ function orbDraftSignatoryExtras(draftEntry, setup, weekly){
 function renderOrbTankEditors(){
   const host = document.getElementById('orbTankEditors');
   if (!host || !window.EORB) return;
+  const impRow = document.getElementById('orbTankImportRow');
+  if (impRow){ try{ impRow.hidden = !isChengAioEmbedded(); }catch(_){ impRow.hidden = true; } }
   const setup = orbSetup();
   const groups = [
     ['sludge','Sludge / oil residue tanks (IOPP 3.1) — weekly C.11'],
@@ -34436,6 +34444,7 @@ function readOrbSetupFromForm(){
     if (key === 'fuel' && (fuelService === 'distillate' || fuelService === 'residual')) {
       rec.fuelService = fuelService;
     }
+    if (prev.tankChiefId) rec.tankChiefId = prev.tankChiefId;
     tanks[key].push(rec);
   });
   setup.tanks = tanks;
@@ -35382,6 +35391,66 @@ document.getElementById('btnOrbPrefillFromVessel')?.addEventListener('click', ()
   fillOrbSetupForm();
   alert('Prefilled ship name / IMO / C/E (and fuel tanks if empty) from ' + APP_NAME + ' setup.');
 });
+/* ---- Fuel and lube oil tanks from Tank Chief (ChEng AIO only) ---- */
+(function(){
+  const row = document.getElementById('orbTankImportRow');
+  const btn = document.getElementById('btnOrbImportTanks');
+  if (!row || !btn) return;
+  const embedded = ()=>{ try{ return typeof isChengAioEmbedded === 'function' && isChengAioEmbedded(); }catch(_){ return false; } };
+  row.hidden = !embedded();
+  let waiting = null;
+  function merge(list, incoming, withService){
+    const stats = { updated: 0, added: 0 };
+    incoming.forEach(t=>{
+      const nameKey = String(t.name || '').trim().toLowerCase();
+      let hit = list.find(x => x.tankChiefId && x.tankChiefId === t.id)
+             || list.find(x => !x.tankChiefId && String(x.name || '').trim().toLowerCase() === nameKey);
+      const fields = {
+        name: t.name || (hit && hit.name) || 'Tank',
+        capacityM3: t.capacityM3 != null ? t.capacityM3 : (hit ? hit.capacityM3 : null),
+        robM3: t.robM3 != null ? t.robM3 : (hit && hit.robM3 != null ? hit.robM3 : 0),
+        frameNo: t.frameNo || (hit && hit.frameNo) || '',
+        tankChiefId: t.id
+      };
+      if (withService && t.fuelService) fields.fuelService = t.fuelService;
+      if (hit){ Object.assign(hit, fields); stats.updated++; }
+      else { list.push(Object.assign({ id: (withService ? 'fuel_' : 'lube_') + uid() }, fields)); stats.added++; }
+    });
+    return stats;
+  }
+  btn.addEventListener('click', ()=>{
+    if (!embedded()){ alert('This button works inside ChEng AIO, where Tank Chief shares the ship.'); return; }
+    btn.disabled = true; btn.textContent = 'Asking Tank Chief…';
+    clearTimeout(waiting);
+    waiting = setTimeout(()=>{
+      btn.disabled = false; btn.textContent = 'Get fuel & lube oil tanks from Tank Chief';
+      alert('Tank Chief did not answer. Open Tank Management once, then try again.');
+    }, 12000);
+    try{ window.parent.postMessage({ type: 'chengaio-request-tank-list' }, '*'); }catch(_){}
+  });
+  window.addEventListener('message', async (ev)=>{
+    const msg = ev.data || {};
+    if (msg.type !== 'tank-list-response') return;
+    if (!waiting) return;
+    clearTimeout(waiting); waiting = null;
+    btn.disabled = false; btn.textContent = 'Get fuel & lube oil tanks from Tank Chief';
+    const got = msg.tanks;
+    if (!got || (!(got.fuel || []).length && !(got.lube || []).length)){
+      alert('Tank Chief has no fuel or lube oil tanks for this ship yet.');
+      return;
+    }
+    readOrbSetupFromForm();
+    const setup = orbSetup();
+    if (!setup.tanks.fuel) setup.tanks.fuel = [];
+    if (!setup.tanks.lube) setup.tanks.lube = [];
+    const f = merge(setup.tanks.fuel, got.fuel || [], true);
+    const l = merge(setup.tanks.lube, got.lube || [], false);
+    state.setup.orb = setup;
+    renderOrbTankEditors();
+    try{ await saveSetup(); markPendingSync(); }catch(_){}
+    try{ showToast(`Tank Chief: fuel ${f.updated} updated, ${f.added} added · lube ${l.updated} updated, ${l.added} added`); }catch(_){}
+  });
+})();
 document.getElementById('btnOrbSaveSetup')?.addEventListener('click', async ()=>{
   readOrbSetupFromForm();
   await saveSetup();
