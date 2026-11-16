@@ -516,10 +516,10 @@
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
     /* Consumption Plan, Bunkering Plan and e-ORB keep the AIO main menu on screen; the others bring their own. */
-    const withMenu = active && (current === 'bunkerplan' || current === 'bunkeringplan' || current === 'eorb');
+    const withMenu = active && (current === 'bunkerplan' || current === 'bunkeringplan' || current === 'eorb' || current === 'eca' || current === 'spares');
     document.documentElement.classList.toggle('aio-embed-menu', withMenu);
     /* Where the theme button lives in a More menu, the strip's own copy is not needed. */
-    const themeInMore = active && ['voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb'].includes(current);
+    const themeInMore = active && ['voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb', 'eca', 'spares'].includes(current);
     document.documentElement.classList.toggle('aio-theme-in-more', themeInMore);
     if (active) {
       closeSidebar();

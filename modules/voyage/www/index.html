@@ -1173,6 +1173,17 @@
   html.tablet-rail.use-bottom-nav .bn-item{flex:1 1 0; width:100%; min-height:64px; max-height:none;}
   html.tablet-rail.use-bottom-nav body{padding-bottom:0 !important; padding-left:calc(84px + env(safe-area-inset-left, 0px)) !important;}
   html.tablet-rail .wrap{max-width:1080px;}
+  /* e-ORB, Consumption Plan, ECA and Spares sit in ChEng AIO's own frame, beside the
+     AIO menu. They draw no bar of their own, so the 84px a bar would need is not
+     reserved — it pushed the page off centre, with a blank band to its left. */
+  html.eorb-embed.tablet-rail body,
+  html.bunkerplan-embed.tablet-rail body,
+  html.spares-embed.tablet-rail body,
+  html.eca-embed.tablet-rail body{padding-left:calc(14px + env(safe-area-inset-left, 0px)) !important; padding-right:14px !important;}
+  html.eorb-embed.tablet-rail .wrap,
+  html.bunkerplan-embed.tablet-rail .wrap,
+  html.spares-embed.tablet-rail .wrap,
+  html.eca-embed.tablet-rail .wrap{margin-left:auto; margin-right:auto;}
   html.tablet-rail .masthead{padding-bottom:8px; margin-bottom:4px;}
   html.tablet-rail .masthead .byline{display:none;}
   html.tablet-rail .masthead{flex-wrap:nowrap; align-items:center; gap:14px;}
