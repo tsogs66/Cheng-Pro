@@ -3314,6 +3314,18 @@ input[type=file]::file-selector-button:hover { border-color: var(--brass); }
   #logEntryFormPanel .btn-row:has(#btnAdd){align-items:center;}
   #logEntryFormPanel .btn-row:has(#btnAdd) > #btnAdd{order:99; margin-left:auto;}
 }
+
+/* Theme button lives in the More menu on phones and tablets; the header copies go */
+.bn-more-theme{display:none;}
+html.use-bottom-nav .bn-more-theme{display:block; width:100%; margin-top:10px; padding:12px; text-align:center;}
+html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{display:none !important;}
+/* Consumption plan: remarks take the full width on tablets / desktop, buttons at the right */
+@media (min-width:721px){
+  .bunker-plan-footer{grid-template-columns:1fr;}
+  .bunker-remarks{grid-column:auto;}
+  .bunker-remarks textarea{width:100%; min-height:110px;}
+  .bunker-plan-actions{justify-content:flex-end;}
+}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
@@ -6108,6 +6120,7 @@ input[type=file]::file-selector-button:hover { border-color: var(--brass); }
         <span>Vessel Data</span>
       </button>
     </div>
+    <button type="button" class="theme-toggle bn-more-theme" data-theme-toggle title="Colour theme">Bright</button>
   </div>
 </div>
 
