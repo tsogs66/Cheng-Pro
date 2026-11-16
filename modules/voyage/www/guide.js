@@ -1,4 +1,4 @@
-/* Voyage Chief operating guide. Searchable from the Guide tab. */
+/* Voyage Chief operating guide. Searchable from the About tab. */
 (function () {
   const ITEMS = [
     {
@@ -37,7 +37,7 @@
         'Receipts — bunker and lube deliveries that feed the ROB.',
         'Reports — supplementary reports.',
         'Reference — weather, NOx, fuel, and SFOC tables.',
-        'Guide — this page.',
+        'About — this page.',
         'Notes — a note or reminder for this ship, with a deadline. Tick Show at open and it appears when the program opens.',
         'e-ORB — the oil record book, when the license includes it. A wrong line is voided, not deleted.',
         'Setup — sync, database backup, and the deleted-entry list.',

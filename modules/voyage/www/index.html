@@ -1172,7 +1172,9 @@
   }
   html.tablet-rail.use-bottom-nav .bn-item{flex:1 1 0; width:100%; min-height:64px; max-height:none;}
   html.tablet-rail.use-bottom-nav body{padding-bottom:0 !important; padding-left:calc(84px + env(safe-area-inset-left, 0px)) !important;}
-  html.tablet-rail .wrap{max-width:1080px;}
+  /* Beside the left bar the page fills the width: a capped, centred column left a wide
+     blank band between the bar and the page on a big tablet. */
+  html.tablet-rail .wrap{max-width:none;}
   /* e-ORB, Consumption Plan, ECA and Spares sit in ChEng AIO's own frame, beside the
      AIO menu. They draw no bar of their own, so the 84px a bar would need is not
      reserved — it pushed the page off centre, with a blank band to its left. */
@@ -3343,6 +3345,13 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
 .eca-pos-inputs input{width:5.5em;min-width:0;flex:1 1 5em}
 .eca-pos-inputs select{width:4.5em;flex:0 0 auto}
 #inEcaPosRow[hidden]{display:none !important}
+.about-copy{line-height:1.6}
+.about-copy p{margin:0 0 12px}
+.about-copy h3.sub{margin:18px 0 6px}
+.about-authors{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.about-authors span{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.about-update{margin:14px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:6px}
+.about-update h2{margin-top:0}
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
@@ -3498,7 +3507,7 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
     <div class="tab-group">
       <span class="tab-group-label">Books</span>
       <div class="tab" data-page="reference">Reference</div>
-      <div class="tab" data-page="guide">Guide</div>
+      <div class="tab" data-page="guide">About</div>
       <div class="tab" data-page="notes">Notes</div>
       <div class="tab" data-page="orb">e-ORB</div>
     </div>
@@ -5386,15 +5395,6 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
 
   <!-- SETUP / SYNC (internal page id: data) -->
   <div class="page" id="page-data">
-    <div class="panel" id="appUpdatePanel">
-      <h2>App version</h2>
-      <div class="hint">This device is running <strong id="setupAppVersionLabel">…</strong>. Check GitHub for a newer Voyage Chief release (APK / installer). New APKs install over the existing app when signed with the same key — no need to uninstall first.</div>
-      <div class="btn-row" style="margin-top:10px;">
-        <button class="primary small" type="button" id="btnCheckAppUpdate">Check for latest release</button>
-        <a class="btn-link-like" id="btnOpenLatestRelease" href="https://github.com/tsogs66/voyage-manager/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
-      </div>
-      <div class="hint" id="appUpdateStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
-    </div>
     <div class="panel" id="serverSyncPanel">
       <h2>Server Sync</h2>
       <div id="syncBanner" class="sync-banner warn">Configure your self-hosted sync server to back up and merge data when internet is available. Works offline — changes queue locally until you press Sync Now.</div>
@@ -5588,10 +5588,45 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
 
   <!-- GUIDE -->
   <div class="page" id="page-guide">
-    <div class="panel">
-      <h2>Guide</h2>
+    <div class="panel about-copy">
+      <h2>About</h2>
+      <div class="about-authors"><span>Written by</span><b>ts0gs</b><b>Marvin C. Endozo</b></div>
+      <p><b>Voyage Chief</b> is the engine department's voyage log. It keeps the watch entries, builds the noon,
+        departure and arrival sheets, carries the fuel, lube and fresh-water ROB, files the bunker and lube receipts,
+        and prints the abstracts and reports the office asks for. It runs in the browser or as an installed app on a
+        phone or tablet, keeps working with no internet aft, and inside ChEng AIO it shares the ship, the signature
+        and the stamp with the other programs.</p>
+    <div class="about-update" id="appUpdatePanel">
+      <h2>App version</h2>
+      <div class="hint">This device is running <strong id="setupAppVersionLabel">…</strong>. Check GitHub for a newer Voyage Chief release (APK / installer). New APKs install over the existing app when signed with the same key — no need to uninstall first.</div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="primary small" type="button" id="btnCheckAppUpdate">Check for latest release</button>
+        <a class="btn-link-like" id="btnOpenLatestRelease" href="https://github.com/tsogs66/voyage-manager/releases/latest" target="_blank" rel="noopener" style="display:none;">Open latest release</a>
+      </div>
+      <div class="hint" id="appUpdateStatus" style="margin-top:8px;" role="status" aria-live="polite"></div>
+    </div>
+      <h3 class="sub">How to operate</h3>
       <p class="hint">Search a question. Each answer says what the job is for, the steps, what the buttons do, and how to undo a mistake.</p>
       <div id="voyageGuideHost"></div>
+      <h3 class="sub">Log and reports</h3>
+      <p>Each watch is a <b>Log Entry</b>: date and time on the ship's clock, the operation, the flowmeters and the rev counter.
+        The <b>Voyage Summary</b> turns an entry into the noon, departure or arrival sheet, with the consumption, the
+        performance figures and the ECA position and changeover where one applies. <b>Reports</b>, <b>Consumption</b>,
+        <b>Voyage Abstract</b> and <b>Range Totals</b> print what is already saved.</p>
+      <h3 class="sub">ROB and receipts</h3>
+      <p>Remaining on board is carried from the log and corrected by a bunker survey. <b>Receipts</b> record bunker and lube
+        deliveries, keep the BDN and sample retention dates, and feed the ROB.</p>
+      <h3 class="sub">Consumption plan</h3>
+      <p>Plan fuel burn by voyage leg from distance, speed and daily consumption, with a margin per leg, and see the arrival ROB
+        and whether to stem. A leg with only a daily consumption and the From and To filled counts as that quantity. Save a plan
+        with a name and find it again by date or name.</p>
+      <h3 class="sub">e-ORB, ECA and spares</h3>
+      <p>The <b>e-ORB</b> keeps the Oil Record Book with the flag's rules. The <b>ECA</b> page works out when to change over fuel,
+        and the changeover log fetches each stage's time, position and consumption from the log. <b>Spares</b> files spare and
+        store requisitions with the photo or PDF.</p>
+      <h3 class="sub">Ships, offline and backup</h3>
+      <p>Each ship has its own data on the device. Edits stay on the device and sync when a server is reachable. Backup and
+        Sync can move a whole voyage between machines, and the voyage library keeps finished legs.</p>
     </div>
   </div>
 
@@ -6136,8 +6171,8 @@ html.use-bottom-nav .status-row .theme-toggle, html.use-bottom-nav .theme-fab{di
         <span>Reference</span>
       </button>
       <button type="button" class="bn-more-item" data-page="guide">
-        <span class="bn-ic" aria-hidden="true">?</span>
-        <span>Guide</span>
+        <span class="bn-ic" aria-hidden="true">ℹ</span>
+        <span>About</span>
       </button>
       <button type="button" class="bn-more-item" data-page="notes">
         <span class="bn-ic" aria-hidden="true">📝</span>
@@ -17056,8 +17091,13 @@ function bunkerLegDays(leg){
 function bunkerLegQty(leg){
   const days = bunkerLegDays(leg);
   const daily = Number(leg.dailyCons);
-  if (days==null || !(daily>=0) || isNaN(daily)) return null;
-  return daily * days;
+  if (!(daily>=0) || isNaN(daily) || leg.dailyCons==null || leg.dailyCons==='') return null;
+  if (days!=null && days>0) return daily * days;
+  /* No distance, speed or days (blank or 0) on a line with its From and To filled in:
+     the consumption entered is the quantity for that line. */
+  const noRun = !(Number(leg.distance)>0) && !(Number(leg.speed)>0) && !(Number(leg.days)>0);
+  if (noRun && String(leg.from||'').trim() && String(leg.to||'').trim()) return daily;
+  return days==null ? null : daily * days;
 }
 function bunkerLegMarginMt(leg){
   const qty = bunkerLegQty(leg);
@@ -17643,7 +17683,7 @@ function bindBunkerPlanUi(){
   });
   page.addEventListener('input', (e)=>{
     const t = e.target;
-    if (!t || !t.matches('.bunker-table [data-f="dailyCons"], .bunker-table [data-f="days"], .bunker-table [data-f="distance"], .bunker-table [data-f="speed"], [data-side-f]')) return;
+    if (!t || !t.matches('.bunker-table [data-f="dailyCons"], .bunker-table [data-f="days"], .bunker-table [data-f="distance"], .bunker-table [data-f="speed"], .bunker-table [data-f="from"], .bunker-table [data-f="to"], [data-side-f]')) return;
     readBunkerPlanFromDom();
     /* live qty refresh without full re-render to keep focus */
     const tr = t.closest('tr[data-side]');

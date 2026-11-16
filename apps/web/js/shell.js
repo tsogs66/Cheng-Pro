@@ -27,6 +27,95 @@
     });
   }
 
+  /* ---- Back: one step back through the pages visited ----
+     Every page opened is one history entry, so the Android Back button (and the
+     browser's) returns to the page before instead of leaving the program. From the
+     first page, Back asks once more before it exits. */
+  let exitArmed = false;
+  let exitTimer = null;
+  function recordPage(module) {
+    try {
+      if (!history.state || history.state.aioModule !== module) {
+        history.pushState({ aioModule: module }, '');
+      }
+    } catch { /* history is a convenience, never a blocker */ }
+  }
+  window.addEventListener('popstate', (e) => {
+    const st = e.state;
+    if (moreSheet && moreSheet.classList.contains('open')) {
+      closeMoreSheet();
+      try { history.pushState({ aioModule: current }, ''); } catch { /* ignore */ }
+      return;
+    }
+    if (st && st.aioModule) {
+      if (st.aioModule !== current) navigate(st.aioModule, { fromHistory: true });
+      return;
+    }
+    /* The bottom of the stack: the first page was reached. */
+    exitArmed = true;
+    showToast('Press Back again to exit', 2200);
+    clearTimeout(exitTimer);
+    exitTimer = setTimeout(() => {
+      exitArmed = false;
+      try { history.pushState({ aioModule: current }, ''); } catch { /* ignore */ }
+    }, 2300);
+  });
+
+  /* ---- Full screen (opt in, in More) ---- */
+  const FS_KEY = 'chengAioFullscreen';
+  const fsButton = document.getElementById('bnMoreFullscreen');
+  function fsSupported() {
+    if (window.ChengAndroidFullscreen) return true;
+    return !!(document.fullscreenEnabled && /Android/i.test(navigator.userAgent || ''));
+  }
+  function fsWanted() {
+    try { return localStorage.getItem(FS_KEY) === '1'; } catch { return false; }
+  }
+  function fsApply(on) {
+    try {
+      if (window.ChengAndroidFullscreen) { window.ChengAndroidFullscreen.set(!!on); return; }
+    } catch { /* fall through to the browser's own full screen */ }
+    try {
+      if (on) {
+        if (!document.fullscreenElement) {
+          const p = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+          if (p && p.catch) p.catch(() => {});
+        }
+      } else if (document.fullscreenElement) {
+        const p = document.exitFullscreen();
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch { /* not allowed without a tap: the next tap tries again */ }
+  }
+  function fsPaint() {
+    if (!fsButton) return;
+    fsButton.hidden = !fsSupported();
+    const on = fsWanted();
+    fsButton.textContent = 'Full screen: ' + (on ? 'On' : 'Off');
+    fsButton.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  if (fsButton) {
+    fsButton.addEventListener('click', () => {
+      const on = !fsWanted();
+      try { localStorage.setItem(FS_KEY, on ? '1' : '0'); } catch { /* ignore */ }
+      fsApply(on);
+      fsPaint();
+    });
+    fsPaint();
+    /* The Android app announces its bridge a moment after the page starts. */
+    window.addEventListener('cheng-android-print-ready', () => {
+      fsPaint();
+      if (fsWanted()) fsApply(true);
+    });
+    if (fsWanted()) {
+      if (window.ChengAndroidFullscreen) fsApply(true);
+      else document.addEventListener('pointerdown', function once() {
+        document.removeEventListener('pointerdown', once, true);
+        if (fsWanted()) fsApply(true);
+      }, true);
+    }
+  }
+
   function closeMoreSheet() {
     if (!moreSheet) return;
     moreSheet.classList.remove('open');
@@ -304,6 +393,7 @@
     const parked = !force ? reclaimParkedFrame(next) : null;
     if (parked) {
       current = next;
+      if (!(opts && opts.fromHistory)) recordPage(next);
       setNavActive(current);
       closeSidebar();
       closeMoreSheet();
@@ -325,6 +415,7 @@
       });
     }
     current = next;
+    if (!(opts && opts.fromHistory)) recordPage(next);
     setNavActive(current);
     closeSidebar();
     closeMoreSheet();
@@ -1090,6 +1181,8 @@
    * Never wait on network (Google Fonts already removed; health/vessels are local).
    */
   async function boot() {
+    /* The bottom of the Back stack: Back from the first page lands here. */
+    try { history.replaceState({ aioRoot: true }, ''); } catch { /* ignore */ }
     if (booted) return;
     booted = true;
 
