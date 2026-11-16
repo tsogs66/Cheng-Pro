@@ -506,6 +506,12 @@
     const active = !!on && wantsFullscreenEmbed();
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
+    /* Consumption Plan, Bunkering Plan and e-ORB keep the AIO main menu on screen; the others bring their own. */
+    const withMenu = active && (current === 'bunkerplan' || current === 'bunkeringplan' || current === 'eorb');
+    document.documentElement.classList.toggle('aio-embed-menu', withMenu);
+    /* Where the theme button lives in a More menu, the strip's own copy is not needed. */
+    const themeInMore = active && ['voyage', 'tanks', 'bunkerplan', 'bunkeringplan', 'eorb'].includes(current);
+    document.documentElement.classList.toggle('aio-theme-in-more', themeInMore);
     if (active) {
       closeSidebar();
       closeMoreSheet();
@@ -951,6 +957,9 @@
     if (d.type === 'chengaio-request-tank-rob') {
       answerTankRob(e.source);
     }
+    if (d.type === 'chengaio-request-tank-list') {
+      answerTankList(e.source);
+    }
   });
 
   /* The Tank embed's bunkering alarm, mirrored on the whole window edge so it is
@@ -982,6 +991,35 @@
   }
 
   let _tankRobFrame = null;
+  /* The e-ORB's "get tanks from Tank Chief": ask the (hidden) Tank frame for its fuel
+     and lube oil tanks and hand the list back to whoever asked. */
+  function answerTankList(source) {
+    let done = false;
+    const deliver = (tanks) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('message', onMsg);
+      try {
+        if (source && source.postMessage) source.postMessage({ type: 'tank-list-response', tanks: tanks }, '*');
+      } catch { /* ignore */ }
+    };
+    const onMsg = (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'tank-list-response' && msg.tanks) deliver(msg.tanks);
+    };
+    window.addEventListener('message', onMsg);
+    setTimeout(() => deliver(null), 8000);
+    const ask = () => {
+      try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-list' }, '*'); } catch { /* ignore */ }
+    };
+    if (_tankRobFrame && _tankRobFrame.contentWindow) { ask(); return; }
+    _tankRobFrame = document.createElement('iframe');
+    _tankRobFrame.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+    _tankRobFrame.title = 'Tank ROB bridge';
+    _tankRobFrame.src = ChengPro.tankEmbedUrl({ robOnly: '1' });
+    document.body.appendChild(_tankRobFrame);
+    _tankRobFrame.onload = () => { setTimeout(ask, 1200); };
+  }
   function answerTankRob(source) {
     const deliver = (rob) => {
       try {

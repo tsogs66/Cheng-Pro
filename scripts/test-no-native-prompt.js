@@ -68,7 +68,7 @@ console.log('\nevery asking call site awaits it');
    the year would parse as NaN and the vessel would be named [object Promise]. */
 const sites = code.split('\n').filter(l => /[^.\w]askText\s*\(/.test(l)
   && !/function\s+askText/.test(l));
-check('askText is called from the six places that used to prompt', sites.length, 6);
+check('askText is called from the six places that used to prompt, plus the save-name dialog', sites.length, 7);
 for (const m of code.split('\n')) {
   if (/[^.\w]askText\s*\(/.test(m) && !/await\s+askText\s*\(/.test(m)
       && !/function\s+askText/.test(m)) {

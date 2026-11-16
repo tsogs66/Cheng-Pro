@@ -307,7 +307,6 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
 .topbar-meta .registered:empty,
 .topbar-meta .ver:empty { display: none; }
 /* "registered:" only where there is room; on a phone the whole address is worth more than the word. */
-@media (min-width: 700px) { .topbar-meta .registered:not(:empty)::before { content: 'registered: '; } }
 @media (max-width: 699px) { .topbar-meta .registered { max-width: 46vw; } }
 
 /* Live sync panel (Backup & Restore): fields a finger can hit, and text that is not smaller than the page around it. */
@@ -2370,3 +2369,18 @@ input[type=file]::file-selector-button {
   padding: 7px 14px; margin-right: 10px; font: inherit; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
 }
 input[type=file]::file-selector-button:hover { border-color: var(--brass); }
+
+/* ---- Full-screen modules ------------------------------------------------------------------ */
+/* The shell's own menu is hidden here, so it must not leave its space behind (the 84px rail padding was a blank strip). */
+html.aio-fullscreen-embed:not(.aio-embed-menu).tablet-rail.use-bottom-nav .app { padding-left: 0 !important; }
+/* Consumption Plan, Bunkering Plan and e-ORB keep the main menu: the bar along the bottom, or the rail at the left. */
+html.aio-fullscreen-embed.aio-embed-menu .bottom-nav { display: flex !important; }
+html.aio-fullscreen-embed.aio-embed-menu .bn-more-sheet.open { display: block !important; }
+html.aio-fullscreen-embed.aio-embed-menu { --bottom-h: calc(var(--nav-item-h) + (var(--nav-pad-y) * 2) + 4px); }
+html.aio-fullscreen-embed.aio-embed-menu:not(.tablet-rail) .main { padding-bottom: calc(var(--bottom-h) + env(safe-area-inset-bottom, 0px)) !important; }
+html.aio-fullscreen-embed.aio-embed-menu.tablet-rail .aio-return-fabs { left: calc(84px + env(safe-area-inset-left, 0px)); }
+/* Theme button: in the More menu on phones and tablets */
+.bn-more-theme { display: none; }
+html.use-bottom-nav .bn-more-theme { display: block; width: 100%; margin-top: 10px; padding: 12px; }
+html.use-bottom-nav .theme-topbar, html.use-bottom-nav .theme-sidebar { display: none !important; }
+html.aio-fullscreen-embed.aio-theme-in-more.use-bottom-nav .aio-return-fabs .aio-theme-fab { display: none !important; }
