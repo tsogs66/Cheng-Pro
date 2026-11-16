@@ -387,6 +387,319 @@
         'Keep your file until the relief has opened the latest voyage and agrees the figures.',
         'Leave your app installed until that check is done.'
       ]
+    },
+    {
+      group: "ECA and changeover",
+      q: "How do I log the ECA operations and the position?",
+      purpose: "The ECA group in the Operation list marks each step of an ECA passage. A position box appears only for these operations, so the ECA report carries where the ship was.",
+      steps: [
+        "Open Log Entry and set the date and time.",
+        "In Operation open the ECA group. The order is: ECA - CHANGEOVER START, ECA - CHANGEOVER COMPLETE, ECA - ENTRY, ECA - DEPARTURE, ECA - EXIT.",
+        "When one of these is chosen the ECA position appears. Type the latitude (degrees, minutes, N or S) and longitude (degrees, minutes, E or W).",
+        "Add the flowmeters as for any watch and press Add Entry.",
+        "Open the entry in the Voyage Summary. The ECA / Fuel Changeover panel shows the grade in use, the changeover window, the ROB at entry and exit, and the distance in the ECA.",
+        "Choose a normal operation again and the position box disappears."
+],
+      buttons: [
+        "Operation — the list; ECA is its own group",
+        "ECA position — latitude and longitude, only for ECA operations",
+        "Add Entry — stores the watch"
+],
+      undo: [
+        "A wrong position: open the entry from Edit a previous entry, correct it, and press Update Entry.",
+        "An entry saved under the wrong operation: edit it and choose the right operation."
+]
+    },
+    {
+      group: "ECA and changeover",
+      q: "How do I plan the fuel changeover and keep the changeover log?",
+      purpose: "The ECA page works out how long before the ECA boundary the changeover must start. The changeover log is the record of what was done, stage by stage, with the time, the position, the consumption and the quantity in each compliant tank.",
+      steps: [
+        "Open ECA. Enter the sulphur now in service, the sulphur of the new fuel, the limit at the engine inlet, the service system volume, the consumption at planned load, the density and the planned crossing time of the ECA boundary. Press Calculate.",
+        "Read the time the changeover must start. Copy window to Voyage Setup stores the planned times. Print changeover plan prints the plan.",
+        "Press New ECA record in the changeover log and give it a title, for example the area.",
+        "The record has five stages: changeover commenced, changeover completed, entered ECA, departed ECA, after departure. For each stage press Fetch from log entry, or press Fetch all stages from the voyage log once.",
+        "Fetching copies the time, the position and the total consumption of the matching ECA log entry (CHANGEOVER START, COMPLETE, ENTRY, DEPARTURE, EXIT).",
+        "Type the quantity of compliant fuel in each tank at each stage, or press Fill tanks from tank ROB.",
+        "Check the warnings under the record, then press Print log.",
+        "Where the flag keeps the ORB Part III, Add to ORB Part III C (item 4) carries the stage into the e-ORB."
+],
+      buttons: [
+        "Calculate — the changeover plan",
+        "Copy window to Voyage Setup — keeps the planned times",
+        "New ECA record / New EU port record — a log for this passage",
+        "Fetch from log entry / Fetch all stages from the voyage log — takes the time, position and consumption from the log",
+        "Fill tanks from tank ROB — fills the tank columns",
+        "Print log — prints the changeover log; Print blank form — an empty one"
+],
+      undo: [
+        "A stage that has no log entry says so. Add the ECA entry in Log Entry, then fetch again.",
+        "Fetch again after correcting the log entry and the stage is updated.",
+        "Delete record removes the log; the plan on the ECA page stays."
+]
+    },
+    {
+      group: "Daily log",
+      q: "The period hours or the time zone look wrong.",
+      purpose: "Period hours are the hours since the previous entry. They follow the ship's clock, so a clock change must be recorded.",
+      steps: [
+        "In Log Entry set the Date & Time to the ship's clock and pick the Time zone.",
+        "When the watch actually changes the clocks, press Change clocks: -1 hour, -30 min, +30 min or +1 hour. Period hours then count the real time.",
+        "Check the Period Hrs box. It is calculated and cannot be typed.",
+        "To insert an entry between two others, set its date and time first. The log sorts by time."
+],
+      buttons: [
+        "Change clocks — records a clock change in this period"
+],
+      undo: [
+        "Edit a previous entry and correct the date, time or clock change. Press Update Entry."
+]
+    },
+    {
+      group: "Daily log",
+      q: "The flowmeter reading is lower than the last one, or consumption is negative.",
+      purpose: "Consumption is the difference between two flowmeter readings. A reading lower than the last one is a typing error or a meter reset.",
+      steps: [
+        "Check the meter number against the last entry.",
+        "Press Enter Flowmeters to type the flowmeter, rev counter and RPM again in the pop-up.",
+        "If the meter really was changed or reset, record the new start reading as agreed with the Chief Engineer and note it in the remarks.",
+        "Open the Voyage Summary and read the consumption review before you save."
+],
+      buttons: [
+        "Enter Flowmeters — quick entry pop-up"
+],
+      undo: [
+        "Edit the entry and correct the reading. Recalculate later if the figures were stale."
+]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "How do I name a saved plan or calculation and find it again?",
+      purpose: "When you save a bunkering plan or a consumption plan the program asks for a name or short description. Saved lists have a search box, so an old plan is found by date, name or description.",
+      steps: [
+        "Press Save, or Save & Print, on the Consumption Plan or the Bunkering Plan.",
+        "Type a name or description, for example the voyage or the port. The box can be left empty.",
+        "Press Save. Cancel stores nothing.",
+        "Scroll to Saved Calculations (consumption plan) or Saved plans (bunkering plan). The new entry is at the top.",
+        "Type part of a date, a name, the voyage number or the port in the search box. Only matching rows stay. Clear the box to see them all.",
+        "Press Load to bring a saved plan back to the page, Print to reprint it, or Del / Delete to remove it."
+],
+      buttons: [
+        "Save / Save only — stores the plan under a name",
+        "Save & Print / Print & Save — stores it, then prints",
+        "Print / Print only — prints without storing",
+        "Load, Print, Del — on each saved row"
+],
+      undo: [
+        "To rename a saved plan, load it, press Save, and enter the new name.",
+        "A deleted saved plan cannot be brought back. Export a backup first if it matters."
+]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "How are days and quantities worked out in the consumption plan?",
+      purpose: "Each line is one leg or stay. The quantity is the daily consumption times the days. The days come from distance and speed unless you type them or the line is a port stay.",
+      steps: [
+        "Tick P/A for a port or anchorage stay. Distance and speed are then not used; type the days.",
+        "For a sea leg type Distance (nm) and Speed (kn). Days = distance ÷ (speed × 24). Clear the distance or the speed and the days clear with them.",
+        "You may type the days yourself on a sea leg. That figure is kept until you change the distance or the speed.",
+        "Type the Daily Cons (MT per day). Quantity = Daily Cons × Days.",
+        "If Distance, Speed and Days are blank or 0 and both From and To are filled in, the Daily Cons is taken as the quantity for that line.",
+        "If From or To is empty and nothing else is entered, the quantity stays empty.",
+        "Use Margin % on a line for a reserve on that line only. Add destination / stay adds the next line. Remove last line removes the last one.",
+        "Enter Current ROB and Quantity to Receive to see Arrival ROB and Next Departure ROB. Load Voyage ROB or Load Tank ROB fill the ROB for you."
+],
+      buttons: [
+        "Add destination / stay — next line",
+        "Remove last line — takes off the last line",
+        "Load Voyage ROB / Load Tank ROB — current ROB from the log or the tanks",
+        "Clear — empties the whole plan on screen"
+],
+      undo: [
+        "A figure that looks wrong: check the P/A tick, the distance, the speed, and the days on that line.",
+        "Clear asks before it empties the plan. Save the plan first if you may need it again."
+]
+    },
+    {
+      group: "e-ORB",
+      q: "How do I get the fuel and lube oil tanks into the e-ORB?",
+      purpose: "Inside ChEng AIO the e-ORB can take the ship's fuel and lube oil tanks from Tank Chief, so the tank list is not typed twice.",
+      steps: [
+        "Make sure the tanks exist in Tank Chief (Tanks) for this ship.",
+        "Open e-ORB, then Vessel Setup, and scroll to IOPP / ORB Tanks.",
+        "Press Get fuel & lube oil tanks from Tank Chief.",
+        "Wait while Tank Chief opens the ship. Then each fuel and lube tank appears with its name, capacity (m³), frame number, ROB (m³) and, for fuel, Residual or Distillate.",
+        "Tanks already in the list are updated, and new ones are added. Tanks you typed yourself are not removed.",
+        "Tank Chief has no frame number of its own, so type the frame number or position in the e-ORB list if the Supplement needs it.",
+        "Press Save ORB Setup."
+],
+      buttons: [
+        "Get fuel & lube oil tanks from Tank Chief — only inside ChEng AIO",
+        "Save ORB Setup — stores the list"
+],
+      undo: [
+        "If it says Tank Chief is still loading, wait a moment and press the button again.",
+        "If it says Tank Chief has no fuel or lube oil tanks, add them in Tank Chief first.",
+        "Check the Residual / Distillate choice on each fuel tank; correct it in the list if it is wrong."
+]
+    },
+    {
+      group: "e-ORB",
+      q: "An e-ORB entry was saved wrongly, or the officer or tank list is missing.",
+      purpose: "The Oil Record Book keeps every line. A mistake is struck through with a reason, never deleted, and the officer and tanks come from Vessel Setup.",
+      steps: [
+        "Open e-ORB → Vessel Setup. Check the flag, the ship particulars, the IOPP / ORB tanks and the engine officers, and press Save ORB Setup.",
+        "In ChEng AIO press Get fuel & lube oil tanks from Tank Chief to fill the fuel and lube oil tanks.",
+        "An entry needs an officer name. Add the officer under Engine Officers if the list is empty.",
+        "A wrong saved line: tick it in Browse / Print, press Void / correct selected and type the reason, then Save Entry with the correct operation.",
+        "The weekly sludge inventory (C.11) is saved with Save Weekly Inventory.",
+        "Entry Codes lists the MARPOL codes if you are unsure which one to use."
+],
+      buttons: [
+        "Save ORB Setup",
+        "Void / correct selected — strikes the line through, it does not delete it",
+        "Entry Codes — the code list"
+],
+      undo: [
+        "Not saved yet: Cancel.",
+        "Dismissing the reason question voids nothing."
+]
+    },
+    {
+      group: "Start",
+      q: "How do the Back button and Full screen work on Android?",
+      purpose: "Inside ChEng AIO every page you open is remembered, so Back steps back through the pages you visited instead of closing the program. Full screen hides the Android status and navigation bars. It is off until you switch it on.",
+      steps: [
+        "Press Back (the Android Back button or gesture) to return to the page you were on before.",
+        "If the More menu is open, Back closes the menu first.",
+        "From the first page, Back shows \"Press Back again to exit\". Press Back again within about two seconds to leave the program.",
+        "For full screen open More and press Full screen: Off. It changes to Full screen: On, and the bars hide. Swipe in from the screen edge to bring them back for a moment.",
+        "Press the switch again to bring the bars back for good. The choice is remembered.",
+        "Back goes through the pages of ChEng AIO. Inside Voyage Chief or Tank Chief, use their own bottom menu to change tabs."
+],
+      buttons: [
+        "Full screen — in More, switches the Android bars off or on",
+        "Back — one page back; twice on the first page leaves the program"
+],
+      undo: [
+        "If the bars do not come back, swipe from the top or bottom edge, or turn Full screen off in More.",
+        "The switch only shows where the device can do it (the Android app, or Android Chrome)."
+]
+    },
+    {
+      group: "Start",
+      q: "Where is the Guide? It is now called About.",
+      purpose: "The Guide page is now the About page. It shows who wrote the program, what it does, the version, the update check and the searchable guide.",
+      steps: [
+        "On a tablet open the About tab. On a phone open More and press About.",
+        "Press Check for latest release to see whether a newer version exists.",
+        "Search the guide for the question you have."
+],
+      buttons: [
+        "About — this page",
+        "Check for latest release — compares this version with GitHub"
+]
+    },
+    {
+      group: "Problems",
+      q: "A page keeps showing \"Loading…\" or is blank.",
+      purpose: "A page opens inside a frame. It shows Loading… while the program before it finishes saving or while the ship is opening. On a big ship, or a slow tablet, that can take a little while.",
+      steps: [
+        "Wait about ten seconds. The program you left is saving your work, and the next page opens by itself.",
+        "If it is still blank, press the same menu button once more.",
+        "Open Home and then the page again.",
+        "Check that a ship is chosen in the top bar. Choose the ship in Vessel Setup if the bar says No vessel.",
+        "Open About and read the version. Press Check for latest release, and install the new app if one is offered.",
+        "Last resort: close the app from the Android recent-apps list and open it again. Saved data is kept on the device."
+],
+      buttons: [
+        "Home — the dashboard; a safe page to start again from",
+        "Check for latest release — on About"
+],
+      undo: [
+        "Closing and reopening does not delete the ship, the log or the tanks. Export a backup first if you are unsure."
+]
+    },
+    {
+      group: "Problems",
+      q: "The page is off to one side, has a blank band, or the menu is missing.",
+      purpose: "On a tablet held sideways the menu runs down the left edge and the page fills the rest. Held upright the menu is along the bottom. Older versions could leave a blank band beside the menu.",
+      steps: [
+        "Turn the tablet fully to landscape or portrait and wait a second.",
+        "Open About and check the version, then Check for latest release. The band beside the menu was removed in the latest versions.",
+        "ECA, Spares, Consumption Plan, Bunkering Plan and e-ORB show the main menu too. Press the menu button of the page you want.",
+        "The Bright, Astrolabe and Prism colour button is in the More menu, not at the top.",
+        "If it still looks wrong, close the app and open it again."
+],
+      buttons: [
+        "More — the rest of the menu, the colour button and Full screen"
+],
+      undo: [
+        "Layout changes never alter your data."
+]
+    },
+    {
+      group: "Problems",
+      q: "The keyboard is up and I cannot tap the next box.",
+      purpose: "On a tablet the box you tap next must take the keyboard at once. Older versions redrew the table when you left a box, which swallowed the tap.",
+      steps: [
+        "Tap the next box directly. You no longer have to close the keyboard first.",
+        "If a tap still does not land, tap it a second time.",
+        "Open About and check the version, then Check for latest release.",
+        "The keyboard's down-arrow closes it if it covers a button."
+],
+      undo: [
+        "Nothing is lost when the keyboard closes. Numbers typed are kept."
+]
+    },
+    {
+      group: "Problems",
+      q: "Printing or saving a file does nothing on Android.",
+      purpose: "The Android app prints through the tablet's own print service and saves files into the Downloads folder.",
+      steps: [
+        "Press Print. Choose a printer, or choose Save as PDF in the print window.",
+        "Files such as backups are saved in Downloads/ChEngAIO. The program shows the exact path when it is done.",
+        "If nothing opens, wait a few seconds, then press Print once more. Do not press it repeatedly.",
+        "Make sure the tablet has a print service installed (Default Print Service), or use Save as PDF.",
+        "If you still cannot print, save the PDF and print it from another device."
+],
+      buttons: [
+        "Print — opens the Android print window"
+],
+      undo: [
+        "Printing never changes the record. A Save & Print has already saved it before the print window opens."
+]
+    },
+    {
+      group: "Problems",
+      q: "The numbers on the summary look old or frozen.",
+      purpose: "Figures can be held from an older recalculation or from a typed override.",
+      steps: [
+        "Open the entry in the Voyage Summary and check for a typed value in the consumption boxes.",
+        "Press Recalculate Averages on the Summary page.",
+        "If you see a prompt about frozen ME / GE / boiler overrides, read it and clear them only if the typed figures were not intended.",
+        "Use Undo Recalculate to restore the previous figures if that was a mistake."
+],
+      buttons: [
+        "Recalculate Averages — rebuilds the totals from the saved entries",
+        "Undo Recalculate — restores the previous figures"
+],
+      undo: [
+        "Undo Recalculate restores the figures. Export a backup before a large recalculation."
+]
+    },
+    {
+      group: "Problems",
+      q: "A figure I typed in the Voyage Summary will not stay.",
+      purpose: "Some boxes are calculated and cannot be typed. Others keep what you type only after the entry is saved.",
+      steps: [
+        "Boxes with a dashed outline are calculated by the program.",
+        "Type only in the plain boxes and press Save on the summary.",
+        "After saving, press Recalculate Averages if a total depends on it."
+],
+      undo: [
+        "Reopen the entry and retype the figure."
+]
     }
   ];
 
