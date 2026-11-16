@@ -339,13 +339,22 @@
     host.innerHTML = '<section class="panel"><p class="empty">Loading…</p></section>';
     try {
       if (familyWait.length) {
-        await Promise.all(familyWait);
-        backgroundWraps().forEach((wrap) => {
-          if (wrap.querySelector('iframe') && wrap.querySelector('iframe').dataset.aioFamily === nextFamily) {
-            wrap.querySelectorAll('iframe').forEach((frame) => { delete frame.dataset.aioHold; });
-            wrap.remove();
-          }
-        });
+        /* Wait for the program being left to finish saving, but not for ever: a slow save
+           used to leave "Loading…" on screen with nothing coming. After a few seconds the
+           next page opens anyway and the old frame stays off to the side until its save is
+           done, then removes itself. */
+        const finished = await Promise.race([
+          Promise.all(familyWait).then(() => true, () => true),
+          new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
+        ]);
+        if (finished) {
+          backgroundWraps().forEach((wrap) => {
+            if (wrap.querySelector('iframe') && wrap.querySelector('iframe').dataset.aioFamily === nextFamily) {
+              wrap.querySelectorAll('iframe').forEach((frame) => { delete frame.dataset.aioHold; });
+              wrap.remove();
+            }
+          });
+        }
       }
       const draw = pageHost();
       await mod.render(draw);
@@ -1008,7 +1017,7 @@
       if (msg.type === 'tank-list-response' && msg.tanks) deliver(msg.tanks);
     };
     window.addEventListener('message', onMsg);
-    setTimeout(() => deliver(null), 8000);
+    setTimeout(() => deliver(null), 40000);
     const ask = () => {
       try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-list' }, '*'); } catch { /* ignore */ }
     };
@@ -1018,7 +1027,7 @@
     _tankRobFrame.title = 'Tank ROB bridge';
     _tankRobFrame.src = ChengPro.tankEmbedUrl({ robOnly: '1' });
     document.body.appendChild(_tankRobFrame);
-    _tankRobFrame.onload = () => { setTimeout(ask, 1200); };
+    _tankRobFrame.onload = () => { setTimeout(ask, 600); };
   }
   function answerTankRob(source) {
     const deliver = (rob) => {
