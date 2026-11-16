@@ -384,6 +384,12 @@
     return tankJsonOrThrow(raw, res.headers.get('Content-Type'));
   }
 
+  /** Tank Chief's own engine on this device (phone: in the app; Windows: the app's own server). */
+  function lanTankApi(path, options = {}) {
+    if (usingLocalTank()) return tankRequest(path, options);
+    return ChengProApi.api('/tanks' + path, options);
+  }
+
   /* ---------------------------------------------------------- Voyage Chief --
    * Voyage Chief owns its IndexedDB inside its own frame, so the shell asks it
    * over postMessage rather than reaching into the database itself. */
@@ -784,7 +790,10 @@
         const lanHost = root.querySelector('#bk-live-sync-host');
         if (lanHost && window.ChengLanSyncAll) {
           const lanCtl = ChengLanSyncAll.create({
-            tank: (path, init) => gatewayTankApi(path, init && init.body && typeof init.body !== 'string'
+            /* Live sync talks to THIS device's own engine: the phone's local one, or the Windows app's own
+               server. It must not go to the Cheng Suite server, which has no idea about this device's
+               Wi-Fi (and is not reachable on a ship's LAN, hence "Failed to fetch"). */
+            tank: (path, init) => lanTankApi(path, init && init.body && typeof init.body !== 'string'
               ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
             voyage: (action, extra) => voyagePost(action, extra || {}, root, 120000),
             license: () => {

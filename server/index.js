@@ -472,11 +472,42 @@ async function boot() {
     console.error('Voyage module will be unavailable until Python sync starts.');
   }
 
+  /* The Windows app keeps its whole server on 127.0.0.1, so a phone could never reach it. Live sync gets its own
+     small listener on the network that answers ONLY what another paired device calls (hello, pair, status, vessel,
+     apply) — everything else, and the local control routes, stay on loopback. */
+  function startLanListener(mainPort) {
+    if (HOST !== '127.0.0.1' && HOST !== 'localhost') return; /* already reachable: the main server answers */
+    try {
+      const peerPath = /^\/api\/lan\/(hello|pair|status|vessel\/|apply)/;
+      const lanApp = express();
+      lanApp.disable('x-powered-by');
+      lanApp.use((req, res, next) => {
+        if (!peerPath.test(req.path) || req.path === '/api/lan/pair/start') return res.status(404).json({ error: 'Not found' });
+        return next();
+      });
+      lanApp.use('/api/lan', express.json({ limit: '50mb' }));
+      lanApp.all('/api/lan/*', forwardTankApi);
+      const want = Number(process.env.LAN_PORT) || 47617;
+      const bind = (port, retry) => {
+        const ls = lanApp.listen(port, '0.0.0.0', () => {
+          console.log(`  Live sync (Wi-Fi): 0.0.0.0:${ls.address().port} (paired devices only)`);
+          try { tank.lanSync.setPort(ls.address().port, '0.0.0.0'); } catch (_) { /* optional */ }
+        });
+        ls.on('error', (e) => {
+          if (retry && e && e.code === 'EADDRINUSE') bind(0, false);
+          else console.warn('Live sync listener not started:', e && e.message);
+        });
+      };
+      bind(want, true);
+    } catch (e) { console.warn('Live sync listener not started:', e && e.message); }
+  }
+
   const server = await new Promise((resolve, reject) => {
     const s = app.listen(PORT, HOST, () => {
       const base = `http://${HOST}:${s.address().port}`;
       console.log(`ChEng AIO listening on ${base}`);
       try { tank.lanSync.setPort(s.address().port, HOST); } catch (_) { /* live sync is optional */ }
+      startLanListener(s.address().port);
       console.log(`  Shell:         ${base}/`);
       console.log(`  Tanks:         ${base}/tanks/`);
       console.log(`  Voyage:        ${base}/voyage/`);
