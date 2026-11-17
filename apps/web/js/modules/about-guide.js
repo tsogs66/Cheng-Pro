@@ -778,6 +778,32 @@ window.ChengProAboutGuide = (function () {
     },
     {
       group: 'Backup and handover',
+      q: 'How do I sync two devices on the ship with no internet or server?',
+      purpose: 'Live sync compares this device with another one on the same Wi-Fi or phone hotspot, directly, and lists what differs for Tank Chief, Voyage Chief and the other reports (requisitions, consumption plan snapshots, e-ORB). Nothing is copied until you tick it. Both devices must use the same email and license.',
+      steps: [
+        'Put both devices on the same Wi-Fi, or put one on the other\'s phone hotspot. A ship Wi-Fi with a login page or with devices kept apart will not work: use a hotspot or a small router with no internet.',
+        'Open Backup & Restore on both devices, then Sync with a nearby device. On the PC press Show pairing code.',
+        'On the phone or tablet press Find devices, or type the address the PC shows (for example http://192.168.0.20:47617) and the six-digit code, then Pair. A phone always makes the connection, so start from the phone or tablet.',
+        'Press Check differences. Each line is one thing: a vessel, a voyage leg, requisitions, plan snapshots or e-ORB entries. It shows what each device has and suggests pull (copy to this device), push (send to the other) or both.',
+        'Tick the lines you want, change the action if you disagree, then press Copy ticked items. Check again: lines that were copied are gone from the list.',
+        'For requisitions, plan snapshots and e-ORB, open the same vessel in Voyage Chief on both devices. ChEng AIO must stay open on the other device while you check.',
+        'If Find devices finds nothing: the Wi-Fi may keep devices apart (guest or login Wi-Fi). Use a phone hotspot instead, or type the address.',
+        'If it says Voyage Chief on the other device did not answer: open ChEng AIO on that device and keep it open, then check again.',
+        'If a voyage leg says the vessel is not on the other device: create or import that vessel there first (Vessel Setup), then check again.'
+      ],
+      buttons: [
+        'Show pairing code — makes a code that works once, for five minutes',
+        'Find devices — looks for the other device on the Wi-Fi; or type its address',
+        'Check differences — lists what differs; moves nothing',
+        'Copy ticked items — moves only the lines you ticked; nothing is ever deleted'
+      ],
+      undo: [
+        'Checking changes nothing. A copy you did not want is undone only from a backup taken before it, so export a file first before a big copy.',
+        'Forget removes a paired device. Pair again to bring it back.'
+      ]
+    },
+    {
+      group: 'Backup and handover',
       q: 'Where is the data, and who can see the server copy?',
       purpose: 'The working copy is on the device. A server copy exists only after you push, sync, or save to the ship server. The license email is the folder for that user. A master key can open user folders on the host.',
       steps: [

@@ -32116,6 +32116,152 @@ async function mergeFullDatabase(payload){
   }, { source: 'program' });
 }
 
+/* ---- Device-to-device compare (ChEng AIO Live sync) ----
+ * No server: the other device's app asks this one for a list of what it holds, shows both side by side,
+ * and only what the person ticks is read from or written to this device. */
+function p2pSameHull(a, b){
+  a = a || {}; b = b || {};
+  const ai = String(a.imo || '').trim(), bi = String(b.imo || '').trim();
+  if (ai && bi) return ai === bi;
+  return !!a.name && String(a.name).trim().toLowerCase() === String(b.name || '').trim().toLowerCase();
+}
+async function p2pVessels(){
+  await ensureDB();
+  const out = [];
+  for (const v of (state.vessels || [])){
+    let setup = null;
+    if (v.id === state.activeVesselId) setup = state.setup || null;
+    if (!setup){ try{ const row = await dbGet('meta', 'setup:' + v.id); setup = row && row.value; }catch(_){ setup = null; } }
+    out.push({
+      id: v.id,
+      name: String((setup && setup.vesselName) || v.name || '').trim(),
+      imo: String((setup && (setup.imo || setup.vesselImo)) || v.imo || '').trim()
+    });
+  }
+  return out;
+}
+function p2pMiscExport(){
+  const s = state.setup || {};
+  return {
+    vesselId: state.activeVesselId,
+    hull: { imo: String(s.imo || s.vesselImo || '').trim(), name: String(s.vesselName || '').trim() },
+    requisitions: (s.requisitions || []).slice(),
+    bunkerPlanHistory: (s.bunkerPlanHistory || []).slice(),
+    bunkerPlan: s.bunkerPlan || null,
+    orb: s.orb || null,
+    orbEntries: (state.orbEntries || []).slice(),
+    deletedIds: (ensureSyncConfig().deletedIds) || {}
+  };
+}
+function p2pMiscSummary(){
+  if (!state.activeVesselId) return null;
+  const m = p2pMiscExport();
+  const newest = (list) => (list || []).reduce((best, x) => {
+    const t = String((x && (x.updatedAt || x.savedAt || x.createdAt || x.at || x.datetime)) || '');
+    return t > best ? t : best;
+  }, '');
+  return {
+    hull: m.hull,
+    categories: {
+      requisitions: { count: m.requisitions.length, stamp: newest(m.requisitions) },
+      plans: { count: m.bunkerPlanHistory.length, stamp: newest(m.bunkerPlanHistory) },
+      orb: { count: m.orbEntries.length, stamp: newest(m.orbEntries) }
+    }
+  };
+}
+async function p2pManifest(){
+  await ensureDB();
+  await saveCurrentVesselState();
+  const vessels = await p2pVessels();
+  const byId = new Map(vessels.map(v => [v.id, v]));
+  const raws = await dbGetAll('voyageLegs');
+  const legs = [];
+  for (const raw of raws){
+    const vid = raw.vesselId || String(raw.id || '').split('::')[0];
+    const v = byId.get(vid);
+    if (!v) continue;
+    legs.push({
+      id: raw.id,
+      hull: { imo: v.imo, name: v.name },
+      voyage: String(raw.voyageNumber || '').trim(),
+      condition: normalizeCondition(raw.condition),
+      /* The newest entry, not the save time: two devices holding the same entries saved at different moments are the same. */
+      stamp: String(raw.contentAt || (typeof legContentStamp === 'function' ? legContentStamp(raw) : '') || raw.updatedAt || ''),
+      entries: raw.entryCount != null ? Number(raw.entryCount) : ((raw.entries || []).length)
+    });
+  }
+  return { vessels, legs, misc: p2pMiscSummary() };
+}
+async function p2pGetLegs(ids){
+  const vessels = await p2pVessels();
+  const byId = new Map(vessels.map(v => [v.id, v]));
+  const out = [];
+  for (const id of (ids || [])){
+    const raw = await dbGet('voyageLegs', id);
+    if (!raw) continue;
+    const leg = await inflateVoyageLeg(raw);
+    const v = byId.get(raw.vesselId || String(id).split('::')[0]) || { imo: '', name: '' };
+    out.push({ hull: { imo: v.imo, name: v.name }, leg });
+  }
+  return out;
+}
+async function p2pApplyLegs(items){
+  const vessels = await p2pVessels();
+  let done = 0;
+  const problems = [];
+  for (const it of (items || [])){
+    const src = it && it.leg;
+    if (!src) continue;
+    const target = vessels.find(v => p2pSameHull(v, it.hull));
+    const label = `voyage ${src.voyageNumber || '?'} ${normalizeCondition(src.condition)}`;
+    if (!target){ problems.push(label + ': that vessel is not on this device'); continue; }
+    const cond = normalizeCondition(src.condition);
+    const leg = JSON.parse(JSON.stringify(src));
+    leg.vesselId = target.id;
+    leg.condition = cond;
+    leg.id = voyageLegId(target.id, leg.voyageNumber, cond);
+    if (leg.setup) leg.setup.shipCondition = cond;
+    (leg.entries || []).forEach(e => { e.condition = normalizeCondition(e.condition); e.vesselId = target.id; });
+    await putVoyageLeg(leg);
+    done += 1;
+  }
+  if (done){ try{ invalidateRangeLegPool(); }catch(_){} }
+  return { done, problems };
+}
+function p2pMiscGet(){
+  if (!state.activeVesselId) throw new Error('No vessel is open in Voyage Chief on the other device.');
+  return p2pMiscExport();
+}
+async function p2pMiscApply(remote, cats){
+  if (!state.activeVesselId) throw new Error('No vessel is open in Voyage Chief on this device.');
+  remote = remote || {};
+  if (!p2pSameHull(p2pMiscExport().hull, remote.hull)) throw new Error('A different vessel is open in Voyage Chief on this device. Open the same vessel on both.');
+  const want = new Set((cats && cats.length) ? cats : ['requisitions', 'plans', 'orb']);
+  const sync = ensureSyncConfig();
+  const deleted = mergeDeletedIds(sync.deletedIds, remote.deletedIds);
+  sync.deletedIds = deleted;
+  const localSetup = {
+    requisitions: (state.setup.requisitions || []).slice(),
+    bunkerPlanHistory: (state.setup.bunkerPlanHistory || []).slice(),
+    bunkerPlan: state.setup.bunkerPlan || null,
+    orb: state.setup.orb || null
+  };
+  const use = {
+    requisitions: want.has('requisitions') ? remote.requisitions : undefined,
+    bunkerPlanHistory: want.has('plans') ? remote.bunkerPlanHistory : undefined,
+    bunkerPlan: want.has('plans') ? remote.bunkerPlan : undefined,
+    orb: want.has('orb') ? remote.orb : undefined
+  };
+  mergeMiscVesselData(state.setup, localSetup, use, deleted, false);
+  if (want.has('orb')){
+    state.orbEntries = adoptOrbEntries(filterDeleted(mergeListsById(remote.orbEntries || [], state.orbEntries || []), deleted.orbEntries));
+    if (typeof syncOrbEntriesIntoSetup === 'function') syncOrbEntriesIntoSetup();
+  }
+  await saveCurrentVesselState();
+  try{ if (typeof renderOrbUi === 'function') renderOrbUi(); }catch(_){}
+  return { counts: miscVesselDataCounts() };
+}
+
 function readJsonFileInput(file){
   return new Promise((resolve, reject)=>{
     if (!file) return reject(new Error('No file selected'));
@@ -32932,6 +33078,26 @@ async function onVoyageBackupMessage(ev){
   };
   if (msg.payloadChunked){
     voyageBackupIncoming[msg.requestId] = { ev, msg, parts: [] };
+    return;
+  }
+  try {
+    if (msg.action && String(msg.action).indexOf('p2p-') === 0) {
+      /* Live sync between two devices, answered for the other device's app. Open work is saved first. */
+      await commitOpenWorkBeforeSync();
+      if (msg.action === 'p2p-manifest') reply({ payload: await p2pManifest() });
+      else if (msg.action === 'p2p-legs') reply({ payload: await p2pGetLegs(msg.ids || []) });
+      else if (msg.action === 'p2p-misc') reply({ payload: p2pMiscGet() });
+      else if (msg.action === 'p2p-apply') {
+        const p = msg.payload || {};
+        const out = { legs: { done: 0, problems: [] }, misc: null };
+        if (Array.isArray(p.legs) && p.legs.length) out.legs = await p2pApplyLegs(p.legs);
+        if (p.misc) out.misc = await p2pMiscApply(p.misc, p.categories || []);
+        reply({ payload: out });
+      } else throw new Error('Unknown live sync request: ' + msg.action);
+      return;
+    }
+  } catch (err) {
+    reply({ error: (err && err.message) || String(err) });
     return;
   }
   try {

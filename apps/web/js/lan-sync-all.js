@@ -100,7 +100,12 @@
     var toast = deps.toast || function () {};
     var rand = deps.randomCode || randomCode;
     var idle = deps.idle || function () { return true; };
+    /* Direct mode (ChEng AIO): no server. Voyage Chief and the other reports are compared with the paired device
+       itself, item by item, and only what the person ticks moves. Without deps.compare the older behaviour stays. */
+    var direct = !!deps.compare;
+    var viaVoyageEngine = !direct && !!deps.voyage;
     var st = {
+      picks: {}, result: null,
       tank: null, voyage: null, misc: null,
       pairing: null, found: [], busy: '', lastMiscAt: 0, timer: null, errors: {}, notice: null
     };
@@ -131,13 +136,14 @@
     async function doRefresh() {
       await announceLicense();
       var t = await safe('tank', function () { return deps.tank('/api/lan/state'); });
-      var v = await safe('voyage', function () { return deps.voyage('lan-state', {}).then(function (r) { return r && r.lan; }); });
+      var v = !viaVoyageEngine ? null : await safe('voyage', function () { return deps.voyage('lan-state', {}).then(function (r) { return r && r.lan; }); });
       st.tank = t; st.voyage = v;
       if (!t && !v) throw new Error(st.errors.tank || st.errors.voyage || 'Nothing answered');
+      if (direct && t && t.mode !== 'ask') { try { await deps.tank('/api/lan/config', { method: 'POST', body: { mode: 'ask' } }); t.mode = 'ask'; } catch (_) { /* tried again next refresh */ } }
       var expires = (t && t.pairing && Date.parse(t.pairing.expiresAt)) || (v && v.pairing && v.pairing.until) || 0;
       if (expires > now()) {
         var keep = st.pairing && st.pairing.code === ((t && t.pairing && t.pairing.code) || (v && v.pairing && v.pairing.code)) ? st.pairing.note : '';
-        st.pairing = { code: (t && t.pairing && t.pairing.code) || v.pairing.code, until: expires, address: (t && t.address) || (v && v.address) || '', note: keep || '' };
+        st.pairing = { code: (t && t.pairing && t.pairing.code) || (v && v.pairing && v.pairing.code) || '', until: expires, address: (t && t.address) || (v && v.address) || '', note: keep || '' };
       } else if (st.pairing && st.pairing.until <= now()) {
         st.pairing = null;
       }
@@ -147,7 +153,7 @@
     function licenseOf() {
       var l = st.tank && st.tank.license;
       var lv = st.voyage && st.voyage.license;
-      return { active: !!(l && l.active) && !!(lv && lv.active), email: (l && l.email) || '' };
+      return { active: !!(l && l.active) && (direct ? true : !!(lv && lv.active)), email: (l && l.email) || '' };
     }
     function enabled() { return !!((st.tank && st.tank.enabled) || (st.voyage && st.voyage.enabled)); }
     function scopeAll() { return !!((st.tank && st.tank.scope === 'all') || (st.voyage && st.voyage.scopeAll)); }
@@ -159,25 +165,30 @@
         scopeAll: scopeAll(),
         deviceName: (st.tank && st.tank.deviceName) || '',
         address: (st.tank && st.tank.address) || '',
-        rows: [tankRow(st.tank), voyageRow(st.voyage), miscRow(st.misc, st.voyage)],
+        rows: direct ? [tankRow(st.tank)] : [tankRow(st.tank), voyageRow(st.voyage), miscRow(st.misc, st.voyage)],
         peers: (st.tank && st.tank.peers) || [],
         pairing: st.pairing,
         found: st.found,
         busy: st.busy,
         errors: st.errors,
-        notice: st.notice
+        notice: st.notice,
+        direct: direct,
+        pairedCount: (st.tank && st.tank.pairedCount) || 0,
+        compare: direct ? deps.compare.snapshot() : null,
+        picks: st.picks,
+        result: st.result
       };
     }
 
     async function setEnabled(on) {
       await safe('tank', function () { return deps.tank('/api/lan/config', { method: 'POST', body: { enabled: !!on } }); });
-      await safe('voyage', function () { return deps.voyage('lan-config', { config: { enabled: !!on } }); });
+      if (viaVoyageEngine) await safe('voyage', function () { return deps.voyage('lan-config', { config: { enabled: !!on } }); });
       return refresh();
     }
 
     async function setScope(all) {
       await safe('tank', function () { return deps.tank('/api/lan/config', { method: 'POST', body: { scope: all ? 'all' : 'active' } }); });
-      await safe('voyage', function () { return deps.voyage('lan-config', { config: { scopeAll: !!all } }); });
+      if (viaVoyageEngine) await safe('voyage', function () { return deps.voyage('lan-config', { config: { scopeAll: !!all } }); });
       return refresh();
     }
 
@@ -191,12 +202,20 @@
       var code = rand();
       var shareAll = !!(opts && opts.shareAll);
       var okTank = await safe('tank', function () { return deps.tank('/api/lan/pair/start', { method: 'POST', body: { code: code } }); });
-      var okVoy = await safe('voyage', function () { return deps.voyage('lan-code', { code: code, shareAll: shareAll }); });
+      var okVoy = !viaVoyageEngine ? true : await safe('voyage', function () { return deps.voyage('lan-code', { code: code, shareAll: shareAll }); });
       if (!okTank && !okVoy) throw new Error(st.errors.tank || st.errors.voyage || 'Could not show a code');
       /* Say which program could not start the code: the next refresh would otherwise wipe that error. */
       var note = [];
       if (!okTank) note.push('Tank Chief: ' + (st.errors.tank || 'did not start the code'));
-      if (!okVoy) note.push('Voyage Chief: ' + (st.errors.voyage || 'did not start the code'));
+      if (!okVoy) {
+        var ve = st.errors.voyage || 'did not start the code';
+        /* "Failed to fetch" tells nobody anything. Voyage Chief pairs through the sync server saved in Voyage
+           (Setup), unlike Tank Chief, which pairs device to device. */
+        if (/failed to fetch|networkerror|load failed/i.test(ve)) {
+          ve = 'could not reach its sync server, so it cannot pair on this network. Tank Chief and the other reports are not affected.';
+        }
+        note.push('Voyage Chief: ' + ve);
+      }
       /* A device showing a code is waiting to be joined: it has to be switched on to announce itself to the other. */
       if (!enabled()) await setEnabled(true).catch(function () {});
       await refresh().catch(function () {});
@@ -208,7 +227,7 @@
     /** Look for the other device on the network: both engines are asked, and a device found by either is listed once. */
     async function find() {
       var t = await safe('tank', function () { return deps.tank('/api/lan/scan', { method: 'POST', body: {} }); });
-      var v = await safe('voyage', function () { return deps.voyage('lan-scan', { hosts: [] }).then(function (r) { return r && r.found; }); });
+      var v = !viaVoyageEngine ? [] : await safe('voyage', function () { return deps.voyage('lan-scan', { hosts: [] }).then(function (r) { return r && r.found; }); });
       var byHost = {};
       ((t && t.found) || []).forEach(function (d) { byHost[hostOf(d.url)] = { url: d.url, name: d.name, via: 'tank' }; });
       (v || []).forEach(function (d) { var h = hostOf(d.url); if (!byHost[h]) byHost[h] = { url: d.url, name: d.name, via: 'voyage' }; });
@@ -226,7 +245,7 @@
       var tankOk = false;
       var voyOk = false;
       try { await deps.tank('/api/lan/peers/pair', { method: 'POST', body: { url: u, code: c } }); tankOk = true; } catch (e) { errs.push('Tank Chief: ' + msg(e)); }
-      try { await deps.voyage('lan-pair', { url: u, code: c }); voyOk = true; } catch (e) { errs.push('Voyage Chief: ' + msg(e)); }
+      if (viaVoyageEngine) { try { await deps.voyage('lan-pair', { url: u, code: c }); voyOk = true; } catch (e) { errs.push('Voyage Chief: ' + msg(e)); } } else { voyOk = true; }
       if (!tankOk && !voyOk) {
         /* Kept on the page: a toast is gone in seconds, and this is the answer to "why did it not pair". */
         st.notice = { kind: 'bad', text: errs.join(' · ') };
@@ -260,9 +279,9 @@
       st.busy = 'Syncing…';
       try {
         await safe('tank', function () { return deps.tank('/api/lan/sync-now', { method: 'POST', body: { force: true } }); });
-        await safe('voyage', function () { return deps.voyage('lan-now', {}); });
+        if (viaVoyageEngine) await safe('voyage', function () { return deps.voyage('lan-now', {}); });
         await refresh();
-        await syncMisc();
+        if (viaVoyageEngine) await syncMisc();
         return await refresh();
       } finally { st.busy = ''; }
     }
@@ -275,6 +294,29 @@
       return snapshot();
     }
 
+    /* ---- direct compare: list, tick, apply ---- */
+    async function check(deviceId) {
+      st.result = null; st.picks = {};
+      var snap = await deps.compare.compare(deviceId);
+      snap.rows.forEach(function (r) { st.picks[r.key] = { on: false, action: r.suggest === 'skip' ? '' : r.suggest }; });
+      return snap;
+    }
+    function setPick(key, on, action) {
+      var p = st.picks[key] || (st.picks[key] = { on: false, action: '' });
+      if (on != null) p.on = !!on;
+      if (action) p.action = action;
+    }
+    async function applyPicks() {
+      var chosen = Object.keys(st.picks).filter(function (k) { return st.picks[k].on && st.picks[k].action; })
+        .map(function (k) { return { key: k, action: st.picks[k].action }; });
+      if (!chosen.length) throw new Error('Tick at least one item first');
+      var r = await deps.compare.apply(chosen);
+      st.picks = {};
+      deps.compare.snapshot().rows.forEach(function (row) { st.picks[row.key] = { on: false, action: row.suggest === 'skip' ? '' : row.suggest }; });
+      st.result = r;
+      return r;
+    }
+
     function setIdle(fn) { idle = fn; }
     function start(ms) {
       stop();
@@ -285,6 +327,7 @@
     return {
       refresh: refresh, snapshot: snapshot, setEnabled: setEnabled, setScope: setScope, setDeviceName: setDeviceName,
       showCode: showCode, find: find, pair: pair, forget: forget, syncNow: syncNow, syncMisc: syncMisc, tick: tick,
+      check: check, setPick: setPick, applyPicks: applyPicks,
       start: start, stop: stop, setIdle: setIdle, _state: st
     };
   }
@@ -320,6 +363,52 @@
         '<span class="hint" style="margin:0">' + esc(r.message || '') + last + '</span></div>';
     }
 
+    var ACTION_LABEL = { pull: 'Copy to this device', push: 'Send to the other device', both: 'Both ways' };
+    function compareHtml(s) {
+      if (!s.direct) return '';
+      var c = s.compare || {};
+      var peers = s.peers || [];
+      var head = '<div class="backup-section-head" style="margin-top:14px"><span class="backup-section-title">Compare with the other device</span></div>' +
+        '<p class="hint">Nothing moves by itself. Check what differs, tick what you want, then press the button. Nothing is deleted.</p>';
+      if (!peers.length) {
+        return head + '<p class="hint">' + (s.pairedCount
+          ? 'This device was paired from the other device, which can be called only by a PC. Open this page on the <b>phone or tablet</b> and check from there.'
+          : 'Pair with the other device first (above), then check what differs.') + '</p>';
+      }
+      var pick = peers.length > 1
+        ? '<select id="ls-cmp-dev" style="max-width:100%">' + peers.map(function (p) { return '<option value="' + esc(p.deviceId) + '"' + (p.deviceId === c.deviceId ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select> '
+        : '<span class="hint" style="margin:0 8px 0 0">With <b>' + esc(peers[0].name) + '</b></span>';
+      var rows = (c.rows || []);
+      var table = '';
+      if (c.checkedAt) {
+        if (!rows.length) {
+          table = '<p class="hint" id="ls-cmp-empty"><b>Both devices hold the same.</b>' + (c.same ? ' ' + c.same + ' item' + (c.same === 1 ? '' : 's') + ' compared.' : '') + '</p>';
+        } else {
+          table = '<div style="overflow-x:auto"><table class="ls-cmp" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>' +
+            '<th></th><th style="text-align:left">Program</th><th style="text-align:left">Item</th><th style="text-align:left">This device</th><th style="text-align:left">Other device</th><th style="text-align:left">What to do</th></tr></thead><tbody>' +
+            rows.map(function (r) {
+              var p = (s.picks || {})[r.key] || { on: false, action: r.suggest };
+              var opts = r.options && r.options.length
+                ? '<select data-ls-act="' + esc(r.key) + '">' + r.options.map(function (o) { return '<option value="' + o + '"' + (p.action === o ? ' selected' : '') + '>' + esc(ACTION_LABEL[o]) + '</option>'; }).join('') + '</select>'
+                : '<span class="hint" style="margin:0">' + esc(r.note || 'Cannot be moved') + '</span>';
+              return '<tr style="border-top:1px solid rgba(128,128,128,.25)">' +
+                '<td><input type="checkbox" data-ls-tick="' + esc(r.key) + '" ' + (p.on ? 'checked ' : '') + (r.options && r.options.length ? '' : 'disabled ') + 'aria-label="Select"></td>' +
+                '<td>' + esc(r.program) + '</td><td><b>' + esc(r.item) + '</b><br><span class="hint" style="margin:0">' + esc(r.vessel) + '</span></td>' +
+                '<td>' + esc(r.mine || '—') + '</td><td>' + esc(r.theirs || '—') + '</td><td>' + opts + '</td></tr>';
+            }).join('') + '</tbody></table></div>' +
+            '<div class="btn-row" style="margin-top:8px"><button type="button" class="btn primary" id="ls-apply">Copy ticked items</button>' +
+            '<button type="button" class="btn" id="ls-tick-all">Tick all</button></div>';
+        }
+      }
+      var notes = (c.notes || []).map(function (n) { return '<div class="hint" style="color:var(--warn,#c99a53)">' + esc(n) + '</div>'; }).join('');
+      var res = s.result
+        ? '<div class="hint" id="ls-cmp-result" style="color:' + (s.result.failed.length ? 'var(--danger,#c0392b)' : 'var(--ok,#2a9d8f)') + '"><b>' +
+          (s.result.done ? s.result.done + ' item' + (s.result.done === 1 ? '' : 's') + ' copied.' : 'Nothing was copied.') + '</b>' +
+          (s.result.failed.length ? ' ' + esc(s.result.failed.join(' · ')) : '') + '</div>' : '';
+      return head + '<div class="btn-row" style="align-items:center">' + pick +
+        '<button type="button" class="btn" id="ls-check">' + (c.busy ? esc(c.busy) : 'Check differences') + '</button></div>' + notes + table + res;
+    }
+
     function draw() {
       var s = snap;
       if (!s) { host.innerHTML = '<div class="backup-section-head"><span class="backup-section-title">Live sync (Wi-Fi / hotspot) — all programs</span></div><p class="hint">Looking for Tank Chief and Voyage Chief…</p>'; return; }
@@ -347,16 +436,18 @@
       var errs = Object.keys(s.errors || {}).map(function (k) { return '<div class="hint" style="color:var(--danger,#c0392b)">' + esc(k === 'tank' ? 'Tank Chief' : 'Voyage Chief') + ': ' + esc(s.errors[k]) + '</div>'; }).join('');
       host.innerHTML =
         '<div class="backup-section-head"><span class="backup-section-title">Live sync (Wi-Fi / hotspot) — all programs</span></div>' +
-        '<p class="hint">Keep this device level with another one on the same Wi-Fi or phone hotspot: Tank Chief, Voyage Chief, and the other reports (requisitions, consumption plan, oil record book, e-ORB). Pair once; everything follows. The newest copy of a record wins, and nothing is deleted.</p>' +
+        '<p class="hint">' + (s.direct
+          ? 'Compare this device with another one on the same Wi-Fi or phone hotspot, directly: Tank Chief, Voyage Chief, and the other reports (requisitions, consumption plan snapshots, e-ORB). No server is used. Pair once, then check what differs and tick what to copy.'
+          : 'Keep this device level with another one on the same Wi-Fi or phone hotspot: Tank Chief, Voyage Chief, and the other reports (requisitions, consumption plan, oil record book, e-ORB). Pair once; everything follows. The newest copy of a record wins, and nothing is deleted.') + '</p>' +
         lic +
-        '<label style="display:block;margin:6px 0"><input type="checkbox" id="ls-enabled" ' + (s.enabled ? 'checked' : '') + '> Sync automatically while both devices are open</label>' +
-        '<div style="margin:6px 0;font-size:13px">' +
+        '<label style="display:block;margin:6px 0"><input type="checkbox" id="ls-enabled" ' + (s.enabled ? 'checked' : '') + '> ' + (s.direct ? 'Keep checking what differs while both devices are open (nothing is copied until you tick it)' : 'Sync automatically while both devices are open') + '</label>' +
+        (s.direct ? '' : '<div style="margin:6px 0;font-size:13px">' +
         '<label style="display:block"><input type="radio" name="ls-scope" value="active" ' + (!s.scopeAll ? 'checked' : '') + '> Only the vessel both devices have open</label>' +
-        '<label style="display:block"><input type="radio" name="ls-scope" value="all" ' + (s.scopeAll ? 'checked' : '') + '> The whole database — a vessel or leg one device is missing is copied to it</label></div>' +
+        '<label style="display:block"><input type="radio" name="ls-scope" value="all" ' + (s.scopeAll ? 'checked' : '') + '> The whole database — a vessel or leg one device is missing is copied to it</label></div>') +
         '<div class="btn-row">' +
         '<button type="button" class="btn" id="ls-show-code">Show pairing code</button>' +
         '<button type="button" class="btn" id="ls-find">Find devices</button>' +
-        '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button></div>' +
+        (s.direct ? '' : '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button>') + '</div>' +
         code +
         '<div id="ls-found" style="margin-top:8px">' + found + '</div>' +
         '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
@@ -365,8 +456,10 @@
         '<button type="button" class="btn" id="ls-pair-url">Pair</button></div>' +
         notice +
         '<div style="margin-top:10px">' + s.rows.map(rowHtml).join('') + '</div>' +
-        peers + errs +
-        '<p class="hint" style="margin-top:8px">Both devices must have the same vessel open for a vessel to sync. A phone always makes the connection; two PCs can each find the other. Bluetooth is not used.</p>';
+        peers + errs + compareHtml(s) +
+        '<p class="hint" style="margin-top:8px">' + (s.direct
+          ? 'A phone always makes the connection, so start the check on the phone or tablet; two PCs can each find the other. For requisitions, plan snapshots and e-ORB, open the same vessel in Voyage Chief on both devices. The other device\'s ChEng AIO must be open. Bluetooth is not used.'
+          : 'Both devices must have the same vessel open for a vessel to sync. A phone always makes the connection; two PCs can each find the other. Bluetooth is not used.') + '</p>';
       wire();
     }
 
@@ -389,7 +482,28 @@
           if (!f.length) toast('Nobody found. Check both are on the same Wi-Fi or hotspot, or type the address.');
         });
       };
-      q('#ls-now').onclick = function () { act(function () { return controller.syncNow(); }, 'Synced'); };
+      var nowBtn = q('#ls-now');
+      if (nowBtn) nowBtn.onclick = function () { act(function () { return controller.syncNow(); }, 'Synced'); };
+      var chk = q('#ls-check');
+      if (chk) chk.onclick = function () {
+        var sel = q('#ls-cmp-dev');
+        var dev = sel ? sel.value : ((snap.peers[0] || {}).deviceId);
+        act(function () { return controller.check(dev); });
+      };
+      var applyBtn = q('#ls-apply');
+      if (applyBtn) applyBtn.onclick = function () {
+        act(async function () { var r = await controller.applyPicks(); toast(r.failed.length ? 'Some items did not copy' : (r.done + ' copied')); });
+      };
+      var tickAll = q('#ls-tick-all');
+      if (tickAll) tickAll.onclick = function () {
+        host.querySelectorAll('[data-ls-tick]:not(:disabled)').forEach(function (b) { b.checked = true; controller.setPick(b.getAttribute('data-ls-tick'), true); });
+      };
+      host.querySelectorAll('[data-ls-tick]').forEach(function (b) {
+        b.onchange = function () { controller.setPick(b.getAttribute('data-ls-tick'), b.checked); };
+      });
+      host.querySelectorAll('[data-ls-act]').forEach(function (sel) {
+        sel.onchange = function () { controller.setPick(sel.getAttribute('data-ls-act'), null, sel.value); };
+      });
       q('#ls-pair-url').onclick = function () {
         act(async function () { var r = await controller.pair(q('#ls-url').value, q('#ls-code').value); toast(r.problems.length ? 'Paired, but ' + r.problems.join(' · ') : 'Paired'); });
       };
