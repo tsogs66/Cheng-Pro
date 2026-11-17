@@ -72,6 +72,11 @@ function hullSame(a, b) {
 }
 
 function isLoopback(req) {
+  /* A reverse proxy on the same machine (a server behind nginx or a tunnel) makes every request look like it came
+     from this machine. Such a request carries forwarding headers; the device's own screen never does. So a request
+     that went through a proxy is not "this device". */
+  const h = (req && req.headers) || {};
+  if (h['x-forwarded-for'] || h['x-real-ip'] || h['forwarded'] || h['cf-connecting-ip'] || h['x-forwarded-host']) return false;
   const ip = String((req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '');
   /* No socket at all is the phone's in-app server: only the app itself can call it. */
   if (!ip) return true;
