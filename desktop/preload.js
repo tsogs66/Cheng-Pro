@@ -33,3 +33,9 @@ contextBridge.exposeInMainWorld('ChengDesktopReminders', {
     });
   },
 });
+
+/** Windows Firewall for live sync: lets other devices reach this PC. */
+contextBridge.exposeInMainWorld('ChengDesktopNetwork', {
+  status() { return ipcRenderer.invoke('cheng-firewall-status'); },
+  allowLiveSync(ports) { return ipcRenderer.invoke('cheng-firewall-allow', Array.isArray(ports) ? ports : []); },
+});

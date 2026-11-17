@@ -144,7 +144,7 @@
       var expires = (t && t.pairing && Date.parse(t.pairing.expiresAt)) || (v && v.pairing && v.pairing.until) || 0;
       if (expires > now()) {
         var keep = st.pairing && st.pairing.code === ((t && t.pairing && t.pairing.code) || (v && v.pairing && v.pairing.code)) ? st.pairing.note : '';
-        st.pairing = { code: (t && t.pairing && t.pairing.code) || (v && v.pairing && v.pairing.code) || '', until: expires, address: (t && t.address) || (v && v.address) || '', note: keep || '' };
+        st.pairing = { code: (t && t.pairing && t.pairing.code) || (v && v.pairing && v.pairing.code) || '', until: expires, address: (t && t.address) || (v && v.address) || '', addresses: (t && t.addresses) || [], note: keep || '' };
       } else if (st.pairing && st.pairing.until <= now()) {
         st.pairing = null;
       }
@@ -227,7 +227,7 @@
       if (!enabled()) await setEnabled(true).catch(function () {});
       await refresh().catch(function () {});
       st.notice = null;
-      st.pairing = { code: code, until: now() + CODE_MS, address: (st.tank && st.tank.address) || '', note: note.join(' · ') };
+      st.pairing = { code: code, until: now() + CODE_MS, address: (st.tank && st.tank.address) || '', addresses: (st.tank && st.tank.addresses) || [], note: note.join(' · ') };
       return st.pairing;
     }
 
@@ -252,11 +252,14 @@
       var tankOk = false;
       var voyOk = false;
       try { await deps.tank('/api/lan/peers/pair', { method: 'POST', body: { url: u, code: c } }); tankOk = true; } catch (e) { errs.push('Tank Chief: ' + msg(e)); }
-      if (viaVoyageEngine) { try { await deps.voyage('lan-pair', { url: u, code: c }); voyOk = true; } catch (e) { errs.push('Voyage Chief: ' + msg(e)); } } else { voyOk = true; }
+      if (viaVoyageEngine) { try { await deps.voyage('lan-pair', { url: u, code: c }); voyOk = true; } catch (e) { errs.push('Voyage Chief: ' + msg(e)); } } else { voyOk = tankOk; }
       if (!tankOk && !voyOk) {
         /* Kept on the page: a toast is gone in seconds, and this is the answer to "why did it not pair". */
-        st.notice = { kind: 'bad', text: errs.join(' · ') };
-        throw new Error(errs.join(' · '));
+        var why = errs.join(' · ');
+        var unreachable = /nothing answered|failed to fetch|not reachable|timed out|network/i.test(why);
+        var help = unreachable ? ' NOT PAIRED. The other device did not answer: check that it is on the same Wi-Fi, that its ChEng AIO is open, and that its Windows Firewall allows ChEng AIO (on the PC press "Allow through Windows Firewall" under step 2). The PC lists every address it can be reached at under its code: try the others if this one fails.' : '';
+        st.notice = { kind: 'bad', text: why + help };
+        throw new Error(why + help);
       }
       await setEnabled(true).catch(function () {});
       st.found = [];
@@ -436,7 +439,9 @@
           '<li>Both <b>clocks show the same time</b> (within one minute). This device now: <b>' + esc(clock) + '</b>. If the time differs from the other device, set both to automatic date and time first, or pairing is refused.</li>' +
           '<li>On a Windows PC, when asked, allow ChEng AIO through the firewall for <b>private</b> networks.</li></ul>') +
         step(2, 'On the PC (or the device that will be called): show the code',
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn primary" style="flex:0 0 auto" id="ls-show-code">Show pairing code</button></div>' + code +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn primary" style="flex:0 0 auto" id="ls-show-code">Show pairing code</button>' +
+          (root.ChengDesktopNetwork ? '<button type="button" class="btn" style="flex:0 0 auto" id="ls-firewall">Allow through Windows Firewall</button>' : '') + '</div>' +
+          (root.ChengDesktopNetwork ? '<div class="hint" id="ls-firewall-note" style="margin-top:4px">Windows blocks other devices from reaching this PC until you allow it once. Press the button and answer Yes to the Windows prompt.</div>' : '') + code +
           (code ? '' : '<div class="hint">A 6-digit code and this device\'s address appear here. The code works once and lasts five minutes.</div>')) +
         step(3, 'On the phone or tablet: connect to it',
           '<div class="hint">Press <b>Find devices</b>. When the PC appears in the list, type the 6-digit code next to it and press <b>Pair</b>.</div>' +
@@ -467,8 +472,10 @@
       if (!s) { host.innerHTML = '<div class="backup-section-head"><span class="backup-section-title">Live sync (Wi-Fi / hotspot) — all programs</span></div><p class="hint">Looking for Tank Chief and Voyage Chief…</p>'; return; }
       var code = s.pairing
         ? '<div id="ls-code-show" style="font-size:26px;letter-spacing:6px;font-weight:700;margin:6px 0">' + esc(s.pairing.code) + '</div>' +
-          '<div class="hint">Type this on the other device. It works once, for five minutes, for Tank Chief and Voyage Chief together.' +
-          (s.pairing.address ? ' This device is at <code>' + esc(s.pairing.address) + '</code>.' : '') + '</div>' +
+          '<div class="hint">Type this on the other device. It works once, for five minutes, for Tank Chief and Voyage Chief together.</div>' +
+          (s.pairing.addresses && s.pairing.addresses.length > 1
+            ? '<div class="hint"><b>This device can be reached at</b> (type the first one on the other device; if it says nothing answered, try the next):<ul style="margin:4px 0 0 18px;padding:0">' + s.pairing.addresses.map(function (a) { return '<li><code>' + esc(a.url) + '</code> <span style="opacity:.7">' + esc(a.name || '') + '</span></li>'; }).join('') + '</ul></div>'
+            : (s.pairing.address ? '<div class="hint">This device is at <code>' + esc(s.pairing.address) + '</code>.</div>' : '')) +
           (s.pairing.note ? '<div class="hint" style="color:var(--warn,#c99a53)">The code is not working for everything: ' + esc(s.pairing.note) + '</div>' : '')
         : '';
       var found = (s.found || []).map(function (d) {
@@ -523,6 +530,20 @@
         r.onchange = function () { act(function () { return controller.setScope(r.value === 'all'); }, r.value === 'all' ? 'The whole database will be kept level' : 'Only the shared vessel will be kept level'); };
       });
       q('#ls-show-code').onclick = function () { act(function () { return controller.showCode({}); }); };
+      var fw = q('#ls-firewall');
+      if (fw && root.ChengDesktopNetwork) {
+        fw.onclick = async function () {
+          var note = q('#ls-firewall-note');
+          if (note) note.textContent = 'Waiting for Windows… answer Yes to the prompt.';
+          try {
+            var addr = (snap && snap.pairing && snap.pairing.address) || ((snap && snap.peers && snap.peers[0] && snap.peers[0].url) || '');
+            var m = /:(\d{2,5})\b/.exec(String(addr).replace(/^https?:\/\//, ''));
+            var port = m ? Number(m[1]) : 47617;
+            var r = await root.ChengDesktopNetwork.allowLiveSync([port, 47617, 47615]);
+            if (note) { note.textContent = r.message; note.style.color = r.ok ? 'var(--ok,#2a9d8f)' : 'var(--danger,#c0392b)'; }
+          } catch (e) { if (note) note.textContent = 'Could not change the firewall: ' + msg(e); }
+        };
+      }
       q('#ls-find').onclick = function () {
         act(async function () {
           toast('Looking for devices…');
