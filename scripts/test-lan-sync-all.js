@@ -270,7 +270,7 @@ const asked = (w, kind, what) => w.calls.filter((c) => c[0] === kind && c[1] ===
   });
 
   console.log('Where it is on the page');
-  await check('the shell loads the controller before the Backup & Restore module, and mounts it there', () => {
+  await check('the shell loads the controller before the Backup & Sync module, and mounts it there', () => {
     const root = path.join(__dirname, '..');
     const html = fs.readFileSync(path.join(root, 'apps/web/index.html'), 'utf8');
     assert.ok(html.includes('/js/lan-sync-all.js'));
@@ -281,9 +281,9 @@ const asked = (w, kind, what) => w.calls.filter((c) => c[0] === kind && c[1] ===
   await check('inside the AIO the per-program panels only point to that page, so there is one control', () => {
     const root = path.join(__dirname, '..');
     const tank = fs.readFileSync(path.join(root, 'modules/tanks/public/js/lan-sync-ui.js'), 'utf8');
-    assert.ok(/isAioEmbedded\(\)[\s\S]{0,400}Backup &amp; Restore/.test(tank), 'Tank panel points to Backup & Restore in the AIO');
+    assert.ok(/isAioEmbedded\(\)[\s\S]{0,400}Backup &amp; Sync/.test(tank), 'Tank panel points to Backup & Sync in the AIO');
     const voy = fs.readFileSync(path.join(root, 'modules/voyage/www/lan-sync.js'), 'utf8');
-    assert.ok(/embedded\(\)[\s\S]{0,400}Backup &amp; Restore/.test(voy), 'Voyage panel points to Backup & Restore in the AIO');
+    assert.ok(/embedded\(\)[\s\S]{0,400}Backup &amp; Sync/.test(voy), 'Voyage panel points to Backup & Sync in the AIO');
     const html = fs.readFileSync(path.join(root, 'modules/voyage/www/voyage_manager.html'), 'utf8');
     for (const a of ['lan-state', 'lan-config', 'lan-code', 'lan-scan', 'lan-pair', 'lan-now']) assert.ok(html.includes("'" + a + "'"), a + ' is handled by the Voyage frame');
   });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Backup & Restore on the Android and Windows apps sends tank reports to the
+ * Backup & Sync on the Android and Windows apps sends tank reports to the
  * ChEng AIO server, not to the app itself. Both apps serve the page from
  * localhost, so '/tanks/...' never left the device: in the APK every call came
  * back as index.html with a 200 and the saved reports were reported as sent.

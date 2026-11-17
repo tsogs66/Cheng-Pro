@@ -33316,7 +33316,7 @@ async function onVoyageBackupMessage(ev){
   }
   try {
     if (msg.action && String(msg.action).indexOf('lan-') === 0) {
-      /* Live sync (Wi-Fi / hotspot): the AIO's Backup & Restore page controls it for every program. */
+      /* Live sync (Wi-Fi / hotspot): the AIO's Backup & Sync page controls it for every program. */
       const LS = window.VoyageLanSync;
       if (!LS) throw new Error('Live sync is not loaded in Voyage Chief');
       if (msg.action === 'lan-state') {

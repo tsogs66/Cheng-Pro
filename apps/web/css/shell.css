@@ -309,10 +309,10 @@ html.bright .field textarea { background: rgba(18,34,56,0.05); }
 /* "registered:" only where there is room; on a phone the whole address is worth more than the word. */
 @media (max-width: 699px) { .topbar-meta .registered { max-width: 46vw; } }
 
-/* Live sync panel (Backup & Restore): fields a finger can hit, and text that is not smaller than the page around it. */
+/* Live sync panel (Backup & Sync): fields a finger can hit, and text that is not smaller than the page around it. */
 #bk-live-sync input[type="text"], #bk-live-sync input:not([type]) { min-height: 44px; font-size: 15px; padding: 8px 10px; box-sizing: border-box; }
 #bk-live-sync .hint { font-size: 0.9rem; line-height: 1.5; }
-/* Explanatory text on Backup & Restore was 12px: under the 14px Android asks for body text. Phones and tablets only. */
+/* Explanatory text on Backup & Sync was 12px: under the 14px Android asks for body text. Phones and tablets only. */
 @media (max-width: 1024px) and (pointer: coarse) {
   .backup-page .hint, #bk-live-sync .hint { font-size: 14px !important; line-height: 1.5; }
 }

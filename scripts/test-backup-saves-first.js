@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Backup & Restore saves open work before it reads, sends or replaces data,
+ * Backup & Sync saves open work before it reads, sends or replaces data,
  * and Database consistency has a check of its own for miscellaneous data.
  * Run: node scripts/test-backup-saves-first.js
  */
