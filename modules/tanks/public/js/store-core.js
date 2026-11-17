@@ -872,6 +872,8 @@ function getBunkerPlan(id) {
 /** A running plan from a paired device, merged into this vessel's own. Returns the plan now stored and whether it changed. */
 function mergePlanFromPeer(id, incoming) {
   if (!fs.existsSync(vesselDir(id))) throw new Error('Vessel not found');
+  /* A plan has a fixed number of tank slots; refuse anything wildly bigger than that. */
+  if (!incoming || !Array.isArray(incoming.sequence) || incoming.sequence.length > 60) throw new Error('Not a bunker plan');
   const file = vesselPath(id, 'bunker-plan.json');
   const current = readJson(file, null);
   const merged = mergeDraftDoc(current, incoming);
