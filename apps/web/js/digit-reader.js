@@ -225,7 +225,7 @@
         var gap2 = gb.x0 - ga.x1 - 1;
         var both = groupOf([ga, gb]);
         var tall = (both.y1 - both.y0 + 1) >= Hd * 0.6;
-        if (tall && gap2 <= Hd * 0.35 && (both.x1 - both.x0 + 1) <= Hd * 0.9) {
+        if (tall && gap2 <= Hd * 0.4 && (both.x1 - both.x0 + 1) <= Hd * 1.3) {
           var pm = best(both), pa = best(ga), pb = best(gb);
           if (pm >= 0.85 && pm > Math.min(pa, pb) + 0.1) { groups.splice(gi, 2, both); continue; }
         }
@@ -239,6 +239,14 @@
     while (queue.length && guard++ < 40) {
       var g2 = queue.shift();
       var w2 = g2.x1 - g2.x0 + 1, h2 = g2.y1 - g2.y0 + 1;
+      /* wide handwriting (a round 0, a spread 2) is one digit: only a group the network does not recognise as one digit,
+         or one far wider than tall, is two that touch */
+      var tooWide = w2 > h2 * 1.6;
+      if (!tooWide && w2 > h2 * 0.95 && NET) {
+        var pr1 = classify(toMnist(ink, cw, g2.x0, g2.y0, g2.x1, g2.y1)), mx1 = 0;
+        for (var q1 = 0; q1 < 10; q1++) if (pr1[q1] > mx1) mx1 = pr1[q1];
+        if (mx1 >= 0.9) { chars.push(g2); continue; }
+      }
       if (h2 > Hd * 0.55 && w2 > h2 * 0.95) {
         var cut = splitX(ink, cw, g2);
         if (cut > g2.x0 + 2 && cut < g2.x1 - 2) {
@@ -253,12 +261,14 @@
       chars.push(g2);
     }
     chars.sort(function (a, b) { return a.x0 - b.x0; });
+    var bottoms = chars.filter(function (o) { return (o.y1 - o.y0 + 1) >= Hd * 0.6; }).map(function (o) { return o.y1; }).sort(function (a, b) { return a - b; });
+    var baseline = bottoms.length ? bottoms[bottoms.length >> 1] : ch;
     var out = [];
     chars.forEach(function (g) {
       var w = g.x1 - g.x0 + 1, h = g.y1 - g.y0 + 1;
       var cyRel = ((g.y0 + g.y1) / 2) / ch;
       var box = [g.x0, g.y0, g.x1, g.y1];
-      if (h <= Hd * 0.3 && w <= Hd * 0.4 && g.y1 >= ch * 0.5) { if (g.area >= 4) out.push({ kind: 'dot', box: box }); return; }
+      if (h <= Hd * 0.4 && w <= Hd * 0.5 && g.y1 >= baseline - Hd * 0.3 && g.y0 >= baseline - Hd * 0.55) { if (g.area >= Math.max(5, 0.012 * Hd * Hd)) out.push({ kind: 'dot', box: box }); return; }
       if (h <= Hd * 0.25 && w >= Hd * 0.3 && cyRel > 0.25 && cyRel < 0.75) { out.push({ kind: 'minus', box: box }); return; }
       if (h < Hd * 0.5) return;   // a small mark that is neither a point nor a minus: part of the printed label, not a digit
       /* a slash (only where the field may hold one): one narrow stroke that leans right, or runs well above and below

@@ -755,10 +755,10 @@
       rules.h.forEach(function (l) {
         var ov = Math.min(l.x1, x1 + 0.05 * W) - Math.max(l.x0, x0 - 0.05 * W);
         var llen = l.x1 - l.x0;
-        if (ov < 0.5 * (x1 - x0) || llen > (x1 - x0) * 1.8 + 0.06 * W || llen < (x1 - x0) * 0.35) return;     // a table's long line is no field's line
+        if (ov < 0.5 * (x1 - x0) || llen > (x1 - x0) * 1.3 + 0.04 * W || llen < (x1 - x0) * 0.35) return;     // a table's long line is no field's line
         var dy = Math.abs(l.y - y1);
         if (dy > 0.045 * H) return;
-        var score = ov / (x1 - x0) - dy / (0.045 * H);
+        var score = Math.min(1, ov / (x1 - x0)) - 2 * dy / (0.045 * H);
         if (score > bestScore) { bestScore = score; best = l; }
       });
       if (!best) return item;
@@ -931,6 +931,7 @@
 
   async function readWithCorners(photo, corners, layout, onProgress) {
     /* Which way up the card is: the corners say portrait or landscape; its printed title says which end is the top. */
+    if (!corners || corners.length !== 4) throw new Error('The card corners are needed');
     var rots = rotationCandidates(corners, layout);
     var worker = await getWorker(onProgress);
     var turn = rots[0], card = null, turnScore = null;
