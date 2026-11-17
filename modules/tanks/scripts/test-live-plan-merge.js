@@ -91,6 +91,12 @@ check('saving through the store stamps only what changed, and a paired device\'s
   assert.strictEqual(store.mergePlanFromPeer(v.id, peer).changed, false, 'the same plan again changes nothing');
 });
 
+check('a plan with an absurd number of slots is refused, and a missing plan too', () => {
+  const huge = plan(Array.from({ length: 5000 }, () => slot()));
+  assert.throws(() => store.mergePlanFromPeer(v.id, huge), /Not a bunker plan/);
+  assert.throws(() => store.mergePlanFromPeer(v.id, null), /Not a bunker plan/);
+});
+
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
 console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
 process.exit(failed ? 1 : 0);
