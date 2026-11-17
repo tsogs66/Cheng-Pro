@@ -141,6 +141,16 @@ function vesselNames(dir) {
       assert.match(r.body.error, /not open/);
     });
 
+    await check('behind a reverse proxy nothing counts as this device: the control routes refuse a forwarded request', async () => {
+      const fwd = { 'x-forwarded-for': '203.0.113.9' };
+      assert.strictEqual((await A.call('GET', '/api/lan/state', null, fwd)).status, 403);
+      assert.strictEqual((await A.call('POST', '/api/lan/pair/start', {}, fwd)).status, 403);
+      assert.strictEqual((await A.call('POST', '/api/lan/license', { email: 'x@y.z', licenseId: 'z' }, fwd)).status, 403);
+      assert.strictEqual((await A.call('GET', '/api/lan/pending', null, { forwarded: 'for=203.0.113.9' })).status, 403);
+      assert.strictEqual((await A.call('POST', '/api/lan/answer', { id: 'x' }, { 'cf-connecting-ip': '203.0.113.9' })).status, 403);
+      assert.strictEqual((await A.call('GET', '/api/lan/state')).status, 200, 'the device itself still can');
+    });
+
     await check('an unpaired caller cannot ask, and a bad question name is refused', async () => {
       assert.strictEqual((await B.call('POST', '/api/lan/ask', { op: 'manifest' })).status, 401);
     });
