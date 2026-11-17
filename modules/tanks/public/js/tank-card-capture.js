@@ -73,6 +73,44 @@ const TankCardCapture = (() => {
     return { filled, notInPlan: missing, wrongSense: [] };
   }
 
+  const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const p2 = (n) => String(n).padStart(2, '0');
+  /** A card date as the page wants it (yyyy-mm-dd): 13/11/2026, 13-11-26, 13 11 2026 or 13 NOV 2026. '' when it cannot be made sense of. */
+  function parseCardDate(text) {
+    const t = String(text || '').toUpperCase().trim();
+    let m = /^(\d{1,2})\s*[\/\-. ]\s*(\d{1,2})\s*[\/\-. ]\s*(\d{2}|\d{4})$/.exec(t);
+    let d; let mo; let y;
+    if (m) { d = +m[1]; mo = +m[2]; y = m[3]; } else {
+      m = /^(\d{1,2})\s*[\/\-. ]?\s*([A-Z]{3})[A-Z]*\s*[\/\-. ]?\s*(\d{2}|\d{4})$/.exec(t);
+      if (!m) return '';
+      d = +m[1]; mo = MONTHS.indexOf(m[2]) + 1; y = m[3];
+    }
+    if (y.length === 2) y = '20' + y;
+    if (!(d >= 1 && d <= 31 && mo >= 1 && mo <= 12)) return '';
+    return `${y}-${p2(mo)}-${p2(d)}`;
+  }
+  /** 0800H, 08:00, 8.00 or 0800 -> 08:00. */
+  function parseCardTime(text) {
+    const t = String(text || '').toUpperCase().replace(/[HRS]/g, '').trim();
+    const m = /^(\d{1,2})\s*[:.]?\s*(\d{2})$/.exec(t);
+    if (!m || +m[1] > 23 || +m[2] > 59) return '';
+    return `${p2(m[1])}:${m[2]}`;
+  }
+
+  /** Tank Monitoring (the Fuel Oil Report page): everything After Bunkering takes, plus date, time and temperatures. */
+  function applyReport(result, bundle) {
+    const out = applyAfter(result, bundle);
+    const put = (head, v) => {
+      const box = document.querySelector(`[data-head="${head}"]`);
+      if (v !== '' && box) { box.value = v; fire(box, 'input'); fire(box, 'change'); }
+    };
+    put('date', parseCardDate(result.fields.date));
+    put('time', parseCardTime(result.fields.time));
+    put('seaTemp', num(result.fields.sea));
+    put('engineRoomTemp', num(result.fields.er));
+    return out;
+  }
+
   function say(out, what) {
     const parts = [`${out.filled.length} tank${out.filled.length === 1 ? '' : 's'} filled in`];
     if (out.notInPlan.length) parts.push(`not ${what}: ${out.notInPlan.join(', ')}`);
@@ -87,12 +125,12 @@ const TankCardCapture = (() => {
     TankSoundingCard.fuelTanks(bundle).forEach((t) => { ranges['cm:' + t.id] = [0, 3000]; ranges['temp:' + t.id] = [0, 95]; });
     return ChengCardReader.capture({
       ranges,
-      title: kind === 'after' ? 'Capture the Tank Sounding Card (after bunkering)' : 'Capture the Tank Sounding Card (monitoring)',
+      title: kind === 'after' ? 'Capture the Tank Sounding Card (after bunkering)' : kind === 'report' ? 'Capture the Tank Sounding Card (tank monitoring)' : 'Capture the Tank Sounding Card (monitoring)',
       hint: 'Photograph the Tank Sounding Card with all four black corner marks in the picture. One card half at a time: lay it flat, in good light.',
       layout: () => ChengCardReader.measureLayout(doc.html, doc.cardSelector, doc.widthMm, doc.heightMm),
       apply: async (result) => {
-        const out = kind === 'after' ? applyAfter(result, bundle) : applyMonitoring(result, bundle);
-        return say(out, kind === 'after' ? 'on this page' : 'in the plan');
+        const out = kind === 'after' ? applyAfter(result, bundle) : kind === 'report' ? applyReport(result, bundle) : applyMonitoring(result, bundle);
+        return say(out, kind === 'after' || kind === 'report' ? 'on this page' : 'in the plan');
       },
     });
   }
@@ -112,6 +150,6 @@ const TankCardCapture = (() => {
     row.insertBefore(btn, row.firstChild);
   }
 
-  return { available, open, addButton, applyMonitoring, applyAfter, methodFor };
+  return { available, open, addButton, applyMonitoring, applyAfter, applyReport, parseCardDate, parseCardTime, methodFor };
 })();
 window.TankCardCapture = TankCardCapture;

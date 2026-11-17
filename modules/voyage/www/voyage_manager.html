@@ -19690,7 +19690,7 @@ function buildLogEntryDataHalfHtml(){
 
   const geRows = Array.from({ length: geN }, (_, i) =>
     `<tr><td class="pr-led-rowlbl">A/E ${i + 1}</td>`
-    + `<td class="pr-led-write pr-led-chk" data-card-box="ge:${i + 1}:on" data-card-label="In service" data-card-group="Auxiliary engine ${i + 1}"></td>`
+    + `<td class="pr-led-write" data-card-field="ge:${i + 1}:svc" data-card-type="number" data-card-label="In service (h)" data-card-group="Auxiliary engine ${i + 1}"></td>`
     + `<td class="pr-led-write" data-card-field="ge:${i + 1}:hrs" data-card-type="number" data-card-label="Run hrs" data-card-group="Auxiliary engine ${i + 1}"></td>`
     + `<td class="pr-led-write" data-card-field="ge:${i + 1}:kw" data-card-type="number" data-card-label="Avg kW" data-card-group="Auxiliary engine ${i + 1}"></td></tr>`
   ).join('');
@@ -19731,7 +19731,7 @@ function buildLogEntryDataHalfHtml(){
         <div class="pr-led-grid3" style="margin-top:1mm">
           ${ledMini('Wind Dir', { key: 'windDir', type: 'text' })}
           ${ledMini('Wind state', { key: 'windBft' })}
-          ${ledMini('Sea state', { key: 'seaState' })}
+          ${ledMini('Sea state', { key: 'seaState', type: 'text' })}
         </div>
         <div class="pr-led-grid3" style="margin-top:1mm">
           ${ledMini('E/R °C', { key: 'erTemp' })}
@@ -19795,7 +19795,7 @@ function buildLogEntryDataHalfHtml(){
               ${ledMini('Sludge ROB m³', { key: 'sludgeRob' })}
             </div>
             <div class="pr-led-grid1" style="margin-top:1mm">
-              ${ledField('FW ROB m³', { key: 'fwRob' })}
+              ${ledField('FW ROB m³', { key: 'fwRob', type: 'pair' })}
             </div>
           </div>
         </div>
@@ -27134,7 +27134,8 @@ const LogCardCapture = (() => {
     if ((m = /^rack:(\d+)$/.exec(key))) return ['vs_pumpRack' + m[1]];
     if ((m = /^exh:(\d+)$/.exec(key))) return ['vs_exhaust' + m[1]];
     if ((m = /^t:(\d+):(in|out|rpm)$/.exec(key))) return ['vs_t' + m[1] + m[2]];
-    if ((m = /^ge:(\d+):hrs$/.exec(key))) return ['vs_ge' + m[1] + '_runhours'];
+    if ((m = /^ge:(\d+):svc$/.exec(key))) return ['vs_ge' + m[1] + '_runhours'];     // hours in service, this report
+    if ((m = /^ge:(\d+):hrs$/.exec(key))) return ['vs_ge' + m[1] + '_runtime'];      // running hours, cumulative
     if ((m = /^ge:(\d+):kw$/.exec(key))) return ['vs_ge' + m[1] + '_kw'];
     return null;
   }
@@ -27154,7 +27155,8 @@ const LogCardCapture = (() => {
     if (/^t:\d+:in$/.test(key)) return [100, 700];
     if (/^t:\d+:out$/.test(key)) return [100, 600];
     if (/^t:\d+:rpm$/.test(key)) return [1000, 40000];
-    if (/^ge:\d+:hrs$/.test(key)) return [0, 24.5];
+    if (/^ge:\d+:svc$/.test(key)) return [0, 24.5];
+    if (/^ge:\d+:hrs$/.test(key)) return [0, 500000];
     if (/^ge:\d+:kw$/.test(key)) return [0, 5000];
     return null;
   };
@@ -27174,6 +27176,16 @@ const LogCardCapture = (() => {
       if (key === 'datetime' || !wantKey(key)) return;
       const raw = result.fields[key];
       if (raw === '' || raw == null) return;
+      if (key === 'fwRob') {
+        /* 112/111: the two fresh-water tanks, kept apart by a slash. One number is the one tank (or the first). */
+        const parts = String(raw).split('/').map((x) => num(x)).filter((x) => x !== '');
+        const tankBoxes = Array.from(document.querySelectorAll('#inFwTankRobFields input[data-fw-tank]'));
+        if (!parts.length) return;
+        if (tankBoxes.length) {
+          parts.forEach((v, i) => { if (tankBoxes[i]) { setInput(tankBoxes[i].id, v); filled.push(key + (parts.length > 1 ? ' tank ' + (i + 1) : '')); } else missing.push('FW ROB tank ' + (i + 1) + ' (no such tank on this vessel)'); });
+        } else if (setInput('in_fwRob', parts[0])) filled.push(key); else missing.push(key);
+        return;
+      }
       const t = targets(key);
       if (!t) return;
       const isSelect = t[1] === 'select';
@@ -27186,6 +27198,11 @@ const LogCardCapture = (() => {
       Object.keys(result.boxes || {}).forEach((key) => {
         const m = /^ge:(\d+):on$/.exec(key);
         if (m && result.boxes[key]) setCheck('vs_ge' + m[1] + '_on', true);
+      });
+      /* a generator with hours written under In service is in service */
+      Object.keys(result.fields || {}).forEach((key) => {
+        const m = /^ge:(\d+):svc$/.exec(key);
+        if (m && Number(result.fields[key]) > 0) setCheck('vs_ge' + m[1] + '_on', true);
       });
     }
     return { filled, missing };

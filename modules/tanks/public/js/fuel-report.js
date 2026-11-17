@@ -231,6 +231,7 @@ const FuelReport = (() => {
 
     bindEvents(wrap);
     refreshComputed();
+    if (window.TankCardCapture) TankCardCapture.addButton('.page-head .btn-row', 'fr-capture', 'report', () => currentBundle());
   }
 
   function renderHeaderPanel() {
