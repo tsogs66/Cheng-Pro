@@ -6243,6 +6243,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
 <script src="save-file.js"></script>
 <script src="file-viewer.js"></script>
 <script src="camera-capture.js"></script>
+<script src="/js/card-reader.js"></script>
 <script src="guide.js"></script>
 <script src="note-reminders.js"></script>
 <script src="lan-sync.js"></script>
@@ -19628,16 +19629,21 @@ function previewFlowmeterRecordSample(){
 }
 
 /** Blank line field for log-entry data handouts. */
+/* data-card-* tell the photo reader (js/card-reader.js in ChEng AIO) where each write-in field is. */
+function ledCardAttrs(label, opts){
+  if (!opts || !opts.key) return '';
+  return ` data-card-field="${escPrint(opts.key)}" data-card-type="${escPrint(opts.type || 'number')}" data-card-label="${escPrint(label)}" data-card-grow="up"`;
+}
 function ledField(label, opts = {}){
   const w = opts.wide ? ' pr-led-wide' : '';
   const val = opts.value != null && opts.value !== '' ? escPrint(String(opts.value)) : '';
-  return `<div class="pr-led-field${w}"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line">${val}</span></div>`;
+  return `<div class="pr-led-field${w}"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line"${ledCardAttrs(label, opts)}>${val}</span></div>`;
 }
 
 function ledMini(label, opts = {}){
   if (!label) return `<div class="pr-led-mini pr-led-spacer" aria-hidden="true"></div>`;
   const val = opts.value != null && opts.value !== '' ? escPrint(String(opts.value)) : '';
-  return `<div class="pr-led-mini"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line">${val}</span></div>`;
+  return `<div class="pr-led-mini"><span class="pr-led-lbl">${escPrint(label)}</span><span class="pr-led-line"${ledCardAttrs(label, opts)}>${val}</span></div>`;
 }
 
 /**
@@ -19654,57 +19660,65 @@ function buildLogEntryDataHalfHtml(){
   const fm = flowmeterRecordRows('all');
 
   const cylHead = Array.from({ length: cylN }, (_, i) => `<th>C${i + 1}</th>`).join('');
-  const cylRack = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
-  const cylExh = Array.from({ length: cylN }, () => `<td class="pr-led-write"></td>`).join('');
+  const cylRack = Array.from({ length: cylN }, (_, i) => `<td class="pr-led-write" data-card-field="rack:${i + 1}" data-card-type="number" data-card-label="Cyl ${i + 1} pump rack" data-card-group="Main engine cylinders"></td>`).join('');
+  const cylExh = Array.from({ length: cylN }, (_, i) => `<td class="pr-led-write" data-card-field="exh:${i + 1}" data-card-type="number" data-card-label="Cyl ${i + 1} exhaust °C" data-card-group="Main engine cylinders"></td>`).join('');
 
   const turboRows = Array.from({ length: turboN }, (_, i) =>
     `<tr><td class="pr-led-rowlbl">T/C ${i + 1}</td>`
-    + `<td class="pr-led-write"></td><td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+    + `<td class="pr-led-write" data-card-field="t:${i + 1}:in" data-card-type="number" data-card-label="T/C ${i + 1} in °C" data-card-group="Turbochargers"></td>`
+    + `<td class="pr-led-write" data-card-field="t:${i + 1}:out" data-card-type="number" data-card-label="T/C ${i + 1} out °C" data-card-group="Turbochargers"></td>`
+    + `<td class="pr-led-write" data-card-field="t:${i + 1}:rpm" data-card-type="number" data-card-label="T/C ${i + 1} RPM" data-card-group="Turbochargers"></td></tr>`
   ).join('');
 
   const geRows = Array.from({ length: geN }, (_, i) =>
     `<tr><td class="pr-led-rowlbl">A/E ${i + 1}</td>`
-    + `<td class="pr-led-write pr-led-chk"></td>`
-    + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`
+    + `<td class="pr-led-write pr-led-chk" data-card-box="ge:${i + 1}:on" data-card-label="In service" data-card-group="Auxiliary engine ${i + 1}"></td>`
+    + `<td class="pr-led-write" data-card-field="ge:${i + 1}:hrs" data-card-type="number" data-card-label="Run hrs" data-card-group="Auxiliary engine ${i + 1}"></td>`
+    + `<td class="pr-led-write" data-card-field="ge:${i + 1}:kw" data-card-type="number" data-card-label="Avg kW" data-card-group="Auxiliary engine ${i + 1}"></td></tr>`
   ).join('');
 
   const fmHead = fm.dualLayout
     ? `<thead><tr><th>Meter / counter</th><th>Inlet</th><th>Outlet</th></tr></thead>`
     : `<thead><tr><th>Meter / counter</th><th>Reading</th></tr></thead>`;
+  const fmKey = (label) => /^M\/E/i.test(label) ? 'me' : /^G\/E/i.test(label) ? 'ge' : /^Boiler/i.test(label) ? 'blr'
+    : /^Cylinder/i.test(label) ? 'cyl' : /^Rev/i.test(label) ? 'rev' : /^FW/i.test(label) ? 'fw' : 'x';
+  const fmCell = (r, suffix, label) => `data-card-field="fm:${fmKey(r.label)}${suffix}" data-card-type="number" data-card-label="${escPrint(label)}" data-card-group="Flowmeters"`;
   const fmBody = fm.rows.map(r => {
     const unit = r.unit ? ` <span class="pr-led-unit">(${escPrint(r.unit)})</span>` : '';
     if (fm.dualLayout){
       if (r.dual){
         return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
-          + `<td class="pr-led-write"></td><td class="pr-led-write"></td></tr>`;
+          + `<td class="pr-led-write" ${fmCell(r, ':in', r.label + ' inlet')}></td><td class="pr-led-write" ${fmCell(r, ':out', r.label + ' outlet')}></td></tr>`;
       }
       return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
-        + `<td class="pr-led-write" colspan="2"></td></tr>`;
+        + `<td class="pr-led-write" colspan="2" ${fmCell(r, '', r.label)}></td></tr>`;
     }
     return `<tr><td class="pr-led-rowlbl">${escPrint(r.label)}${unit}</td>`
-      + `<td class="pr-led-write"></td></tr>`;
+      + `<td class="pr-led-write" ${fmCell(r, '', r.label)}></td></tr>`;
   }).join('');
 
   return `<div class="pr-led-inner">
+      <i class="pr-card-mark pr-card-tl" data-card-mark="tl" aria-hidden="true"></i><i class="pr-card-mark pr-card-tr" data-card-mark="tr" aria-hidden="true"></i>
+      <i class="pr-card-mark pr-card-bl" data-card-mark="bl" aria-hidden="true"></i><i class="pr-card-mark pr-card-br" data-card-mark="br" aria-hidden="true"></i>
       <div class="pr-led-title">LOG ENTRY DATA CARD</div>
       <div class="pr-led-sub">Voyage Chief - ${vessel}</div>
 
       <div class="pr-led-body">
         <div class="pr-led-sec">Watch / operation</div>
         <div class="pr-led-grid3">
-          ${ledField('Date / Time', { wide: true })}
-          ${ledField('Operation')}
-          ${ledField('Distance ship (nm)')}
+          ${ledField('Date / Time', { wide: true, key: 'datetime', type: 'datetime' })}
+          ${ledField('Operation', { key: 'operation', type: 'text' })}
+          ${ledField('Distance ship (nm)', { key: 'dist' })}
         </div>
         <div class="pr-led-grid3" style="margin-top:1mm">
-          ${ledMini('Wind Dir')}
-          ${ledMini('Wind state')}
-          ${ledMini('Sea state')}
+          ${ledMini('Wind Dir', { key: 'windDir', type: 'text' })}
+          ${ledMini('Wind state', { key: 'windBft' })}
+          ${ledMini('Sea state', { key: 'seaState' })}
         </div>
         <div class="pr-led-grid3" style="margin-top:1mm">
-          ${ledMini('E/R °C')}
-          ${ledMini('S/T °C')}
-          ${ledMini('S/W °C')}
+          ${ledMini('E/R °C', { key: 'erTemp' })}
+          ${ledMini('S/T °C', { key: 'stTemp' })}
+          ${ledMini('S/W °C', { key: 'seaTemp' })}
         </div>
 
         <div class="pr-led-sec">Flowmeters &amp; counters</div>
@@ -19732,16 +19746,16 @@ function buildLogEntryDataHalfHtml(){
 
             <div class="pr-led-sec">Main engine — scav / cooler / fuel</div>
             <div class="pr-led-grid2">
-              ${ledMini('Scav temp')}
-              ${ledMini('Scav press')}
-              ${ledMini('AC in °C')}
-              ${ledMini('AC out °C')}
-              ${ledMini('Press diff')}
+              ${ledMini('Scav temp', { key: 'scavTemp' })}
+              ${ledMini('Scav press', { key: 'scavPress' })}
+              ${ledMini('AC in °C', { key: 'acIn' })}
+              ${ledMini('AC out °C', { key: 'acOut' })}
+              ${ledMini('Press diff', { key: 'pressDiff' })}
               ${ledMini('')}
-              ${ledMini('Fuel temp')}
-              ${ledMini('Pump mark')}
-              ${ledMini('ME LO temp')}
-              ${ledMini('ME LO press')}
+              ${ledMini('Fuel temp', { key: 'fuelTemp' })}
+              ${ledMini('Pump mark', { key: 'pumpMark' })}
+              ${ledMini('ME LO temp', { key: 'meLoTemp' })}
+              ${ledMini('ME LO press', { key: 'meLoPress' })}
             </div>
           </div>
           <div>
@@ -19751,19 +19765,19 @@ function buildLogEntryDataHalfHtml(){
               <tbody>
                 ${geRows}
                 <tr><td class="pr-led-rowlbl">Boiler</td><td class="pr-led-write"></td>
-                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                  <td class="pr-led-write" data-card-field="blr:hrs" data-card-type="number" data-card-label="Run hrs" data-card-group="Boiler"></td><td class="pr-led-write" data-card-field="blr:kw" data-card-type="number" data-card-label="Avg kW" data-card-group="Boiler"></td></tr>
                 <tr><td class="pr-led-rowlbl">Incinerator</td><td class="pr-led-write"></td>
-                  <td class="pr-led-write"></td><td class="pr-led-write"></td></tr>
+                  <td class="pr-led-write" data-card-field="inc:hrs" data-card-type="number" data-card-label="Run hrs" data-card-group="Incinerator"></td><td class="pr-led-write" data-card-field="inc:kw" data-card-type="number" data-card-label="Avg kW" data-card-group="Incinerator"></td></tr>
               </tbody>
             </table>
 
             <div class="pr-led-sec">Tanks — ROB</div>
             <div class="pr-led-grid2">
-              ${ledMini('Bilge ROB m³')}
-              ${ledMini('Sludge ROB m³')}
+              ${ledMini('Bilge ROB m³', { key: 'bilgeRob' })}
+              ${ledMini('Sludge ROB m³', { key: 'sludgeRob' })}
             </div>
             <div class="pr-led-grid1" style="margin-top:1mm">
-              ${ledField('FW ROB m³')}
+              ${ledField('FW ROB m³', { key: 'fwRob' })}
             </div>
           </div>
         </div>
@@ -19783,6 +19797,11 @@ function buildLogEntryDataPageHtml(){
   const form = buildLogEntryDataHalfHtml();
   const copy = `<div class="pr-led-copy"><div class="pr-led-page-inner">${form}</div></div>`;
   return `<div class="pr-led-page">${copy}${copy}</div>`;
+}
+
+/** The printed card and the selector of one card, for the photo reader (ChEng AIO). */
+function logEntryCardLayoutDocument(){
+  return { html: buildLogEntryDataPrintDocument(buildLogEntryDataPageHtml()), cardSelector: '.pr-led-copy .pr-led-inner', widthMm: 297, heightMm: 210 };
 }
 
 function buildLogEntryDataPrintDocument(pageHtml){
@@ -19837,6 +19856,7 @@ html, body{
   box-sizing:border-box;
 }
 .pr-led-inner{
+  position:relative;
   width:100%;
   height:auto;
   min-height:0;
@@ -19848,6 +19868,11 @@ html, body{
   line-height:1.15;
   --led-row: 4.2mm;
 }
+.pr-card-mark{
+  position:absolute; display:block; width:4mm; height:4mm; background:#000;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-card-tl{ left:0; top:0; } .pr-card-tr{ right:0; top:0; } .pr-card-bl{ left:0; bottom:0; } .pr-card-br{ right:0; bottom:0; }
 .pr-led-title{
   text-align:center; font-size:10.5pt; font-weight:700; letter-spacing:0.04em;
   margin:0 0 0.35mm; flex:0 0 auto;
@@ -27020,6 +27045,172 @@ function prefillFromLastEntry(){
   setLogMetersRevealed(false);
   markFmGateBaseline();
 }
+
+
+/* ---- Capture from photo (ChEng AIO) ----
+ * Reads a filled Log Entry Data Card from a photo, on the device, shows every value beside its cut-out for the
+ * person to check, then puts the checked values into the same boxes typing would. Nothing is saved by this. */
+const LogCardCapture = (() => {
+  const available = () => !!(window.ChengCardReader && typeof logEntryCardLayoutDocument === 'function');
+  const fire = (el, type) => el.dispatchEvent(new Event(type, { bubbles: true }));
+  const num = (t) => { const v = String(t == null ? '' : t).trim(); return v !== '' && Number.isFinite(Number(v)) ? v : ''; };
+
+  function setInput(id, v) {
+    const el = document.getElementById(id);
+    if (!el || v === '') return false;
+    el.value = v; fire(el, 'input'); return true;
+  }
+  function setSelect(id, v) {
+    const el = document.getElementById(id);
+    if (!el || v === '') return false;
+    const want = String(v).trim().toUpperCase();
+    const opt = [...el.options].find(o => String(o.value).toUpperCase() === want || String(o.textContent).trim().toUpperCase() === want
+      || String(o.textContent).trim().toUpperCase().startsWith(want + ' '));
+    if (!opt) return false;
+    el.value = opt.value; fire(el, 'change'); return true;
+  }
+  function setCheck(id, on) {
+    const el = document.getElementById(id);
+    if (!el || el.type !== 'checkbox') return false;
+    if (el.checked !== on) { el.checked = on; fire(el, 'change'); }
+    return true;
+  }
+
+  /** "17/11/2026 12:00", "17-11-26 1200", "2026-11-17 12:00" -> "2026-11-17T12:00", or '' when it cannot be read. */
+  function parseDateTime(text) {
+    const t = String(text || '').trim();
+    let m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})\s*(\d{1,2})[:.]?(\d{2})$/.exec(t) || /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2})\D+(\d{1,2})[:.]?(\d{2})$/.exec(t);
+    let y, mo, d, hh, mi;
+    if (m) { d = +m[1]; mo = +m[2]; y = +m[3]; hh = +m[4]; mi = +m[5]; if (y < 100) y += 2000; }
+    else {
+      m = /^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})\D+(\d{1,2})[:.]?(\d{2})$/.exec(t);
+      if (!m) return '';
+      y = +m[1]; mo = +m[2]; d = +m[3]; hh = +m[4]; mi = +m[5];
+    }
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mi > 59) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${y}-${p(mo)}-${p(d)}T${p(hh)}:${p(mi)}`;
+  }
+
+  /** Where each card field goes: [element id(s) to try, kind]. Dual (inlet/outlet) meters have their own ids. */
+  function targets(key) {
+    const simple = {
+      dist: ['vs_distanceShip'], windBft: ['vs_windBft', 'select'], seaState: ['vs_seaState', 'select'],
+      erTemp: ['vs_erTemp'], stTemp: ['vs_stTemp'], seaTemp: ['vs_seaTemp'],
+      scavTemp: ['vs_scavTemp'], scavPress: ['vs_scavPress'], acIn: ['vs_acIn'], acOut: ['vs_acOut'], pressDiff: ['vs_pressDiff'],
+      fuelTemp: ['vs_fuelTemp'], pumpMark: ['vs_pumpMark'], meLoTemp: ['vs_meLoTemp'], meLoPress: ['vs_meLoPress'],
+      bilgeRob: ['vs_bilgeRob'], sludgeRob: ['vs_sludgeRob'], fwRob: ['in_fwRob'],
+      'fm:blr': ['blr_meter'], 'fm:cyl': ['cyl_meter'], 'fm:rev': ['in_revCounter'],
+      'fm:me': ['me_meter'], 'fm:me:in': ['me_meter_in'], 'fm:me:out': ['me_meter_out'],
+      'fm:ge': ['ge_meter'], 'fm:ge:in': ['ge_meter_in'], 'fm:ge:out': ['ge_meter_out'],
+      'blr:hrs': ['vs_blrRuntime'], 'blr:kw': ['vs_blrKw'], 'inc:hrs': ['vs_incRuntime'], 'inc:kw': ['vs_incKw'],
+      windDir: ['vs_windDir', 'select'], operation: ['in_operation', 'select'],
+    };
+    if (simple[key]) return simple[key];
+    let m;
+    if ((m = /^rack:(\d+)$/.exec(key))) return ['vs_pumpRack' + m[1]];
+    if ((m = /^exh:(\d+)$/.exec(key))) return ['vs_exhaust' + m[1]];
+    if ((m = /^t:(\d+):(in|out|rpm)$/.exec(key))) return ['vs_t' + m[1] + m[2]];
+    if ((m = /^ge:(\d+):hrs$/.exec(key))) return ['vs_ge' + m[1] + '_runhours'];
+    if ((m = /^ge:(\d+):kw$/.exec(key))) return ['vs_ge' + m[1] + '_kw'];
+    return null;
+  }
+
+  /* The log form takes the watch and the meters. Everything else belongs to an entry's Voyage Summary. */
+  const isLogKey = (key) => key === 'datetime' || key === 'operation' || key === 'fwRob' || /^fm:/.test(key);
+  const RANGES = {
+    dist: [0, 600], windBft: [0, 12], seaState: [0, 9], erTemp: [10, 70], stTemp: [10, 90], seaTemp: [-2, 36],
+    scavTemp: [10, 80], scavPress: [0, 5], acIn: [20, 250], acOut: [20, 100], pressDiff: [0, 2], fuelTemp: [20, 160],
+    pumpMark: [0, 150], meLoTemp: [20, 90], meLoPress: [0, 8], bilgeRob: [0, 500], sludgeRob: [0, 500], fwRob: [0, 2000],
+    'blr:hrs': [0, 24.5], 'blr:kw': [0, 5000], 'inc:hrs': [0, 24.5], 'inc:kw': [0, 5000],
+  };
+  const rangeFor = (key) => {
+    if (RANGES[key]) return RANGES[key];
+    if (/^rack:/.test(key)) return [0, 150];
+    if (/^exh:/.test(key)) return [100, 600];
+    if (/^t:\d+:in$/.test(key)) return [100, 700];
+    if (/^t:\d+:out$/.test(key)) return [100, 600];
+    if (/^t:\d+:rpm$/.test(key)) return [1000, 40000];
+    if (/^ge:\d+:hrs$/.test(key)) return [0, 24.5];
+    if (/^ge:\d+:kw$/.test(key)) return [0, 5000];
+    return null;
+  };
+  let lastRead = null;
+
+  function apply(result, scope) {
+    const filled = [];
+    const missing = [];
+    const wantKey = (key) => (scope === 'summary' ? !isLogKey(key) : isLogKey(key));
+    const dt = scope === 'summary' ? '' : parseDateTime(result.fields.datetime);
+    if (scope !== 'summary' && result.fields.datetime && !dt) missing.push('Date / Time (could not be read as a date and time)');
+    if (dt) {
+      const el = document.getElementById('in_datetime');
+      if (el) { el.value = dt; fire(el, 'input'); fire(el, 'change'); filled.push('Date / Time'); }
+    }
+    Object.keys(result.fields).forEach((key) => {
+      if (key === 'datetime' || !wantKey(key)) return;
+      const raw = result.fields[key];
+      if (raw === '' || raw == null) return;
+      const t = targets(key);
+      if (!t) return;
+      const isSelect = t[1] === 'select';
+      const v = isSelect ? String(raw).trim() : num(raw);
+      if (v === '') return;
+      const ok = isSelect ? setSelect(t[0], v) : setInput(t[0], v);
+      (ok ? filled : missing).push(key);
+    });
+    if (scope === 'summary') {
+      Object.keys(result.boxes || {}).forEach((key) => {
+        const m = /^ge:(\d+):on$/.exec(key);
+        if (m && result.boxes[key]) setCheck('vs_ge' + m[1] + '_on', true);
+      });
+    }
+    return { filled, missing };
+  }
+
+  async function open(scope) {
+    if (!available()) return null;
+    const doc = logEntryCardLayoutDocument();
+    const ranges = {};
+    const layoutP = ChengCardReader.measureLayout(doc.html, doc.cardSelector, doc.widthMm, doc.heightMm);
+    layoutP.then((l) => l.fields.forEach((f) => { const r = rangeFor(f.key); if (r) ranges[f.key] = r; })).catch(() => {});
+    return ChengCardReader.capture({
+      ranges,
+      previous: lastRead && Date.now() - lastRead.at < 6 * 3600e3 ? lastRead.result : null,
+      remember: (result) => { lastRead = { result, at: Date.now() }; },
+      title: scope === 'summary' ? 'Capture the Log Entry Data Card (for this entry\'s Voyage Summary)' : 'Capture the Log Entry Data Card (for the new log entry)',
+      hint: 'Photograph the Log Entry Data Card with all four black corner marks in the picture. One card half at a time: lay it flat, in good light. Operation and wind direction are not read: pick them on the form.',
+      layout: () => layoutP,
+      apply: async (result) => {
+        const out = apply(result, scope);
+        const rest = scope === 'summary' ? 'Check the summary, then save it.'
+          : 'Check the form, then save the entry. Then open this entry\'s Voyage Summary and press Capture from photo there (Use the card read earlier) to fill the temperatures, cylinders, turbochargers, auxiliaries and bilge/sludge.';
+        return `${out.filled.length} value${out.filled.length === 1 ? '' : 's'} filled in${out.missing.length ? ` · not on the form at the moment: ${out.missing.join(', ')}` : ''}. ${rest}`;
+      },
+    });
+  }
+
+  function addButton() {
+    if (!available()) return;
+    const make = (id, anchorId, scope, text) => {
+      if (document.getElementById(id)) return;
+      const anchor = document.getElementById(anchorId);
+      if (!anchor || !anchor.parentNode) return;
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.id = id; btn.className = anchor.className;
+      btn.textContent = text;
+      btn.title = 'Read a filled Log Entry Data Card from a photo, on this device';
+      btn.addEventListener('click', () => { open(scope).catch(e => console.warn('capture', e)); });
+      anchor.parentNode.insertBefore(btn, anchor);
+    };
+    make('btnCaptureCard', 'btnClearForm', 'log', 'Capture from photo');
+    make('btnCaptureCardSummary', 'btnCloseVoyageSummaryTop', 'summary', 'Capture from photo');
+  }
+  return { available, open, addButton, apply, parseDateTime, targets };
+})();
+window.LogCardCapture = LogCardCapture;
+setTimeout(() => { try { LogCardCapture.addButton(); } catch (_) { /* ignore */ } }, 0);
+window.addEventListener('load', () => { try { LogCardCapture.addButton(); } catch (_) { /* ignore */ } });
 
 document.getElementById('btnClearForm').addEventListener('click', ()=>{
   /* Back to a blank new entry — nothing is selected, so drop the summary. */
