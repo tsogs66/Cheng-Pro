@@ -803,6 +803,28 @@ window.ChengProAboutGuide = (function () {
       ]
     },
     {
+      group: 'Bunkers',
+      q: 'Can I watch a bunkering from two devices while the pump is running?',
+      purpose: 'Yes. Once two devices are paired (see syncing two devices with no internet), a bunkering that has started is mirrored between them every few seconds. The bunker plan and monitoring page on either device shows the pump clock, each tank and its soundings, and either device can type.',
+      steps: [
+        'Pair the two devices on the same Wi-Fi or hotspot first. In Backup & Restore leave Mirror a bunkering that is running on both devices ticked.',
+        'Open the same vessel on both devices, then open Bunkering Plan on both.',
+        'Press the pump start on either device. The other shows Live now in Backup & Restore and the pump clock starts on its screen within a few seconds.',
+        'Type soundings on whichever device is at the manifold. Each tank is its own record: two people entering different tanks at the same time both keep their figures. If both change the same tank, the later entry wins on both devices.',
+        'A page that is being typed in is not redrawn under you. It updates when you leave the field, and a line under the title says when it was last updated from the other device.',
+        'Keep ChEng AIO open and the screen awake on both devices during the operation.'
+      ],
+      buttons: [
+        'Mirror a bunkering that is running on both devices — switches the live mirror on or off; it works only between paired devices that have the same vessel open',
+        'Live now / Waiting for a pump start — shows whether a bunkering is running'
+      ],
+      undo: [
+        'Switch the mirror off to stop sharing. Each device then keeps its own plan.',
+        'A figure typed by mistake is corrected by typing the right one: the newer entry wins on both devices.',
+        'Alarms sound on each device on its own. Silencing one does not silence the other.'
+      ]
+    },
+    {
       group: 'Backup and handover',
       q: 'Where is the data, and who can see the server copy?',
       purpose: 'The working copy is on the device. A server copy exists only after you push, sync, or save to the ship server. The license email is the folder for that user. A master key can open user folders on the host.',

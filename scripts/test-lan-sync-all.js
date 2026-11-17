@@ -352,6 +352,17 @@ const asked = (w, kind, what) => w.calls.filter((c) => c[0] === kind && c[1] ===
     assert.strictEqual(ctl.snapshot().picks['leg:a|1|L'].on, true);
   });
 
+  await check('the live bunkering switch goes to this device\'s engine and its status is shown', async () => {
+    const { w, ctl } = direct();
+    w.tank.liveBunkering = { on: true, live: false, at: null, error: '' };
+    const orig = w.calls.length;
+    const s = await ctl.refresh();
+    assert.strictEqual(s.liveBunkering.on, true);
+    await ctl.setLive(false);
+    const sent = w.calls.slice(orig).filter((c) => c[0] === 'tank' && c[1] === '/api/lan/config' && c[2] && c[2].liveBunkering === false);
+    assert.strictEqual(sent.length, 1);
+  });
+
   console.log(`\n${n}/${n + failed} passed`);
   process.exit(failed ? 1 : 0);
 })();

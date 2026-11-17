@@ -173,6 +173,7 @@
         errors: st.errors,
         notice: st.notice,
         direct: direct,
+        liveBunkering: (st.tank && st.tank.liveBunkering) || null,
         pairedCount: (st.tank && st.tank.pairedCount) || 0,
         compare: direct ? deps.compare.snapshot() : null,
         picks: st.picks,
@@ -183,6 +184,11 @@
     async function setEnabled(on) {
       await safe('tank', function () { return deps.tank('/api/lan/config', { method: 'POST', body: { enabled: !!on } }); });
       if (viaVoyageEngine) await safe('voyage', function () { return deps.voyage('lan-config', { config: { enabled: !!on } }); });
+      return refresh();
+    }
+
+    async function setLive(on) {
+      await safe('tank', function () { return deps.tank('/api/lan/config', { method: 'POST', body: { liveBunkering: !!on } }); });
       return refresh();
     }
 
@@ -325,7 +331,7 @@
     function stop() { if (st.timer) { clearInterval(st.timer); st.timer = null; } }
 
     return {
-      refresh: refresh, snapshot: snapshot, setEnabled: setEnabled, setScope: setScope, setDeviceName: setDeviceName,
+      refresh: refresh, snapshot: snapshot, setEnabled: setEnabled, setLive: setLive, setScope: setScope, setDeviceName: setDeviceName,
       showCode: showCode, find: find, pair: pair, forget: forget, syncNow: syncNow, syncMisc: syncMisc, tick: tick,
       check: check, setPick: setPick, applyPicks: applyPicks,
       start: start, stop: stop, setIdle: setIdle, _state: st
@@ -441,6 +447,8 @@
           : 'Keep this device level with another one on the same Wi-Fi or phone hotspot: Tank Chief, Voyage Chief, and the other reports (requisitions, consumption plan, oil record book, e-ORB). Pair once; everything follows. The newest copy of a record wins, and nothing is deleted.') + '</p>' +
         lic +
         '<label style="display:block;margin:6px 0"><input type="checkbox" id="ls-enabled" ' + (s.enabled ? 'checked' : '') + '> ' + (s.direct ? 'Keep checking what differs while both devices are open (nothing is copied until you tick it)' : 'Sync automatically while both devices are open') + '</label>' +
+        (s.direct && s.liveBunkering ? '<label style="display:block;margin:6px 0"><input type="checkbox" id="ls-live" ' + (s.liveBunkering.on ? 'checked' : '') + '> Mirror a bunkering that is running on both devices (every few seconds)' +
+          (s.liveBunkering.on ? ' <span class="ls-badge" id="ls-live-badge" style="font-size:12px;padding:1px 9px;border-radius:10px;color:#fff;background:' + (s.liveBunkering.live ? 'var(--ok,#2a9d8f)' : '#667') + '">' + (s.liveBunkering.live ? 'Live now' : 'Waiting for a pump start') + '</span>' : '') + '</label>' : '') +
         (s.direct ? '' : '<div style="margin:6px 0;font-size:13px">' +
         '<label style="display:block"><input type="radio" name="ls-scope" value="active" ' + (!s.scopeAll ? 'checked' : '') + '> Only the vessel both devices have open</label>' +
         '<label style="display:block"><input type="radio" name="ls-scope" value="all" ' + (s.scopeAll ? 'checked' : '') + '> The whole database — a vessel or leg one device is missing is copied to it</label></div>') +
@@ -471,6 +479,8 @@
         try { var r = await fn(); if (okMsg) toast(okMsg); return r; } catch (e) { toast(msg(e)); } finally { busy = false; await reload(); }
       };
       q('#ls-enabled').onchange = function (e) { act(function () { return controller.setEnabled(e.target.checked); }); };
+      var liveBox = q('#ls-live');
+      if (liveBox) liveBox.onchange = function (e) { act(function () { return controller.setLive(e.target.checked); }, e.target.checked ? 'A running bunkering will be mirrored' : 'Bunkering is no longer mirrored'); };
       host.querySelectorAll('input[name="ls-scope"]').forEach(function (r) {
         r.onchange = function () { act(function () { return controller.setScope(r.value === 'all'); }, r.value === 'all' ? 'The whole database will be kept level' : 'Only the shared vessel will be kept level'); };
       });
