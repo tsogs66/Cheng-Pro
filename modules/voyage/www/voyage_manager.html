@@ -18624,6 +18624,24 @@ function writeEcaPositionToForm(pos){
 }
 document.getElementById('in_operation')?.addEventListener('change', refreshEcaPositionRow);
 
+/* A noon report is made at 12:00 ship's time. On a NEW entry, a NOON operation always puts the clock on 12:00,
+   whether it was just chosen, came from the entry before, or the date was moved. An entry being edited keeps its time. */
+function isNoonOperationName(op){
+  return /\bNOON\b/.test(String(canonicalOperation(op) || '').toUpperCase());
+}
+function applyNoonClock(){
+  if (editingId) return false;
+  const dt = document.getElementById('in_datetime');
+  const sel = document.getElementById('in_operation');
+  if (!dt || !sel || !dt.value || !isNoonOperationName(sel.value)) return false;
+  if (dt.value.slice(11, 16) === '12:00') return false;
+  dt.value = dt.value.slice(0, 10) + 'T12:00';
+  return true;
+}
+document.getElementById('in_operation')?.addEventListener('change', () => {
+  if (applyNoonClock()) document.getElementById('in_datetime').dispatchEvent(new Event('input', { bubbles: true }));
+});
+
 /**
  * Select an operation, adding it to the list first if it is one no longer offered.
  * Assigning a value a select has no option for silently blanks it, which on an old
@@ -25352,6 +25370,9 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
 /* 'input' as well as 'change': mobile/tablet date pickers commit via 'input'. */
 ['change','input'].forEach(evt=>{
   document.getElementById('in_datetime').addEventListener(evt, ()=>{
+    /* A NOON report stays on 12:00 when the date is moved. A 'change' reseeds the operation from the entry
+       before, so prefillFromLastEntry puts the clock on 12:00 itself, once the operation is known. */
+    if (evt === 'input') applyNoonClock();
     /* New (unsaved) entry: when the date/time moves, re-seed meters from the
        chronologically previous report so a missed watch can be filled in order. */
     if (!editingId && evt === 'change'){
@@ -26992,6 +27013,7 @@ function prefillFromLastEntry(){
   const useVoyageTz = !sortedEntries().length && voyageTz != null;
   if (!last){
     setShipTzUi(useVoyageTz ? voyageTz : defaultShipTzOffsetMin(), 0);
+    applyNoonClock();
     syncMeRuntimeFromPeriod();
     setLogMetersRevealed(false);
     markFmGateBaseline();
@@ -27004,6 +27026,7 @@ function prefillFromLastEntry(){
      list default. setOperationSelectValue adds the option back if the operation is
      one no longer offered, so an old log's wording survives instead of blanking. */
   setOperationSelectValue(document.getElementById('in_operation'), last.operation);
+  applyNoonClock();
   set('in_condition', last.condition || state.setup.shipCondition);
   set('in_tbn', last.tbn);
   set('in_revCounter', last.revCounter);
