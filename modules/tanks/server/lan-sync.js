@@ -72,6 +72,11 @@ function hullSame(a, b) {
 }
 
 function isLoopback(req) {
+  /* A reverse proxy on the same machine (a server behind nginx or a tunnel) makes every request look like it came
+     from this machine. Such a request carries forwarding headers; the device's own screen never does. So a request
+     that went through a proxy is not "this device". */
+  const h = (req && req.headers) || {};
+  if (h['x-forwarded-for'] || h['x-real-ip'] || h['forwarded'] || h['cf-connecting-ip'] || h['x-forwarded-host']) return false;
   const ip = String((req.socket && req.socket.remoteAddress) || (req.connection && req.connection.remoteAddress) || '');
   /* No socket at all is the phone's in-app server: only the app itself can call it. */
   if (!ip) return true;
@@ -113,6 +118,8 @@ function create(opts) {
       scope: raw.scope === 'all' ? 'all' : 'active',
       /* 'auto' moves records on its own (standalone Tank Chief); 'ask' only reports what differs and waits for the person to tick it. */
       mode: raw.mode === 'ask' ? 'ask' : 'auto',
+      /* A bunkering that is running is mirrored between paired devices within seconds. */
+      liveBunkering: raw.liveBunkering !== false,
       intervalSec: Math.min(300, Math.max(5, Number(raw.intervalSec) || 20)),
       userScope: raw.userScope || null,
       license: raw.license && raw.license.tag ? { tag: String(raw.license.tag), email: String(raw.license.email || '') } : null,
@@ -375,6 +382,43 @@ function create(opts) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
+  /* ---- a running bunkering, mirrored between paired devices ---- */
+
+  /** The vessel open on this device, without reading every vessel's files: the live lane asks every few seconds. */
+  function activeLite() {
+    let id = null;
+    try { id = store.getActiveVesselId(); } catch (_) { id = null; }
+    let list = [];
+    try { list = store.listVessels(); } catch (_) { list = []; }
+    const v = list.find((x) => x.id === id);
+    return v ? { id: v.id, name: v.name || '', imo: v.imo || '' } : null;
+  }
+
+  app.get('/api/lan/plan', lanAuth, (req, res) => {
+    try {
+      const out = scoped(() => {
+        const a = activeLite();
+        return a ? { active: a, plan: store.getBunkerPlan(a.id) } : { active: null, plan: null };
+      });
+      res.json(out);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/lan/plan', lanAuth, (req, res) => {
+    try {
+      const b = req.body || {};
+      const out = scoped(() => {
+        const a = activeLite();
+        if (!a || !hullSame(a, b.hull || {})) return { status: 409 };
+        if (!b.plan || !Array.isArray(b.plan.sequence)) return { status: 400 };
+        return { status: 200, r: store.mergePlanFromPeer(a.id, b.plan) };
+      });
+      if (out.status === 409) return res.status(409).json({ error: 'A different vessel is open on this device' });
+      if (out.status === 400) return res.status(400).json({ error: 'No plan' });
+      res.json({ ok: true, changed: out.r.changed });
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
   /* ---- asking the other device's app (Voyage Chief lives in the app, not in this server) ----
    * The caller posts a question to /api/lan/ask; the app on this device picks it up from /api/lan/pending,
    * does it, and answers on /api/lan/answer; the caller's request waits for that answer. */
@@ -528,6 +572,7 @@ function create(opts) {
     if (typeof b.deviceName === 'string') c.deviceName = b.deviceName.trim().slice(0, 60);
     if (b.scope === 'all' || b.scope === 'active') c.scope = b.scope;
     if (b.mode === 'ask' || b.mode === 'auto') c.mode = b.mode;
+    if (typeof b.liveBunkering === 'boolean') c.liveBunkering = b.liveBunkering;
     if (b.intervalSec != null) c.intervalSec = Math.min(300, Math.max(5, Number(b.intervalSec) || 20));
     if (typeof b.enabled === 'boolean') c.enabled = b.enabled;
     /* remember whose license folder this screen reads, so a timer works in it too */
@@ -901,6 +946,55 @@ function create(opts) {
     if (events.length > 30) events.length = 30;
   }
 
+  /* ---- the live lane: while a bunkering is running, the plan is exchanged every few seconds ---- */
+  const laneState = { live: false, at: 0, error: '' };
+  let laneTimer = null;
+  const LANE_FAST_MS = 3000;
+  const LANE_IDLE_MS = 15000;
+
+  /** One round with one paired device: take its plan in, send ours back if it is behind. Returns true while a plan is running. */
+  async function planLane(peer) {
+    const mine = scoped(() => activeLite());
+    if (!mine) return false;
+    const theirs = await peerJson(peer, '/api/lan/plan', null, 8000);
+    if (!theirs || !theirs.active || !hullSame(mine, theirs.active)) return false;
+    let merged = scoped(() => store.getBunkerPlan(mine.id));
+    if (theirs.plan && Array.isArray(theirs.plan.sequence)) {
+      merged = scoped(() => store.mergePlanFromPeer(mine.id, theirs.plan)).plan;
+    }
+    if (merged && Array.isArray(merged.sequence) && stableStringify(merged) !== stableStringify(theirs.plan || null)) {
+      await peerJson(peer, '/api/lan/plan', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hull: { imo: mine.imo, name: mine.name }, plan: merged }),
+      }, 10000);
+    }
+    return store.planIsLive(merged) || store.planIsLive(theirs.plan);
+  }
+
+  async function laneOnce() {
+    const c = load();
+    let live = false;
+    laneState.error = '';
+    if (c.enabled && c.liveBunkering && ownTag()) {
+      for (const peer of c.peers.slice()) {
+        try { if (await planLane(peer)) live = true; laneState.at = Date.now(); } catch (e) { laneState.error = e.code === 'unpaired' ? 'Pair again' : 'Not reachable'; }
+      }
+    }
+    laneState.live = live;
+    return live;
+  }
+
+  function laneLoop() {
+    if (laneTimer) { clearTimeout(laneTimer); laneTimer = null; }
+    const c = load();
+    if (!c.enabled || !c.liveBunkering) return;
+    laneOnce().catch(() => {}).then(() => {
+      laneTimer = setTimeout(laneLoop, laneState.live ? LANE_FAST_MS : LANE_IDLE_MS);
+      if (laneTimer.unref) laneTimer.unref();
+    });
+  }
+  function stopLane() { if (laneTimer) { clearTimeout(laneTimer); laneTimer = null; } laneState.live = false; }
+
   let running = false;
   async function runOnce(force) {
     if (running) return;
@@ -941,8 +1035,10 @@ function create(opts) {
       timer = setInterval(loop, c.intervalSec * 1000);
       if (timer.unref) timer.unref();
       setTimeout(loop, 500);
+      if (c.liveBunkering) setTimeout(laneLoop, 1500); else stopLane();
     } else {
       stopBeacon();
+      stopLane();
     }
   }
 
@@ -956,6 +1052,7 @@ function create(opts) {
       enabled: c.enabled,
       scope: c.scope,
       mode: c.mode,
+      liveBunkering: { on: c.liveBunkering, live: laneState.live, at: laneState.at ? new Date(laneState.at).toISOString() : null, error: laneState.error || '' },
       intervalSec: c.intervalSec,
       canBeCalled: canBeCalled(),
       pairedCount: c.paired.length,
@@ -995,7 +1092,8 @@ function create(opts) {
     },
     state: () => publicState(load()),
     runOnce,
-    stop() { if (timer) clearInterval(timer); timer = null; stopBeacon(); },
+    stop() { if (timer) clearInterval(timer); timer = null; stopBeacon(); stopLane(); },
+    _lane: laneOnce,
     _scan: scan,
     _hullSame: hullSame,
   };

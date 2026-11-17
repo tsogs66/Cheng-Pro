@@ -386,6 +386,77 @@ const BunkerReports = (() => {
     });
   }
 
+  /* ---- A bunkering watched from two devices ----
+   * The engine merges the other device's plan into this device's database every few seconds while one is running.
+   * This page looks at the database while it is open and takes in any piece (a tank, the header, the pump state)
+   * that has a newer stamp than the one on screen. Content it already shows is only re-stamped; the page is drawn
+   * again only when something really changed, and not while someone is typing in it. */
+  const PLAN_TOP = ['status', 'distributionMode', 'startedAt', 'pausedAt', 'elapsedPausedMs', 'completedAt'];
+  let remoteWatch = null;
+  let remoteDrawPending = false;
+  function stopRemoteWatch() { if (remoteWatch) { clearInterval(remoteWatch); remoteWatch = null; } remoteDrawPending = false; }
+
+  function adoptNewerPlan(local, remote) {
+    const J = (x) => JSON.stringify(x == null ? null : x);
+    const core = (slot) => { const { at, ...rest } = slot || {}; return J(rest); };
+    let changed = false;
+    (remote.sequence || []).forEach((rs, i) => {
+      const ls = local.sequence[i];
+      if (!ls) { local.sequence[i] = rs; changed = true; return; }
+      if (String(rs.at || '') > String(ls.at || '')) {
+        if (core(rs) !== core(ls)) changed = true;
+        local.sequence[i] = rs;
+      }
+    });
+    if (String(remote.headerAt || '') > String(local.headerAt || '')) {
+      if (J(remote.header) !== J(local.header)) changed = true;
+      local.header = { ...remote.header };
+      local.headerAt = remote.headerAt;
+    }
+    if (String(remote.topAt || '') > String(local.topAt || '')) {
+      if (PLAN_TOP.some((k) => J(remote[k]) !== J(local[k]))) changed = true;
+      PLAN_TOP.forEach((k) => { local[k] = remote[k] !== undefined ? remote[k] : null; });
+      local.topAt = remote.topAt;
+    }
+    if (String(remote.updatedAt || '') > String(local.updatedAt || '')) local.updatedAt = remote.updatedAt;
+    return changed;
+  }
+
+  function typingInPlan() {
+    const ae = document.activeElement;
+    return !!(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && ae.closest && ae.closest('.fuel-report-page'));
+  }
+
+  function startRemoteWatch() {
+    stopRemoteWatch();
+    remoteWatch = setInterval(async () => {
+      if (view.page !== 'bunker-plan' || !document.getElementById('bp-save') || !STATE.activeVesselId || !view.plan) { stopRemoteWatch(); return; }
+      try {
+        const res = await Api.request(`/api/vessels/${STATE.activeVesselId}/bunker-plan`);
+        const remote = res && res.form;
+        if (remote && Array.isArray(remote.sequence) && Array.isArray(view.plan.sequence) && adoptNewerPlan(view.plan, remote)) {
+          remoteDrawPending = true;
+        }
+        if (!remoteDrawPending || typingInPlan()) return;
+        remoteDrawPending = false;
+        const b = bundle();
+        b.bunkerPlan = view.plan;
+        view.pendingPlan = view.plan;
+        const stamp = new Date().toLocaleTimeString();
+        await navigate('bunker-plan');
+        const head = document.querySelector('.page-head');
+        if (head && !document.getElementById('bp-remote-note')) {
+          const note = document.createElement('div');
+          note.id = 'bp-remote-note';
+          note.className = 'hint no-print';
+          head.insertAdjacentElement('afterend', note);
+        }
+        const note = document.getElementById('bp-remote-note');
+        if (note) note.textContent = `Updated from the other device at ${stamp}.`;
+      } catch (_) { /* the next beat tries again */ }
+    }, 2500);
+  }
+
   /**
    * Keep the pumping clock on disk so remounts / sync / leaving the page do not
    * wipe a transfer that is still underway. Elapsed time is wall-clock based, so
@@ -570,6 +641,7 @@ const BunkerReports = (() => {
     bindPlanEvents(wrap);
     refreshPlan();
     if (c.monitoring.clock.running || c.monitoring.tanksFilling) startClockTicker();
+    startRemoteWatch();
   }
 
   function planHeaderPanel(c) {

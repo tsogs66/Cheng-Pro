@@ -374,6 +374,9 @@ function normalizePlan(bundle, form, conversion) {
     elapsedPausedMs: num(src.elapsedPausedMs, 0) || 0,
     completedAt: src.completedAt || null,
     updatedAt: src.updatedAt || null,
+    // Per-piece stamps the store sets, so two devices can edit one running plan.
+    headerAt: src.headerAt || null,
+    topAt: src.topAt || null,
   };
 }
 

@@ -9,5 +9,5 @@ const panel = backup.slice(backup.indexOf('ChengLanSyncAll.create'), backup.inde
 assert(/tank:\s*\(path, init\) => lanTankApi\(/.test(panel), 'panel uses the device engine');
 assert(!/gatewayTankApi/.test(panel), 'panel must not use the Suite server');
 assert(/function startLanListener/.test(server) && /'0\.0\.0\.0'/.test(server), 'LAN listener exists');
-assert(/hello\|pair\|status\|ask\|apply/.test(server), 'LAN listener is limited to peer routes');
+assert(/hello\|pair\|status\|ask\|apply\|plan/.test(server), 'LAN listener is limited to peer routes');
 console.log('lan listener ok');
