@@ -33,7 +33,28 @@
      first page, Back asks once more before it exits. */
   let exitArmed = false;
   let exitTimer = null;
+  /* If the system restarts the app anyway (low memory, a setting change), come back to the page that was open
+     rather than the dashboard. Only a restart within a minute counts, so a normal start still opens Home. */
+  const RESUME_KEY = 'chengAioResume';
+  function rememberPage(module) {
+    try { localStorage.setItem(RESUME_KEY, JSON.stringify({ module: module, at: Date.now() })); } catch { /* ignore */ }
+  }
+  /* Read once, before anything this load does can overwrite it with Home. */
+  let resumeAtStart = null;
+  try { resumeAtStart = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); } catch { /* ignore */ }
+  function pageToResume() {
+    try {
+      const r = resumeAtStart;
+      resumeAtStart = null;
+      if (!r || !r.module || r.module === 'home' || Date.now() - r.at > 60000) return '';
+      return document.querySelector('.nav-item[data-module="' + r.module + '"], #bnMoreSheet .bn-more-item[data-module="' + r.module + '"]') ? r.module : '';
+    } catch { return ''; }
+  }
+  window.addEventListener('pagehide', () => { if (current) rememberPage(current); });
+  setInterval(() => { if (current && !document.hidden) rememberPage(current); }, 10000);
+
   function recordPage(module) {
+    rememberPage(module);
     try {
       if (!history.state || history.state.aioModule !== module) {
         history.pushState({ aioModule: module }, '');
@@ -1265,7 +1286,8 @@
       showToast('Offline ready — create your vessel to begin');
       await navigate('vessel');
     } else {
-      await navigate('home');
+      const back = pageToResume();
+      await navigate(back || 'home');
     }
     if (window.ChengNotes) ChengNotes.promptOnOpen();
   }
