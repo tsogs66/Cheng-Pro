@@ -217,7 +217,7 @@
     base = normalizeSuiteUrl(base);
     if (base) return base;
     if (window.Capacitor || !/^https?:$/.test(location.protocol)) {
-      throw new Error('Set the Cheng Suite server URL in Backup & Restore first. This device has no server to send tank reports to without it.');
+      throw new Error('Set the Cheng Suite server URL in Backup & Sync first. This device has no server to send tank reports to without it.');
     }
     return '';
   }
@@ -253,7 +253,7 @@
     let data = null;
     try { data = raw ? JSON.parse(raw) : null; } catch { data = undefined; }
     if (data === undefined || (raw && !/json/i.test(contentType || '') && /^\s*</.test(raw))) {
-      throw new Error('The server answered with a web page, not tank data. Check the Cheng Suite server URL in Backup & Restore.');
+      throw new Error('The server answered with a web page, not tank data. Check the Cheng Suite server URL in Backup & Sync.');
     }
     return data;
   }
@@ -695,7 +695,7 @@
 
   window.ChengProModules = window.ChengProModules || {};
   window.ChengProModules.backup = {
-    title: 'Backup & Restore',
+    title: 'Backup & Sync',
     async render(root) {
       const ent = typeof ChengLicense !== 'undefined' ? ChengLicense.loadEntitlement() : null;
       const isMaster = ent && ChengLicense.isMaster && ChengLicense.isMaster(ent);
@@ -706,7 +706,7 @@
 
       root.innerHTML = `
         <section class="panel backup-page">
-          <h1>Backup &amp; Restore</h1>
+          <h1>Backup &amp; Sync</h1>
           <p class="hint">Everything that moves a vessel's data — to a file, to a server, or from another engineer's account — in the order you do it. On the phone a file goes to <strong>Downloads/ChEngAIO</strong>; on desktop you pick the folder. Suite files restore in standalone Tank or Voyage too — each app takes its own half.</p>
           <p class="hint">${isMaster ? 'Master license: full-database Tank backups include all user accounts on this server.' : 'Your license email scopes Tank backups and sync to your account only.'} Active vessel: <strong>${esc(activeLabel)}</strong></p>
           <div id="bk-progress-host"></div>

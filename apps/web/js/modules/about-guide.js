@@ -23,7 +23,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Where do I start the first time I open ChEng AIO?',
       purpose: 'ChEng AIO is the menu for the whole suite. One license and one active ship are shared by Voyage Chief, Tank Chief, the bunker plans, e-ORB, Spares, and Performance.',
       steps: [
-        'Open the app. On a phone the menu is along the bottom. More puts Notes directly above Setup, with Home, Spares, Backup & Restore, License, and About beside them. On a wide desktop the left sidebar runs Home, Voyage, Tanks, the plans, e-ORB, Performance, then Spares, Notes, Vessel Setup, and Backup & Restore.',
+        'Open the app. On a phone the menu is along the bottom. More puts Notes directly above Setup, with Home, Spares, Backup & Sync, License, and About beside them. On a wide desktop the left sidebar runs Home, Voyage, Tanks, the plans, e-ORB, Performance, then Spares, Notes, Vessel Setup, and Backup & Sync.',
         'Open License. If the Android app asks for a server, enter the ship ChEng AIO address (usually http://the-server:8080), then Save server URL and Test connection.',
         'Enter the email and the key from the office, then Activate this device.',
         'Open Vessel Setup. Type the ship name and IMO, then Create vessel. That ship becomes the active vessel in the top bar.',
@@ -54,7 +54,7 @@ window.ChengProAboutGuide = (function () {
         'Perf — performance between two times: slip, consumption, run hours.',
         'Spares (under More on a phone) — spare and store requisitions: sent and received.',
         'Setup — Vessel Setup for the suite.',
-        'Backup & Restore — files and the server: export, restore, merge, and the comparison of voyage legs and tank reports.',
+        'Backup & Sync — files and the server: export, restore, merge, and the comparison of voyage legs and tank reports.',
         'License — activate, pair the PC, or move a lost seat.',
         'About — this guide, and Check for latest release.'
       ],
@@ -476,7 +476,7 @@ window.ChengProAboutGuide = (function () {
       q: 'The server and this device disagree about a voyage.',
       purpose: 'Every copy between this device and the server goes through Database consistency. It looks at every leg, not only the open one, so voyages that moved while the ship was offline are all found.',
       steps: [
-        'Open Backup & Restore in the AIO menu.',
+        'Open Backup & Sync in the AIO menu.',
         'Under Cheng Suite server, Save & connect and Test connection first.',
         'Under Database consistency, press Check voyage legs. Each leg shows what this device and the server hold, and which is newer.',
         'Untick any leg that should not be copied, then press Update to the newest of both. Newer copy wins. A leg that exists on only one side is copied. Nothing is deleted.'
@@ -707,7 +707,7 @@ window.ChengProAboutGuide = (function () {
       q: 'Which backup do I use, and what does restore do compared with merge?',
       purpose: 'A backup is a file on this device or a USB stick. Restore replaces what this device has with the file. Merge keeps local records and copies in anything newer or missing. Export of one leg or one ship is smaller than the whole program.',
       steps: [
-        'Open Backup & Restore.',
+        'Open Backup & Sync.',
         'Whole suite, this device: Export entire program. That file is Tank Chief, Voyage Chief, notes, the ship clock, the server addresses, spare and store requisitions, the consumption plan and its snapshots, and the oil record book.',
         'Miscellaneous data: Export miscellaneous data. That file is the requisitions, the consumption plan, the oil record book, and this device’s theme and screen layout, without the voyage log or the tank soundings.',
         'One ship, tanks: Export active vessel. One ship, voyage: Export selected vessel.',
@@ -739,10 +739,10 @@ window.ChengProAboutGuide = (function () {
       q: 'How do I hand the ship to the relief Chief Engineer?',
       purpose: 'The relief needs the records and a seat. The records travel as a backup file. The seat is the license, which is not inside the backup.',
       steps: [
-        'On your device, open Backup & Restore and Export entire program. Copy the file to a USB stick or to the ship server. Export miscellaneous data as well when the relief needs the requisitions, the consumption plan, and the oil record book called out on their own. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
+        'On your device, open Backup & Sync and Export entire program. Copy the file to a USB stick or to the ship server. Export miscellaneous data as well when the relief needs the requisitions, the consumption plan, and the oil record book called out on their own. Also export the active vessel from tanks and from voyage if you want a ship-only file.',
         'On the relief’s device, activate License with the office key. If your device still holds the only seat, use Request seat transfer or ask the office to clear it.',
         'Create or activate the same ship (same IMO) under Vessel Setup.',
-        'Open Backup & Restore and Merge entire program from the file if the new device should keep anything already on it, or Restore if the new device should become a copy of yours.',
+        'Open Backup & Sync and Merge entire program from the file if the new device should keep anything already on it, or Restore if the new device should become a copy of yours.',
         'Open Voyage and confirm the latest leg. Open Tanks and confirm the latest readings and the latest sounding report.',
         'On Voyage → Vessel Data, Save Current Leg to Library on the machine that will stay in use.'
       ],
@@ -782,7 +782,7 @@ window.ChengProAboutGuide = (function () {
       purpose: 'Live sync compares this device with another one on the same Wi-Fi or phone hotspot, directly, and lists what differs for Tank Chief, Voyage Chief and the other reports (requisitions, consumption plan snapshots, e-ORB). Nothing is copied until you tick it. Both devices must use the same email and license.',
       steps: [
         'Put both devices on the same Wi-Fi, or put one on the other\'s phone hotspot. A ship Wi-Fi with a login page or with devices kept apart will not work: use a hotspot or a small router with no internet.',
-        'Open Backup & Restore on both devices, then Sync with a nearby device. On the PC press Show pairing code.',
+        'Open Backup & Sync on both devices, then Sync with a nearby device. On the PC press Show pairing code.',
         'On the phone or tablet press Find devices, or type the address the PC shows (for example http://192.168.0.20:47617) and the six-digit code, then Pair. A phone always makes the connection, so start from the phone or tablet.',
         'Press Check differences. Each line is one thing: a vessel, a voyage leg, requisitions, plan snapshots or e-ORB entries. It shows what each device has and suggests pull (copy to this device), push (send to the other) or both.',
         'Tick the lines you want, change the action if you disagree, then press Copy ticked items. Check again: lines that were copied are gone from the list.',
@@ -833,9 +833,9 @@ window.ChengProAboutGuide = (function () {
       q: 'Can I watch a bunkering from two devices while the pump is running?',
       purpose: 'Yes. Once two devices are paired (see syncing two devices with no internet), a bunkering that has started is mirrored between them every few seconds. The bunker plan and monitoring page on either device shows the pump clock, each tank and its soundings, and either device can type.',
       steps: [
-        'Pair the two devices on the same Wi-Fi or hotspot first. In Backup & Restore leave Mirror a bunkering that is running on both devices ticked.',
+        'Pair the two devices on the same Wi-Fi or hotspot first. In Backup & Sync leave Mirror a bunkering that is running on both devices ticked.',
         'Open the same vessel on both devices, then open Bunkering Plan on both.',
-        'Press the pump start on either device. The other shows Live now in Backup & Restore and the pump clock starts on its screen within a few seconds.',
+        'Press the pump start on either device. The other shows Live now in Backup & Sync and the pump clock starts on its screen within a few seconds.',
         'Type soundings on whichever device is at the manifold. Each tank is its own record: two people entering different tanks at the same time both keep their figures. If both change the same tank, the later entry wins on both devices.',
         'A page that is being typed in is not redrawn under you. It updates when you leave the field, and a line under the title says when it was last updated from the other device.',
         'Keep ChEng AIO open and the screen awake on both devices during the operation.'
@@ -856,7 +856,7 @@ window.ChengProAboutGuide = (function () {
       purpose: 'The working copy is on the device. A server copy exists only after you push, sync, or save to the ship server. The license email is the folder for that user. A master key can open user folders on the host.',
       steps: [
         'Day to day, assume the phone or the PC is the record. Export a file before a handover, a reinstall, or a long stay offline if the server might be behind.',
-        'One server holds Tank Chief and Voyage Chief. Set its address and token once under Backup & Restore → Cheng Suite server.',
+        'One server holds Tank Chief and Voyage Chief. Set its address and token once under Backup & Sync → Cheng Suite server.',
         'Save & connect stores them for both programs, checks that each answers, and brings down the tank files uploaded for the ship that is open.',
         'Voyage legs, saved tank reports and miscellaneous data move through Database consistency: check, then Update to the newest of both.'
       ],
@@ -1168,7 +1168,7 @@ window.ChengProAboutGuide = (function () {
         "Bnk Plan — the bunkering plan and bunker file.",
         "E-ORB — the Oil Record Book.",
         "Perf — performance.",
-        "More — Notes, Home, Spares, Setup, ECA, Backup & Restore, License, About, the colour button and Full screen.",
+        "More — Notes, Home, Spares, Setup, ECA, Backup & Sync, License, About, the colour button and Full screen.",
         "The menu stays on Consumption Plan, Bunkering Plan, e-ORB, ECA and Spares, so you can move between programs without going Home."
 ],
       buttons: [
@@ -1184,12 +1184,12 @@ window.ChengProAboutGuide = (function () {
         "Check the ship in the top bar and the licence in License.",
         "Search this guide for the page you are on.",
         "Wait ten seconds after opening a page on a big ship.",
-        "Export a backup (Backup & Restore) before you try anything drastic.",
+        "Export a backup (Backup & Sync) before you try anything drastic.",
         "Close and reopen the app. Saved data stays on the device.",
         "Tell the support contact the version number shown in About and what you pressed."
 ],
       buttons: [
-        "Backup & Restore — export before a risky step"
+        "Backup & Sync — export before a risky step"
 ],
       undo: [
         "Closing the app or pressing Back never deletes saved data."

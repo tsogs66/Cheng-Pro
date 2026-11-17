@@ -301,7 +301,7 @@
     return j;
   }
 
-  /** True when Voyage runs inside the AIO: one page there (Backup & Restore) controls live sync for every program. */
+  /** True when Voyage runs inside the AIO: one page there (Backup & Sync) controls live sync for every program. */
   function embedded() {
     try {
       if (root.ChengPro || root.ChengProShell) return true;
@@ -348,7 +348,7 @@
     if (!host || !document.body.contains(host)) return;
     if (embedded()) {
       host.dataset.drawn = '1';
-      host.innerHTML = '<h2>Live sync (Wi-Fi / hotspot)</h2><div class="hint">In ChEng AIO live sync is set up once for every program on <b>Backup &amp; Restore</b> in the main menu. Status here: <b>' +
+      host.innerHTML = '<h2>Live sync (Wi-Fi / hotspot)</h2><div class="hint">In ChEng AIO live sync is set up once for every program on <b>Backup &amp; Sync</b> in the main menu. Status here: <b>' +
         esc(st.status || (load().enabled ? 'checking' : 'off')) + '</b> ' + esc(st.message || '') + '</div>';
       return;
     }

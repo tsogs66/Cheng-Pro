@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Backup & Restore has one Cheng Suite server: one address and one token that
+ * Backup & Sync has one Cheng Suite server: one address and one token that
  * Save & connect writes into Tank Chief and Voyage Chief alike. Push, Pull and
  * Keep data persistent are gone; Database consistency moves the data.
  * Run: node scripts/test-suite-server-one-address.js

@@ -19,16 +19,16 @@ assert.deepStrictEqual(mods, [
 ]);
 assert.ok(mods.indexOf('notes') === mods.indexOf('vessel') - 1, 'Notes sits above Vessel Setup');
 assert.ok(mods.indexOf('spares') === mods.indexOf('performance') + 1, 'Spares sits below Performance');
-assert.ok(nav.includes('Backup &amp; Restore'), 'sidebar names the page Backup & Restore');
+assert.ok(nav.includes('Backup &amp; Sync'), 'sidebar names the page Backup & Sync');
 assert.ok(!/>\s*Backup\s*</.test(nav), 'sidebar does not keep the short Backup label');
 
 const more = html.slice(html.indexOf('id="bnMoreSheet"'), html.indexOf('id="aioReturnFabs"'));
-assert.ok(more.includes('Backup &amp; Restore'), 'phone More sheet uses the same name');
+assert.ok(more.includes('Backup &amp; Sync'), 'phone More sheet uses the same name');
 const moreMods = [...more.matchAll(/data-module="([^"]+)"/g)].map((m) => m[1]);
 assert.deepStrictEqual(moreMods, ['notes', 'home', 'spares', 'vessel', 'eca', 'backup', 'license', 'about']);
 assert.strictEqual(moreMods.indexOf('notes') % 3, moreMods.indexOf('vessel') % 3, 'Notes sits above Setup in the More grid');
 
-assert.ok(backup.includes("title: 'Backup & Restore'"));
+assert.ok(backup.includes("title: 'Backup & Sync'"));
 assert.ok(backup.includes('class="backup-lib-row"'));
 assert.ok(backup.includes('const pullId = (voySrc && voySrc.vesselId) || (tankSrc && tankSrc.vesselId)'));
 assert.ok(backup.includes('data-voy-pull="${esc(pullId)}"'));

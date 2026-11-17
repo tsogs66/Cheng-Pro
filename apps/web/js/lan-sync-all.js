@@ -1,5 +1,5 @@
 /*
- * One live sync for the whole AIO, on the Backup & Restore page.
+ * One live sync for the whole AIO, on the Backup & Sync page.
  *
  * Tank Chief and Voyage Chief each have their own sync engine (Tank on the gateway, Voyage in its
  * own frame), and the records that belong to neither (spare and store requisitions, the
@@ -436,12 +436,12 @@
           '<li>Both <b>clocks show the same time</b> (within one minute). This device now: <b>' + esc(clock) + '</b>. If the time differs from the other device, set both to automatic date and time first, or pairing is refused.</li>' +
           '<li>On a Windows PC, when asked, allow ChEng AIO through the firewall for <b>private</b> networks.</li></ul>') +
         step(2, 'On the PC (or the device that will be called): show the code',
-          '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" id="ls-show-code">Show pairing code</button></div>' + code +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn primary" style="flex:0 0 auto" id="ls-show-code">Show pairing code</button></div>' + code +
           (code ? '' : '<div class="hint">A 6-digit code and this device\'s address appear here. The code works once and lasts five minutes.</div>')) +
         step(3, 'On the phone or tablet: connect to it',
           '<div class="hint">Press <b>Find devices</b>. When the PC appears in the list, type the 6-digit code next to it and press <b>Pair</b>.</div>' +
-          '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn" id="ls-find">Find devices</button>' +
-          (s.direct ? '' : '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button>') + '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn" style="flex:0 0 auto" id="ls-find">Find devices</button>' +
+          (s.direct ? '' : '<button type="button" class="btn primary" style="flex:0 0 auto" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button>') + '</div>' +
           '<div id="ls-found" style="margin-top:6px">' + found + '</div>' +
           '<div class="hint" style="margin-top:8px">Nothing found? Type the address that the PC shows under its code (like <code>http://192.168.0.20:3391</code>) and the code:</div>' +
           '<div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
