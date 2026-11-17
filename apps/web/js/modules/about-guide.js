@@ -804,6 +804,32 @@ window.ChengProAboutGuide = (function () {
     },
     {
       group: 'Bunkers',
+      q: 'How do I fill in soundings and log entries from a photo of the data card?',
+      purpose: 'Capture from photo reads a filled Tank Sounding Card or Log Entry Data Card from a photo, on the device, with no internet, and fills the same boxes typing would. You always check every value against a picture of what was read before anything is filled in. Nothing is saved by the capture: you check the page and save it yourself.',
+      steps: [
+        'Print the card from ChEng AIO (Tank Chief: Tank Sounding Card, Voyage Chief: Log Entry Data Card). The newer cards have four black squares in the corners. Cards printed before this version do not, so reprint them.',
+        'Fill the card by hand. Write each number clearly inside its box, with the decimal point. Tick Ullage or Depth for each tank on the sounding card.',
+        'Open the page the values belong on: Bunkering Plan (monitoring), Tank Monitoring After Bunkering, New Log Entry, or the Voyage Summary of a saved entry, and press Capture from photo.',
+        'Take the photo with the card flat, in good light, with all four black squares in the picture. One card half at a time. If the squares are not found, drag the four circles onto them.',
+        'Check the list. Each line shows the cut-out of what was written next to what was read. Orange lines were hard to read or look wrong (for example a decimal point that was missed), so check those first. Correct anything, then press Use these values.',
+        'On New Log Entry the date and time, the flowmeter readings, the rev counter and the fresh water ROB are filled. Save the entry, then open its Voyage Summary, press Capture from photo and Use the card read earlier to fill the temperatures, cylinders, turbochargers, auxiliaries, bilge and sludge.',
+        'On Bunkering Plan each tank\'s sounding goes into that tank\'s row. A tank that is not in the plan is left out, and so is a tank whose card says Ullage when the plan reads it by Dip (or the other way round).',
+        'If a value looks wrong after it is filled in, correct it on the page the way you always do.'
+      ],
+      buttons: [
+        'Capture from photo — opens the camera or a picture and reads the card on this device',
+        'Use these values — fills the page with what is in the list, as corrected by you',
+        'Retake — starts again with another photo',
+        'Use the card read earlier — on the Voyage Summary, reuses the last card without another photo'
+      ],
+      undo: [
+        'Nothing is saved by the capture. Leave the page without saving, or correct the boxes by hand.',
+        'The operation and the wind direction are not read: pick them on the form.',
+        'The reader is built for neat block digits. Messy writing is read less well; the orange marks and your check are the safeguard.'
+      ]
+    },
+    {
+      group: 'Bunkers',
       q: 'Can I watch a bunkering from two devices while the pump is running?',
       purpose: 'Yes. Once two devices are paired (see syncing two devices with no internet), a bunkering that has started is mirrored between them every few seconds. The bunker plan and monitoring page on either device shows the pump clock, each tank and its soundings, and either device can type.',
       steps: [

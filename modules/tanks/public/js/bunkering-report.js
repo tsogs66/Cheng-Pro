@@ -642,6 +642,7 @@ const BunkerReports = (() => {
     refreshPlan();
     if (c.monitoring.clock.running || c.monitoring.tanksFilling) startClockTicker();
     startRemoteWatch();
+    if (window.TankCardCapture) TankCardCapture.addButton('.page-head .btn-row', 'bp-capture', 'monitoring', bundle);
   }
 
   function planHeaderPanel(c) {
@@ -2122,6 +2123,7 @@ const BunkerReports = (() => {
 
     bindAfterEvents(wrap);
     refreshAfter();
+    if (window.TankCardCapture) TankCardCapture.addButton('.page-head .btn-row', 'ba-capture', 'after', bundle);
   }
 
   function afterHeaderPanel() {
