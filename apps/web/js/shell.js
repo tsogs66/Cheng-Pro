@@ -363,6 +363,7 @@
     });
   }
 
+  let settledPage = '';
   async function navigate(module, opts) {
     /* A vessel load owns the page until its records are open. */
     if (vesselLoadDepth > 0 && !(opts && opts.allowDuringLoad)) return;
@@ -468,8 +469,18 @@
           });
         }
       }
+      /* A newer click already opened another page while this one waited: painting now would put this page
+         (an e-ORB or Spares frame, say) on top of the page the person is actually on. */
+      if (current !== next) return;
       const draw = pageHost();
       await mod.render(draw);
+      if (current !== next) {
+        /* Another page was opened while this one was drawing. If that one has already finished, this one has
+           just painted over it: draw the current page again. If not, it will replace this one itself. */
+        if (settledPage === current) setTimeout(() => navigate(current, { force: true, allowDuringLoad: true }), 0);
+        return;
+      }
+      settledPage = next;
       if (current !== 'bunkerplan' && current !== 'bunkeringplan') dropStraySuiteChrome();
       draw.querySelectorAll('iframe.aio-embed-frame').forEach((frame) => {
         frame.dataset.aioModule = current;

@@ -452,16 +452,30 @@
     });
   }
 
+  /* Where the hidden Voyage bridge frame lives. On the Backup page that is its own slot. When a timer asks
+     for it after the person has left that page (the live-sync panel polls), the slot is gone: the frame used
+     to be put into the page that is showing, as a loose 300x150 Voyage window on top of it. It now goes into
+     a hidden holder outside every page. */
   function voyageMount(host) {
-    if (!host || !host.querySelector) return host;
-    return host.querySelector('#bk-voyage-bridge-host') || host;
+    const slot = host && host.querySelector && host.querySelector('#bk-voyage-bridge-host');
+    if (slot) return slot;
+    let holder = document.getElementById('aio-voyage-bridge-holder');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.id = 'aio-voyage-bridge-holder';
+      holder.setAttribute('aria-hidden', 'true');
+      holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+      document.body.appendChild(holder);
+    }
+    return holder;
   }
 
   function ensureVoyageFrame(host) {
     bindVoyageMessages();
     const mount = voyageMount(host);
     if (voyageFrameAlive()) {
-      if (mount && voyageFrame.parentElement !== mount) {
+      /* Moving an iframe reloads it. A live frame stays put unless the Backup page's own slot is here. */
+      if (mount && mount.id !== 'aio-voyage-bridge-holder' && voyageFrame.parentElement !== mount) {
         try { mount.appendChild(voyageFrame); } catch (_) { /* ignore */ }
       }
       return voyageFrame;
@@ -472,10 +486,10 @@
     voyageFrame.title = 'Voyage Chief backup bridge';
     voyageFrame.setAttribute('aria-hidden', 'true');
     voyageFrame.tabIndex = -1;
+    voyageFrame.style.cssText = 'width:1px;height:1px;border:0;opacity:0;pointer-events:none';
     /* Hidden bridge only — Backup paints its own Voyage server form. */
     voyageFrame.src = ChengPro.voyageEmbedUrl({ page: 'data' });
-    if (mount) mount.appendChild(voyageFrame);
-    else if (host) host.appendChild(voyageFrame);
+    mount.appendChild(voyageFrame);
     return voyageFrame;
   }
 

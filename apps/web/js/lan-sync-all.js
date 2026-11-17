@@ -196,7 +196,15 @@
       /* Say which program could not start the code: the next refresh would otherwise wipe that error. */
       var note = [];
       if (!okTank) note.push('Tank Chief: ' + (st.errors.tank || 'did not start the code'));
-      if (!okVoy) note.push('Voyage Chief: ' + (st.errors.voyage || 'did not start the code'));
+      if (!okVoy) {
+        var ve = st.errors.voyage || 'did not start the code';
+        /* "Failed to fetch" tells nobody anything. Voyage Chief pairs through the sync server saved in Voyage
+           (Setup), unlike Tank Chief, which pairs device to device. */
+        if (/failed to fetch|networkerror|load failed/i.test(ve)) {
+          ve = 'could not reach its sync server, so it cannot pair on this network. Tank Chief and the other reports are not affected.';
+        }
+        note.push('Voyage Chief: ' + ve);
+      }
       /* A device showing a code is waiting to be joined: it has to be switched on to announce itself to the other. */
       if (!enabled()) await setEnabled(true).catch(function () {});
       await refresh().catch(function () {});
