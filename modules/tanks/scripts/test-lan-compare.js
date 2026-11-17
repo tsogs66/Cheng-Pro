@@ -33,12 +33,17 @@ function seed(dir, code) {
 
 const LICENSE = { email: 'Chief@Example.com', licenseId: 'lic-test-1' };
 
+/** A device whose clock can be set wrong while it runs: Date.now() reads an offset (ms) from a file, at most every 50 ms. */
+const SKEW_JS = "const fs=require('fs');const f=process.env.SKEW_FILE;const o=Date.now;let at=0,v=0;"
+  + "Date.now=function(){const n=o();if(f&&n-at>50){at=n;try{v=Number(fs.readFileSync(f,'utf8'))||0}catch(_){v=0}}return n+v};";
 async function boot(name, license) {
   const dir = path.join(TMP, name);
   fs.mkdirSync(dir, { recursive: true });
-  const child = spawn(process.execPath, ['-e',
+  const skewFile = path.join(TMP, name + '.skew');
+  fs.writeFileSync(skewFile, '0');
+  const child = spawn(process.execPath, ['-e', SKEW_JS +
     "require('./server/index').start({ port: 0, host: '127.0.0.1' }).then((r) => console.log('PORT ' + r.port))"],
-  { cwd: ROOT, env: Object.assign({}, process.env, { TMS_DATA_DIR: dir }), stdio: ['ignore', 'pipe', 'inherit'] });
+  { cwd: ROOT, env: Object.assign({}, process.env, { TMS_DATA_DIR: dir, SKEW_FILE: skewFile }), stdio: ['ignore', 'pipe', 'inherit'] });
   const port = await new Promise((resolve, reject) => {
     let buf = '';
     child.stdout.on('data', (d) => { buf += d; const m = buf.match(/PORT (\d+)/); if (m) resolve(Number(m[1])); });
@@ -54,7 +59,7 @@ async function boot(name, license) {
     });
     return { status: res.status, body: await res.json().catch(() => ({})) };
   };
-  const dev = { name, dir, child, port, base, call, stop: () => child.kill() };
+  const dev = { name, dir, child, port, base, call, stop: () => child.kill(), skew: (ms) => fs.writeFileSync(skewFile, String(ms)) };
   /* The screen tells the server whose license the device is on; a device with none says nothing. */
   if (license !== null) await call('POST', '/api/lan/license', license || LICENSE);
   return dev;
@@ -149,6 +154,60 @@ function vesselNames(dir) {
       assert.strictEqual((await A.call('GET', '/api/lan/pending', null, { forwarded: 'for=203.0.113.9' })).status, 403);
       assert.strictEqual((await A.call('POST', '/api/lan/answer', { id: 'x' }, { 'cf-connecting-ip': '203.0.113.9' })).status, 403);
       assert.strictEqual((await A.call('GET', '/api/lan/state')).status, 200, 'the device itself still can');
+    });
+
+    await check('clocks that differ: a paired device is refused with the reason, and nothing moves', async () => {
+      await new Promise((r) => setTimeout(r, 120));
+      A.skew(5 * 60 * 1000 + 12000);               // this device runs 5 min 12 s ahead
+      await new Promise((r) => setTimeout(r, 120));
+      const r = await A.call('POST', '/api/lan/peer-ask', { deviceId: peerB, op: 'p2p-manifest', args: {} });
+      assert.strictEqual(r.status, 409, JSON.stringify(r.body));
+      assert.strictEqual(r.body.code, 'clock-different');
+      assert.match(r.body.error, /differ by 5 min/);
+      assert.match(r.body.error, /same time/);
+      const c = await A.call('POST', '/api/lan/compare', { deviceId: peerB });
+      assert.strictEqual(c.status, 409);
+      const st = (await A.call('POST', '/api/lan/sync-now', { force: true })).body;
+      assert.strictEqual(st.peers[0].status, 'clock-different');
+      assert.match(st.peers[0].message, /clocks/);
+      assert.strictEqual((await B.call('GET', '/api/lan/pending')).body.asks.length, 0, 'no question reached the other app');
+    });
+
+    await check('the same refusal in the other direction (this device runs behind)', async () => {
+      A.skew(-3 * 3600 * 1000);                    // wrong time zone setting: three hours behind
+      await new Promise((r) => setTimeout(r, 120));
+      const r = await A.call('POST', '/api/lan/peer-ask', { deviceId: peerB, op: 'p2p-manifest', args: {} });
+      assert.strictEqual(r.status, 409);
+      assert.match(r.body.error, /differ by 3 h/);
+    });
+
+    await check('pairing is refused too, and the code is not used up', async () => {
+      const C = await boot('device-c');
+      try {
+        const code2 = (await B.call('POST', '/api/lan/pair/start')).body.code;
+        C.skew(2 * 60 * 1000);
+        await new Promise((r) => setTimeout(r, 120));
+        for (let i = 0; i < 7; i++) {            // more tries than the code allows: a clock refusal must not count
+          const bad = await C.call('POST', '/api/lan/peers/pair', { url: B.base, code: code2 });
+          assert.strictEqual(bad.status, 409, JSON.stringify(bad.body));
+          assert.strictEqual(bad.body.code, 'clock-different');
+        }
+        C.skew(0);
+        await new Promise((r) => setTimeout(r, 120));
+        const ok = await C.call('POST', '/api/lan/peers/pair', { url: B.base, code: code2 });
+        assert.strictEqual(ok.status, 200, JSON.stringify(ok.body));
+      } finally { C.stop(); }
+    });
+
+    await check('a few seconds apart is fine, and once the clocks agree sync works again', async () => {
+      A.skew(20000);
+      await new Promise((r) => setTimeout(r, 120));
+      const ok = await A.call('POST', '/api/lan/compare', { deviceId: peerB });
+      assert.strictEqual(ok.status, 200, JSON.stringify(ok.body));
+      A.skew(0);
+      await new Promise((r) => setTimeout(r, 120));
+      const again = await A.call('POST', '/api/lan/sync-now', { force: true });
+      assert.notStrictEqual(again.body.peers[0].status, 'clock-different');
     });
 
     await check('an unpaired caller cannot ask, and a bad question name is refused', async () => {

@@ -164,6 +164,27 @@ function create(opts) {
     older: 'The other device runs a version that does not check licenses. Update it, then pair again.',
   };
 
+  /* Two devices only sync when their clocks agree: the newer edit wins by the time stamp, so a wrong clock would let an old edit overwrite a new one. */
+  const CLOCK_TOLERANCE_MS = opts.clockToleranceMs != null && Number(opts.clockToleranceMs) >= 0 ? Number(opts.clockToleranceMs) : 60000;
+  function spanText(ms) {
+    const s = Math.round(Math.abs(ms) / 1000);
+    if (s < 60) return `${s} s`;
+    if (s < 3600) return `${Math.floor(s / 60)} min ${s % 60} s`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`;
+    return `${Math.floor(s / 86400)} days ${Math.floor((s % 86400) / 3600)} h`;
+  }
+  const clockMsg = (diff, mine, theirs) => `The clocks of the two devices are not the same: they differ by ${spanText(diff)} (this device ${new Date(mine).toISOString().slice(11, 19)} UTC, the other device ${new Date(theirs).toISOString().slice(11, 19)} UTC). `
+    + 'Set both to the same time (automatic date and time on, correct time zone), then try again. Nothing was sent or changed.';
+  /** The caller sends its own time with every request; null means it agrees (or is an older version that sends none). */
+  function clockProblem(req) {
+    const raw = req && req.get ? req.get('x-lan-time') : '';
+    const theirs = Number(raw);
+    if (!raw || !Number.isFinite(theirs) || theirs <= 0) return null;
+    const mine = Date.now();
+    const diff = mine - theirs;
+    return Math.abs(diff) > CLOCK_TOLERANCE_MS ? { diff, error: clockMsg(diff, mine, theirs), code: 'clock-different' } : null;
+  }
+
   /** Run in the same license folder the user works in, whichever request or timer calls. */
   function scoped(fn) {
     const s = load().userScope;
@@ -282,6 +303,8 @@ function create(opts) {
   function lanAuth(req, res, next) {
     const peer = tokenOk(req);
     if (!peer) return res.status(401).json({ error: 'Not paired with this device' });
+    const skew = clockProblem(req);
+    if (skew) return res.status(409).json({ error: skew.error, code: skew.code, diffMs: skew.diff });
     if (!ownTag()) return res.status(403).json({ error: LICENSE_MSG.none, code: 'no-license' });
     if (!sameTag(req.get ? req.get('x-lan-license') : '', ownTag())) {
       return res.status(403).json({ error: LICENSE_MSG.different, code: 'different-license' });
@@ -316,6 +339,8 @@ function create(opts) {
 
   app.post('/api/lan/pair', (req, res) => {
     const b = req.body || {};
+    const skew = clockProblem(req);
+    if (skew) return res.status(409).json({ error: skew.error, code: skew.code, diffMs: skew.diff });
     if (!pairing || Date.now() > pairing.expiresAt) {
       return res.status(403).json({ error: 'No pairing code is showing on this device. Open "Show pairing code" here first.' });
     }
@@ -477,7 +502,7 @@ function create(opts) {
         body: JSON.stringify({ op: b.op, args: b.args == null ? null : b.args }),
       }, 60000);
       res.json(out);
-    } catch (e) { res.status(e.code === 'unpaired' ? 401 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
+    } catch (e) { res.status(e.code === 'unpaired' ? 401 : e.code === 'clock-different' ? 409 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
   });
 
   /** The list the person ticks: every vessel on either device, and what each would do. Nothing moves here. */
@@ -517,7 +542,7 @@ function create(opts) {
       const peer = load().peers.find((p) => p.deviceId === (req.body && req.body.deviceId));
       if (!peer) return res.status(404).json({ error: 'That device is not paired' });
       res.json(await scoped(() => compareVessels(peer)));
-    } catch (e) { res.status(e.code === 'unpaired' ? 401 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
+    } catch (e) { res.status(e.code === 'unpaired' ? 401 : e.code === 'clock-different' ? 409 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
   });
 
   /** Move only the vessels the person ticked: [{vesselId, peerId, action: pull|push|both}]. */
@@ -656,7 +681,8 @@ function create(opts) {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null;
     try {
-      return await fetchImpl(url, Object.assign({}, init || {}, ctl ? { signal: ctl.signal } : {}));
+      const withClock = Object.assign({}, init || {}, { headers: Object.assign({ 'x-lan-time': String(Date.now()) }, (init && init.headers) || {}) });
+      return await fetchImpl(url, Object.assign(withClock, ctl ? { signal: ctl.signal } : {}));
     } finally { if (timer) clearTimeout(timer); }
   }
 
@@ -800,6 +826,9 @@ function create(opts) {
     let body = null;
     try { body = await r.json(); } catch (_) { body = null; }
     if (r.status === 401) { const e = new Error('unpaired'); e.code = 'unpaired'; throw e; }
+    if (r.status === 409 && body && body.code === 'clock-different') {
+      const e = new Error(body.error || 'The clocks of the two devices are not the same.'); e.code = 'clock-different'; throw e;
+    }
     if (r.status === 403 && body && (body.code === 'different-license' || body.code === 'no-license')) {
       const e = new Error(body.error || LICENSE_MSG.different); e.code = body.code; throw e;
     }
@@ -855,7 +884,7 @@ function create(opts) {
       theirs = await peerJson(peer, `/api/lan/status${full ? '?full=1' : ''}`, null, 12000);
     } catch (e) {
       if (e.code === 'unpaired') { st.status = 'unpaired'; st.message = 'This device no longer trusts us. Pair again.'; return; }
-      if (e.code === 'different-license' || e.code === 'no-license') { st.status = e.code; st.message = e.message; return; }
+      if (e.code === 'different-license' || e.code === 'no-license' || e.code === 'clock-different') { st.status = e.code; st.message = e.message; return; }
       st.status = 'offline';
       st.message = 'Not reachable right now';
       return;
@@ -919,7 +948,7 @@ function create(opts) {
       }
     } catch (e) {
       if (e.code === 'unpaired') { st.status = 'unpaired'; st.message = 'This device no longer trusts us. Pair again.'; return; }
-      if (e.code === 'different-license' || e.code === 'no-license') { st.status = e.code; st.message = e.message; return; }
+      if (e.code === 'different-license' || e.code === 'no-license' || e.code === 'clock-different') { st.status = e.code; st.message = e.message; return; }
       st.status = 'error';
       st.message = e.message || 'Sync failed';
       return;
@@ -977,7 +1006,7 @@ function create(opts) {
     laneState.error = '';
     if (c.enabled && c.liveBunkering && ownTag()) {
       for (const peer of c.peers.slice()) {
-        try { if (await planLane(peer)) live = true; laneState.at = Date.now(); } catch (e) { laneState.error = e.code === 'unpaired' ? 'Pair again' : 'Not reachable'; }
+        try { if (await planLane(peer)) live = true; laneState.at = Date.now(); } catch (e) { laneState.error = e.code === 'unpaired' ? 'Pair again' : e.code === 'clock-different' ? 'Clocks differ' : 'Not reachable'; }
       }
     }
     laneState.live = live;

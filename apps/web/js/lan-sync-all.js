@@ -48,6 +48,7 @@
     unpaired: ['bad', 'Pair again'],
     'different-vessel': ['warn', 'Different vessel'],
     'different-license': ['bad', 'Different license'],
+    'clock-different': ['bad', 'Clocks differ'],
     'no-license': ['bad', 'No license'],
     error: ['bad', 'Problem'],
     unavailable: ['dim', 'Not available'],
@@ -60,7 +61,7 @@
     if (!t.license || !t.license.active) return { key: 'tank', label: 'Tank Chief', status: 'no-license', message: 'No active license on this device.' };
     var peers = t.peers || [];
     if (!peers.length) return { key: 'tank', label: 'Tank Chief', status: t.enabled ? 'waiting' : 'off', message: t.enabled ? 'No device paired yet.' : 'Not paired.' };
-    var order = ['different-license', 'no-license', 'unpaired', 'error', 'offline', 'different-vessel', 'unknown', 'connected'];
+    var order = ['clock-different', 'different-license', 'no-license', 'unpaired', 'error', 'offline', 'different-vessel', 'unknown', 'connected'];
     var worst = peers.slice().sort(function (a, b) {
       var ia = order.indexOf(a.status), ib = order.indexOf(b.status);
       return (ia < 0 ? 5 : ia) - (ib < 0 ? 5 : ib);
@@ -415,6 +416,52 @@
         '<button type="button" class="btn" id="ls-check">' + (c.busy ? esc(c.busy) : 'Check differences') + '</button></div>' + notes + table + res;
     }
 
+    /** The pairing area explains itself: what to check, what to press on which device, and what to do when it fails. */
+    function pairGuide(s, code, found) {
+      var paired = (s.peers && s.peers.length) || s.pairedCount;
+      var num = function (n) { return '<span style="flex:none;width:24px;height:24px;border-radius:50%;background:var(--teal,#2a9d8f);color:#fff;font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center">' + n + '</span>'; };
+      var step = function (n, title, body) {
+        return '<div style="display:flex;gap:10px;margin:10px 0;align-items:flex-start">' + num(n) + '<div style="flex:1;min-width:0"><div style="font-weight:600">' + title + '</div>' + body + '</div></div>';
+      };
+      var now = new Date();
+      var clock = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' (' + now.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) + ')';
+      var status = paired
+        ? '<div id="ls-paired-note" style="padding:8px 10px;border-radius:8px;background:rgba(42,157,143,.15);margin:8px 0"><b>Paired.</b> This device trusts ' + esc((s.peers && s.peers[0] && s.peers[0].name) || 'the other device') + '. You do not need to pair again. Use <b>Check differences</b> below, or open <i>Pair another device</i> to add one more.</div>'
+        : '<div id="ls-paired-note" style="padding:8px 10px;border-radius:8px;background:rgba(201,154,83,.18);margin:8px 0"><b>Not paired yet.</b> Follow the three steps below. You only do this once for each pair of devices.</div>';
+      var steps =
+        step(1, 'Get both devices ready',
+          '<ul class="hint" style="margin:4px 0 0 16px;padding:0">' +
+          '<li>Both are on the <b>same Wi-Fi or the same phone hotspot</b>. No internet is needed.</li>' +
+          '<li>ChEng AIO is <b>open on both</b> and signed in with the <b>same license (same email)</b>.</li>' +
+          '<li>Both <b>clocks show the same time</b> (within one minute). This device now: <b>' + esc(clock) + '</b>. If the time differs from the other device, set both to automatic date and time first, or pairing is refused.</li>' +
+          '<li>On a Windows PC, when asked, allow ChEng AIO through the firewall for <b>private</b> networks.</li></ul>') +
+        step(2, 'On the PC (or the device that will be called): show the code',
+          '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn primary" id="ls-show-code">Show pairing code</button></div>' + code +
+          (code ? '' : '<div class="hint">A 6-digit code and this device\'s address appear here. The code works once and lasts five minutes.</div>')) +
+        step(3, 'On the phone or tablet: connect to it',
+          '<div class="hint">Press <b>Find devices</b>. When the PC appears in the list, type the 6-digit code next to it and press <b>Pair</b>.</div>' +
+          '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn" id="ls-find">Find devices</button>' +
+          (s.direct ? '' : '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button>') + '</div>' +
+          '<div id="ls-found" style="margin-top:6px">' + found + '</div>' +
+          '<div class="hint" style="margin-top:8px">Nothing found? Type the address that the PC shows under its code (like <code>http://192.168.0.20:3391</code>) and the code:</div>' +
+          '<div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+          '<input id="ls-url" placeholder="Address: http://192.168.43.1:8080" inputmode="url" autocapitalize="off" autocomplete="off" style="flex:1 1 100%;min-width:0">' +
+          '<input id="ls-code" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="off" style="flex:1 1 120px;min-width:0">' +
+          '<button type="button" class="btn" id="ls-pair-url">Pair</button></div>') +
+        '<div class="hint" style="margin-top:8px"><b>After pairing:</b> ' + (s.direct
+          ? 'press <b>Check differences</b> below, tick what you want to copy, then <b>Copy ticked items</b>. A running bunkering can be mirrored live.'
+          : 'sync runs by itself while both devices are open.') + '</div>' +
+        '<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Not working? Common reasons</summary><ul class="hint" style="margin:6px 0 0 16px;padding:0">' +
+        '<li><b>Failed to fetch / nothing answers:</b> the devices are not on the same network, the other device\'s ChEng AIO is closed, or the firewall blocks it. Hotspot users: connect the phone/tablet to the PC\'s hotspot (or the reverse).</li>' +
+        '<li><b>The code is not right:</b> codes work once for five minutes and five tries. Press Show pairing code again.</li>' +
+        '<li><b>Clocks differ:</b> set both devices to the same time. Pairing and syncing are refused until they match, so an old edit can never overwrite a new one.</li>' +
+        '<li><b>Different license:</b> both devices must be signed in with the same email and license.</li>' +
+        '<li><b>Pair again:</b> the other device was reset or forgot this one. Forget it here, then repeat the steps.</li></ul></details>';
+      return status + (paired
+        ? '<details id="ls-steps"><summary style="cursor:pointer;font-weight:600">Pair another device</summary>' + steps + '</details>'
+        : '<div id="ls-steps">' + steps + '</div>');
+    }
+
     function draw() {
       var s = snap;
       if (!s) { host.innerHTML = '<div class="backup-section-head"><span class="backup-section-title">Live sync (Wi-Fi / hotspot) — all programs</span></div><p class="hint">Looking for Tank Chief and Voyage Chief…</p>'; return; }
@@ -452,16 +499,7 @@
         (s.direct ? '' : '<div style="margin:6px 0;font-size:13px">' +
         '<label style="display:block"><input type="radio" name="ls-scope" value="active" ' + (!s.scopeAll ? 'checked' : '') + '> Only the vessel both devices have open</label>' +
         '<label style="display:block"><input type="radio" name="ls-scope" value="all" ' + (s.scopeAll ? 'checked' : '') + '> The whole database — a vessel or leg one device is missing is copied to it</label></div>') +
-        '<div class="btn-row">' +
-        '<button type="button" class="btn" id="ls-show-code">Show pairing code</button>' +
-        '<button type="button" class="btn" id="ls-find">Find devices</button>' +
-        (s.direct ? '' : '<button type="button" class="btn primary" id="ls-now">' + (s.busy ? esc(s.busy) : 'Sync now') + '</button>') + '</div>' +
-        code +
-        '<div id="ls-found" style="margin-top:8px">' + found + '</div>' +
-        '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
-        '<input id="ls-url" placeholder="Address: http://192.168.43.1:8080" inputmode="url" autocapitalize="off" autocomplete="off" style="flex:1 1 100%;min-width:0">' +
-        '<input id="ls-code" placeholder="Code" inputmode="numeric" maxlength="6" autocomplete="off" style="flex:1 1 120px;min-width:0">' +
-        '<button type="button" class="btn" id="ls-pair-url">Pair</button></div>' +
+        pairGuide(s, code, found) +
         notice +
         '<div style="margin-top:10px">' + s.rows.map(rowHtml).join('') + '</div>' +
         peers + errs + compareHtml(s) +

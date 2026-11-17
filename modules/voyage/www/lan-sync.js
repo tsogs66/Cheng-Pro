@@ -385,6 +385,11 @@
       '<label style="font-size:12px;align-self:center"><input type="checkbox" id="lanShareAll"> share every vessel on this server</label>' +
       '<button type="button" class="ghost small" id="lanScan">Find server</button>' +
       '<button type="button" class="primary small" id="lanNow">Sync now</button></div>' +
+      '<div id="lanGuide" class="hint" style="margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(127,127,127,.12)"><b>' + (base() ? 'Paired. To pair another device, repeat these steps:' : 'Not paired yet. Do this once:') + '</b>' +
+      '<ol style="margin:4px 0 0 18px;padding:0"><li>Both devices on the <b>same Wi-Fi or phone hotspot</b> (no internet needed), Voyage Chief open on both, the <b>same license</b>, and both <b>clocks the same</b> (within one minute; this device now: <b>' + esc(new Date().toLocaleTimeString()) + '</b>).</li>' +
+      '<li>On the <b>PC that runs the Voyage server</b>: press <b>Show pairing code</b>. A 6-digit code and its address appear.</li>' +
+      '<li>On the <b>phone or tablet</b>: press <b>Find server</b>, type the code and press <b>Pair</b>. Nothing found? Type the server address and the code below.</li></ol>' +
+      '<details style="margin-top:6px"><summary style="cursor:pointer">Not working?</summary><ul style="margin:4px 0 0 18px;padding:0"><li><b>Failed to fetch:</b> not the same network, the server is not running, or the firewall blocks it.</li><li><b>Code not right:</b> a code works once, for five minutes. Show a new one.</li><li><b>Different license:</b> both must use the same email and license.</li></ul></details></div>' +
       code +
       '<div id="lanFound" style="margin-top:8px">' + found + '</div>' +
       '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="lanUrl" placeholder="or type the server: http://192.168.43.1:8787" style="flex:1;min-width:200px">' +
