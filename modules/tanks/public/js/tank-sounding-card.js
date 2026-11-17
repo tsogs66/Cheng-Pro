@@ -50,13 +50,16 @@ const TankSoundingCard = (() => {
            actual reading (ullage or depth) is the user's to tick on the paper. */
         const ullageChk = '';
         const depthChk = '';
-        return `<tr><td class="pr-tsc-tank">${esc(t.name || 'Tank')}</td>`
+        /* data-card-* tell the photo reader (js/card-reader.js) where each write-in field and tick box is. */
+        const tid = esc(String(t.id != null ? t.id : i));
+        const tname = esc(t.name || 'Tank');
+        return `<tr><td class="pr-tsc-tank">${tname}</td>`
           + `<td class="pr-tsc-method-cell">`
-          + `<label class="pr-tsc-chk${ullageChk}"><span class="pr-tsc-box"></span> Ullage</label>`
-          + `<label class="pr-tsc-chk${depthChk}"><span class="pr-tsc-box"></span> Depth</label>`
+          + `<label class="pr-tsc-chk${ullageChk}"><span class="pr-tsc-box" data-card-box="ullage:${tid}" data-card-label="Ullage" data-card-group="${tname}"></span> Ullage</label>`
+          + `<label class="pr-tsc-chk${depthChk}"><span class="pr-tsc-box" data-card-box="depth:${tid}" data-card-label="Depth" data-card-group="${tname}"></span> Depth</label>`
           + `</td>`
-          + `<td class="pr-tsc-cm">${esc(val)}</td>`
-          + `<td class="pr-tsc-temp">${esc(temp)}</td></tr>`;
+          + `<td class="pr-tsc-cm" data-card-field="cm:${tid}" data-card-type="number" data-card-label="Sounding (cm)" data-card-group="${tname}">${esc(val)}</td>`
+          + `<td class="pr-tsc-temp" data-card-field="temp:${tid}" data-card-type="number" data-card-label="Temp (°C)" data-card-group="${tname}">${esc(temp)}</td></tr>`;
       }).join('')
       : `<tr><td class="pr-tsc-tank pr-tsc-empty" colspan="4">No fuel oil tanks in vessel database</td></tr>`;
 
@@ -70,23 +73,25 @@ const TankSoundingCard = (() => {
     const byVal = sample ? esc(opts.sampleBy || '') : '';
 
     return `<div class="pr-tsc-inner" style="--tsc-rows:${Math.max(1, tanks.length || 1)}">
+      <i class="pr-card-mark pr-card-tl" data-card-mark="tl" aria-hidden="true"></i><i class="pr-card-mark pr-card-tr" data-card-mark="tr" aria-hidden="true"></i>
+      <i class="pr-card-mark pr-card-bl" data-card-mark="bl" aria-hidden="true"></i><i class="pr-card-mark pr-card-br" data-card-mark="br" aria-hidden="true"></i>
       <div class="pr-tsc-title">TANK SOUNDING CARD</div>
       <div class="pr-tsc-sub">Tank Chief - ${esc(name)}</div>
 
       <div class="pr-tsc-body">
         <div class="pr-tsc-meta">
           <div class="pr-tsc-grid2">
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Date</span><span class="pr-tsc-line">${dateVal}</span></div>
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Time</span><span class="pr-tsc-line">${timeVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Date</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="date" data-card-type="date" data-card-label="Date">${dateVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Time</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="time" data-card-type="time" data-card-label="Time">${timeVal}</span></div>
           </div>
           <div class="pr-tsc-grid3">
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Forward Draft</span><span class="pr-tsc-line">${fwdVal}</span></div>
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Aft Draft</span><span class="pr-tsc-line">${aftVal}</span></div>
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Trim</span><span class="pr-tsc-line">${trimVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Forward Draft</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="fwd" data-card-type="number" data-card-label="Forward draft">${fwdVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Aft Draft</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="aft" data-card-type="number" data-card-label="Aft draft">${aftVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Trim</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="trim" data-card-type="number" data-card-label="Trim">${trimVal}</span></div>
           </div>
           <div class="pr-tsc-grid2">
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Sea Temp (°C)</span><span class="pr-tsc-line">${seaVal}</span></div>
-            <div class="pr-tsc-field"><span class="pr-tsc-lbl">E/R Temp (°C)</span><span class="pr-tsc-line">${erVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">Sea Temp (°C)</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="sea" data-card-type="number" data-card-label="Sea temp (°C)">${seaVal}</span></div>
+            <div class="pr-tsc-field"><span class="pr-tsc-lbl">E/R Temp (°C)</span><span class="pr-tsc-line" data-card-grow="up" data-card-field="er" data-card-type="number" data-card-label="E/R temp (°C)">${erVal}</span></div>
           </div>
         </div>
 
@@ -100,7 +105,7 @@ const TankSoundingCard = (() => {
 
       <div class="pr-tsc-by">
         <span class="pr-tsc-lbl">Sounded by</span>
-        <span class="pr-tsc-line">${byVal}</span>
+        <span class="pr-tsc-line" data-card-grow="up" data-card-field="by" data-card-type="text" data-card-label="Sounded by">${byVal}</span>
       </div>
       <div class="pr-tsc-foot">${esc(name)} — ${esc(company)} — ts0gs</div>
     </div>`;
@@ -331,6 +336,7 @@ html, body{
   transform-origin:top left;
 }
 .pr-tsc-inner{
+  position:relative;
   width:100%;
   height:100%;
   max-height:100%;
@@ -343,6 +349,11 @@ html, body{
   line-height:1.15;
   --tsc-row: 5.2mm;
 }
+.pr-card-mark{
+  position:absolute; display:block; width:4mm; height:4mm; background:#000;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+.pr-card-tl{ left:0; top:0; } .pr-card-tr{ right:0; top:0; } .pr-card-bl{ left:0; bottom:0; } .pr-card-br{ right:0; bottom:0; }
 .pr-tsc-title{
   text-align:center; font-size:11pt; font-weight:700; letter-spacing:0.04em;
   margin:0 0 0.4mm; flex:0 0 auto;
@@ -426,6 +437,8 @@ html, body{
 .pr-tsc-empty{ text-align:center; color:#666; font-style:italic; }
 .pr-tsc-by{
   flex:0 0 auto; margin-top:auto; padding-top:2.2mm; width:100%;
+  /* keep the rule off the corner marks, so a photo can tell the marks from the lines */
+  box-sizing:border-box; padding-left:6mm; padding-right:6mm;
 }
 .pr-tsc-foot{
   flex:0 0 auto; margin-top:1.4mm;
@@ -649,8 +662,15 @@ html, body{
     if (sampleBtn) sampleBtn.onclick = () => previewSample(bundle);
   }
 
+  /** The printed card as a document plus the selector of one card, so the photo reader can measure every field. */
+  function layoutDocument(bundle, opts = {}) {
+    const page = buildPageHtml(bundle, { tanks: opts.tanks || fuelTanks(bundle) });
+    return { html: buildPrintDocument(page, { title: 'Tank Sounding Card' }), cardSelector: '.pr-tsc-copy .pr-tsc-inner', widthMm: 297, heightMm: 210 };
+  }
+
   return {
     fuelTanks,
+    layoutDocument,
     buildHalfHtml,
     buildPageHtml,
     buildPrintDocument,

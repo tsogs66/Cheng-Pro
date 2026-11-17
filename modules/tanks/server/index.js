@@ -99,7 +99,7 @@ app.use((req, res, next) => {
   /* Live sync between devices: what another device calls is answered with its own
      pairing token, not a license header; the local control routes below fall through
      to the normal scope so the folder the user works in is the one that syncs. */
-  if (/^\/api\/lan\/(hello|pair|status|vessel\/|apply)/.test(p) && p !== '/api/lan/pair/start') {
+  if (/^\/api\/lan\/((hello|pair|status|ask|apply|plan)$|vessel\/)/.test(p) && p !== '/api/lan/pair/start') {
     return next();
   }
   if (p === '/api/sync/probe' || p === '/api/sync/pull' || p === '/api/sync/push') {

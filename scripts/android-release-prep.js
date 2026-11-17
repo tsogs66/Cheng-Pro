@@ -117,6 +117,17 @@ if (fs.existsSync(manifestPath)) {
   if (!/android:showWhenLocked/.test(manifest)) {
     manifest = manifest.replace(/(<activity\b[^>]*?android:name="[^"]*MainActivity")/, '$1\n            android:showWhenLocked="true"\n            android:turnScreenOn="true"');
   }
+  /* Android restarts the whole app (the WebView reloads: "Loading vessels…", back on the dashboard) when a
+     configuration change reaches an activity that does not declare it. Capacitor's template declares most, but not
+     navigation, touchscreen, density, font scale, layout direction or colour mode. A Galaxy tablet with a keyboard
+     cover or pen fires those when an input box is tapped, so the app is told about them instead of restarted. */
+  const WANT_CONFIG = ['orientation', 'keyboardHidden', 'keyboard', 'navigation', 'touchscreen', 'screenSize',
+    'smallestScreenSize', 'screenLayout', 'uiMode', 'density', 'fontScale', 'layoutDirection', 'locale', 'colorMode'];
+  manifest = manifest.replace(/android:configChanges="([^"]*)"/, (m, cur) => {
+    const have = cur.split('|').filter(Boolean);
+    WANT_CONFIG.forEach((f) => { if (have.indexOf(f) < 0) have.push(f); });
+    return 'android:configChanges="' + have.join('|') + '"';
+  });
   fs.writeFileSync(manifestPath, manifest);
 }
 

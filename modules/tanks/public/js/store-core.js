@@ -674,10 +674,92 @@ function mergeReadings(current, incoming) {
   return out;
 }
 
+/* ---- The running bunker plan, merged piece by piece ----
+ * Two devices watch one bunkering and either may type. A whole-document "newest wins" would let one person's
+ * sounding on tank 3 erase the other's on tank 5. So the plan carries a stamp on each piece that can change on
+ * its own: every tank slot (`at`), the header (`headerAt`), and the pump state (`topAt`). A piece changed on one
+ * device is taken whole; a piece nobody touched stays. Ties break on the text of the piece, so two devices that
+ * hold the same pieces always end on the same plan whichever way they merge. */
+const PLAN_TOP_KEYS = ['status', 'distributionMode', 'startedAt', 'pausedAt', 'elapsedPausedMs', 'completedAt'];
+/* Keys sorted, so the same plan written by two devices compares equal whatever order each built it in. */
+function planJson(v) {
+  const canon = (x) => {
+    if (Array.isArray(x)) return x.map(canon);
+    if (x && typeof x === 'object') { const o = {}; for (const k of Object.keys(x).sort()) o[k] = canon(x[k]); return o; }
+    return x;
+  };
+  return JSON.stringify(canon(v == null ? null : v));
+}
+function planSlotCore(slot) { const { at, ...rest } = slot || {}; return rest; }
+function planTopCore(doc) { const o = {}; for (const k of PLAN_TOP_KEYS) o[k] = doc && doc[k] !== undefined ? doc[k] : null; return o; }
+function planPieceAt(stamp, doc) { return String(stamp || (doc && doc.updatedAt) || ''); }
+function planIsLive(plan, nowMs) {
+  if (!plan || typeof plan !== 'object' || !plan.startedAt) return false;
+  if (!plan.completedAt) return true;
+  const done = Date.parse(plan.completedAt);
+  return Number.isFinite(done) && (nowMs || Date.now()) - done < 120000;
+}
+
+/** Mark what was edited since `current` was stored. A piece that arrives with a stamp of its own is left alone. */
+function stampPlanChanges(current, data, nowIso) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.sequence)) return data;
+  const cur = current && typeof current === 'object' && Array.isArray(current.sequence) ? current : null;
+  const stampNow = nowIso || new Date().toISOString();
+  const out = { ...data };
+  out.sequence = data.sequence.map((slot, i) => {
+    const c = cur && cur.sequence[i];
+    if (!c) return slot && slot.at ? slot : { ...slot, at: stampNow };
+    const changed = planJson(planSlotCore(slot)) !== planJson(planSlotCore(c));
+    return changed && String(slot.at || '') === String(c.at || '') ? { ...slot, at: stampNow } : slot;
+  });
+  if (!cur) { if (!out.headerAt) out.headerAt = stampNow; if (!out.topAt) out.topAt = stampNow; return out; }
+  if (planJson(data.header) !== planJson(cur.header) && String(data.headerAt || '') === String(cur.headerAt || '')) out.headerAt = stampNow;
+  if (planJson(planTopCore(data)) !== planJson(planTopCore(cur)) && String(data.topAt || '') === String(cur.topAt || '')) out.topAt = stampNow;
+  return out;
+}
+
+/** Merge two copies of the running plan. Pure: neither argument is changed. */
+function mergeBunkerPlanDocs(a, b) {
+  const pick = (x, xAt, y, yAt) => {
+    if (xAt !== yAt) return xAt > yAt ? x : y;
+    return planJson(x) >= planJson(y) ? x : y;
+  };
+  const n = Math.max(a.sequence.length, b.sequence.length);
+  const sequence = [];
+  for (let i = 0; i < n; i++) {
+    const x = a.sequence[i];
+    const y = b.sequence[i];
+    if (!x || !y) { sequence.push(x || y); continue; }
+    sequence.push(pick(x, planPieceAt(x.at, a), y, planPieceAt(y.at, b)));
+  }
+  const headerWinsA = (() => {
+    const xa = planPieceAt(a.headerAt, a), ya = planPieceAt(b.headerAt, b);
+    return xa !== ya ? xa > ya : planJson(a.header) >= planJson(b.header);
+  })();
+  const topWinsA = (() => {
+    const xa = planPieceAt(a.topAt, a), ya = planPieceAt(b.topAt, b);
+    return xa !== ya ? xa > ya : planJson(planTopCore(a)) >= planJson(planTopCore(b));
+  })();
+  const hdr = headerWinsA ? a : b;
+  const top = topWinsA ? a : b;
+  const out = { ...(a.updatedAt >= b.updatedAt ? a : b) };
+  out.header = hdr.header;
+  out.headerAt = hdr.headerAt || hdr.updatedAt || null;
+  for (const k of PLAN_TOP_KEYS) out[k] = top[k] !== undefined ? top[k] : null;
+  out.topAt = top.topAt || top.updatedAt || null;
+  out.sequence = sequence;
+  out.updatedAt = [a.updatedAt, b.updatedAt, ...sequence.map((s) => s && s.at), out.headerAt, out.topAt]
+    .filter(Boolean).map(String).sort().pop() || null;
+  return out;
+}
+
+function isPlanDoc(doc) { return !!doc && typeof doc === 'object' && Array.isArray(doc.sequence); }
+
 /** Keep a single open form. A blank side does not erase the side that has one. */
 function mergeDraftDoc(current, incoming) {
   if (isBlankDraft(incoming)) return isBlankDraft(current) ? (incoming == null ? current : incoming) : current;
   if (isBlankDraft(current)) return incoming;
+  if (isPlanDoc(current) && isPlanDoc(incoming)) return mergeBunkerPlanDocs(current, incoming);
   const a = partStamp(current);
   const b = partStamp(incoming);
   if (!a || b >= a) return incoming;
@@ -766,6 +848,10 @@ function mergePartOnWrite(id, part, file, data) {
   if (part === 'readings') {
     return mergeReadings(readJson(vesselPath(id, file), {}), data);
   }
+  if (part === 'bunkerPlan') {
+    const current = readJson(vesselPath(id, file), null);
+    return mergeDraftDoc(current, stampPlanChanges(current, data));
+  }
   if (DRAFT_PARTS.indexOf(part) >= 0) {
     return mergeDraftDoc(readJson(vesselPath(id, file), null), data);
   }
@@ -776,6 +862,24 @@ function mergePartOnWrite(id, part, file, data) {
     return keepFilledPart(readJson(vesselPath(id, file), emptyTanks()), data);
   }
   return data;
+}
+
+function getBunkerPlan(id) {
+  if (!fs.existsSync(vesselDir(id))) return null;
+  return readJson(vesselPath(id, 'bunker-plan.json'), null);
+}
+
+/** A running plan from a paired device, merged into this vessel's own. Returns the plan now stored and whether it changed. */
+function mergePlanFromPeer(id, incoming) {
+  if (!fs.existsSync(vesselDir(id))) throw new Error('Vessel not found');
+  /* A plan has a fixed number of tank slots; refuse anything wildly bigger than that. */
+  if (!incoming || !Array.isArray(incoming.sequence) || incoming.sequence.length > 60) throw new Error('Not a bunker plan');
+  const file = vesselPath(id, 'bunker-plan.json');
+  const current = readJson(file, null);
+  const merged = mergeDraftDoc(current, incoming);
+  const changed = planJson(merged) !== planJson(current);
+  if (changed) { writeJson(file, merged); touchVessel(id); }
+  return { plan: merged, changed };
 }
 
 function tankCount(tanks) {
@@ -1987,6 +2091,11 @@ const api = {
   getVesselBundle,
   saveVesselPart,
   replaceVesselPart,
+  mergePlanFromPeer,
+  getBunkerPlan,
+  mergeBunkerPlanDocs,
+  stampPlanChanges,
+  planIsLive,
   updateVesselDetails,
   upsertTank,
   deleteTank,

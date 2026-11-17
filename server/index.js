@@ -478,7 +478,7 @@ async function boot() {
   function startLanListener(mainPort) {
     if (HOST !== '127.0.0.1' && HOST !== 'localhost') return; /* already reachable: the main server answers */
     try {
-      const peerPath = /^\/api\/lan\/(hello|pair|status|vessel\/|apply)/;
+      const peerPath = /^\/api\/lan\/((hello|pair|status|ask|apply|plan)$|vessel\/)/;
       const lanApp = express();
       lanApp.disable('x-powered-by');
       lanApp.use((req, res, next) => {

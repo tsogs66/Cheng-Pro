@@ -390,6 +390,34 @@
     return ChengProApi.api('/tanks' + path, options);
   }
 
+  /* The other device asks this one's app things (its Voyage Chief records) through Tank's engine; this answers.
+     It runs whenever the app is open and a device is paired, not only while this page is showing. */
+  let lanAgentTimer = null;
+  let lanAgentBusy = false;
+  let lanAgentActive = false;
+  let lanAgentCheckedAt = 0;
+  function startLanAgent() {
+    if (lanAgentTimer || !window.ChengLanCompare) return;
+    lanAgentTimer = setInterval(async () => {
+      if (lanAgentBusy) return;
+      lanAgentBusy = true;
+      try {
+        if (Date.now() - lanAgentCheckedAt > 15000) {
+          lanAgentCheckedAt = Date.now();
+          const state = await lanTankApi('/api/lan/state');
+          lanAgentActive = !!(state && state.license && state.license.active && ((state.peers || []).length || state.pairedCount));
+        }
+        if (!lanAgentActive) return;
+        await ChengLanCompare.answerPending({
+          tank: (path, init) => lanTankApi(path, init && init.body && typeof init.body !== 'string'
+            ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
+          voyage: (action, extra) => voyagePost(action, extra || {}, null, 180000),
+        });
+      } catch (_) { /* the app may still be starting; try again */ } finally { lanAgentBusy = false; }
+    }, 3000);
+  }
+  setTimeout(startLanAgent, 6000);
+
   /* ---------------------------------------------------------- Voyage Chief --
    * Voyage Chief owns its IndexedDB inside its own frame, so the shell asks it
    * over postMessage rather than reaching into the database itself. */
@@ -452,16 +480,30 @@
     });
   }
 
+  /* Where the hidden Voyage bridge frame lives. On the Backup page that is its own slot. When a timer asks
+     for it after the person has left that page (the live-sync panel polls), the slot is gone: the frame used
+     to be put into the page that is showing, as a loose 300x150 Voyage window on top of it. It now goes into
+     a hidden holder outside every page. */
   function voyageMount(host) {
-    if (!host || !host.querySelector) return host;
-    return host.querySelector('#bk-voyage-bridge-host') || host;
+    const slot = host && host.querySelector && host.querySelector('#bk-voyage-bridge-host');
+    if (slot) return slot;
+    let holder = document.getElementById('aio-voyage-bridge-holder');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.id = 'aio-voyage-bridge-holder';
+      holder.setAttribute('aria-hidden', 'true');
+      holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+      document.body.appendChild(holder);
+    }
+    return holder;
   }
 
   function ensureVoyageFrame(host) {
     bindVoyageMessages();
     const mount = voyageMount(host);
     if (voyageFrameAlive()) {
-      if (mount && voyageFrame.parentElement !== mount) {
+      /* Moving an iframe reloads it. A live frame stays put unless the Backup page's own slot is here. */
+      if (mount && mount.id !== 'aio-voyage-bridge-holder' && voyageFrame.parentElement !== mount) {
         try { mount.appendChild(voyageFrame); } catch (_) { /* ignore */ }
       }
       return voyageFrame;
@@ -472,10 +514,10 @@
     voyageFrame.title = 'Voyage Chief backup bridge';
     voyageFrame.setAttribute('aria-hidden', 'true');
     voyageFrame.tabIndex = -1;
+    voyageFrame.style.cssText = 'width:1px;height:1px;border:0;opacity:0;pointer-events:none';
     /* Hidden bridge only — Backup paints its own Voyage server form. */
     voyageFrame.src = ChengPro.voyageEmbedUrl({ page: 'data' });
-    if (mount) mount.appendChild(voyageFrame);
-    else if (host) host.appendChild(voyageFrame);
+    mount.appendChild(voyageFrame);
     return voyageFrame;
   }
 
@@ -789,7 +831,14 @@
       try {
         const lanHost = root.querySelector('#bk-live-sync-host');
         if (lanHost && window.ChengLanSyncAll) {
+          /* Direct compare with the paired device (no server): this device's Tank engine and Voyage Chief. */
+          const lanCompare = window.ChengLanCompare ? ChengLanCompare.create({
+            tank: (path, init) => lanTankApi(path, init && init.body && typeof init.body !== 'string'
+              ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
+            voyage: (action, extra) => voyagePost(action, extra || {}, root, 180000),
+          }) : null;
           const lanCtl = ChengLanSyncAll.create({
+            compare: lanCompare,
             /* Live sync talks to THIS device's own engine: the phone's local one, or the Windows app's own
                server. It must not go to the Cheng Suite server, which has no idea about this device's
                Wi-Fi (and is not reachable on a ship's LAN, hence "Failed to fetch"). */
