@@ -288,6 +288,70 @@ const asked = (w, kind, what) => w.calls.filter((c) => c[0] === kind && c[1] ===
     for (const a of ['lan-state', 'lan-config', 'lan-code', 'lan-scan', 'lan-pair', 'lan-now']) assert.ok(html.includes("'" + a + "'"), a + ' is handled by the Voyage frame');
   });
 
+
+  console.log('Direct mode (no server): compare, tick, apply');
+  const direct = (over) => {
+    const base = world(over);
+    const cmpCalls = [];
+    const rows = [
+      { key: 'leg:a|1|L', program: 'Voyage Chief', kind: 'leg', item: 'Voyage 1 · Laden', vessel: 'A', mine: '—', theirs: '3 entries', suggest: 'pull', options: ['pull'] },
+      { key: 'tank:1', program: 'Tank Chief', kind: 'tank', item: 'Vessel', vessel: 'A', mine: 'x', theirs: 'y', suggest: 'push', options: ['pull', 'push', 'both'] },
+      { key: 'leg:b|2|B', program: 'Voyage Chief', kind: 'leg', item: 'Voyage 2', vessel: 'B', mine: '—', theirs: '—', suggest: 'skip', options: [], note: 'not on the other device' },
+    ];
+    let cur = { deviceId: '', rows: [], same: 0, notes: [], checkedAt: null, busy: '' };
+    const compare = {
+      compare: async (id) => { cmpCalls.push(['compare', id]); cur = { deviceId: id, rows, same: 5, notes: [], checkedAt: 'now', busy: '' }; return cur; },
+      apply: async (picks) => { cmpCalls.push(['apply', picks]); return { done: picks.length, failed: [] }; },
+      snapshot: () => cur,
+    };
+    const deps2 = Object.assign({}, base.deps, { compare });
+    delete deps2.voyage;
+    base.w.tank.pairedCount = 0;
+    return { w: base.w, cmpCalls, ctl: All.create(deps2) };
+  };
+  await check('in direct mode Voyage Chief\'s own engine is never called, and the device is set to wait for ticks', async () => {
+    const { w, ctl } = direct();
+    await ctl.refresh();
+    await ctl.showCode({});
+    assert.strictEqual(w.calls.filter((c) => c[0] === 'voyage').length, 0);
+    assert.strictEqual(w.tank.mode, 'ask');
+  });
+  await check('the license is judged by this device alone: no engine from Voyage is needed', async () => {
+    const { ctl } = direct();
+    const s = await ctl.refresh();
+    assert.strictEqual(s.license.active, true);
+    assert.strictEqual(s.direct, true);
+    assert.strictEqual(s.rows.length, 1);
+  });
+  await check('a check lists the items and ticks none of them', async () => {
+    const { ctl } = direct();
+    await ctl.check('pc');
+    const s = ctl.snapshot();
+    assert.strictEqual(s.compare.rows.length, 3);
+    assert.ok(Object.values(s.picks).every((p) => p.on === false));
+    assert.strictEqual(s.picks['leg:a|1|L'].action, 'pull');
+    assert.strictEqual(s.picks['leg:b|2|B'].action, '', 'a row that cannot move has no action');
+  });
+  await check('nothing is applied with no tick; only ticked rows go, with the chosen action', async () => {
+    const { ctl, cmpCalls } = direct();
+    await ctl.check('pc');
+    await assert.rejects(() => ctl.applyPicks(), /Tick at least one/);
+    assert.ok(!cmpCalls.some((c) => c[0] === 'apply'));
+    ctl.setPick('tank:1', true);
+    ctl.setPick('tank:1', null, 'both');
+    ctl.setPick('leg:a|1|L', false);
+    const r = await ctl.applyPicks();
+    assert.strictEqual(r.done, 1);
+    assert.deepStrictEqual(cmpCalls.find((c) => c[0] === 'apply')[1], [{ key: 'tank:1', action: 'both' }]);
+  });
+  await check('ticks survive the page redrawing itself', async () => {
+    const { ctl } = direct();
+    await ctl.check('pc');
+    ctl.setPick('leg:a|1|L', true);
+    await ctl.refresh();
+    assert.strictEqual(ctl.snapshot().picks['leg:a|1|L'].on, true);
+  });
+
   console.log(`\n${n}/${n + failed} passed`);
   process.exit(failed ? 1 : 0);
 })();

@@ -111,6 +111,8 @@ function create(opts) {
       deviceName: raw.deviceName || '',
       enabled: !!raw.enabled,
       scope: raw.scope === 'all' ? 'all' : 'active',
+      /* 'auto' moves records on its own (standalone Tank Chief); 'ask' only reports what differs and waits for the person to tick it. */
+      mode: raw.mode === 'ask' ? 'ask' : 'auto',
       intervalSec: Math.min(300, Math.max(5, Number(raw.intervalSec) || 20)),
       userScope: raw.userScope || null,
       license: raw.license && raw.license.tag ? { tag: String(raw.license.tag), email: String(raw.license.email || '') } : null,
@@ -373,6 +375,131 @@ function create(opts) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
+  /* ---- asking the other device's app (Voyage Chief lives in the app, not in this server) ----
+   * The caller posts a question to /api/lan/ask; the app on this device picks it up from /api/lan/pending,
+   * does it, and answers on /api/lan/answer; the caller's request waits for that answer. */
+  const asks = new Map();     // id -> {id, op, args, at, done, result, error, waiter}
+  const ASK_WAIT_MS = 45000;
+  function askSweep() { const t = Date.now(); for (const [id, a] of asks) if (t - a.at > ASK_WAIT_MS + 15000) asks.delete(id); }
+
+  app.post('/api/lan/ask', lanAuth, (req, res) => {
+    askSweep();
+    const b = req.body || {};
+    const op = String(b.op || '').slice(0, 40);
+    if (!/^[a-z0-9-]+$/.test(op)) return res.status(400).json({ error: 'Unknown request' });
+    const id = randomHex(8);
+    const a = { id, op, args: b.args == null ? null : b.args, at: Date.now(), taken: false, done: false, result: null, error: '' };
+    asks.set(id, a);
+    const timer = setTimeout(() => {
+      if (!a.done) { a.done = true; a.error = 'The other device did not answer. Open ChEng AIO on it and keep it open.'; }
+      finish();
+    }, ASK_WAIT_MS);
+    if (timer.unref) timer.unref();
+    let sent = false;
+    function finish() {
+      if (sent) return; sent = true; clearTimeout(timer); asks.delete(id);
+      if (a.error) return res.status(504).json({ error: a.error });
+      return res.json({ ok: true, result: a.result });
+    }
+    a.finish = finish;
+  });
+
+  app.get('/api/lan/pending', localOnly, (req, res) => {
+    askSweep();
+    const out = [];
+    for (const a of asks.values()) if (!a.taken && !a.done) { a.taken = true; out.push({ id: a.id, op: a.op, args: a.args }); }
+    res.json({ asks: out });
+  });
+
+  app.post('/api/lan/answer', localOnly, (req, res) => {
+    const b = req.body || {};
+    const a = asks.get(String(b.id || ''));
+    if (!a) return res.json({ ok: true, gone: true });
+    a.done = true;
+    if (b.error) a.error = String(b.error).slice(0, 300); else a.result = b.result == null ? null : b.result;
+    if (a.finish) a.finish();
+    res.json({ ok: true });
+  });
+
+  /** Ask the paired device's app something, with this device's token. The screen cannot hold the token. */
+  app.post('/api/lan/peer-ask', localOnly, async (req, res) => {
+    try {
+      const b = req.body || {};
+      if (!ownTag()) return res.status(403).json({ error: LICENSE_MSG.none, code: 'no-license' });
+      const peer = load().peers.find((p) => p.deviceId === b.deviceId);
+      if (!peer) return res.status(404).json({ error: 'That device is not paired' });
+      const out = await peerJson(peer, '/api/lan/ask', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op: b.op, args: b.args == null ? null : b.args }),
+      }, 60000);
+      res.json(out);
+    } catch (e) { res.status(e.code === 'unpaired' ? 401 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
+  });
+
+  /** The list the person ticks: every vessel on either device, and what each would do. Nothing moves here. */
+  async function compareVessels(peer) {
+    const theirs = await peerJson(peer, '/api/lan/status?full=1', null, 20000);
+    const rows = localVessels();
+    const mine = statusDoc(true);
+    const out = [];
+    let same = 0;
+    for (const r of rows) {
+      const there = (theirs.vessels || []).find((v) => hullSame(v, r));
+      const mineDigest = (mine.vessels.find((v) => v.id === r.id) || {}).digest;
+      if (!there) {
+        out.push({ key: 'tank:' + r.id, vesselId: r.id, peerId: null, name: r.name, imo: r.imo, mine: { revision: r.revision }, theirs: null, suggest: 'push' });
+      } else if (there.digest && there.digest === mineDigest) {
+        same += 1;
+      } else {
+        const a = Number(r.revision) || 0;
+        const b = Number(there.revision) || 0;
+        out.push({
+          key: 'tank:' + r.id, vesselId: r.id, peerId: there.id, name: r.name, imo: r.imo,
+          mine: { revision: a }, theirs: { revision: b }, suggest: a > b ? 'push' : b > a ? 'pull' : 'both',
+        });
+      }
+    }
+    for (const v of (theirs.vessels || [])) {
+      if (!rows.some((r) => hullSame(r, v))) {
+        out.push({ key: 'tank:peer:' + v.id, vesselId: null, peerId: v.id, name: v.name, imo: v.imo, mine: null, theirs: { revision: v.revision }, suggest: 'pull' });
+      }
+    }
+    return { peer: peer.name, rows: out, same };
+  }
+
+  app.post('/api/lan/compare', localOnly, async (req, res) => {
+    try {
+      if (!ownTag()) return res.status(403).json({ error: LICENSE_MSG.none, code: 'no-license' });
+      const peer = load().peers.find((p) => p.deviceId === (req.body && req.body.deviceId));
+      if (!peer) return res.status(404).json({ error: 'That device is not paired' });
+      res.json(await scoped(() => compareVessels(peer)));
+    } catch (e) { res.status(e.code === 'unpaired' ? 401 : 502).json({ error: e.message || 'Could not reach that device', code: e.code }); }
+  });
+
+  /** Move only the vessels the person ticked: [{vesselId, peerId, action: pull|push|both}]. */
+  app.post('/api/lan/apply-selected', localOnly, async (req, res) => {
+    try {
+      if (!ownTag()) return res.status(403).json({ error: LICENSE_MSG.none, code: 'no-license' });
+      const b = req.body || {};
+      const peer = load().peers.find((p) => p.deviceId === b.deviceId);
+      if (!peer) return res.status(404).json({ error: 'That device is not paired' });
+      const done = [];
+      const failed = [];
+      await scoped(async () => {
+        for (const it of (Array.isArray(b.items) ? b.items : [])) {
+          try {
+            if (it.action === 'pull' && it.peerId) await copyVessel(peer, String(it.peerId), 'pull');
+            else if (it.action === 'push' && it.vesselId) await copyVessel(peer, String(it.vesselId), 'push');
+            else if (it.action === 'both' && it.vesselId && it.peerId) await exchange(peer, String(it.vesselId), String(it.peerId));
+            else throw new Error('Nothing to do for this item');
+            done.push(it.key || it.vesselId || it.peerId);
+          } catch (e) { failed.push({ key: it.key || it.vesselId || it.peerId, error: e.message || 'Failed' }); }
+        }
+      });
+      res.json({ ok: !failed.length, done, failed });
+    } catch (e) { res.status(502).json({ error: e.message || 'Could not reach that device' }); }
+  });
+
   /* ---- local control: the Settings screen talks to these ---- */
 
   /** The screen says whose license this device is on (or that there is none). Only the hash is kept. */
@@ -400,6 +527,7 @@ function create(opts) {
     const b = req.body || {};
     if (typeof b.deviceName === 'string') c.deviceName = b.deviceName.trim().slice(0, 60);
     if (b.scope === 'all' || b.scope === 'active') c.scope = b.scope;
+    if (b.mode === 'ask' || b.mode === 'auto') c.mode = b.mode;
     if (b.intervalSec != null) c.intervalSec = Math.min(300, Math.max(5, Number(b.intervalSec) || 20));
     if (typeof b.enabled === 'boolean') c.enabled = b.enabled;
     /* remember whose license folder this screen reads, so a timer works in it too */
@@ -678,7 +806,7 @@ function create(opts) {
     if (!ownTag()) { st.status = 'no-license'; st.message = LICENSE_MSG.none; return; }
     let theirs;
     try {
-      const full = c.scope === 'all';
+      const full = c.scope === 'all' || c.mode === 'ask';
       theirs = await peerJson(peer, `/api/lan/status${full ? '?full=1' : ''}`, null, 12000);
     } catch (e) {
       if (e.code === 'unpaired') { st.status = 'unpaired'; st.message = 'This device no longer trusts us. Pair again.'; return; }
@@ -690,7 +818,7 @@ function create(opts) {
     st.seen = Date.now();
     const rows = localVessels();
     const mineActive = activeOf(rows);
-    const mine = statusDoc(c.scope === 'all');
+    const mine = statusDoc(c.scope === 'all' || c.mode === 'ask');
     const theirActive = theirs.active;
     const activeSame = !!(mineActive && theirActive && hullSame(mineActive, theirActive));
 
@@ -715,6 +843,21 @@ function create(opts) {
       const mineDigest = (mine.vessels.find((v) => v.id === mineActive.id) || {}).digest;
       if (force || !there.digest || there.digest !== mineDigest) jobs.push({ localId: mineActive.id, peerId: theirActive.id });
     }
+
+    /* Ask mode: nothing moves. Say how many vessels differ and wait for the person to choose them. */
+    if (c.mode === 'ask') {
+      const differing = rows.filter((r) => {
+        const there = (theirs.vessels || []).find((v) => hullSame(v, r));
+        if (!there) return true;
+        const mineDigest = (mine.vessels.find((v) => v.id === r.id) || {}).digest;
+        return !there.digest || there.digest !== mineDigest;
+      }).length + missingHere.length;
+      st.waiting = differing;
+      st.status = 'connected';
+      st.message = differing ? `${differing} vessel${differing === 1 ? '' : 's'} differ — open the list and tick what to copy` : 'Up to date';
+      return;
+    }
+    st.waiting = 0;
 
     let pulled = 0;
     let pushed = 0;
@@ -812,8 +955,10 @@ function create(opts) {
       deviceName: deviceName(),
       enabled: c.enabled,
       scope: c.scope,
+      mode: c.mode,
       intervalSec: c.intervalSec,
       canBeCalled: canBeCalled(),
+      pairedCount: c.paired.length,
       license: { active: !!ownTag(), email: (c.license && c.license.email) || '' },
       address: ownUrl(),
       pairing: pairing && Date.now() < pairing.expiresAt ? { code: pairing.code, expiresAt: new Date(pairing.expiresAt).toISOString() } : null,
@@ -827,6 +972,7 @@ function create(opts) {
           message: st.message || '',
           lastSync: st.lastSync || null,
           differences: st.differences || null,
+          waiting: st.waiting || 0,
           seen: st.seen ? new Date(st.seen).toISOString() : null,
         };
       }),

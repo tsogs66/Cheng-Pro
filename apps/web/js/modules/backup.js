@@ -390,6 +390,34 @@
     return ChengProApi.api('/tanks' + path, options);
   }
 
+  /* The other device asks this one's app things (its Voyage Chief records) through Tank's engine; this answers.
+     It runs whenever the app is open and a device is paired, not only while this page is showing. */
+  let lanAgentTimer = null;
+  let lanAgentBusy = false;
+  let lanAgentActive = false;
+  let lanAgentCheckedAt = 0;
+  function startLanAgent() {
+    if (lanAgentTimer || !window.ChengLanCompare) return;
+    lanAgentTimer = setInterval(async () => {
+      if (lanAgentBusy) return;
+      lanAgentBusy = true;
+      try {
+        if (Date.now() - lanAgentCheckedAt > 15000) {
+          lanAgentCheckedAt = Date.now();
+          const state = await lanTankApi('/api/lan/state');
+          lanAgentActive = !!(state && state.license && state.license.active && ((state.peers || []).length || state.pairedCount));
+        }
+        if (!lanAgentActive) return;
+        await ChengLanCompare.answerPending({
+          tank: (path, init) => lanTankApi(path, init && init.body && typeof init.body !== 'string'
+            ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
+          voyage: (action, extra) => voyagePost(action, extra || {}, null, 180000),
+        });
+      } catch (_) { /* the app may still be starting; try again */ } finally { lanAgentBusy = false; }
+    }, 3000);
+  }
+  setTimeout(startLanAgent, 6000);
+
   /* ---------------------------------------------------------- Voyage Chief --
    * Voyage Chief owns its IndexedDB inside its own frame, so the shell asks it
    * over postMessage rather than reaching into the database itself. */
@@ -803,7 +831,14 @@
       try {
         const lanHost = root.querySelector('#bk-live-sync-host');
         if (lanHost && window.ChengLanSyncAll) {
+          /* Direct compare with the paired device (no server): this device's Tank engine and Voyage Chief. */
+          const lanCompare = window.ChengLanCompare ? ChengLanCompare.create({
+            tank: (path, init) => lanTankApi(path, init && init.body && typeof init.body !== 'string'
+              ? { ...init, body: JSON.stringify(init.body) } : (init || {})),
+            voyage: (action, extra) => voyagePost(action, extra || {}, root, 180000),
+          }) : null;
           const lanCtl = ChengLanSyncAll.create({
+            compare: lanCompare,
             /* Live sync talks to THIS device's own engine: the phone's local one, or the Windows app's own
                server. It must not go to the Cheng Suite server, which has no idea about this device's
                Wi-Fi (and is not reachable on a ship's LAN, hence "Failed to fetch"). */
