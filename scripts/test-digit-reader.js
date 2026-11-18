@@ -30,6 +30,25 @@ function line(f, x0, y0, x1, y1, t) {
   }
 }
 
+console.log('A temperature written with its unit');
+const dg = (x0, y0, x1, y1) => ({ kind: 'digit', box: [x0, y0, x1, y1], img: new Float32Array(784) });
+check('30°C: the degree ring and the C are the unit, not digits (a ring of its own, then the C)', () => {
+  const parts = D.dropUnit([dg(77, 43, 93, 61), dg(97, 46, 115, 61), dg(125, 38, 136, 50), dg(136, 40, 153, 61)]);
+  assert.strictEqual(parts.length, 2);
+});
+check('30°C: the ring and the C touching make one tall mark that is dropped', () => {
+  const parts = D.dropUnit([dg(91, 41, 104, 60), dg(109, 45, 121, 60), dg(129, 35, 146, 60)]);
+  assert.strictEqual(parts.length, 2);
+});
+check('42 °C: a C standing well apart from the number is dropped', () => {
+  const parts = D.dropUnit([dg(62, 33, 84, 61), dg(89, 41, 107, 60), dg(141, 38, 155, 61)]);
+  assert.strictEqual(parts.length, 2);
+});
+check('a plain number with no unit keeps every digit', () => {
+  const parts = D.dropUnit([dg(40, 43, 60, 61), dg(64, 44, 84, 60), dg(88, 42, 108, 61), dg(112, 43, 132, 60)]);
+  assert.strictEqual(parts.length, 4);
+});
+
 console.log('The network');
 check('it reads digits written by hand on the ship\'s cards', () => {
   const samples = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/digit-samples.json'), 'utf8'));

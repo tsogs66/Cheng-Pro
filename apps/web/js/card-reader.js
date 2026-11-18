@@ -446,16 +446,16 @@
     return bd <= 1 ? best : 0;
   }
 
-  async function ocrField(worker, prepared, type, signed) {
+  async function ocrField(worker, prepared, type, signed, extra) {
     if (prepared.inkRatio < 0.004) return { text: '', conf: 100, blank: true };
     if ((type === 'number' || type === 'int' || type === 'pair' || type === 'time' || type === 'date' || type === 'datetime') && await getDigits()) {
       var D = root.ChengDigitReader, ink = inkOf(prepared), cw = prepared.image.width, chh = prepared.image.height;
       if (type === 'int') {   // a meter or counter reading is whole litres or turns: no point, so no false ones in a ten-digit number
-        var ri = D.readNumber(ink, cw, chh, { allow: '0123456789' });
+        var ri = D.readNumber(ink, cw, chh, { allow: '0123456789', lineBottom: extra && extra.lineBottom });
         return { text: ri.text.replace(/\D/g, ''), conf: ri.conf, blank: !ri.text };
       }
       if (type === 'number') {
-        var r = D.readNumber(ink, cw, chh, { allow: signed ? '0123456789.-' : '0123456789.', rejectWords: true });
+        var r = D.readNumber(ink, cw, chh, { allow: signed ? '0123456789.-' : '0123456789.', rejectWords: true, lineBottom: extra && extra.lineBottom, unit: extra && extra.unit });
         return { text: cleanNumber(r.text), conf: r.conf, blank: !r.text };
       }
       if (type === 'pair') {   // two numbers kept apart by a slash, like the two fresh-water tanks: 112/111
@@ -926,7 +926,7 @@
       var useLines = false;   // rubbing out the found lines and cutting wider was tried: the cells read worse
       if (useLines) { var ex = 5 / card.width, ey = 5 / card.height; cellRect = { x: f.rect.x - ex, y: f.rect.y - ey, w: f.rect.w + 2 * ex, h: f.rect.h + 2 * ey }; }
       var prep = prepareField(card, cellRect, useLines ? 1 : (f.tbl >= 0 ? 4 : 3), f.grow, f.tbl >= 0, useLines ? layout.ruleLines : null);
-      var r = f.type === 'text' ? { text: '', conf: 0, blank: prep.inkRatio < 0.004 } : await ocrField(worker, prep, f.type, /trim|heel|list|temp:?-/i.test(f.key));
+      var r = f.type === 'text' ? { text: '', conf: 0, blank: prep.inkRatio < 0.004 } : await ocrField(worker, prep, f.type, /trim|heel|list|temp:?-/i.test(f.key), { lineBottom: !!f.grow && f.tbl < 0, unit: /°C|temp/i.test(f.label || '') || /^temp:|^sea$|^er$|^exh:|^t:\d+:(in|out)$|^acIn$|^acOut$|Temp$/.test(f.key) });
       rows.push({ key: f.key, label: f.label, group: f.group, type: f.type, text: r.text, conf: r.conf, blank: r.blank, crop: imageDataToCanvas(prep.image) });
     }
     var boxes = layout.boxes.map(function (b) { return { key: b.key, label: b.label, group: b.group, dark: boxDarkness(card, b.rect) }; });

@@ -169,7 +169,7 @@
   }
 
   /** Cut a field into its characters: [{kind:'digit'|'dot'|'minus', box, img (28x28, digits)}], left to right. */
-  function segmentNumber(ink, cw, ch, allowSlash) {
+  function segmentNumber(ink, cw, ch, allowSlash, sopts) {
     var comps = components(ink, cw, ch).filter(function (c) {
       var w = c.x1 - c.x0 + 1, h = c.y1 - c.y0 + 1;
       /* a thin sliver along the edge is a bit of the printed box, not writing */
@@ -178,6 +178,16 @@
       return c.area >= 3;
     });
     if (!comps.length) return [];
+    /* A field written on a line: the writing sits on the line below it. Writing of the line above reaches into the top of
+       a tall cut-out; what ends well above where this line's writing begins is the neighbour's. */
+    if (sopts && sopts.lineBottom) {
+      var ref = null;
+      comps.forEach(function (c) { if (c.y1 >= ch * 0.6 && c.area >= 12 && (!ref || c.area > ref.area)) ref = c; });
+      if (ref) {
+        var bandTop = ref.y0 - 0.5 * (ref.y1 - ref.y0 + 1);
+        comps = comps.filter(function (c) { return c.y1 >= bandTop; });
+      }
+    }
     var Hd = 0, bigArea = 0;
     comps.forEach(function (c) { Hd = Math.max(Hd, c.y1 - c.y0 + 1); bigArea = Math.max(bigArea, c.area); });
     /* specks: a few pixels of the box line above or beside the field, or a stray dot, are not characters. A decimal
@@ -204,7 +214,7 @@
         var ov = Math.min(g.x1, c.x1) - Math.max(g.x0, c.x0) + 1;
         var minW = Math.min(g.x1 - g.x0 + 1, c.x1 - c.x0 + 1);
         /* a dot low in the field is a decimal point, not part of the digit beside it, unless it sits inside the digit's box */
-        if (ov > 0 && ov >= (small ? 0.9 : 0.3) * minW && !(small && c.y0 > g.y0 + (g.y1 - g.y0) * 0.75 && c.x0 > g.x1 - 1)) {
+        if (ov > 0 && ov >= (small ? 0.9 : 0.3) * minW && !(small && c.y0 > g.y0 + (g.y1 - g.y0) * 0.75 && c.x0 > g.x1 - 1) && !(small && c.y0 > g.y0 + (g.y1 - g.y0) * 0.6 && c.area >= 6 && (c.x0 >= g.x0 + (g.x1 - g.x0) * 0.5 || c.x1 <= g.x0 + (g.x1 - g.x0) * 0.3))) {
           groups[i] = groupOf([g, c]); return;
         }
         /* the two halves of an open 0 or 6 or 8: close together and, joined, no wider than one digit */
@@ -227,7 +237,7 @@
         var both = groupOf([ga, gb]);
         var tall = (both.y1 - both.y0 + 1) >= Hd * 0.6;
         /* a decimal point (small, low) is never part of the digit beside it */
-        var isDot = function (gp) { return (gp.y1 - gp.y0 + 1) <= Hd * 0.4 && (gp.x1 - gp.x0 + 1) <= Hd * 0.5 && gp.y1 >= (Math.max(ga.y1, gb.y1)) - Hd * 0.3 && gp.y0 >= Math.min(ga.y0, gb.y0) + Hd * 0.45; };
+        var isDot = function (gp) { return (gp.y1 - gp.y0 + 1) <= Hd * 0.4 && (gp.x1 - gp.x0 + 1) <= Hd * 0.5 && (gp.y0 + gp.y1) / 2 >= Math.min(ga.y0, gb.y0) + 0.42 * (Math.max(ga.y1, gb.y1) - Math.min(ga.y0, gb.y0)); };
         if (tall && !isDot(ga) && !isDot(gb) && gap2 <= Hd * 0.4 && (both.x1 - both.x0 + 1) <= Hd * 1.3) {
           var pm = best(both), pa = best(ga), pb = best(gb);
           if (pm >= 0.85 && pm > Math.min(pa, pb) + 0.1) { groups.splice(gi, 2, both); continue; }
@@ -331,7 +341,56 @@
       }
       kept.push(pt);
     });
+    kept.rings = raised;
+    kept.Hd = Hd;
     return kept;
+  }
+
+  /**
+   * A temperature is written with its unit: 30°C. The degree sign and the C are not part of the number, so a temperature
+   * field keeps only what comes before them. The degree sign is a small ring set high; the C is a round open stroke that
+   * a network trained on digits can only read as a 0 or a 6; sometimes the ring and the C touch and make one tall mark.
+   */
+  function dropUnit(parts) {
+    var dg = parts.filter(function (p) { return p.kind === 'digit'; });
+    if (!dg.length) return parts;
+    var hs = dg.map(function (p) { return p.box[3] - p.box[1] + 1; }).sort(function (a, b) { return a - b; });
+    var med = hs[hs.length >> 1];
+    var tops = dg.map(function (p) { return p.box[1]; }).sort(function (a, b) { return a - b; });
+    var medTop = tops[tops.length >> 1];
+    var cut = -1;
+    (parts.rings || []).forEach(function (m) {
+      /* a ring right of the first digit: it and everything after it is the unit */
+      var mwid = m.x1 - m.x0 + 1, mhei = m.y1 - m.y0 + 1;
+      if (cut < 0 && m.x0 > dg[0].box[2] && mwid >= 0.15 * med && mhei >= 0.15 * med) {
+        var k = 0; for (var i = 0; i < parts.length; i++) if (parts[i].box[0] < m.x0 - 3) k = i + 1;
+        if (k >= 1 && k < parts.length && parts.length - k <= 3) cut = k;
+      }
+    });
+    /* the ring after the number: a small mark, set high, that is not the first character */
+    if (cut < 0) {
+      var topAvg = 0, botAvg = 0;
+      dg.forEach(function (p) { if (p.box[3] - p.box[1] + 1 >= 0.8 * med) { topAvg += p.box[1]; botAvg += p.box[3]; } });
+      var nBig = dg.filter(function (p) { return p.box[3] - p.box[1] + 1 >= 0.8 * med; }).length;
+      if (nBig >= 1) {
+        var midY = (topAvg + botAvg) / (2 * nBig);
+        for (var j = 1; j < parts.length && cut < 0; j++) {
+          var pj = parts[j]; if (pj.kind !== 'digit') continue;
+          var wj = pj.box[2] - pj.box[0] + 1, hj = pj.box[3] - pj.box[1] + 1, cj = (pj.box[1] + pj.box[3]) / 2;
+          var bigBefore = parts.slice(0, j).some(function (q) { return q.kind === 'digit' && q.box[3] - q.box[1] + 1 >= 0.8 * med; });
+          if (bigBefore && hj <= 0.72 * med && wj <= 0.85 * med && cj < midY - 0.12 * med && parts.length - j <= 3) cut = j;
+        }
+      }
+    }
+    if (cut < 0 && dg.length >= 2) {
+      var last = dg[dg.length - 1], prev = dg[dg.length - 2];
+      var lh = last.box[3] - last.box[1] + 1, gap = last.box[0] - prev.box[2] - 1;
+      var pr = classify(last.img), m = 0; for (var q = 0; q < 10; q++) if (pr[q] > m) m = pr[q];
+      var risesAbove = last.box[1] <= medTop - 0.2 * med && lh >= med * 1.15;      // ring and C touching: one mark taller than the digits
+      var looseC = (gap >= 0.3 * med && lh >= 0.8 * med && m < 0.75) || (dg.length >= 3 && gap >= 0.7 * med && lh >= 0.7 * med);   // a C standing well apart from the number
+      if (risesAbove || looseC) cut = parts.indexOf(last);
+    }
+    return cut >= 0 ? parts.slice(0, cut) : parts;
   }
 
   /**
@@ -341,7 +400,8 @@
   function readNumber(ink, cw, ch, opts) {
     if (!NET) throw new Error('The digit reader is not loaded');
     var allow = (opts && opts.allow) || '0123456789.-';
-    var parts = segmentNumber(ink, cw, ch, allow.indexOf('/') >= 0);
+    var parts = segmentNumber(ink, cw, ch, allow.indexOf('/') >= 0, opts);
+    if (opts && opts.unit) parts = dropUnit(parts);
     var out = [], text = '', conf = 100;
     parts.forEach(function (pt) {
       if (pt.kind === 'dot') { if (allow.indexOf('.') >= 0) { out.push({ ch: '.', conf: 90, box: pt.box }); text += '.'; } return; }
@@ -399,7 +459,7 @@
     return words;
   }
 
-  var api = { readWords: readWords, segmentNumber: segmentNumber, setNet: setNet, hasNet: hasNet, classify: classify, toMnist: toMnist, readNumber: readNumber, components: components, resizeAvg: resizeAvg, decodeB64: decodeB64 };
+  var api = { dropUnit: dropUnit, readWords: readWords, segmentNumber: segmentNumber, setNet: setNet, hasNet: hasNet, classify: classify, toMnist: toMnist, readNumber: readNumber, components: components, resizeAvg: resizeAvg, decodeB64: decodeB64 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.ChengDigitReader = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
