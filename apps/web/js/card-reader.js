@@ -438,8 +438,12 @@
 
   async function ocrField(worker, prepared, type, signed) {
     if (prepared.inkRatio < 0.004) return { text: '', conf: 100, blank: true };
-    if ((type === 'number' || type === 'pair' || type === 'time' || type === 'date' || type === 'datetime') && await getDigits()) {
+    if ((type === 'number' || type === 'int' || type === 'pair' || type === 'time' || type === 'date' || type === 'datetime') && await getDigits()) {
       var D = root.ChengDigitReader, ink = inkOf(prepared), cw = prepared.image.width, chh = prepared.image.height;
+      if (type === 'int') {   // a meter or counter reading is whole litres or turns: no point, so no false ones in a ten-digit number
+        var ri = D.readNumber(ink, cw, chh, { allow: '0123456789' });
+        return { text: ri.text.replace(/\D/g, ''), conf: ri.conf, blank: !ri.text };
+      }
       if (type === 'number') {
         var r = D.readNumber(ink, cw, chh, { allow: signed ? '0123456789.-' : '0123456789.' });
         return { text: cleanNumber(r.text), conf: r.conf, blank: !r.text };

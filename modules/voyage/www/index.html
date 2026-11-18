@@ -19700,7 +19700,7 @@ function buildLogEntryDataHalfHtml(){
     : `<thead><tr><th>Meter / counter</th><th>Reading</th></tr></thead>`;
   const fmKey = (label) => /^M\/E/i.test(label) ? 'me' : /^G\/E/i.test(label) ? 'ge' : /^Boiler/i.test(label) ? 'blr'
     : /^Cylinder/i.test(label) ? 'cyl' : /^Rev/i.test(label) ? 'rev' : /^FW/i.test(label) ? 'fw' : 'x';
-  const fmCell = (r, suffix, label) => `data-card-field="fm:${fmKey(r.label)}${suffix}" data-card-type="number" data-card-label="${escPrint(label)}" data-card-group="Flowmeters"`;
+  const fmCell = (r, suffix, label) => `data-card-field="fm:${fmKey(r.label)}${suffix}" data-card-type="${/^(fw|fwg|fw generator)/i.test(fmKey(r.label)) ? 'number' : 'int'}" data-card-label="${escPrint(label)}" data-card-group="Flowmeters"`;
   const fmBody = fm.rows.map(r => {
     const unit = r.unit ? ` <span class="pr-led-unit">(${escPrint(r.unit)})</span>` : '';
     if (fm.dualLayout){
