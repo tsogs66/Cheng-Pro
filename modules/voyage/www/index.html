@@ -379,6 +379,41 @@
   #page-trends details.tr-data{margin-top:10px;}
   #page-trends details.tr-data > summary{cursor:pointer; color:var(--brass); min-height:36px; display:flex; align-items:center;}
   #page-trends .tr-note{font-size:12px; color:var(--muted); margin-top:6px;}
+  /* last seven days, and compare */
+  #page-trends .tr-cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px;}
+  #page-trends .tr-card{border:1px solid var(--line-strong); border-radius:8px; padding:10px 12px; background:var(--panel2, transparent); display:flex; flex-direction:column; gap:4px; min-width:0;}
+  #page-trends .tr-card-h{font-family:'Oswald',sans-serif; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--brass);}
+  #page-trends .tr-card-v{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--paper);}
+  #page-trends .tr-card-v b{font-family:'IBM Plex Mono',monospace; font-size:20px;}
+  #page-trends .tr-card-v span{font-size:11px; color:var(--muted);}
+  #page-trends .tr-spark{width:100%; height:38px; display:block;}
+  #page-trends .tr-spark-base{stroke:var(--line-strong); stroke-dasharray:3 3;}
+  #page-trends .tr-card-d{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--paper);}
+  #page-trends .tr-arrow{font-size:11px;}
+  #page-trends [data-dir="up"] .tr-arrow, #page-trends td[data-dir="up"]{color:var(--brass);}
+  #page-trends [data-dir="down"] .tr-arrow, #page-trends td[data-dir="down"]{color:var(--teal);}
+  #page-trends [data-dir="same"] .tr-arrow{color:var(--muted);}
+  #page-trends .tr-sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+  #page-trends .tr-cmp th, #page-trends .tr-cmp td{vertical-align:middle;}
+  #page-trends .tr-cmp thead th small{display:block; font-weight:400; color:var(--muted); letter-spacing:0; text-transform:none;}
+  #page-trends .tr-cmp thead th .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px;}
+  #page-trends .tr-cmp tbody th{font-weight:500; text-align:left; color:var(--paper);}
+  #page-trends .tr-unit{font-size:11px; color:var(--muted); font-weight:400;}
+  #page-trends .tr-cmp td b{display:block; font-family:'IBM Plex Mono',monospace; font-weight:500;}
+  #page-trends .tr-cbar{display:block; height:6px; border-radius:3px; background:var(--calc-bg, rgba(127,127,127,.15)); margin-top:3px; overflow:hidden;}
+  #page-trends .tr-cfill{display:block; height:100%; border-radius:3px;}
+  #page-trends .tr-cd{white-space:nowrap; font-family:'IBM Plex Mono',monospace;}
+  #page-trends .tr-cmp-tools{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}
+  #page-trends .tr-cmp-key{display:grid; gap:4px; margin:0 0 10px; color:var(--paper); font-size:13px;}
+  #page-trends .tr-cmp-key .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px;}
+  #page-trends .tr-cmp-key small{color:var(--muted);}
+  @media (max-width:640px){
+    #page-trends .tr-cmp th, #page-trends .tr-cmp td{padding:6px 4px; font-size:12px;}
+    #page-trends .tr-cmp tbody th{font-size:12px; line-height:1.25;}
+    #page-trends .tr-cmp td b{font-size:12px;}
+    #page-trends .tr-cd{font-size:11px; white-space:normal;}
+    #page-trends .tr-cmp-tools .field select{min-height:44px;}
+  }
   /* the entire leg: one bar per line */
   #page-trends .tr-bars{display:grid; gap:10px;}
   #page-trends .tr-barrow{display:grid; grid-template-columns:minmax(120px,190px) 1fr minmax(96px,auto); gap:10px; align-items:center;}
@@ -4872,6 +4907,26 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
     <div class="panel">
       <h2>At a Glance</h2>
       <div class="stat-strip cols4" id="trStats"></div>
+    </div>
+    <div class="panel" id="trWeekPanel">
+      <h2>Last 7 Days — Each Figure and How It Moved</h2>
+      <div class="hint" id="trWeekHint"></div>
+      <div class="tr-cards" id="trWeekCards"></div>
+    </div>
+    <div class="panel" id="trCmpPanel">
+      <h2>Compare</h2>
+      <div class="tr-tools tr-cmp-tools">
+        <div class="field"><label for="trCmpMode">Compare</label>
+          <select id="trCmpMode">
+            <option value="day" selected>Day with day</option>
+            <option value="week">Week with week</option>
+            <option value="leg">Voyage leg with voyage leg</option>
+          </select></div>
+        <div class="field"><label for="trCmpA">A</label><select id="trCmpA"></select></div>
+        <div class="field"><label for="trCmpB">B</label><select id="trCmpB"></select></div>
+        <div class="field"><button type="button" class="ghost small" id="trCmpSwap" style="width:100%;">Swap A and B</button></div>
+      </div>
+      <div id="trCmpBody"></div>
     </div>
     <div class="panel">
       <h2>Fuel Burned by Grade</h2>
@@ -18667,6 +18722,147 @@ function trendsSyncRange(view){
   sel.disabled = view === 'leg';
   if (lbl) lbl.textContent = cfg.label;
 }
+/* ---- last 7 days, and compare two days, weeks or voyage legs ---- */
+const TRENDS_UNITS = { mt: ['MT', 'MT/day'], l: ['L', 'L/day'], m3: ['m³', 'm³/day'], nm: ['nm', 'nm/day'], kn: ['kn', 'kn'], rpm: ['rpm', 'rpm'], pct: ['%', '%'] };
+function trendsGradeSum(g){ return r => r.consByType && r.consByType[g]; }
+const TRENDS_METRICS = [
+  { key: 'fuel', label: 'Fuel (HFO / LSFO)', u: 'mt', d: 2, sum: r => sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]) },
+  { key: 'dogo', label: 'DO/GO (MDO/MGO, LSMGO)', u: 'mt', d: 2, sum: r => sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[1]) },
+  { key: 'HFO', label: 'HFO', u: 'mt', d: 2, sum: trendsGradeSum('HFO') },
+  { key: 'LSFO', label: 'LSFO', u: 'mt', d: 2, sum: trendsGradeSum('LSFO') },
+  { key: 'MDO', label: 'MDO/MGO', u: 'mt', d: 2, sum: trendsGradeSum('MDO/MGO') },
+  { key: 'LSMGO', label: 'LSMGO', u: 'mt', d: 2, sum: trendsGradeSum('LSMGO') },
+  { key: 'me', label: 'Main engine', u: 'mt', d: 2, sum: r => r.meCons },
+  { key: 'ge', label: 'Generators', u: 'mt', d: 2, sum: r => r.geCons },
+  { key: 'blr', label: 'Boiler', u: 'mt', d: 2, sum: r => r.blrCons },
+  { key: 'spd', label: 'Speed', u: 'kn', d: 2, speed: true },
+  { key: 'rpm', label: 'RPM', u: 'rpm', d: 1, mean: r => r.rpmEff },
+  { key: 'mcr', label: 'Load (% MCR)', u: 'pct', d: 1, mean: r => r.mcrPct },
+  { key: 'ds', label: 'Distance by ship', u: 'nm', d: 1, sum: r => r.distanceShip },
+  { key: 'de', label: 'Distance by engine', u: 'nm', d: 1, sum: r => r.distEngine },
+  { key: 'slip', label: 'Slip', u: 'pct', d: 2, mean: r => r.slip },
+  { key: 'cyl', label: 'Cylinder oil', u: 'l', d: 0, sum: r => r.cylCons },
+  { key: 'melo', label: 'M/E system oil', u: 'l', d: 0, sum: r => r.meLoCons },
+  { key: 'gelo', label: 'G/E system oil', u: 'l', d: 0, sum: r => r.geLoCons },
+  { key: 'fwp', label: 'Fresh water produced', u: 'm3', d: 2, sum: r => litresToM3(r.fwProdD) },
+  { key: 'fwc', label: 'Fresh water consumed', u: 'm3', d: 2, sum: r => litresToM3(r.fwConsD) }
+];
+TRENDS_UNITS.m3 = ['m³', 'm³/day'];
+function trendsSpeedOf(rows){
+  const d = rows.reduce((a, r) => a + (trendsNum(r.distanceShip) || 0), 0), h = rows.reduce((a, r) => a + (trendsNum(r.distanceShip) != null ? Number(r.hrs) || 0 : 0), 0);
+  return h > 0 ? d / h : trendsMean(rows, r => r.speedShip);
+}
+function trendsMetricValue(m, rows, mode){
+  if (!rows || !rows.length) return null;
+  if (m.speed) return trendsSpeedOf(rows);
+  if (m.mean) return trendsMean(rows, m.mean);
+  return trendsSum(rows, m.sum, mode);
+}
+function trendsUnitText(m, mode){ const u = TRENDS_UNITS[m.u] || ['', '']; return mode === 'day' ? u[1] : u[0]; }
+function trendsChange(cur, prev){
+  if (cur == null || prev == null) return { diff: null, pct: null, dir: 'none' };
+  const diff = cur - prev;
+  const pct = prev !== 0 ? diff / Math.abs(prev) * 100 : null;
+  const dir = Math.abs(pct != null ? pct : diff) < 0.5 ? 'same' : diff > 0 ? 'up' : 'down';
+  return { diff, pct, dir };
+}
+const TRENDS_ARROW = { up: '▲', down: '▼', same: '■', none: '' };
+const TRENDS_DIRTEXT = { up: 'up', down: 'down', same: 'about the same', none: '' };
+function trendsSpark(vals, labels, color){
+  const W = 132, H = 38, p = 4, pts = vals.map((v, i) => ({ v, i })).filter(x => x.v != null);
+  if (pts.length < 2) return `<svg class="tr-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="${p}" x2="${W - p}" y1="${H / 2}" y2="${H / 2}" class="tr-spark-base"/></svg>`;
+  let lo = Math.min.apply(null, pts.map(x => x.v)), hi = Math.max.apply(null, pts.map(x => x.v));
+  if (hi === lo) { hi += 1; lo -= 1; }
+  const n = vals.length, px = i => p + (n === 1 ? (W - 2 * p) / 2 : (W - 2 * p) * i / (n - 1)), py = v => H - p - (v - lo) / (hi - lo) * (H - 2 * p);
+  const d = pts.map((x, k) => (k ? 'L' : 'M') + px(x.i).toFixed(1) + ' ' + py(x.v).toFixed(1)).join(' ');
+  return `<svg class="tr-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+    pts.map(x => `<circle cx="${px(x.i).toFixed(1)}" cy="${py(x.v).toFixed(1)}" r="${x === pts[pts.length - 1] ? 3.2 : 2}" fill="${color}"><title>${escHtml((labels[x.i] || '') + ': ' + fmt(x.v, 2))}</title></circle>`).join('') + '</svg>';
+}
+/* the last seven days of the leg, each figure with its small trend and how it moved against the seven days before */
+function trendsRenderWeek(legRows){
+  const host = document.getElementById('trWeekCards');
+  if (!host) return;
+  const days = trendsBuckets(legRows, 'daily', 'all');
+  const last = days.slice(-7), prev = days.slice(-14, -7);
+  const hint = document.getElementById('trWeekHint');
+  if (!last.length) { host.innerHTML = '<div class="tr-empty">No reports yet. The last seven days appear here once the log has entries.</div>'; if (hint) hint.textContent = ''; return; }
+  if (hint) hint.textContent = `${trendsFmtDay(last[0].from)} to ${trendsFmtDay(last[last.length - 1].to)} (${last.length} day${last.length === 1 ? '' : 's'}), as a per-day rate. The change is the average of these days against ${prev.length ? 'the ' + prev.length + ' day' + (prev.length === 1 ? '' : 's') + ' before (' + trendsFmtDay(prev[0].from) + ' to ' + trendsFmtDay(prev[prev.length - 1].to) + ')' : 'nothing earlier yet'}.`;
+  const css = getComputedStyle(document.documentElement);
+  const colors = [1, 2, 3, 4].map(i => (css.getPropertyValue('--tr' + i) || '').trim() || ['#5cc2ee', '#e8b05a', '#f0806a', '#7fd49a'][i - 1]);
+  const labels = last.map(b => trendsFmtDay(b.from));
+  const prevRows = [].concat.apply([], prev.map(b => b.rows)), lastRows = [].concat.apply([], last.map(b => b.rows));
+  const cards = [];
+  TRENDS_METRICS.forEach((m, mi) => {
+    const series = last.map(b => trendsMetricValue(m, b.rows, 'day'));
+    if (!series.some(v => v != null)) return;
+    const avg = trendsMetricValue(m, lastRows, 'day'), before = prev.length ? trendsMetricValue(m, prevRows, 'day') : null;
+    const ch = trendsChange(avg, before);
+    const dTxt = ch.dir === 'none' ? 'no earlier days to compare' : (ch.pct != null ? (ch.diff > 0 ? '+' : '') + fmt(ch.pct, 1) + ' %' : (ch.diff > 0 ? '+' : '') + fmt(ch.diff, m.d));
+    cards.push(`<div class="tr-card" data-dir="${ch.dir}">` +
+      `<div class="tr-card-h">${escHtml(m.label)}</div>` +
+      `<div class="tr-card-v"><b>${avg == null ? '—' : fmt(avg, m.d)}</b><span>${escHtml(trendsUnitText(m, 'day'))} · 7-day average</span></div>` +
+      trendsSpark(series, labels, colors[mi % 4]) +
+      `<div class="tr-card-d"><span class="tr-arrow" aria-hidden="true">${TRENDS_ARROW[ch.dir]}</span><span>${escHtml(dTxt)}</span>` +
+      `<span class="tr-sr"> (${escHtml(TRENDS_DIRTEXT[ch.dir])} against the days before)</span></div></div>`);
+  });
+  host.innerHTML = cards.length ? cards.join('') : '<div class="tr-empty">Nothing recorded for these days yet.</div>';
+}
+/* compare: two days, two weeks or two voyage legs, side by side */
+function trendsLegRowsOf(leg, legRows){
+  if (leg.active) return legRows;
+  const sea = (document.getElementById('trSeaOnly') || {}).checked;
+  let rows = [];
+  try { rows = withLegState(leg.pack, () => (computeDerived().rows || []).map(r => Object.assign({}, r))); } catch (_e) { rows = []; }
+  rows = rows.filter(r => r && r.datetime && r.hrs != null && Number(r.hrs) > 0);
+  return sea ? rows.filter(r => !r.meStopped && r.rpmEff != null) : rows;
+}
+function trendsCmpOptions(mode, legRows, pool){
+  if (mode === 'leg') return ((pool && pool.legs) || []).map(l => ({ v: l.key, label: l.label, rows: () => trendsLegRowsOf(l, legRows) })).reverse();
+  const bks = trendsBuckets(legRows, mode === 'week' ? 'weekly' : 'daily', 'all');
+  return bks.map(b => ({ v: String(b.key != null ? b.key : b.from), label: (mode === 'week' ? b.label + ' · ' : '') + (b.from === b.to ? trendsFmtDay(b.from) : trendsFmtDay(b.from) + ' – ' + trendsFmtDay(b.to)), rows: () => b.rows })).reverse();
+}
+function trendsRenderCompare(legRows){
+  const host = document.getElementById('trCmpBody'), selA = document.getElementById('trCmpA'), selB = document.getElementById('trCmpB'), modeEl = document.getElementById('trCmpMode');
+  if (!host || !selA || !selB || !modeEl) return;
+  const mode = modeEl.value || 'day';
+  let pool = null;
+  if (mode === 'leg') {
+    if (!TRENDS.pool) { host.innerHTML = '<div class="tr-empty">Reading the saved voyage legs…</div>'; loadRangeLegPool().then(p => { TRENDS.pool = p; renderTrends(); }).catch(() => { TRENDS.pool = { legs: [] }; renderTrends(); }); return; }
+    pool = TRENDS.pool;
+  }
+  const opts = trendsCmpOptions(mode, legRows, pool);
+  const sig = mode + '|' + opts.map(o => o.v).join(',');
+  if (selA.dataset.sig !== sig) {
+    const html = opts.map(o => `<option value="${escHtml(o.v)}">${escHtml(o.label)}</option>`).join('');
+    selA.innerHTML = html; selB.innerHTML = html;
+    selA.value = opts[0] ? opts[0].v : ''; selB.value = opts[1] ? opts[1].v : (opts[0] ? opts[0].v : '');
+    selA.dataset.sig = sig; selB.dataset.sig = sig;
+  }
+  const noun = mode === 'leg' ? 'voyage legs' : mode === 'week' ? 'weeks' : 'days';
+  if (opts.length < 2) { host.innerHTML = `<div class="tr-empty">${mode === 'leg' ? 'Only one voyage leg is saved on this device, so there is nothing to compare it with yet.' : 'At least two ' + noun + ' of reports are needed to compare.'}</div>`; return; }
+  const find = v => opts.find(o => o.v === v) || opts[0];
+  const oa = find(selA.value), ob = find(selB.value);
+  const rowsA = oa.rows(), rowsB = ob.rows();
+  const cmode = ((document.getElementById('trBasis') || {}).value || 'day') === 'day' ? 'day' : 'period';
+  const lines = [];
+  TRENDS_METRICS.forEach(m => {
+    const a = trendsMetricValue(m, rowsA, cmode), b = trendsMetricValue(m, rowsB, cmode);
+    if (a == null && b == null) return;
+    const ch = trendsChange(a, b);
+    const top = Math.max(Math.abs(a || 0), Math.abs(b || 0)) || 1;
+    const bar = (v, c) => `<span class="tr-cbar"><span class="tr-cfill" style="width:${v == null ? 0 : Math.max(1.5, Math.abs(v) / top * 100)}%;background:${c}"></span></span>`;
+    const ctext = ch.diff == null ? '—' : (ch.diff > 0 ? '+' : '') + fmt(ch.diff, m.d);
+    lines.push(`<tr><th scope="row">${escHtml(m.label)} <span class="tr-unit">${escHtml(trendsUnitText(m, cmode))}</span></th>` +
+      `<td><b>${a == null ? '—' : fmt(a, m.d)}</b>${bar(a, 'var(--tr1)')}</td><td><b>${b == null ? '—' : fmt(b, m.d)}</b>${bar(b, 'var(--tr2)')}</td>` +
+      `<td class="tr-cd" data-dir="${ch.dir}"><span class="tr-arrow" aria-hidden="true">${TRENDS_ARROW[ch.dir]}</span> ${escHtml(ctext)}</td>` +
+      `<td class="tr-cd" data-dir="${ch.dir}">${ch.pct == null ? '—' : (ch.diff > 0 ? '+' : '') + fmt(ch.pct, 1) + ' %'}<span class="tr-sr"> (${escHtml(TRENDS_DIRTEXT[ch.dir])})</span></td></tr>`);
+  });
+  const nRep = (rows) => rows.length + ' report' + (rows.length === 1 ? '' : 's');
+  host.innerHTML = `<div class="tr-cmp-key"><div><span class="tr-sw" style="background:var(--tr1)"></span><b>A</b> ${escHtml(oa.label)} <small>${escHtml(nRep(rowsA))}</small></div>` +
+    `<div><span class="tr-sw" style="background:var(--tr2)"></span><b>B</b> ${escHtml(ob.label)} <small>${escHtml(nRep(rowsB))}</small></div></div>` +
+    `<div class="table-scroll"><table class="tr-cmp"><thead><tr><th>${cmode === 'day' ? 'Per day' : 'Total'}</th><th>A</th><th>B</th><th>A − B</th><th>Change</th></tr></thead><tbody>${lines.join('')}</tbody></table></div>` +
+    `<div class="tr-note">Change is A against B. ▲ means A is higher, ▼ lower, ■ within half a per cent. Nothing here says higher is better or worse.</div>`;
+}
 function renderTrends(){
   const page = document.getElementById('page-trends');
   if (!page) return;
@@ -18675,6 +18871,8 @@ function renderTrends(){
   const mode = ((document.getElementById('trBasis') || {}).value || 'day') === 'day' ? 'day' : 'period';
   const range = (document.getElementById('trRange') || {}).value || 'all';
   const legRows = trendsLegRows();
+  trendsRenderWeek(legRows);
+  trendsRenderCompare(legRows);
   const buckets = trendsBuckets(legRows, view, range);
   const used = [].concat.apply([], buckets.map(b => b.rows));
   const xs = buckets.map(b => b.ms);
@@ -18785,7 +18983,13 @@ function renderTrends(){
   }
 }
 (function bindTrends(){
-  ['trView', 'trRange', 'trBasis', 'trSeaOnly'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  ['trView', 'trRange', 'trBasis', 'trSeaOnly', 'trCmpMode', 'trCmpA', 'trCmpB'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  document.getElementById('trCmpSwap')?.addEventListener('click', () => {
+    const a = document.getElementById('trCmpA'), b = document.getElementById('trCmpB');
+    if (!a || !b) return;
+    const t = a.value; a.value = b.value; b.value = t;
+    renderTrends();
+  });
   let t = null;
   const again = () => { if (document.getElementById('page-trends')?.classList.contains('active')) { clearTimeout(t); t = setTimeout(renderTrends, 120); } };
   window.addEventListener('resize', again);
@@ -18828,7 +19032,7 @@ function switchTab(pageName){
     requestAnimationFrame(()=> animateRobGauges());
     requestTankSurveyCompare();
   }
-  if (pageName === 'trends') { try { renderTrends(); requestAnimationFrame(renderTrends); } catch (_e) { /* the page shows what it can */ } }
+  if (pageName === 'trends') { try { TRENDS.pool = null; renderTrends(); requestAnimationFrame(renderTrends); } catch (_e) { /* the page shows what it can */ } }
   if (pageName === 'eca' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
   if (pageName === 'eca' && typeof renderCoConsumerRows === 'function') renderCoConsumerRows();
   if (pageName === 'spares'){

@@ -34,7 +34,7 @@ const from = a.indexOf('/* ---------- Consumption trends page ---------- */');
 const to = a.indexOf('function renderTrends()');
 const code = a.slice(from, to);
 const box = {};
-vm.runInNewContext(code + '\nthis.nice = trendsNice; this.mark = trendsMarker; this.num = trendsNum; this.buckets = trendsBuckets; this.sum = trendsSum; this.mean = trendsMean;', box);
+vm.runInNewContext(code + '\nthis.nice = trendsNice; this.mark = trendsMarker; this.num = trendsNum; this.buckets = trendsBuckets; this.sum = trendsSum; this.mean = trendsMean; this.change = trendsChange; this.metrics = TRENDS_METRICS; this.metricValue = trendsMetricValue; this.cmpOptions = trendsCmpOptions; this.speedOf = trendsSpeedOf;', box);
 check('axis ticks are round numbers that cover the data', () => {
   const t = box.nice(0, 31.7, 5);
   assert.ok(t.lo <= 0 && t.hi >= 31.7);
@@ -89,6 +89,34 @@ check('a rate is the sum over the hours it covers; a total is the sum', () => {
 check('a mean is weighted by hours, and skips what was not recorded', () => {
   const rows = [rep('2026-10-01', 10, { slip: 2 }), rep('2026-10-02', 30, { slip: 4 }), rep('2026-10-03', 24, {})];
   assert.strictEqual(box.mean(rows, (r) => r.slip), (2 * 10 + 4 * 30) / 40);
+});
+
+check('change: direction and per cent of B; nothing to compare is no direction; under half a per cent is the same', () => {
+  const up = box.change(110, 100); assert.strictEqual(up.dir, 'up'); assert.strictEqual(Math.round(up.pct), 10); assert.strictEqual(up.diff, 10);
+  assert.strictEqual(box.change(90, 100).dir, 'down');
+  assert.strictEqual(box.change(100.2, 100).dir, 'same');
+  assert.strictEqual(box.change(null, 100).dir, 'none');
+  assert.strictEqual(box.change(5, 0).pct, null);
+  assert.strictEqual(box.change(5, 0).dir, 'up');
+});
+check('every figure of the last-7-days cards and the compare table is listed once, with a unit and decimals', () => {
+  const keys = box.metrics.map((m) => m.key);
+  assert.strictEqual(new Set(keys).size, keys.length);
+  ['fuel', 'dogo', 'HFO', 'LSFO', 'MDO', 'LSMGO', 'me', 'ge', 'blr', 'spd', 'rpm', 'mcr', 'ds', 'de', 'slip', 'cyl', 'melo', 'gelo', 'fwp', 'fwc'].forEach((k) => assert.ok(keys.includes(k), 'missing ' + k));
+  box.metrics.forEach((m) => assert.ok(m.u && Number.isInteger(m.d), m.key));
+});
+check('speed is the distance over the hours it covers', () => {
+  const rows = [rep('2026-10-01', 10, { distanceShip: 100 }), rep('2026-10-02', 30, { distanceShip: 330 })];
+  assert.strictEqual(box.speedOf(rows), 430 / 40);
+});
+check('compare lists the newest first, so A starts as the latest day and B the one before', () => {
+  const o = box.cmpOptions('day', month, null);
+  assert.strictEqual(o.length, 15);
+  assert.strictEqual(o[0].v, '2026-10-15');
+  assert.strictEqual(o[1].v, '2026-10-14');
+  const w = box.cmpOptions('week', month, null);
+  assert.strictEqual(w.length, 3);
+  assert.ok(/^Wk 3/.test(w[0].label));
 });
 console.log(failed ? '\n' + failed + ' failed' : '\n' + pass + ' passed');
 process.exit(failed ? 1 : 0);
