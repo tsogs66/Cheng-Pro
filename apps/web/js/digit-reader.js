@@ -225,7 +225,9 @@
         var gap2 = gb.x0 - ga.x1 - 1;
         var both = groupOf([ga, gb]);
         var tall = (both.y1 - both.y0 + 1) >= Hd * 0.6;
-        if (tall && gap2 <= Hd * 0.4 && (both.x1 - both.x0 + 1) <= Hd * 1.3) {
+        /* a decimal point (small, low) is never part of the digit beside it */
+        var isDot = function (gp) { return (gp.y1 - gp.y0 + 1) <= Hd * 0.4 && (gp.x1 - gp.x0 + 1) <= Hd * 0.5 && gp.y1 >= (Math.max(ga.y1, gb.y1)) - Hd * 0.3 && gp.y0 >= Math.min(ga.y0, gb.y0) + Hd * 0.45; };
+        if (tall && !isDot(ga) && !isDot(gb) && gap2 <= Hd * 0.4 && (both.x1 - both.x0 + 1) <= Hd * 1.3) {
           var pm = best(both), pa = best(ga), pb = best(gb);
           if (pm >= 0.85 && pm > Math.min(pa, pb) + 0.1) { groups.splice(gi, 2, both); continue; }
         }
