@@ -142,7 +142,17 @@
       var aspect = bw / bh;
       var fill = b.area / (bw * bh);
       /* a square turned by a tilt fills only 1 / (|cos|+|sin|)^2 of its bounding box: down to a half at 45 degrees */
-      return aspect > 0.6 && aspect < 1.65 && fill > 0.46;
+      if (!(aspect > 0.6 && aspect < 1.65 && fill > 0.46)) return false;
+      /* a printed mark sits on white paper: a dark blob on a dark desk or board is not one */
+      var sz = Math.max(bw, bh), r0 = Math.round(sz * 0.4), r1 = Math.round(sz * 0.9), lit = 0, tot = 0;
+      for (var ry = Math.max(0, b.miny - r1); ry <= Math.min(h - 1, b.maxy + r1); ry += 2) {
+        for (var rx = Math.max(0, b.minx - r1); rx <= Math.min(w - 1, b.maxx + r1); rx += 2) {
+          var inner = rx >= b.minx - r0 && rx <= b.maxx + r0 && ry >= b.miny - r0 && ry <= b.maxy + r0;
+          if (inner) continue;
+          tot++; if (gray[ry * w + rx] > 150) lit++;
+        }
+      }
+      return tot < 8 || lit / tot > 0.55;
     });
   }
 
@@ -445,7 +455,7 @@
         return { text: ri.text.replace(/\D/g, ''), conf: ri.conf, blank: !ri.text };
       }
       if (type === 'number') {
-        var r = D.readNumber(ink, cw, chh, { allow: signed ? '0123456789.-' : '0123456789.' });
+        var r = D.readNumber(ink, cw, chh, { allow: signed ? '0123456789.-' : '0123456789.', rejectWords: true });
         return { text: cleanNumber(r.text), conf: r.conf, blank: !r.text };
       }
       if (type === 'pair') {   // two numbers kept apart by a slash, like the two fresh-water tanks: 112/111
@@ -722,7 +732,7 @@
     var maps = [];
     layout.tables.forEach(function (t, ti) {
       var P = t.ys.map(function (v) { return v * H; });
-      var lo = (t.y - 0.05) * H, hi = Math.min(H, (t.y + t.h * 1.5) * H);
+      var lo = (t.y - 0.02) * H, hi = Math.min(H, (t.y + t.h * 1.12) * H);
       var tx0 = t.x * W, tx1 = (t.x + t.w) * W;
       var hy = rules.h.filter(function (l) {
         var ov = Math.min(l.x1, tx1) - Math.max(l.x0, tx0);

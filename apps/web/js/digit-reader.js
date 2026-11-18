@@ -182,6 +182,7 @@
     comps.forEach(function (c) { Hd = Math.max(Hd, c.y1 - c.y0 + 1); bigArea = Math.max(bigArea, c.area); });
     /* specks: a few pixels of the box line above or beside the field, or a stray dot, are not characters. A decimal
        point is small too, but it sits low in the field and is not at its edge. */
+    var raised = [];   // small marks high in the field: a degree sign after a number
     comps = comps.filter(function (c) {
       var h = c.y1 - c.y0 + 1, w = c.x1 - c.x0 + 1;
       if (c.area < bigArea * 0.04 && (c.y0 <= 2 || c.x0 <= 2 || c.x1 >= cw - 3)) return false;
@@ -189,7 +190,7 @@
       if (h <= 4 && w >= Hd * 1.2) return false;   // a long thin line: a piece of a printed rule, whatever height it is at
       /* a piece of the neighbouring row's writing poking over the box line: it touches the top or bottom edge and is short */
       if ((c.y0 <= 1 || c.y1 >= ch - 2) && h < Hd * 0.7 && w < Hd * 0.8) return false;
-      if (h < Hd * 0.3 && w < Hd * 0.4 && c.y1 < ch * 0.5) return false;   // a small mark high in the field
+      if (h < Hd * 0.3 && w < Hd * 0.4 && c.y1 < ch * 0.5) { raised.push(c); return false; }   // a small mark high in the field
       return true;
     });
     if (!comps.length) return [];
@@ -265,6 +266,23 @@
     chars.sort(function (a, b) { return a.x0 - b.x0; });
     var bottoms = chars.filter(function (o) { return (o.y1 - o.y0 + 1) >= Hd * 0.6; }).map(function (o) { return o.y1; }).sort(function (a, b) { return a - b; });
     var baseline = bottoms.length ? bottoms[bottoms.length >> 1] : ch;
+    /* A unit after the number (30°C, 29°C): the degree sign was set aside as a small raised mark; it and what is right of it are not digits */
+    var leftDigits = chars.filter(function (o) { return (o.y1 - o.y0 + 1) >= Hd * 0.6; });
+    raised.forEach(function (m) {
+      if (leftDigits.length && m.x0 > leftDigits[0].x1) {
+        var cut = chars.filter(function (o) { return o.x0 < m.x0 - 3; }).length;
+        /* only the unit's own letter may follow the degree sign: a speck above a longer number must not cut it short */
+        var mh = m.y1 - m.y0 + 1, mw = m.x1 - m.x0 + 1;
+        if (cut >= 1 && chars.length - cut <= 1 && mw >= Hd * 0.07 && mh >= Hd * 0.07 && Math.max(mw, mh) <= Hd * 0.5) chars.length = cut;
+      }
+    });
+    for (var di = 1; di < chars.length; di++) {
+      var dg = chars[di], dh = dg.y1 - dg.y0 + 1, dw = dg.x1 - dg.x0 + 1;
+      if (dh <= Hd * 0.6 && dw <= Hd * 0.65 && dh >= Hd * 0.18 && dg.y1 <= baseline - Hd * 0.3 && dg.y0 <= baseline - Hd * 0.6) {
+        var before = chars.slice(0, di).filter(function (o) { return (o.y1 - o.y0 + 1) >= Hd * 0.6; });
+        if (before.length && chars.length - di <= 2) { chars.length = di; break; }
+      }
+    }
     var out = [];
     chars.forEach(function (g) {
       var w = g.x1 - g.x0 + 1, h = g.y1 - g.y0 + 1;
@@ -337,6 +355,15 @@
       text += String(bi);
       if (c100 < conf) conf = c100;
     });
+    /* a word where a number should be ("Empty"): a run of characters the network is not sure of is not a number */
+    var dc = out.filter(function (c) { return /\d/.test(c.ch); });
+    if (opts && opts.rejectWords && dc.length >= 4) {
+      var meanC = dc.reduce(function (a, c) { return a + c.conf; }, 0) / dc.length;
+      var hs = dc.map(function (c) { return c.box[3] - c.box[1] + 1; }).sort(function (a, b) { return a - b; });
+      /* letters of one word differ in height far more than the digits of one number do */
+      var uneven = hs[hs.length - 1] > hs[0] * 1.5 && hs[hs.length >> 1] < hs[hs.length - 1] * 0.85;
+      if (meanC < 62 || uneven) return { text: '', conf: 0, chars: out };
+    }
     /* only one decimal point, and a minus only at the start */
     var seenDot = false, clean = '';
     for (var i = 0; i < text.length; i++) {
