@@ -14238,7 +14238,7 @@ function dcsReportPrintPages(rep){
       : `<p style="margin:0 0 3mm">IMO DCS / EU MRV compilation ${escPrint(rep.year)} — continued</p>`;
     return `<div class="pr-sheet pr-dense">${banner}
       <table class="pr-table" style="width:100%"><thead><tr><th>Data item</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+      <tbody>${body}</tbody></table>${index === slices.length - 1 ? printSignatory() : ''}</div>`;
   });
 }
 
@@ -14669,6 +14669,7 @@ function printChangeoverPlan(res){
       the entry in the record is the completion actually observed, with its position and the volume of
       low-sulphur fuel on board. Bring fuel temperature down no faster than about
       ${CHANGEOVER_MAX_RAMP_C_PER_MIN} °C/min and keep viscosity at the injectors inside the maker's range.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 }
@@ -14852,6 +14853,7 @@ function printCoEuPlan(){
       ${row('Changeover commenced — time', '')}${row('Changeover completed — time', '')}
       ${row('Change back commenced — time', '')}${row('Signed — officer in charge / Chief Engineer', '')}</table>`)}
     <div class="pr-note">Enter what was actually done in the Fuel Changeover Record (EU port call). The Directive asks for the changeover as soon as possible after arrival and the change back as late as possible before departure, with the times in a logbook countersigned by the Master or Chief Engineer.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([html]);
 }
@@ -16257,6 +16259,7 @@ document.getElementById('btnBdnPrint')?.addEventListener('click', ()=>{
       <tr><th>Delivered</th><th>BDN no.</th><th>Grade</th><th>Qty (MT)</th><th>Port</th><th>Supplier</th><th>Sample until</th><th>BDN until</th></tr>
       ${rows}</table>`)}
     <div class="pr-note">The bunker delivery note is kept on board and available for inspection for three years from delivery; the sealed representative sample for twelve months. Dates above are counted from the delivery date recorded against each receipt — check them against the notes and samples actually held.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 });
@@ -16416,6 +16419,7 @@ document.getElementById('btnPmsPrint')?.addEventListener('click', ()=>{
       <tr><th>Unit</th><th>Task</th><th>Every (hrs)</th><th>Last done (hrs)</th><th>Date</th><th>Counter (hrs)</th><th>Due at (hrs)</th><th>Status</th></tr>
       ${rows}</table>`)}
     <div class="pr-note">Counter readings are as recorded on this device, with the date each was taken; hours accumulated since are an estimate from the log. The counter on the machine governs. "Never recorded as done" means this program was not told when the task was last carried out, so no due figure is claimed for it.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 });
