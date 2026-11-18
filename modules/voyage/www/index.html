@@ -146,6 +146,8 @@
     /* Read-only / calculated field treatment */
     --calc-bg:rgba(0,0,0,0.22);
     --muted:#a9a292;
+    /* chart lines: four colours that stay apart on the dark panels */
+    --tr1:#5cc2ee; --tr2:#f0b25c; --tr3:#f58a73; --tr4:#7fd69b;
   }
   html.bright{
     --ink:#f4f1ea; --panel:#ffffff; --panel2:#f7f5ef;
@@ -162,6 +164,7 @@
     --nav-active-bg:rgba(138,90,26,0.14);
     --calc-bg:rgba(18,34,56,0.05);
     --muted:#3d4a5c;
+    --tr1:#0a6a9f; --tr2:#8f5200; --tr3:#b0341b; --tr4:#1d7340;
   }
   html.bright body{
     background:linear-gradient(180deg, #efebe3 0%, #f7f5ef 40%, #ffffff 100%);
@@ -349,6 +352,38 @@
   html.chengaio-embed.aio-data-embed #page-data > .panel:not(#serverSyncPanel){display:none !important;}
   html.chengaio-embed.aio-data-embed #serverSyncPanel{margin:0; box-shadow:none;}
 
+
+  /* ---- Consumption trends page ---- */
+  #page-trends .tr-tools{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:end;}
+  #page-trends .tr-chart{position:relative; width:100%; min-height:200px;}
+  #page-trends .tr-chart svg{display:block; width:100%; height:auto; overflow:visible; touch-action:pan-y;}
+  #page-trends .tr-chart svg text{font-family:'IBM Plex Mono',monospace; font-size:11px; fill:var(--muted);}
+  #page-trends .tr-chart svg .tr-axis-title{font-size:11px; fill:var(--paper); letter-spacing:.03em;}
+  #page-trends .tr-chart svg .tr-grid{stroke:var(--line); stroke-width:1;}
+  #page-trends .tr-chart svg .tr-axis{stroke:var(--line-strong); stroke-width:1;}
+  #page-trends .tr-chart svg .tr-guide{stroke:var(--paper-dim, var(--muted)); stroke-width:1; stroke-dasharray:3 3;}
+  #page-trends .tr-chart svg .tr-line{fill:none; stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round;}
+  #page-trends .tr-chart svg .tr-hit{fill:transparent; cursor:crosshair;}
+  #page-trends .tr-chart:focus-visible, #page-trends .tr-chart svg:focus-visible{outline:2px solid var(--brass); outline-offset:2px;}
+  #page-trends .tr-tip{position:absolute; z-index:3; pointer-events:none; min-width:150px; max-width:260px; padding:8px 10px; border-radius:6px;
+    background:var(--panel); color:var(--paper); border:1px solid var(--line-strong); box-shadow:0 6px 20px rgba(0,0,0,.35); font-size:12px; line-height:1.35;}
+  #page-trends .tr-tip b{display:block; font-family:'Oswald',sans-serif; letter-spacing:.04em; margin-bottom:3px;}
+  #page-trends .tr-tip .tr-row{display:flex; justify-content:space-between; gap:12px;}
+  #page-trends .tr-tip .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
+  #page-trends .tr-legend{display:flex; flex-wrap:wrap; gap:8px 10px; margin:2px 0 10px;}
+  #page-trends .tr-key{display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:4px 10px; border-radius:999px; border:1px solid var(--line-strong);
+    background:transparent; color:var(--paper); font:inherit; font-size:12px; cursor:pointer;}
+  #page-trends .tr-key[aria-pressed="false"]{opacity:.5; text-decoration:line-through;}
+  #page-trends .tr-key svg{width:26px; height:12px; flex:0 0 auto;}
+  #page-trends .tr-empty{padding:26px 10px; text-align:center; color:var(--muted);}
+  #page-trends details.tr-data{margin-top:10px;}
+  #page-trends details.tr-data > summary{cursor:pointer; color:var(--brass); min-height:36px; display:flex; align-items:center;}
+  #page-trends .tr-note{font-size:12px; color:var(--muted); margin-top:6px;}
+  @media (max-width:760px){
+    #page-trends .tr-tools{grid-template-columns:1fr;}
+    #page-trends .tr-tip{min-width:130px; max-width:200px;}
+  }
+  @media print{ #page-trends .tr-tip{display:none;} }
 
   html.prism{
     --ink:#041618; --panel:#0a2c30; --panel2:#061820;
@@ -3535,6 +3570,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       <div class="tab" data-page="consumption">Consumption</div>
       <div class="tab" data-page="voyageabstract">Voyage Abstract</div>
       <div class="tab" data-page="rangetotals">Range Totals</div>
+      <div class="tab" data-page="trends">Trends</div>
       <div class="tab" data-page="receipts">Receipts</div>
       <div class="tab" data-page="reports">Reports</div>
     </div>
@@ -4794,6 +4830,62 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
           <tbody id="rangeRowsBody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- CONSUMPTION TRENDS -->
+  <div class="page" id="page-trends">
+    <div class="panel">
+      <h2>Consumption Trends</h2>
+      <div class="tr-tools">
+        <div class="field"><label for="trRange">Reports shown</label>
+          <select id="trRange">
+            <option value="7">Last 7 reports</option>
+            <option value="14" selected>Last 14 reports</option>
+            <option value="30">Last 30 reports</option>
+            <option value="all">Whole voyage</option>
+          </select></div>
+        <div class="field"><label for="trBasis">Measured as</label>
+          <select id="trBasis">
+            <option value="day" selected>Per day (MT/day)</option>
+            <option value="period">Per report period (MT)</option>
+          </select></div>
+        <div class="field"><label class="ge-on-label" for="trSeaOnly">
+          <input type="checkbox" id="trSeaOnly"><span>Sea passage only (M/E running)</span></label></div>
+      </div>
+      <div class="hint" id="trHint">Drawn from the reports in the log. Tap or hover a chart to read each report; tap a name below a chart to hide or show that line.</div>
+    </div>
+    <div class="panel">
+      <h2>At a Glance</h2>
+      <div class="stat-strip cols4" id="trStats"></div>
+    </div>
+    <div class="panel">
+      <h2>Fuel Burned by Grade</h2>
+      <div class="tr-legend" id="trLegendGrade"></div>
+      <div class="tr-chart" id="trChartGrade" role="group" aria-label="Fuel burned by grade"></div>
+      <div class="tr-note">Residual (HFO, LSFO) and distillate (MDO/MGO, LSMGO) are never added together, as everywhere else in Voyage Chief.</div>
+    </div>
+    <div class="panel">
+      <h2>Where It Went — Main Engine, Generators, Boiler</h2>
+      <div class="tr-legend" id="trLegendUser"></div>
+      <div class="tr-chart" id="trChartUser" role="group" aria-label="Consumption by consumer"></div>
+    </div>
+    <div class="panel">
+      <h2>Speed, Propeller Revolutions and Load</h2>
+      <div class="tr-legend" id="trLegendSpeed"></div>
+      <div class="tr-chart" id="trChartSpeed" role="group" aria-label="Speed and propeller revolutions"></div>
+    </div>
+    <div class="panel">
+      <h2>Cumulative Burn Over the Selection</h2>
+      <div class="tr-legend" id="trLegendCum"></div>
+      <div class="tr-chart" id="trChartCum" role="group" aria-label="Cumulative fuel burned"></div>
+    </div>
+    <div class="panel">
+      <h2>The Figures Behind the Charts</h2>
+      <details class="tr-data" id="trData">
+        <summary>Show as a table</summary>
+        <div class="table-scroll"><table id="trTable"><thead id="trTableHead"></thead><tbody id="trTableBody"></tbody></table></div>
+      </details>
     </div>
   </div>
 
@@ -6197,6 +6289,10 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       <button type="button" class="bn-more-item" data-page="consumption">
         <span class="bn-ic" aria-hidden="true">⏱️</span>
         <span>Cons</span>
+      </button>
+      <button type="button" class="bn-more-item" data-page="trends">
+        <span class="bn-ic" aria-hidden="true">📉</span>
+        <span>Trends</span>
       </button>
       <button type="button" class="bn-more-item" data-page="receipts">
         <span class="bn-ic" aria-hidden="true">🧾</span>
@@ -14681,7 +14777,7 @@ document.getElementById('btnCoUseRob')?.addEventListener('click', ()=>{
   let rob = null;
   try { rob = typeof currentRobForGrade === 'function' ? currentRobForGrade(grade) : null; } catch (_e) { rob = null; }
   const el = document.getElementById('co_lsOnBoard');
-  if (el && rob != null && isFinite(Number(rob))) el.value = String(Math.round(Number(rob) * 100) / 100);
+  if (el && rob != null && isFinite(Number(rob)) && Number(rob) > 0) el.value = String(Math.round(Number(rob) * 100) / 100);
   else alert('No ROB is held for ' + grade + ' yet — type the quantity.');
   renderChangeover();
 });
@@ -17384,7 +17480,10 @@ function loadBunkerPlanRob(){
   const bp = ensureBunkerPlan();
   BUNKER_PLAN_SIDES.forEach(meta=>{
     const side = bp[meta.key];
-    side.currentRob = Math.round(currentRobForGrade(side.grade) * 1000) / 1000;
+    /* the grade the plan is set to; if the log holds none of it, every grade of that side */
+    let v = currentRobForGrade(side.grade);
+    if (!(v > 0)) v = meta.grades.reduce((sum, g) => sum + currentRobForGrade(g), 0);
+    side.currentRob = Math.round(v * 1000) / 1000;
   });
   if (!bp.voyageNo) bp.voyageNo = state.setup.voyageNumber || '';
   if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
@@ -17642,20 +17741,22 @@ window.addEventListener('message', (ev)=>{
     if (_tankRobIntent !== 'plan') return;
     const bp = ensureBunkerPlan();
     const rob = msg.rob;
+    /* Tank Chief names grades its own way (hfo, lsfo, mdo, mgo, in lower case); bring them to the plan's names */
+    const norm = g => ({VLSFO:'LSFO', ULSFO:'LSFO', 'MO/MGO':'MDO/MGO', MDO:'MDO/MGO', MGO:'MDO/MGO'}[String(g||'').toUpperCase()] || String(g||'').toUpperCase());
+    let any = false;
     BUNKER_PLAN_SIDES.forEach(meta=>{
       const side = bp[meta.key];
-      const grade = side.grade;
+      const want = norm(side.grade);
+      const own = meta.grades.map(norm);
       let val = 0;
-      if (rob[grade] != null) val = Number(rob[grade]);
-      else {
-        meta.grades.forEach(g => { if (rob[g] != null) val += Number(rob[g]); });
-      }
-      if (val > 0) side.currentRob = Math.round(val * 1000) / 1000;
+      Object.keys(rob).forEach(k=>{ if (norm(k) === want) val += Number(rob[k]) || 0; });
+      if (!(val > 0)) Object.keys(rob).forEach(k=>{ if (own.includes(norm(k))) val += Number(rob[k]) || 0; });
+      if (val > 0) { side.currentRob = Math.round(val * 1000) / 1000; any = true; }
     });
     if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
     renderBunkerPlan();
     scheduleBunkerPlanSave();
-    try{ showToast('Tank ROB loaded'); }catch(_){}
+    try{ showToast(any ? 'Tank ROB loaded' : 'Tank Chief has no sounded fuel weight yet — sound the tanks on Tank Monitoring first'); }catch(_){}
   }
 });
 
@@ -18334,8 +18435,234 @@ function bindBunkerFileLinks(){
     };
   });
 }
+/* ---------- Consumption trends page ---------- */
+const TRENDS = { hidden: {}, charts: {} };
+const TRENDS_GRADES = ['HFO', 'LSFO', 'MDO/MGO', 'LSMGO'];
+const TRENDS_MARKS = ['circle', 'square', 'diamond', 'triangle'];
+function trendsNum(v){ return (v == null || v === '' || isNaN(Number(v))) ? null : Number(v); }
+function trendsRows(){
+  let rows = [];
+  try { rows = computeDerived().rows || []; } catch (_e) { rows = []; }
+  rows = rows.filter(r => r && r.datetime && r.hrs != null && Number(r.hrs) > 0);
+  const range = (document.getElementById('trRange') || {}).value || '14';
+  if (range !== 'all') rows = rows.slice(-Number(range));
+  if ((document.getElementById('trSeaOnly') || {}).checked) rows = rows.filter(r => !r.meStopped && r.rpmEff != null);
+  return rows;
+}
+function trendsFmtDate(ms){
+  try { return new Date(ms).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); } catch (_e) { return ''; }
+}
+function trendsFmtDateTime(ms){
+  try { return new Date(ms).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_e) { return ''; }
+}
+function trendsNice(min, max, count){
+  if (!(max > min)) { max = min + 1; }
+  const span = max - min, step0 = span / Math.max(1, count);
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const norm = step0 / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = lo; v <= hi + step * 0.001; v += step) ticks.push(Math.round(v / step) * step);
+  return { lo, hi, ticks, step };
+}
+function trendsMarker(kind, x, y, r, color){
+  x = Number(x); y = Number(y);
+  if (kind === 'square') return `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="${color}"/>`;
+  if (kind === 'diamond') return `<path d="M${x} ${y - r - 1} L${x + r + 1} ${y} L${x} ${y + r + 1} L${x - r - 1} ${y} Z" fill="${color}"/>`;
+  if (kind === 'triangle') return `<path d="M${x} ${y - r - 1} L${x + r + 1} ${y + r} L${x - r - 1} ${y + r} Z" fill="${color}"/>`;
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/>`;
+}
+/* One line chart. series: [{ key, label, color, mark, dash, vals, axis:'l'|'r', fmt }] ; xs: report times. */
+function trendsLineChart(cfg){
+  const host = document.getElementById(cfg.host);
+  const legend = document.getElementById(cfg.legend);
+  if (!host) return;
+  const live = cfg.series.filter(s => s.vals.some(v => v != null));
+  if (legend) {
+    legend.innerHTML = live.map(s => {
+      const off = TRENDS.hidden[cfg.host + ':' + s.key];
+      return `<button type="button" class="tr-key" data-tr-key="${escHtml(s.key)}" aria-pressed="${off ? 'false' : 'true'}" title="Show or hide ${escHtml(s.label)}">` +
+        `<svg viewBox="0 0 26 12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6" stroke="${s.color}" stroke-width="2.4"${s.dash ? ' stroke-dasharray="' + s.dash + '"' : ''}/>${trendsMarker(s.mark, 13, 6, 3.4, s.color)}</svg>` +
+        `<span>${escHtml(s.label)}</span></button>`;
+    }).join('');
+    legend.querySelectorAll('[data-tr-key]').forEach(b => b.addEventListener('click', () => {
+      const k = cfg.host + ':' + b.dataset.trKey;
+      TRENDS.hidden[k] = !TRENDS.hidden[k];
+      renderTrends();
+    }));
+  }
+  if (!cfg.xs.length || !live.length) { host.innerHTML = '<div class="tr-empty">No reports to chart yet. Enter log reports and the trend appears here.</div>'; return; }
+  const shown = live.filter(s => !TRENDS.hidden[cfg.host + ':' + s.key]);
+  const W = Math.max(280, Math.floor(host.clientWidth || host.parentElement.clientWidth || 600));
+  const narrow = W < 520;
+  const H = narrow ? 230 : 280;
+  const hasR = shown.some(s => s.axis === 'r');
+  const m = { l: narrow ? 44 : 54, r: hasR ? (narrow ? 44 : 54) : 14, t: 12, b: 34 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const n = cfg.xs.length;
+  const px = i => m.l + (n === 1 ? pw / 2 : (pw * i) / (n - 1));
+  const range = (side) => {
+    let lo = Infinity, hi = -Infinity;
+    shown.filter(s => (s.axis || 'l') === side).forEach(s => s.vals.forEach(v => { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+    if (!isFinite(lo)) return null;
+    if (cfg.zero !== false) lo = Math.min(lo, 0);
+    if (lo === hi) hi = lo + 1;
+    return trendsNice(lo, hi, narrow ? 4 : 5);
+  };
+  const L = range('l'), R = hasR ? range('r') : null;
+  const py = (v, sc) => m.t + ph - ((v - sc.lo) / (sc.hi - sc.lo)) * ph;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${escHtml(cfg.title)}. Use the left and right arrow keys to read each report.">`;
+  const gridSc = L || R;
+  if (gridSc) gridSc.ticks.forEach(t => {
+    const y = py(t, gridSc);
+    svg += `<line class="tr-grid" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`;
+  });
+  if (L) L.ticks.forEach(t => { svg += `<text x="${m.l - 6}" y="${py(t, L) + 4}" text-anchor="end">${escHtml(cfg.yFmt ? cfg.yFmt(t) : String(t))}</text>`; });
+  if (R) R.ticks.forEach(t => { svg += `<text x="${W - m.r + 6}" y="${py(t, R) + 4}" text-anchor="start">${escHtml(cfg.y2Fmt ? cfg.y2Fmt(t) : String(t))}</text>`; });
+  svg += `<line class="tr-axis" x1="${m.l}" x2="${W - m.r}" y1="${m.t + ph}" y2="${m.t + ph}"/>`;
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 64))));
+  cfg.xs.forEach((ms, i) => {
+    if (i % every !== 0 && i !== n - 1) return;
+    if (i === n - 1 && i % every !== 0 && (n - 1 - (Math.floor((n - 1) / every) * every)) < every * 0.6 && n > 2) return;
+    svg += `<text x="${px(i)}" y="${H - 12}" text-anchor="middle">${escHtml(trendsFmtDate(ms))}</text>`;
+  });
+  if (cfg.yTitle) svg += `<text class="tr-axis-title" transform="translate(12 ${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${escHtml(cfg.yTitle)}</text>`;
+  if (hasR && cfg.y2Title) svg += `<text class="tr-axis-title" transform="translate(${W - 10} ${m.t + ph / 2}) rotate(90)" text-anchor="middle">${escHtml(cfg.y2Title)}</text>`;
+  shown.forEach(s => {
+    const sc = (s.axis === 'r' && R) ? R : L;
+    if (!sc) return;
+    let d = '', pen = false;
+    s.vals.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      d += (pen ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(v, sc).toFixed(1) + ' ';
+      pen = true;
+    });
+    if (d) svg += `<path class="tr-line" d="${d}" stroke="${s.color}"${s.dash ? ' stroke-dasharray="' + s.dash + '"' : ''}/>`;
+    s.vals.forEach((v, i) => { if (v != null) svg += trendsMarker(s.mark, px(i).toFixed(1), py(v, sc).toFixed(1), n > 24 ? 2.2 : 3.4, s.color); });
+  });
+  svg += `<line class="tr-guide" id="${cfg.host}-guide" x1="0" x2="0" y1="${m.t}" y2="${m.t + ph}" style="display:none"/>`;
+  svg += `<rect class="tr-hit" x="${m.l}" y="${m.t}" width="${pw}" height="${ph}"/>`;
+  svg += '</svg>';
+  host.innerHTML = svg + `<div class="tr-tip" id="${cfg.host}-tip" hidden></div>`;
+  const el = host.querySelector('svg'), tip = document.getElementById(cfg.host + '-tip'), guide = document.getElementById(cfg.host + '-guide');
+  let at = -1;
+  const show = (i) => {
+    if (i < 0 || i >= n) return;
+    at = i;
+    const x = px(i);
+    guide.setAttribute('x1', x); guide.setAttribute('x2', x); guide.style.display = '';
+    const rows = shown.map(s => `<div class="tr-row"><span><span class="tr-sw" style="background:${s.color}"></span>${escHtml(s.label)}</span><b style="display:inline;margin:0">${s.vals[i] == null ? '—' : escHtml((s.fmt || String)(s.vals[i]))}</b></div>`).join('');
+    tip.innerHTML = `<b>${escHtml(trendsFmtDateTime(cfg.xs[i]))}</b>` + (cfg.notes && cfg.notes[i] ? `<div class="tr-note" style="margin:0 0 4px">${escHtml(cfg.notes[i])}</div>` : '') + rows;
+    tip.hidden = false;
+    const tw = tip.offsetWidth || 160;
+    let left = x + 12;
+    if (left + tw > W - 4) left = x - tw - 12;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top = (m.t + 6) + 'px';
+  };
+  const hide = () => { tip.hidden = true; guide.style.display = 'none'; at = -1; };
+  const idxAt = (clientX) => {
+    const r = el.getBoundingClientRect();
+    const x = (clientX - r.left) * (W / Math.max(1, r.width));
+    return Math.max(0, Math.min(n - 1, Math.round(n === 1 ? 0 : ((x - m.l) / pw) * (n - 1))));
+  };
+  el.addEventListener('pointermove', e => show(idxAt(e.clientX)));
+  el.addEventListener('pointerdown', e => show(idxAt(e.clientX)));
+  el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
+  el.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); show(at < 0 ? 0 : Math.min(n - 1, at + 1)); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); show(at < 0 ? n - 1 : Math.max(0, at - 1)); }
+    else if (e.key === 'Escape') hide();
+  });
+  el.addEventListener('blur', hide);
+}
+function renderTrends(){
+  const page = document.getElementById('page-trends');
+  if (!page) return;
+  const basisDay = ((document.getElementById('trBasis') || {}).value || 'day') === 'day';
+  const rows = trendsRows();
+  const xs = rows.map(r => new Date(r.datetime).getTime());
+  const per = (v, r) => { v = trendsNum(v); if (v == null) return null; return basisDay ? (r.hrs > 0 ? v * 24 / r.hrs : null) : v; };
+  const unit = basisDay ? 'MT/day' : 'MT';
+  const f2 = v => fmt(v, 2);
+  const f3 = v => fmt(v, 3);
+  const css = getComputedStyle(document.documentElement);
+  const col = i => (css.getPropertyValue('--tr' + i) || '').trim() || ['#5cc2ee', '#e8b05a', '#f0806a', '#7fd49a'][i - 1];
+  const notes = rows.map(r => (r.operation || '') + (r.meStopped ? ' · M/E stopped' : ''));
+  const hint = document.getElementById('trHint');
+  if (hint) hint.textContent = rows.length
+    ? `${rows.length} report${rows.length === 1 ? '' : 's'} from ${trendsFmtDate(xs[0])} to ${trendsFmtDate(xs[xs.length - 1])}. Tap or hover a chart to read each report; tap a name below a chart to hide or show that line.`
+    : 'No reports with a time span yet. The trends need at least two log reports.';
+  /* what the burn was, grade by grade */
+  const gradeSeries = TRENDS_GRADES.map((g, i) => ({ key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals: rows.map(r => per(r.consByType && r.consByType[g], r)), fmt: v => f2(v) + ' ' + unit }));
+  trendsLineChart({ host: 'trChartGrade', legend: 'trLegendGrade', title: 'Fuel burned by grade, ' + unit, xs, notes, series: gradeSeries, yTitle: unit, yFmt: f2 });
+  const userSeries = [
+    { key: 'me', label: 'Main engine', color: col(1), mark: 'circle', vals: rows.map(r => per(r.meCons, r)) },
+    { key: 'ge', label: 'Generators', color: col(2), mark: 'square', vals: rows.map(r => per(r.geCons, r)) },
+    { key: 'blr', label: 'Boiler', color: col(3), mark: 'diamond', dash: '6 4', vals: rows.map(r => per(r.blrCons, r)) }
+  ].map(s => Object.assign(s, { fmt: v => f2(v) + ' ' + unit }));
+  trendsLineChart({ host: 'trChartUser', legend: 'trLegendUser', title: 'Consumption by consumer, ' + unit, xs, notes, series: userSeries, yTitle: unit, yFmt: f2 });
+  const speedSeries = [
+    { key: 'spd', label: 'Speed (kn)', color: col(1), mark: 'circle', axis: 'l', vals: rows.map(r => trendsNum(r.speedShip)), fmt: v => fmt(v, 2) + ' kn' },
+    { key: 'rpm', label: 'RPM', color: col(2), mark: 'square', axis: 'r', vals: rows.map(r => trendsNum(r.rpmEff)), fmt: v => fmt(v, 1) + ' rpm' },
+    { key: 'mcr', label: 'Load (% MCR)', color: col(4), mark: 'triangle', dash: '6 4', axis: 'r', vals: rows.map(r => trendsNum(r.mcrPct)), fmt: v => fmt(v, 1) + ' %' }
+  ];
+  trendsLineChart({ host: 'trChartSpeed', legend: 'trLegendSpeed', title: 'Speed, revolutions and load', xs, notes, series: speedSeries, yTitle: 'knots', y2Title: 'rpm  /  % MCR', yFmt: v => fmt(v, 1), y2Fmt: v => fmt(v, 0) });
+  /* running totals over the selection, one line per fuel group (never residual plus distillate) */
+  const cum = {};
+  const cumSeries = TRENDS_GRADES.map((g, i) => {
+    let sum = 0, any = false;
+    const vals = rows.map(r => { const v = trendsNum(r.consByType && r.consByType[g]); if (v != null) { sum += v; any = true; } return any ? sum : null; });
+    cum[g] = any ? sum : null;
+    return { key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals, fmt: v => f3(v) + ' MT' };
+  });
+  trendsLineChart({ host: 'trChartCum', legend: 'trLegendCum', title: 'Cumulative fuel burned, MT', xs, notes, series: cumSeries, yTitle: 'MT', yFmt: v => fmt(v, v < 10 ? 1 : 0) });
+  /* at a glance */
+  const stats = document.getElementById('trStats');
+  if (stats) {
+    const stat = (v, l, u) => `<div class="stat"><div class="num">${withUnit(v, u)}</div><div class="lbl">${escHtml(l)}</div></div>`;
+    const resid = rows.map(r => trendsNum(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]))).filter(v => v != null);
+    const dist = rows.map(r => trendsNum(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[1]))).filter(v => v != null);
+    const hrsAll = rows.reduce((a, r) => a + (Number(r.hrs) || 0), 0);
+    const perDay = (arr) => (arr.length && hrsAll > 0) ? arr.reduce((a, b) => a + b, 0) * 24 / hrsAll : null;
+    const spd = rows.map(r => trendsNum(r.speedShip)).filter(v => v != null);
+    const dayVals = rows.map(r => per(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]), r)).filter(v => v != null);
+    const sum = a => a.reduce((x, y) => x + y, 0);
+    stats.innerHTML = [
+      stat(rows.length ? String(rows.length) : '—', 'Reports charted'),
+      stat(resid.length ? fmt(sum(resid), 3) : '—', 'Fuel (HFO / LSFO) burned', 'MT'),
+      stat(dist.length ? fmt(sum(dist), 3) : '—', 'DO/GO burned', 'MT'),
+      stat(perDay(resid) == null ? '—' : fmt(perDay(resid), 2), 'Fuel average', 'MT/day'),
+      stat(perDay(dist) == null ? '—' : fmt(perDay(dist), 2), 'DO/GO average', 'MT/day'),
+      stat(spd.length ? fmt(sum(spd) / spd.length, 2) : '—', 'Average speed', 'kn'),
+      stat(dayVals.length ? fmt(Math.max.apply(null, dayVals), 2) : '—', 'Highest fuel day', basisDay ? 'MT/day' : 'MT'),
+      stat(dayVals.length ? fmt(Math.min.apply(null, dayVals), 2) : '—', 'Lowest fuel day', basisDay ? 'MT/day' : 'MT')
+    ].join('');
+  }
+  /* the table behind the charts */
+  const head = document.getElementById('trTableHead'), body = document.getElementById('trTableBody');
+  if (head && body) {
+    head.innerHTML = '<tr><th>Report</th><th>Operation</th><th>Hours</th>' + TRENDS_GRADES.map(g => `<th>${escHtml(g)} ${unit}</th>`).join('') + '<th>M/E</th><th>G/E</th><th>Boiler</th><th>Speed kn</th><th>RPM</th></tr>';
+    body.innerHTML = rows.length ? rows.map(r => {
+      const c = v => { v = per(v, r); return v == null ? '—' : fmt(v, 2); };
+      return `<tr><td>${escHtml(trendsFmtDateTime(new Date(r.datetime).getTime()))}</td><td>${escHtml(r.operation || '')}</td><td>${fmt(r.hrs, 2)}</td>` +
+        TRENDS_GRADES.map(g => `<td>${c(r.consByType && r.consByType[g])}</td>`).join('') +
+        `<td>${c(r.meCons)}</td><td>${c(r.geCons)}</td><td>${c(r.blrCons)}</td><td>${r.speedShip == null ? '—' : fmt(r.speedShip, 2)}</td><td>${r.rpmEff == null ? '—' : fmt(r.rpmEff, 1)}</td></tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="11">No reports to show.</td></tr>';
+  }
+}
+(function bindTrends(){
+  ['trRange', 'trBasis', 'trSeaOnly'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  let t = null;
+  const again = () => { if (document.getElementById('page-trends')?.classList.contains('active')) { clearTimeout(t); t = setTimeout(renderTrends, 120); } };
+  window.addEventListener('resize', again);
+  /* a theme change recolours the lines */
+  try { new MutationObserver(again).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] }); } catch (_e) {}
+})();
+
 const VOYAGE_BOOT_PAGES = new Set([
-  'summary', 'reports', 'receipts', 'consumption', 'rangetotals',
+  'summary', 'reports', 'receipts', 'consumption', 'rangetotals', 'trends',
   'voyageabstract', 'reference', 'voyagesetup',
 ]);
 function switchTab(pageName){
@@ -18369,6 +18696,7 @@ function switchTab(pageName){
     requestAnimationFrame(()=> animateRobGauges());
     requestTankSurveyCompare();
   }
+  if (pageName === 'trends') { try { renderTrends(); requestAnimationFrame(renderTrends); } catch (_e) { /* the page shows what it can */ } }
   if (pageName === 'eca' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
   if (pageName === 'eca' && typeof renderCoConsumerRows === 'function') renderCoConsumerRows();
   if (pageName === 'spares'){
@@ -30977,7 +31305,7 @@ function registerServiceWorker(){
 
 let deferredInstallPrompt = null;
 let androidInstallBusy = false;
-let androidInstallCacheName = 'noon-report-v378';
+let androidInstallCacheName = 'noon-report-v379';
 
 /*
  * What the program is called.
