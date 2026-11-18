@@ -19302,7 +19302,11 @@ function applyNoonClock(){
   dt.value = dt.value.slice(0, 10) + 'T12:00';
   return true;
 }
+/* The operation the user chose by hand on this new entry. Moving the clock reseeds the form from the
+   entry before, which must not overwrite a deliberate choice (it used to flip back to NOON and put 12:00 back). */
+let operationPickedByUser = false;
 document.getElementById('in_operation')?.addEventListener('change', () => {
+  operationPickedByUser = !editingId;
   if (applyNoonClock()) document.getElementById('in_datetime').dispatchEvent(new Event('input', { bubbles: true }));
 });
 
@@ -26040,7 +26044,7 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
     /* New (unsaved) entry: when the date/time moves, re-seed meters from the
        chronologically previous report so a missed watch can be filled in order. */
     if (!editingId && evt === 'change'){
-      prefillFromLastEntry();
+      prefillFromLastEntry({ keepOperation: operationPickedByUser });
       return;
     }
     /* Runtime must follow the selected date/time before anything derived from it. */
@@ -27661,7 +27665,9 @@ function applyEntryDefaults(){
 }
 
 /** Prefill a new log entry from the last saved entry (meters, types, condition) — not consumption. */
-function prefillFromLastEntry(){
+function prefillFromLastEntry(opts){
+  const keepOperation = !!(opts && opts.keepOperation);
+  if (!keepOperation) operationPickedByUser = false;
   /* Prefer the chronologically previous entry for the form date/time so a missed
      watch can be inserted mid-voyage: meters and types seed from that reference,
      and live calcs (via getPrevReferenceFor) use the same baseline. */
@@ -27689,7 +27695,7 @@ function prefillFromLastEntry(){
      NOON REPORTs — so open on the previous reference (by date/time) rather than the
      list default. setOperationSelectValue adds the option back if the operation is
      one no longer offered, so an old log's wording survives instead of blanking. */
-  setOperationSelectValue(document.getElementById('in_operation'), last.operation);
+  if (!keepOperation) setOperationSelectValue(document.getElementById('in_operation'), last.operation);
   applyNoonClock();
   set('in_condition', last.condition || state.setup.shipCondition);
   set('in_tbn', last.tbn);

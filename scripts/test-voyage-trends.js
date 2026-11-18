@@ -118,5 +118,12 @@ check('compare lists the newest first, so A starts as the latest day and B the o
   assert.strictEqual(w.length, 3);
   assert.ok(/^Wk 3/.test(w[0].label));
 });
+check('log entry keeps a chosen operation (and its clock) when the time is edited', () => {
+  assert.ok(/operationPickedByUser = !editingId/.test(a));
+  assert.ok(/prefillFromLastEntry\(\{ keepOperation: operationPickedByUser \}\)/.test(a));
+  assert.ok(/if \(!keepOperation\) setOperationSelectValue/.test(a));
+});
+
 console.log(failed ? '\n' + failed + ' failed' : '\n' + pass + ' passed');
 process.exit(failed ? 1 : 0);
+
