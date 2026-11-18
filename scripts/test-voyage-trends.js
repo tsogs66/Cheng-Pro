@@ -131,6 +131,11 @@ check('every plan/list printout carries the Chief Engineer signature block', () 
   }
   assert.ok(a.includes("${index === slices.length - 1 ? printSignatory() : ''}"), 'DCS compilation');
 });
+check('the 7-day panel has a start and an end, with a total and an average on each figure', () => {
+  assert.ok(a.includes('id="trWkFrom"') && a.includes('id="trWkTo"') && a.includes('id="trWkReset"'));
+  assert.ok(a.includes("TRENDS.wkFrom = TRENDS.wkTo = null"), 'reset goes back to the last 7 days');
+  assert.ok(a.includes('class="tr-card-t"') && a.includes("m.sum ? trendsSum(lastRows, m.sum, 'period')"), 'total beside the average');
+});
 
 console.log(failed ? '\n' + failed + ' failed' : '\n' + pass + ' passed');
 process.exit(failed ? 1 : 0);
