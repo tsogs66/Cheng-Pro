@@ -118,5 +118,25 @@ check('compare lists the newest first, so A starts as the latest day and B the o
   assert.strictEqual(w.length, 3);
   assert.ok(/^Wk 3/.test(w[0].label));
 });
+check('log entry keeps a chosen operation (and its clock) when the time is edited', () => {
+  assert.ok(/operationPickedByUser = !editingId/.test(a));
+  assert.ok(/prefillFromLastEntry\(\{ keepOperation: operationPickedByUser \}\)/.test(a));
+  assert.ok(/if \(!keepOperation\) setOperationSelectValue/.test(a));
+});
+check('every plan/list printout carries the Chief Engineer signature block', () => {
+  for (const fn of ['function printChangeoverPlan(res){', 'function printCoEuPlan(){', "document.getElementById('btnBdnPrint')", "document.getElementById('btnPmsPrint')"]) {
+    const i = a.indexOf(fn); assert.ok(i > 0, fn);
+    const j = a.indexOf('printPortraitPages([', i);
+    assert.ok(a.slice(i, j).includes('${printSignatory()}'), fn + ' has no signature block');
+  }
+  assert.ok(a.includes("${index === slices.length - 1 ? printSignatory() : ''}"), 'DCS compilation');
+});
+check('the 7-day panel has a start and an end, with a total and an average on each figure', () => {
+  assert.ok(a.includes('id="trWkFrom"') && a.includes('id="trWkTo"') && a.includes('id="trWkReset"'));
+  assert.ok(a.includes("TRENDS.wkFrom = TRENDS.wkTo = null"), 'reset goes back to the last 7 days');
+  assert.ok(a.includes('class="tr-card-t"') && a.includes("m.sum ? trendsSum(lastRows, m.sum, 'period')"), 'total beside the average');
+});
+
 console.log(failed ? '\n' + failed + ' failed' : '\n' + pass + ' passed');
 process.exit(failed ? 1 : 0);
+

@@ -386,6 +386,9 @@
   #page-trends .tr-card-v{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--paper);}
   #page-trends .tr-card-v b{font-family:'IBM Plex Mono',monospace; font-size:20px;}
   #page-trends .tr-card-v span{font-size:11px; color:var(--muted);}
+  #page-trends .tr-card-t{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 6px; color:var(--paper); font-size:12px; margin-top:2px;}
+  #page-trends .tr-card-t b{font-family:'IBM Plex Mono',monospace; font-size:14px;}
+  #page-trends .tr-card-t span{font-size:11px; color:var(--muted);}
   #page-trends .tr-spark{width:100%; height:38px; display:block;}
   #page-trends .tr-spark-base{stroke:var(--line-strong); stroke-dasharray:3 3;}
   #page-trends .tr-card-d{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--paper);}
@@ -403,7 +406,7 @@
   #page-trends .tr-cbar{display:block; height:6px; border-radius:3px; background:var(--calc-bg, rgba(127,127,127,.15)); margin-top:3px; overflow:hidden;}
   #page-trends .tr-cfill{display:block; height:100%; border-radius:3px;}
   #page-trends .tr-cd{white-space:nowrap; font-family:'IBM Plex Mono',monospace;}
-  #page-trends .tr-cmp-tools{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}
+  #page-trends .tr-cmp-tools,#page-trends .tr-wk-tools{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}
   #page-trends .tr-cmp-key{display:grid; gap:4px; margin:0 0 10px; color:var(--paper); font-size:13px;}
   #page-trends .tr-cmp-key .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px;}
   #page-trends .tr-cmp-key small{color:var(--muted);}
@@ -412,7 +415,7 @@
     #page-trends .tr-cmp tbody th{font-size:12px; line-height:1.25;}
     #page-trends .tr-cmp td b{font-size:12px;}
     #page-trends .tr-cd{font-size:11px; white-space:normal;}
-    #page-trends .tr-cmp-tools .field select{min-height:44px;}
+    #page-trends .tr-cmp-tools .field select,#page-trends .tr-wk-tools .field select{min-height:44px;}
   }
   /* the entire leg: one bar per line */
   #page-trends .tr-bars{display:grid; gap:10px;}
@@ -4909,7 +4912,12 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       <div class="stat-strip cols4" id="trStats"></div>
     </div>
     <div class="panel" id="trWeekPanel">
-      <h2>Last 7 Days — Each Figure and How It Moved</h2>
+      <h2 id="trWeekTitle">Last 7 Days — Each Figure and How It Moved</h2>
+      <div class="tr-tools tr-wk-tools">
+        <div class="field"><label for="trWkFrom">From</label><select id="trWkFrom"></select></div>
+        <div class="field"><label for="trWkTo">To</label><select id="trWkTo"></select></div>
+        <div class="field"><button type="button" class="ghost small" id="trWkReset" style="width:100%;">Back to last 7 days</button></div>
+      </div>
       <div class="hint" id="trWeekHint"></div>
       <div class="tr-cards" id="trWeekCards"></div>
     </div>
@@ -14238,7 +14246,7 @@ function dcsReportPrintPages(rep){
       : `<p style="margin:0 0 3mm">IMO DCS / EU MRV compilation ${escPrint(rep.year)} — continued</p>`;
     return `<div class="pr-sheet pr-dense">${banner}
       <table class="pr-table" style="width:100%"><thead><tr><th>Data item</th><th>Value</th><th>Unit</th><th>Note</th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+      <tbody>${body}</tbody></table>${index === slices.length - 1 ? printSignatory() : ''}</div>`;
   });
 }
 
@@ -14669,6 +14677,7 @@ function printChangeoverPlan(res){
       the entry in the record is the completion actually observed, with its position and the volume of
       low-sulphur fuel on board. Bring fuel temperature down no faster than about
       ${CHANGEOVER_MAX_RAMP_C_PER_MIN} °C/min and keep viscosity at the injectors inside the maker's range.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 }
@@ -14852,6 +14861,7 @@ function printCoEuPlan(){
       ${row('Changeover commenced — time', '')}${row('Changeover completed — time', '')}
       ${row('Change back commenced — time', '')}${row('Signed — officer in charge / Chief Engineer', '')}</table>`)}
     <div class="pr-note">Enter what was actually done in the Fuel Changeover Record (EU port call). The Directive asks for the changeover as soon as possible after arrival and the change back as late as possible before departure, with the times in a logbook countersigned by the Master or Chief Engineer.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([html]);
 }
@@ -16257,6 +16267,7 @@ document.getElementById('btnBdnPrint')?.addEventListener('click', ()=>{
       <tr><th>Delivered</th><th>BDN no.</th><th>Grade</th><th>Qty (MT)</th><th>Port</th><th>Supplier</th><th>Sample until</th><th>BDN until</th></tr>
       ${rows}</table>`)}
     <div class="pr-note">The bunker delivery note is kept on board and available for inspection for three years from delivery; the sealed representative sample for twelve months. Dates above are counted from the delivery date recorded against each receipt — check them against the notes and samples actually held.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 });
@@ -16416,6 +16427,7 @@ document.getElementById('btnPmsPrint')?.addEventListener('click', ()=>{
       <tr><th>Unit</th><th>Task</th><th>Every (hrs)</th><th>Last done (hrs)</th><th>Date</th><th>Counter (hrs)</th><th>Due at (hrs)</th><th>Status</th></tr>
       ${rows}</table>`)}
     <div class="pr-note">Counter readings are as recorded on this device, with the date each was taken; hours accumulated since are an estimate from the log. The counter on the machine governs. "Never recorded as done" means this program was not told when the task was last carried out, so no due figure is claimed for it.</div>
+    ${printSignatory()}
   </div>`;
   printPortraitPages([sheetHtml]);
 });
@@ -18783,10 +18795,28 @@ function trendsRenderWeek(legRows){
   const host = document.getElementById('trWeekCards');
   if (!host) return;
   const days = trendsBuckets(legRows, 'daily', 'all');
-  const last = days.slice(-7), prev = days.slice(-14, -7);
-  const hint = document.getElementById('trWeekHint');
-  if (!last.length) { host.innerHTML = '<div class="tr-empty">No reports yet. The last seven days appear here once the log has entries.</div>'; if (hint) hint.textContent = ''; return; }
-  if (hint) hint.textContent = `${trendsFmtDay(last[0].from)} to ${trendsFmtDay(last[last.length - 1].to)} (${last.length} day${last.length === 1 ? '' : 's'}), as a per-day rate. The change is the average of these days against ${prev.length ? 'the ' + prev.length + ' day' + (prev.length === 1 ? '' : 's') + ' before (' + trendsFmtDay(prev[0].from) + ' to ' + trendsFmtDay(prev[prev.length - 1].to) + ')' : 'nothing earlier yet'}.`;
+  const hint = document.getElementById('trWeekHint'), title = document.getElementById('trWeekTitle');
+  const selF = document.getElementById('trWkFrom'), selT = document.getElementById('trWkTo');
+  if (!days.length) {
+    host.innerHTML = '<div class="tr-empty">No reports yet. The days appear here once the log has entries.</div>';
+    if (hint) hint.textContent = '';
+    [selF, selT].forEach(x => { if (x) x.innerHTML = ''; });
+    return;
+  }
+  /* The span is the last seven days unless a start and end were chosen; a chosen day the leg no longer has falls back. */
+  const keys = days.map(d => d.from);
+  let i0 = Math.max(0, days.length - 7), i1 = days.length - 1, custom = false;
+  if (TRENDS.wkFrom && TRENDS.wkTo && keys.includes(TRENDS.wkFrom) && keys.includes(TRENDS.wkTo)) {
+    i0 = keys.indexOf(TRENDS.wkFrom); i1 = keys.indexOf(TRENDS.wkTo);
+    if (i0 > i1) { const t = i0; i0 = i1; i1 = t; }
+    custom = true;
+  } else { TRENDS.wkFrom = TRENDS.wkTo = null; }
+  const opt = (sel, v) => { if (!sel) return; sel.innerHTML = days.map(d => `<option value="${escHtml(d.from)}">${escHtml(trendsFmtDay(d.from))}</option>`).join(''); sel.value = v; };
+  opt(selF, keys[i0]); opt(selT, keys[i1]);
+  const last = days.slice(i0, i1 + 1), nDays = last.length;
+  const prev = days.slice(Math.max(0, i0 - nDays), i0);
+  if (title) title.textContent = (custom ? nDays + ' Days' : 'Last 7 Days') + ' — Each Figure and How It Moved';
+  if (hint) hint.textContent = `${trendsFmtDay(last[0].from)} to ${trendsFmtDay(last[last.length - 1].to)} (${nDays} day${nDays === 1 ? '' : 's'}). Each figure shows its total for these days and its average per day. The change is the average of these days against the ${prev.length ? prev.length + ' day' + (prev.length === 1 ? '' : 's') + ' before them' : 'days before them (none yet)'}.`;
   const css = getComputedStyle(document.documentElement);
   const colors = [1, 2, 3, 4].map(i => (css.getPropertyValue('--tr' + i) || '').trim() || ['#5cc2ee', '#e8b05a', '#f0806a', '#7fd49a'][i - 1]);
   const labels = last.map(b => trendsFmtDay(b.from));
@@ -18796,11 +18826,13 @@ function trendsRenderWeek(legRows){
     const series = last.map(b => trendsMetricValue(m, b.rows, 'day'));
     if (!series.some(v => v != null)) return;
     const avg = trendsMetricValue(m, lastRows, 'day'), before = prev.length ? trendsMetricValue(m, prevRows, 'day') : null;
+    const total = m.sum ? trendsSum(lastRows, m.sum, 'period') : null;
     const ch = trendsChange(avg, before);
     const dTxt = ch.dir === 'none' ? 'no earlier days to compare' : (ch.pct != null ? (ch.diff > 0 ? '+' : '') + fmt(ch.pct, 1) + ' %' : (ch.diff > 0 ? '+' : '') + fmt(ch.diff, m.d));
     cards.push(`<div class="tr-card" data-dir="${ch.dir}">` +
       `<div class="tr-card-h">${escHtml(m.label)}</div>` +
-      `<div class="tr-card-v"><b>${avg == null ? '—' : fmt(avg, m.d)}</b><span>${escHtml(trendsUnitText(m, 'day'))} · 7-day average</span></div>` +
+      `<div class="tr-card-v"><b>${avg == null ? '—' : fmt(avg, m.d)}</b><span>${escHtml(trendsUnitText(m, 'day'))} · average</span></div>` +
+      (m.sum ? `<div class="tr-card-t"><span>Total</span> <b>${total == null ? '—' : fmt(total, m.d)}</b> <span>${escHtml(trendsUnitText(m, 'period'))}</span></div>` : '') +
       trendsSpark(series, labels, colors[mi % 4]) +
       `<div class="tr-card-d"><span class="tr-arrow" aria-hidden="true">${TRENDS_ARROW[ch.dir]}</span><span>${escHtml(dTxt)}</span>` +
       `<span class="tr-sr"> (${escHtml(TRENDS_DIRTEXT[ch.dir])} against the days before)</span></div></div>`);
@@ -18984,6 +19016,10 @@ function renderTrends(){
 }
 (function bindTrends(){
   ['trView', 'trRange', 'trBasis', 'trSeaOnly', 'trCmpMode', 'trCmpA', 'trCmpB'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  ['trWkFrom', 'trWkTo'].forEach(id => document.getElementById(id)?.addEventListener('change', () => {
+    TRENDS.wkFrom = document.getElementById('trWkFrom').value; TRENDS.wkTo = document.getElementById('trWkTo').value; renderTrends();
+  }));
+  document.getElementById('trWkReset')?.addEventListener('click', () => { TRENDS.wkFrom = TRENDS.wkTo = null; renderTrends(); });
   document.getElementById('trCmpSwap')?.addEventListener('click', () => {
     const a = document.getElementById('trCmpA'), b = document.getElementById('trCmpB');
     if (!a || !b) return;
@@ -19302,7 +19338,11 @@ function applyNoonClock(){
   dt.value = dt.value.slice(0, 10) + 'T12:00';
   return true;
 }
+/* The operation the user chose by hand on this new entry. Moving the clock reseeds the form from the
+   entry before, which must not overwrite a deliberate choice (it used to flip back to NOON and put 12:00 back). */
+let operationPickedByUser = false;
 document.getElementById('in_operation')?.addEventListener('change', () => {
+  operationPickedByUser = !editingId;
   if (applyNoonClock()) document.getElementById('in_datetime').dispatchEvent(new Event('input', { bubbles: true }));
 });
 
@@ -26040,7 +26080,7 @@ document.getElementById('vs_distanceShip')?.addEventListener('input', ()=>{
     /* New (unsaved) entry: when the date/time moves, re-seed meters from the
        chronologically previous report so a missed watch can be filled in order. */
     if (!editingId && evt === 'change'){
-      prefillFromLastEntry();
+      prefillFromLastEntry({ keepOperation: operationPickedByUser });
       return;
     }
     /* Runtime must follow the selected date/time before anything derived from it. */
@@ -27661,7 +27701,9 @@ function applyEntryDefaults(){
 }
 
 /** Prefill a new log entry from the last saved entry (meters, types, condition) — not consumption. */
-function prefillFromLastEntry(){
+function prefillFromLastEntry(opts){
+  const keepOperation = !!(opts && opts.keepOperation);
+  if (!keepOperation) operationPickedByUser = false;
   /* Prefer the chronologically previous entry for the form date/time so a missed
      watch can be inserted mid-voyage: meters and types seed from that reference,
      and live calcs (via getPrevReferenceFor) use the same baseline. */
@@ -27689,7 +27731,7 @@ function prefillFromLastEntry(){
      NOON REPORTs — so open on the previous reference (by date/time) rather than the
      list default. setOperationSelectValue adds the option back if the operation is
      one no longer offered, so an old log's wording survives instead of blanking. */
-  setOperationSelectValue(document.getElementById('in_operation'), last.operation);
+  if (!keepOperation) setOperationSelectValue(document.getElementById('in_operation'), last.operation);
   applyNoonClock();
   set('in_condition', last.condition || state.setup.shipCondition);
   set('in_tbn', last.tbn);
