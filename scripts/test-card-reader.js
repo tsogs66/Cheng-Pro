@@ -130,5 +130,29 @@ check('the reader ships with the app and nothing in it reaches the internet', ()
   assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(reader), 'no web address in the reader');
 });
 
-console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
-process.exit(failed ? 1 : 0);
+const pending = [(async () => {
+  try {
+    let gaveUp = false;
+    try { await R.withTimeout(new Promise(() => {}), 30, 'The text reader'); } catch (e) { gaveUp = /did not answer/.test(e.message); }
+    assert.ok(gaveUp, 'it must reject');
+    assert.strictEqual(await R.withTimeout(Promise.resolve(7), 1000, 'x'), 7);
+    pass++; console.log('  ok   a reader that never answers gives up, so the dialog cannot say "Reading..." for ever');
+  } catch (e) { failed++; console.log('  FAIL a reader that never answers gives up\n       ' + e.message); }
+})()];
+check('no text reader: the way up is the end where the bold title is, the darker of the two', () => {
+  const W = 400, H = 560, mk = (bandTop) => {
+    const d = new Uint8ClampedArray(W * H * 4).fill(255);
+    for (let y = bandTop; y < bandTop + 14; y++) for (let x = 120; x < 280; x++) if ((x >> 2) % 2 === 0) { const o = (y * W + x) * 4; d[o] = d[o + 1] = d[o + 2] = 20; }
+    return { width: W, height: H, data: d };
+  };
+  const layout = { title: { text: 'TANK SOUNDING CARD', rect: { x: 0.2, y: 0.04, w: 0.6, h: 0.05 } } };
+  const upright = R.titleInk(mk(Math.round(0.04 * H) + 4), layout);
+  const upside = R.titleInk(mk(Math.round(0.9 * H)), layout);
+  assert.ok(upright > 0.15 && upside < 0.01, upright + ' vs ' + upside);
+  assert.strictEqual(R.titleInk({ width: 10, height: 10, data: new Uint8ClampedArray(400) }, {}), null);
+});
+
+Promise.all(pending).then(() => {
+  console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
+  process.exit(failed ? 1 : 0);
+});

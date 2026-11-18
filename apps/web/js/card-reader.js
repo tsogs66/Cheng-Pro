@@ -358,19 +358,28 @@
     });
   }
 
+  /** A promise that gives up: a reader that never starts must not leave the dialog saying "Reading…" for ever. */
+  function withTimeout(p, ms, what) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error(what + ' did not answer within ' + Math.round(ms / 1000) + ' seconds')); }, ms);
+      Promise.resolve(p).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
   var workerPromise = null;
+  var workerBrokenAt = 0;   // when the text reader last failed to start: not tried again for a few minutes
   function getWorker(onProgress) {
     if (workerPromise) return workerPromise;
+    if (workerBrokenAt && Date.now() - workerBrokenAt < 5 * 60 * 1000) return Promise.reject(new Error('The text reader could not start on this device'));
     workerPromise = (async function () {
-      if (!root.Tesseract) await loadScript(VENDOR + 'tesseract.min.js');
-      var worker = await root.Tesseract.createWorker('eng', 1, {
+      if (!root.Tesseract) await withTimeout(loadScript(VENDOR + 'tesseract.min.js'), 30000, 'The text reader download');
+      var worker = await withTimeout(root.Tesseract.createWorker('eng', 1, {
         workerPath: VENDOR + 'worker.min.js',
         corePath: VENDOR,
         langPath: VENDOR + 'lang/',
         workerBlobURL: false,
         cacheMethod: 'none',
         logger: function (m) { if (onProgress && m && m.status) onProgress(m); },
-      });
+      }), 60000, 'The text reader');
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789.-',
         tessedit_pageseg_mode: '7',
@@ -378,7 +387,7 @@
       });
       return worker;
     })();
-    workerPromise.catch(function () { workerPromise = null; });
+    workerPromise.catch(function () { workerPromise = null; workerBrokenAt = Date.now(); });
     return workerPromise;
   }
 
@@ -432,12 +441,16 @@
   var MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   /** The month a written date names (1..12), read with Tesseract as letters and matched to a month name, or 0. */
   async function monthOf(prepared) {
-    var worker = await getWorker();
+    var worker;
+    try { worker = await getWorker(); } catch (e) { return 0; }   // no text reader on this device: the month is left for the person to type
     var wl = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
-    await worker.setParameters({ tessedit_char_whitelist: wl, tessedit_pageseg_mode: '7' });
-    lastWhitelist = wl;
-    var c = readableCanvas(prepared, 96);
-    var res = await worker.recognize(c);
+    var res;
+    try {
+      await worker.setParameters({ tessedit_char_whitelist: wl, tessedit_pageseg_mode: '7' });
+      lastWhitelist = wl;
+      var c = readableCanvas(prepared, 96);
+      res = await withTimeout(worker.recognize(c), 20000, 'Reading the month');
+    } catch (e) { return 0; }
     var toks = String((res && res.data && res.data.text) || '').toUpperCase().replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(function (t) { return t.length >= 2; });
     var best = 0, bd = 9;
     toks.forEach(function (t) {
@@ -487,6 +500,7 @@
       var h4 = hhmm.length >= 4 ? hhmm.slice(0, 4) : '0' + hhmm;
       return { text: dateText + ' ' + h4.slice(0, 2) + ':' + h4.slice(2), conf: 70, blank: false };
     }
+    if (!worker) return { text: '', conf: 0, blank: false };   // no text reader: nothing to read these with
     var want = WHITELIST[type] || WHITELIST.number;
     if (want !== lastWhitelist) { await worker.setParameters({ tessedit_char_whitelist: want }); lastWhitelist = want; }
     var res = await worker.recognize(readableCanvas(prepared));
@@ -905,7 +919,7 @@
     ctx.drawImage(src, x0, y0, x1 - x0, y1 - y0, 10, 10, c.width - 20, c.height - 20);
     await worker.setParameters({ tessedit_char_whitelist: TITLE_LETTERS, tessedit_pageseg_mode: '7' });
     lastWhitelist = TITLE_LETTERS;
-    var res = await worker.recognize(c);
+    var res = await withTimeout(worker.recognize(c), 25000, 'Reading the card title');
     var got = String((res && res.data && res.data.text) || '').toUpperCase().replace(/[^A-Z]/g, '');
     var want = t.text.toUpperCase().replace(/[^A-Z]/g, '');
     if (!want) return null;
@@ -916,8 +930,8 @@
   function turnCorners(corners, r) { return [corners[r % 4], corners[(r + 1) % 4], corners[(r + 2) % 4], corners[(r + 3) % 4]]; }
 
   /** Read every field of a straightened card. Returns [{key,label,group,type,text,conf,blank,crop}] and the boxes' state. */
-  async function readFields(card, layout, onProgress) {
-    var worker = await getWorker(onProgress);
+  async function readFields(card, layout, onProgress, workerArg) {
+    var worker = arguments.length > 3 ? workerArg : await getWorker(onProgress).catch(function () { return null; });
     var rows = [];
     for (var i = 0; i < layout.fields.length; i++) {
       var f = layout.fields[i];
@@ -943,24 +957,66 @@
     return { photo: photo, corners: corners, needCorners: !corners };
   }
 
+  /** How much of the title's box is ink. The title is large bold print at the top of the card: upside down, that spot holds the footer's small print or blank paper. */
+  function titleInk(card, layout) {
+    var t = layout.title;
+    if (!t || !t.rect) return null;
+    var rc = t.rect, W = card.width, H = card.height;
+    var x0 = Math.round((rc.x + rc.w * 0.2) * W), x1 = Math.round((rc.x + rc.w * 0.8) * W);
+    var y0 = Math.max(0, Math.round(rc.y * H)), y1 = Math.min(H, Math.round((rc.y + rc.h) * H));
+    if (x1 - x0 < 8 || y1 - y0 < 4) return null;
+    var g = toGray(card), vals = [];
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) vals.push(g[y * W + x]);
+    var sorted = vals.slice().sort(function (a, b) { return a - b; });
+    var paper = sorted[Math.floor(sorted.length * 0.8)];   // the paper is most of the box
+    var dark = 0; for (var i = 0; i < vals.length; i++) if (vals[i] < paper - 55) dark++;
+    return dark / vals.length;
+  }
+  /** How well a straightened card's printed lines fall where the layout says: more tables lined up, and smaller moves, is better. */
+  function alignScore(lay) {
+    var score = (lay.alignedTables || 0) * 1e6;
+    (lay.alignInfo || []).forEach(function (m) {
+      if (!m || !m.y || !m.py) return;
+      var tot = 0; for (var i = 0; i < m.y.length; i++) tot += Math.abs(m.y[i] - m.py[i]);
+      score -= tot / Math.max(1, m.y.length);
+    });
+    return score;
+  }
   async function readWithCorners(photo, corners, layout, onProgress) {
     /* Which way up the card is: the corners say portrait or landscape; its printed title says which end is the top. */
     if (!corners || corners.length !== 4) throw new Error('The card corners are needed');
     var rots = rotationCandidates(corners, layout);
-    var worker = await getWorker(onProgress);
+    var note = '';
+    var worker = null;
+    try { worker = await getWorker(onProgress); } catch (e) { worker = null; note = 'The text reader could not start on this device, so the month and the date\'s words were not read: type them in.'; }
     var turn = rots[0], card = null, turnScore = null;
-    for (var i = 0; i < rots.length; i++) {
-      var c = straighten(photo, turnCorners(corners, rots[i]), layout);
-      if (!c) continue;
-      var sc = await titleScore(c, layout, worker);
-      if (sc == null) { turn = rots[0]; card = straighten(photo, turnCorners(corners, rots[0]), layout); break; }
-      if (turnScore == null || sc > turnScore) { turnScore = sc; turn = rots[i]; card = c; }
-      if (sc >= 0.75) break;   // clearly the right way up: no need to try the other
+    if (worker) {
+      try {
+        for (var i = 0; i < rots.length; i++) {
+          var c = straighten(photo, turnCorners(corners, rots[i]), layout);
+          if (!c) continue;
+          var sc = await titleScore(c, layout, worker);
+          if (sc == null) { turn = rots[0]; card = straighten(photo, turnCorners(corners, rots[0]), layout); break; }
+          if (turnScore == null || sc > turnScore) { turnScore = sc; turn = rots[i]; card = c; }
+          if (sc >= 0.75) break;   // clearly the right way up: no need to try the other
+        }
+      } catch (e) { worker = null; card = null; turnScore = null; note = 'The text reader stopped answering, so the month was not read: type it in.'; }
+    }
+    if (!card) {
+      /* No text reader: the way up is the one where the title's place holds the bold printed title, the darker of the ways. */
+      var best = -Infinity;
+      for (var j = 0; j < rots.length; j++) {
+        var c2 = straighten(photo, turnCorners(corners, rots[j]), layout);
+        if (!c2) continue;
+        var ink = titleInk(c2, layout);
+        var sc2 = ink == null ? alignScore(alignToPrintedLines(c2, layout)) : ink;
+        if (sc2 > best) { best = sc2; turn = rots[j]; card = c2; }
+      }
     }
     if (!card) throw new Error('The card could not be straightened from those corners');
     var lay = alignToPrintedLines(card, layout);
-    var res = await readFields(card, lay, onProgress);
-    res.card = card; res.layout = lay; res.turn = turn; res.titleScore = turnScore;
+    var res = await readFields(card, lay, onProgress, worker);
+    res.card = card; res.layout = lay; res.turn = turn; res.titleScore = turnScore; res.note = note;
     return res;
   }
 
@@ -968,16 +1024,19 @@
   /* ------------------------------------------------------------- the screen: photo, corners, review */
 
   var CSS = '.ccr-ov{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:10px}' +
-    '.ccr-dlg{background:var(--panel,#122a35);color:var(--text,#e8eef0);border:1px solid rgba(255,255,255,.18);border-radius:10px;width:min(980px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden;font-family:inherit}' +
-    '.ccr-hd{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.14);display:flex;gap:10px;align-items:center;justify-content:space-between}.ccr-hd h2{margin:0;font-size:17px}' +
-    '.ccr-bd{padding:12px 14px;overflow:auto;flex:1 1 auto}.ccr-ft{padding:10px 14px;border-top:1px solid rgba(255,255,255,.14);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}' +
-    '.ccr-btn{font:inherit;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;min-height:42px;cursor:pointer}.ccr-btn.pri{background:#c99a53;color:#1a1208;border-color:#c99a53}' +
-    '.ccr-hint{font-size:13px;opacity:.85;margin:6px 0}.ccr-grp{margin:10px 0 2px;font-weight:700;font-size:14px;border-top:1px solid rgba(255,255,255,.12);padding-top:8px}' +
+    '.ccr-dlg{background:var(--ccr-bg,#122a35);color:var(--ccr-fg,#e8eef0);border:1px solid var(--ccr-line,rgba(255,255,255,.18));border-radius:10px;width:min(980px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden;font-family:inherit}' +
+    '.ccr-hd{padding:10px 14px;border-bottom:1px solid var(--ccr-line2,rgba(255,255,255,.14));display:flex;gap:10px;align-items:center;justify-content:space-between}.ccr-hd h2{margin:0;font-size:17px}' +
+    '.ccr-bd{padding:12px 14px;overflow:auto;flex:1 1 auto}.ccr-ft{padding:10px 14px;border-top:1px solid var(--ccr-line2,rgba(255,255,255,.14));display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}' +
+    '.ccr-btn{font:inherit;font-weight:600;padding:9px 16px;border-radius:8px;border:1px solid var(--ccr-line,rgba(255,255,255,.25));background:transparent;color:inherit;min-height:42px;cursor:pointer}.ccr-btn.pri{background:var(--ccr-acc,#c99a53);color:var(--ccr-acc-fg,#1a1208);border-color:var(--ccr-acc,#c99a53)}' +
+    '.ccr-dlg .ccr-btn:not(.pri){color:var(--ccr-fg,inherit);background:transparent;opacity:1}' +
+    '.ccr-hint{font-size:13px;color:var(--ccr-dim,inherit);margin:6px 0}.ccr-grp{margin:10px 0 2px;font-weight:700;font-size:14px;border-top:1px solid var(--ccr-line2,rgba(255,255,255,.12));padding-top:8px}' +
     '.ccr-row{display:grid;grid-template-columns:minmax(90px,1fr) minmax(110px,170px) minmax(110px,170px) 18px;gap:8px;align-items:center;margin:3px 0}.ccr-row canvas{max-width:100%;height:34px;object-fit:contain;background:#fff;border-radius:3px;justify-self:start}' +
-    '.ccr-row input[type=text]{font:inherit;font-size:16px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.25);color:inherit;width:100%;min-width:0}' +
+    '.ccr-row input[type=text]{font:inherit;font-size:16px;padding:6px 8px;border-radius:6px;border:1px solid var(--ccr-line,rgba(255,255,255,.3));background:var(--ccr-field,rgba(0,0,0,.25));color:inherit;width:100%;min-width:0}' +
     '.ccr-row input.low{border-color:#d9822b;background:rgba(217,130,43,.18)}.ccr-row input.blank{opacity:.7}.ccr-dot{width:10px;height:10px;border-radius:50%;background:#2a9d8f}.ccr-dot.low{background:#d9822b}.ccr-dot.blank{background:#667}' +
     '.ccr-meth{display:flex;gap:14px;margin:2px 0 4px;font-size:14px}.ccr-meth label{display:flex;gap:6px;align-items:center}.ccr-stage{position:relative;touch-action:none;margin:0 auto;max-width:100%}.ccr-stage canvas{display:block;max-width:100%;height:auto}' +
-    '.ccr-h{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #c99a53;background:rgba(201,154,83,.28);touch-action:none}.ccr-bar{height:8px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}.ccr-bar i{display:block;height:100%;background:#c99a53;width:0}' +
+    '.ccr-h{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #c99a53;background:rgba(201,154,83,.28);touch-action:none;box-sizing:border-box}.ccr-h::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ffe08a;box-shadow:0 0 0 1px rgba(0,0,0,.7)}.ccr-h.on{background:rgba(201,154,83,.5)}.ccr-h.snap{background:rgba(42,157,143,.55);border-color:#2a9d8f}' +
+    '.ccr-loupe{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid #ffe08a;box-shadow:0 0 0 2px rgba(0,0,0,.7),0 6px 20px rgba(0,0,0,.55);overflow:hidden;pointer-events:none;z-index:6;display:none;background:#777}.ccr-stage .ccr-loupe canvas{display:block;width:100%;height:100%;max-width:none}' +
+    '.ccr-bar{height:8px;background:var(--ccr-line2,rgba(255,255,255,.15));border-radius:4px;overflow:hidden}.ccr-bar i{display:block;height:100%;background:var(--ccr-acc,#c99a53);width:0}' +
     '@media (max-width:640px){.ccr-row{grid-template-columns:1fr 110px 14px}.ccr-row canvas{grid-column:1/-1}}';
 
   function el(tag, attrs, children) {
@@ -987,11 +1046,47 @@
     return e;
   }
 
+
+  /* ---- the dialog wears the colours of the app that opened it ---- */
+  function colorRgb(c) {
+    if (!c) return null;
+    try {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 1;
+      var x = cv.getContext('2d', { willReadFrequently: true });
+      x.clearRect(0, 0, 1, 1); x.fillStyle = '#010203'; x.fillStyle = c; x.fillRect(0, 0, 1, 1);
+      var d = x.getImageData(0, 0, 1, 1).data;
+      if (d[3] < 200) return null;
+      return [d[0], d[1], d[2]];
+    } catch (e) { return null; }
+  }
+  function lumOf(c) { var f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); }
+  function contrastOf(a, b) { var x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function mixRgb(a, b, t) { return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)]; }
+  function rgbCss(c, a) { return a == null ? 'rgb(' + c.join(',') + ')' : 'rgba(' + c.join(',') + ',' + a + ')'; }
+  /** Voyage Chief names its colours --panel and --paper, Tank Chief --bg-panel and --text. A pair is only kept if it can be read. */
+  function dialogTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    var named = function (names) { var out = []; names.forEach(function (n) { var v = (cs.getPropertyValue(n) || '').trim(); if (v && v.indexOf('gradient') < 0 && v.indexOf('var(') < 0) { var rgb = colorRgb(v); if (rgb) out.push(rgb); } }); return out; };
+    var bg = named(['--bg-panel', '--panel', '--card', '--bg-card'])[0] || colorRgb(getComputedStyle(document.body).backgroundColor) || [18, 42, 53];
+    var fgs = named(['--text', '--paper', '--fg', '--ink']);
+    var bodyFg = colorRgb(getComputedStyle(document.body).color); if (bodyFg) fgs.push(bodyFg);
+    var fg = null;
+    for (var i = 0; i < fgs.length; i++) if (contrastOf(fgs[i], bg) >= 4.5) { fg = fgs[i]; break; }
+    if (!fg) fg = lumOf(bg) > 0.4 ? [18, 34, 56] : [233, 238, 240];
+    var dim = mixRgb(fg, bg, 0.22); if (contrastOf(dim, bg) < 4.5) dim = fg;
+    var accs = named(['--accent', '--brass']);
+    var acc = null;
+    for (var k = 0; k < accs.length; k++) if (contrastOf(accs[k], bg) >= 2.2) { acc = accs[k]; break; }
+    if (!acc) acc = lumOf(bg) > 0.4 ? [138, 90, 26] : [201, 154, 83];
+    var accFg = contrastOf([20, 14, 6], acc) >= contrastOf([255, 255, 255], acc) ? [20, 14, 6] : [255, 255, 255];
+    return { bg: rgbCss(bg), fg: rgbCss(fg), dim: rgbCss(dim), line: rgbCss(fg, 0.38), line2: rgbCss(fg, 0.18), field: lumOf(bg) > 0.4 ? 'rgba(0,0,0,.05)' : 'rgba(0,0,0,.28)', acc: rgbCss(acc), accFg: rgbCss(accFg) };
+  }
+
   /** Four draggable corners over the photo. Resolves with the corners in photo pixels, or null if cancelled. */
   function pickCornersByHand(dlgBody, photo, start) {
     return new Promise(function (resolve) {
       dlgBody.innerHTML = '';
-      dlgBody.appendChild(el('div', { class: 'ccr-hint', text: 'The card\'s corner marks were not found. Drag the four circles onto the four black corner marks of the card, then press Read the card.' }));
+      dlgBody.appendChild(el('div', { class: 'ccr-hint', text: 'The card\'s corner marks were not found. Drag the four circles onto the four black corner marks of the card, then press Read the card. A magnifier above your finger shows exactly where the circle is, and a circle let go near a black mark snaps onto it.' }));
       var stage = el('div', { class: 'ccr-stage' });
       var cv = photo.canvas;
       var view = document.createElement('canvas');
@@ -999,8 +1094,49 @@
       view.getContext('2d').drawImage(cv, 0, 0);
       stage.appendChild(view);
       var w = cv.width, h = cv.height;
+      /* the black squares the reader did find: the circles start on them and snap to them */
+      var marks = [];
+      try {
+        var cands = markCandidates(photo.image).map(function (b) { return { x: b.cx, y: b.cy, area: b.area }; });
+        var areas = cands.map(function (c) { return c.area; }).sort(function (a, b) { return a - b; });
+        var med = areas.length ? areas[areas.length >> 1] : 0;
+        marks = cands.filter(function (c) { return med > 0 && c.area >= med * 0.4 && c.area <= med * 2.5; });
+      } catch (_e) { marks = []; }
+      var SNAP = 0.07 * Math.max(w, h) * 0.6;                       // how near (photo pixels) a circle must be to jump onto a mark
+      var nearest = function (x, y, maxD, skip) {
+        var best = null, bd = maxD;
+        marks.forEach(function (m) { if (skip && skip.indexOf(m) >= 0) return; var d = Math.hypot(m.x - x, m.y - y); if (d <= bd) { bd = d; best = m; } });
+        return best;
+      };
       var pts = (start && start.length === 4) ? start.map(function (p) { return { x: p.x, y: p.y }; })
         : [{ x: w * 0.12, y: h * 0.1 }, { x: w * 0.88, y: h * 0.1 }, { x: w * 0.88, y: h * 0.9 }, { x: w * 0.12, y: h * 0.9 }];
+      if (!start && marks.length) {
+        var taken = [];
+        pts.forEach(function (q) { var m = nearest(q.x, q.y, 0.3 * Math.max(w, h), taken); if (m) { taken.push(m); q.x = m.x; q.y = m.y; } });
+      }
+      /* A finger covers what it drags: a magnifier above it shows the photo around the circle, live, with a crosshair on the exact spot. */
+      var LOUPE = 132, ZOOM = 3.2;
+      var loupe = el('div', { class: 'ccr-loupe', 'aria-hidden': 'true' });
+      var lc = document.createElement('canvas'); lc.width = LOUPE * 2; lc.height = LOUPE * 2;
+      loupe.appendChild(lc); stage.appendChild(loupe);
+      var paintLoupe = function (p) {
+        var r = view.getBoundingClientRect(), scale = r.width / w;                 // screen pixels per photo pixel
+        var side = LOUPE / (ZOOM * Math.max(scale, 0.05));                          // photo pixels shown across the loupe
+        var x = lc.getContext('2d'), L2 = LOUPE * 2;
+        x.fillStyle = '#777'; x.fillRect(0, 0, L2, L2);
+        x.imageSmoothingEnabled = true;
+        x.drawImage(cv, p.x - side / 2, p.y - side / 2, side, side, 0, 0, L2, L2);
+        x.lineWidth = 2; x.strokeStyle = 'rgba(0,0,0,.85)';
+        x.beginPath(); x.moveTo(L2 / 2, 14); x.lineTo(L2 / 2, L2 - 14); x.moveTo(14, L2 / 2); x.lineTo(L2 - 14, L2 / 2); x.stroke();
+        x.lineWidth = 1; x.strokeStyle = '#ffe08a';
+        x.beginPath(); x.moveTo(L2 / 2, 14); x.lineTo(L2 / 2, L2 - 14); x.moveTo(14, L2 / 2); x.lineTo(L2 - 14, L2 / 2); x.stroke();
+        /* above the finger; below it when the circle is near the top of the picture; kept inside the picture sideways */
+        var hx = p.x / w * r.width, hy = p.y / h * r.height, gap = 58;
+        var top = hy - gap - LOUPE; if (top < 0) top = hy + gap;
+        var left = Math.max(0, Math.min(r.width - LOUPE, hx - LOUPE / 2));
+        loupe.style.left = left + 'px'; loupe.style.top = Math.max(0, Math.min(r.height - LOUPE, top)) + 'px';
+        loupe.style.display = 'block';
+      };
       var handles = pts.map(function (p, i) {
         var hnd = el('div', { class: 'ccr-h', 'aria-label': 'Corner ' + (i + 1) });
         stage.appendChild(hnd);
@@ -1008,9 +1144,23 @@
         place();
         hnd.addEventListener('pointerdown', function (ev) {
           ev.preventDefault(); hnd.setPointerCapture(ev.pointerId);
-          var move = function (e2) { var r = view.getBoundingClientRect(); p.x = Math.max(0, Math.min(w, (e2.clientX - r.left) / r.width * w)); p.y = Math.max(0, Math.min(h, (e2.clientY - r.top) / r.height * h)); place(); };
-          var up = function () { hnd.removeEventListener('pointermove', move); hnd.removeEventListener('pointerup', up); };
-          hnd.addEventListener('pointermove', move); hnd.addEventListener('pointerup', up);
+          /* the circle keeps its distance from the finger, so it does not jump under it */
+          var r0 = view.getBoundingClientRect();
+          var dx = p.x - (ev.clientX - r0.left) / r0.width * w, dy = p.y - (ev.clientY - r0.top) / r0.height * h;
+          hnd.classList.add('on'); paintLoupe(p);
+          var move = function (e2) {
+            var r = view.getBoundingClientRect();
+            p.x = Math.max(0, Math.min(w, (e2.clientX - r.left) / r.width * w + dx));
+            p.y = Math.max(0, Math.min(h, (e2.clientY - r.top) / r.height * h + dy));
+            place(); paintLoupe(p);
+          };
+          var up = function () {
+            hnd.removeEventListener('pointermove', move); hnd.removeEventListener('pointerup', up); hnd.removeEventListener('pointercancel', up);
+            hnd.classList.remove('on'); loupe.style.display = 'none';
+            var m = nearest(p.x, p.y, SNAP);
+            if (m) { p.x = m.x; p.y = m.y; place(); hnd.classList.add('snap'); setTimeout(function () { hnd.classList.remove('snap'); }, 450); }
+          };
+          hnd.addEventListener('pointermove', move); hnd.addEventListener('pointerup', up); hnd.addEventListener('pointercancel', up);
         });
         return hnd;
       });
@@ -1034,6 +1184,12 @@
     if (!document.getElementById('ccr-css')) { var st = document.createElement('style'); st.id = 'ccr-css'; st.textContent = CSS; document.head.appendChild(st); }
     return new Promise(function (resolve) {
       var ov = el('div', { class: 'ccr-ov', role: 'dialog', 'aria-modal': 'true' });
+      try {
+        var th = dialogTheme();
+        ov.style.setProperty('--ccr-bg', th.bg); ov.style.setProperty('--ccr-fg', th.fg); ov.style.setProperty('--ccr-dim', th.dim);
+        ov.style.setProperty('--ccr-line', th.line); ov.style.setProperty('--ccr-line2', th.line2); ov.style.setProperty('--ccr-field', th.field);
+        ov.style.setProperty('--ccr-acc', th.acc); ov.style.setProperty('--ccr-acc-fg', th.accFg);
+      } catch (_e) { /* the dialog keeps its own dark colours */ }
       var dlg = el('div', { class: 'ccr-dlg' });
       var title = el('h2', { text: opts.title || 'Capture from photo' });
       var x = el('button', { class: 'ccr-btn', type: 'button', text: 'Close', 'aria-label': 'Close' });
@@ -1071,26 +1227,41 @@
         ft.appendChild(file); ft.appendChild(pick); ft.appendChild(take);
       };
 
+      var runId = 0;
       var process = async function (fileOrBlob) {
+        var mine = ++runId;
+        var stale = function () { return mine !== runId || closed; };
         try {
           ft.innerHTML = '';
+          var stop = el('button', { class: 'ccr-btn', type: 'button', text: 'Cancel' });
+          stop.onclick = function () { runId++; chooseStep(); };
+          ft.appendChild(stop);
           message('Looking for the card…');
           var layout = await layoutP;
-          var read = await readPhoto(fileOrBlob, layout);
+          var read = await withTimeout(readPhoto(fileOrBlob, layout), 90000, 'Opening the picture');
+          if (stale()) return;
           var corners = read.corners;
           if (!corners) {
             corners = await pickCornersByHand(bd, read.photo, null);
+            if (stale()) return;
             if (!corners) { chooseStep(); return; }
+            ft.insertBefore(stop, ft.firstChild);
           }
           message('Reading…');
+          var status = el('div', { class: 'ccr-hint', 'aria-live': 'polite', text: 'Starting the reader. The first time on this device can take a minute.' });
+          bd.appendChild(status);
           var bar = el('div', { class: 'ccr-bar' }, [el('i')]);
           bd.appendChild(bar);
-          var result = await readWithCorners(read.photo, corners, layout, function (m) {
-            if (m && m.status === 'reading') { bar.firstChild.style.width = Math.round((m.index + 1) / m.total * 100) + '%'; }
-          });
+          var result = await withTimeout(readWithCorners(read.photo, corners, layout, function (m) {
+            if (stale() || !m) return;
+            if (m.status === 'reading') { bar.firstChild.style.width = Math.round((m.index + 1) / m.total * 100) + '%'; status.textContent = 'Reading box ' + (m.index + 1) + ' of ' + m.total + (m.label ? ' — ' + m.label : '') + '…'; }
+            else if (/loading|initializ/i.test(m.status)) status.textContent = 'Starting the reader (' + m.status + (m.progress ? ' ' + Math.round(m.progress * 100) + '%' : '') + ')…';
+          }), 240000, 'Reading the card');
+          if (stale()) return;
           reviewStep(result, layout, read);
         } catch (e) {
-          bd.innerHTML = ''; bd.appendChild(el('div', { class: 'ccr-hint', text: 'The card could not be read: ' + ((e && e.message) || e) }));
+          if (stale()) return;
+          bd.innerHTML = ''; bd.appendChild(el('div', { class: 'ccr-hint', text: 'The card could not be read: ' + ((e && e.message) || e) + '. Try the photo again, or take a new one with the whole card in the frame.' }));
           ft.innerHTML = ''; var again = el('button', { class: 'ccr-btn pri', type: 'button', text: 'Try another photo' }); again.onclick = chooseStep; ft.appendChild(again);
         }
       };
@@ -1098,6 +1269,7 @@
       var reviewStep = function (result, layout, read) {
         bd.innerHTML = ''; ft.innerHTML = '';
         if (opts.remember && read) opts.remember(result);
+        if (result && result.note) bd.appendChild(el('div', { class: 'ccr-hint', style: 'font-weight:700', text: result.note }));
         bd.appendChild(el('div', { class: 'ccr-hint', text: 'Check every value against the picture beside it. Orange ones were hard to read. Empty boxes stay empty. Nothing is filled in until you press Use these values.' }));
         var inputs = {};
         var boxInputs = {};
@@ -1169,7 +1341,7 @@
     measureLayout: measureLayout, photoToImageData: photoToImageData, findCorners: findCorners, straighten: straighten,
     findRules: findRules, alignAxis: alignAxis, alignToPrintedLines: alignToPrintedLines, rotationCandidates: rotationCandidates, titleScore: titleScore,
     readPhoto: readPhoto, readWithCorners: readWithCorners, readFields: readFields, getWorker: getWorker, imageDataToCanvas: imageDataToCanvas,
-    pickCornersByHand: pickCornersByHand, capture: capture,
+    pickCornersByHand: pickCornersByHand, capture: capture, turnCorners: turnCorners, alignScore: alignScore, titleInk: titleInk, withTimeout: withTimeout,
     VENDOR: VENDOR,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
