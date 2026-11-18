@@ -1034,7 +1034,9 @@
     '.ccr-row input[type=text]{font:inherit;font-size:16px;padding:6px 8px;border-radius:6px;border:1px solid var(--ccr-line,rgba(255,255,255,.3));background:var(--ccr-field,rgba(0,0,0,.25));color:inherit;width:100%;min-width:0}' +
     '.ccr-row input.low{border-color:#d9822b;background:rgba(217,130,43,.18)}.ccr-row input.blank{opacity:.7}.ccr-dot{width:10px;height:10px;border-radius:50%;background:#2a9d8f}.ccr-dot.low{background:#d9822b}.ccr-dot.blank{background:#667}' +
     '.ccr-meth{display:flex;gap:14px;margin:2px 0 4px;font-size:14px}.ccr-meth label{display:flex;gap:6px;align-items:center}.ccr-stage{position:relative;touch-action:none;margin:0 auto;max-width:100%}.ccr-stage canvas{display:block;max-width:100%;height:auto}' +
-    '.ccr-h{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #c99a53;background:rgba(201,154,83,.28);touch-action:none}.ccr-bar{height:8px;background:var(--ccr-line2,rgba(255,255,255,.15));border-radius:4px;overflow:hidden}.ccr-bar i{display:block;height:100%;background:var(--ccr-acc,#c99a53);width:0}' +
+    '.ccr-h{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid #c99a53;background:rgba(201,154,83,.28);touch-action:none;box-sizing:border-box}.ccr-h::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ffe08a;box-shadow:0 0 0 1px rgba(0,0,0,.7)}.ccr-h.on{background:rgba(201,154,83,.5)}.ccr-h.snap{background:rgba(42,157,143,.55);border-color:#2a9d8f}' +
+    '.ccr-loupe{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid #ffe08a;box-shadow:0 0 0 2px rgba(0,0,0,.7),0 6px 20px rgba(0,0,0,.55);overflow:hidden;pointer-events:none;z-index:6;display:none;background:#777}.ccr-stage .ccr-loupe canvas{display:block;width:100%;height:100%;max-width:none}' +
+    '.ccr-bar{height:8px;background:var(--ccr-line2,rgba(255,255,255,.15));border-radius:4px;overflow:hidden}.ccr-bar i{display:block;height:100%;background:var(--ccr-acc,#c99a53);width:0}' +
     '@media (max-width:640px){.ccr-row{grid-template-columns:1fr 110px 14px}.ccr-row canvas{grid-column:1/-1}}';
 
   function el(tag, attrs, children) {
@@ -1084,7 +1086,7 @@
   function pickCornersByHand(dlgBody, photo, start) {
     return new Promise(function (resolve) {
       dlgBody.innerHTML = '';
-      dlgBody.appendChild(el('div', { class: 'ccr-hint', text: 'The card\'s corner marks were not found. Drag the four circles onto the four black corner marks of the card, then press Read the card.' }));
+      dlgBody.appendChild(el('div', { class: 'ccr-hint', text: 'The card\'s corner marks were not found. Drag the four circles onto the four black corner marks of the card, then press Read the card. A magnifier above your finger shows exactly where the circle is, and a circle let go near a black mark snaps onto it.' }));
       var stage = el('div', { class: 'ccr-stage' });
       var cv = photo.canvas;
       var view = document.createElement('canvas');
@@ -1092,8 +1094,49 @@
       view.getContext('2d').drawImage(cv, 0, 0);
       stage.appendChild(view);
       var w = cv.width, h = cv.height;
+      /* the black squares the reader did find: the circles start on them and snap to them */
+      var marks = [];
+      try {
+        var cands = markCandidates(photo.image).map(function (b) { return { x: b.cx, y: b.cy, area: b.area }; });
+        var areas = cands.map(function (c) { return c.area; }).sort(function (a, b) { return a - b; });
+        var med = areas.length ? areas[areas.length >> 1] : 0;
+        marks = cands.filter(function (c) { return med > 0 && c.area >= med * 0.4 && c.area <= med * 2.5; });
+      } catch (_e) { marks = []; }
+      var SNAP = 0.07 * Math.max(w, h) * 0.6;                       // how near (photo pixels) a circle must be to jump onto a mark
+      var nearest = function (x, y, maxD, skip) {
+        var best = null, bd = maxD;
+        marks.forEach(function (m) { if (skip && skip.indexOf(m) >= 0) return; var d = Math.hypot(m.x - x, m.y - y); if (d <= bd) { bd = d; best = m; } });
+        return best;
+      };
       var pts = (start && start.length === 4) ? start.map(function (p) { return { x: p.x, y: p.y }; })
         : [{ x: w * 0.12, y: h * 0.1 }, { x: w * 0.88, y: h * 0.1 }, { x: w * 0.88, y: h * 0.9 }, { x: w * 0.12, y: h * 0.9 }];
+      if (!start && marks.length) {
+        var taken = [];
+        pts.forEach(function (q) { var m = nearest(q.x, q.y, 0.3 * Math.max(w, h), taken); if (m) { taken.push(m); q.x = m.x; q.y = m.y; } });
+      }
+      /* A finger covers what it drags: a magnifier above it shows the photo around the circle, live, with a crosshair on the exact spot. */
+      var LOUPE = 132, ZOOM = 3.2;
+      var loupe = el('div', { class: 'ccr-loupe', 'aria-hidden': 'true' });
+      var lc = document.createElement('canvas'); lc.width = LOUPE * 2; lc.height = LOUPE * 2;
+      loupe.appendChild(lc); stage.appendChild(loupe);
+      var paintLoupe = function (p) {
+        var r = view.getBoundingClientRect(), scale = r.width / w;                 // screen pixels per photo pixel
+        var side = LOUPE / (ZOOM * Math.max(scale, 0.05));                          // photo pixels shown across the loupe
+        var x = lc.getContext('2d'), L2 = LOUPE * 2;
+        x.fillStyle = '#777'; x.fillRect(0, 0, L2, L2);
+        x.imageSmoothingEnabled = true;
+        x.drawImage(cv, p.x - side / 2, p.y - side / 2, side, side, 0, 0, L2, L2);
+        x.lineWidth = 2; x.strokeStyle = 'rgba(0,0,0,.85)';
+        x.beginPath(); x.moveTo(L2 / 2, 14); x.lineTo(L2 / 2, L2 - 14); x.moveTo(14, L2 / 2); x.lineTo(L2 - 14, L2 / 2); x.stroke();
+        x.lineWidth = 1; x.strokeStyle = '#ffe08a';
+        x.beginPath(); x.moveTo(L2 / 2, 14); x.lineTo(L2 / 2, L2 - 14); x.moveTo(14, L2 / 2); x.lineTo(L2 - 14, L2 / 2); x.stroke();
+        /* above the finger; below it when the circle is near the top of the picture; kept inside the picture sideways */
+        var hx = p.x / w * r.width, hy = p.y / h * r.height, gap = 58;
+        var top = hy - gap - LOUPE; if (top < 0) top = hy + gap;
+        var left = Math.max(0, Math.min(r.width - LOUPE, hx - LOUPE / 2));
+        loupe.style.left = left + 'px'; loupe.style.top = Math.max(0, Math.min(r.height - LOUPE, top)) + 'px';
+        loupe.style.display = 'block';
+      };
       var handles = pts.map(function (p, i) {
         var hnd = el('div', { class: 'ccr-h', 'aria-label': 'Corner ' + (i + 1) });
         stage.appendChild(hnd);
@@ -1101,9 +1144,23 @@
         place();
         hnd.addEventListener('pointerdown', function (ev) {
           ev.preventDefault(); hnd.setPointerCapture(ev.pointerId);
-          var move = function (e2) { var r = view.getBoundingClientRect(); p.x = Math.max(0, Math.min(w, (e2.clientX - r.left) / r.width * w)); p.y = Math.max(0, Math.min(h, (e2.clientY - r.top) / r.height * h)); place(); };
-          var up = function () { hnd.removeEventListener('pointermove', move); hnd.removeEventListener('pointerup', up); };
-          hnd.addEventListener('pointermove', move); hnd.addEventListener('pointerup', up);
+          /* the circle keeps its distance from the finger, so it does not jump under it */
+          var r0 = view.getBoundingClientRect();
+          var dx = p.x - (ev.clientX - r0.left) / r0.width * w, dy = p.y - (ev.clientY - r0.top) / r0.height * h;
+          hnd.classList.add('on'); paintLoupe(p);
+          var move = function (e2) {
+            var r = view.getBoundingClientRect();
+            p.x = Math.max(0, Math.min(w, (e2.clientX - r.left) / r.width * w + dx));
+            p.y = Math.max(0, Math.min(h, (e2.clientY - r.top) / r.height * h + dy));
+            place(); paintLoupe(p);
+          };
+          var up = function () {
+            hnd.removeEventListener('pointermove', move); hnd.removeEventListener('pointerup', up); hnd.removeEventListener('pointercancel', up);
+            hnd.classList.remove('on'); loupe.style.display = 'none';
+            var m = nearest(p.x, p.y, SNAP);
+            if (m) { p.x = m.x; p.y = m.y; place(); hnd.classList.add('snap'); setTimeout(function () { hnd.classList.remove('snap'); }, 450); }
+          };
+          hnd.addEventListener('pointermove', move); hnd.addEventListener('pointerup', up); hnd.addEventListener('pointercancel', up);
         });
         return hnd;
       });
