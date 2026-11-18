@@ -34,7 +34,7 @@
         'Spares — spare and store requisitions: the form, what was sent, and what was received.',
         'Cons Plan — whether the bunkers last, and whether to stem.',
         'Consumption, Voyage Abstract, Range Totals — printouts of entries already saved.',
-        'Trends — charts of fuel burned by grade, main engine / generators / boiler, speed and RPM, and the running total. Pick how many reports, per day or per report, and sea passage only. Tap a chart to read each report.',
+        'Trends — charts of fuel by grade, main engine / generators / boiler, speed, RPM and load, distance and slip, lube oil and fresh water, and the running burn. View by Daily, Weekly (seven-day blocks from the first report) or Entire voyage leg; show a rate per day or the total for the period; sea passage only. Tap a chart to read each point. Last 7 Days shows the seven-day average of each figure, a small trend, and how it moved against the seven days before. Compare puts two days, two weeks or two voyage legs side by side with the difference and the change.',
         'Receipts — bunker and lube deliveries that feed the ROB.',
         'Reports — supplementary reports.',
         'Reference — weather, NOx, fuel, and SFOC tables.',

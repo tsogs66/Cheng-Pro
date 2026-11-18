@@ -354,7 +354,7 @@
 
 
   /* ---- Consumption trends page ---- */
-  #page-trends .tr-tools{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:end;}
+  #page-trends .tr-tools{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; align-items:end;}
   #page-trends .tr-chart{position:relative; width:100%; min-height:200px;}
   #page-trends .tr-chart svg{display:block; width:100%; height:auto; overflow:visible; touch-action:pan-y;}
   #page-trends .tr-chart svg text{font-family:'IBM Plex Mono',monospace; font-size:11px; fill:var(--muted);}
@@ -379,6 +379,54 @@
   #page-trends details.tr-data{margin-top:10px;}
   #page-trends details.tr-data > summary{cursor:pointer; color:var(--brass); min-height:36px; display:flex; align-items:center;}
   #page-trends .tr-note{font-size:12px; color:var(--muted); margin-top:6px;}
+  /* last seven days, and compare */
+  #page-trends .tr-cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px;}
+  #page-trends .tr-card{border:1px solid var(--line-strong); border-radius:8px; padding:10px 12px; background:var(--panel2, transparent); display:flex; flex-direction:column; gap:4px; min-width:0;}
+  #page-trends .tr-card-h{font-family:'Oswald',sans-serif; letter-spacing:.04em; text-transform:uppercase; font-size:12px; color:var(--brass);}
+  #page-trends .tr-card-v{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--paper);}
+  #page-trends .tr-card-v b{font-family:'IBM Plex Mono',monospace; font-size:20px;}
+  #page-trends .tr-card-v span{font-size:11px; color:var(--muted);}
+  #page-trends .tr-spark{width:100%; height:38px; display:block;}
+  #page-trends .tr-spark-base{stroke:var(--line-strong); stroke-dasharray:3 3;}
+  #page-trends .tr-card-d{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--paper);}
+  #page-trends .tr-arrow{font-size:11px;}
+  #page-trends [data-dir="up"] .tr-arrow, #page-trends td[data-dir="up"]{color:var(--brass);}
+  #page-trends [data-dir="down"] .tr-arrow, #page-trends td[data-dir="down"]{color:var(--teal);}
+  #page-trends [data-dir="same"] .tr-arrow{color:var(--muted);}
+  #page-trends .tr-sr{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+  #page-trends .tr-cmp th, #page-trends .tr-cmp td{vertical-align:middle;}
+  #page-trends .tr-cmp thead th small{display:block; font-weight:400; color:var(--muted); letter-spacing:0; text-transform:none;}
+  #page-trends .tr-cmp thead th .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px;}
+  #page-trends .tr-cmp tbody th{font-weight:500; text-align:left; color:var(--paper);}
+  #page-trends .tr-unit{font-size:11px; color:var(--muted); font-weight:400;}
+  #page-trends .tr-cmp td b{display:block; font-family:'IBM Plex Mono',monospace; font-weight:500;}
+  #page-trends .tr-cbar{display:block; height:6px; border-radius:3px; background:var(--calc-bg, rgba(127,127,127,.15)); margin-top:3px; overflow:hidden;}
+  #page-trends .tr-cfill{display:block; height:100%; border-radius:3px;}
+  #page-trends .tr-cd{white-space:nowrap; font-family:'IBM Plex Mono',monospace;}
+  #page-trends .tr-cmp-tools{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}
+  #page-trends .tr-cmp-key{display:grid; gap:4px; margin:0 0 10px; color:var(--paper); font-size:13px;}
+  #page-trends .tr-cmp-key .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px;}
+  #page-trends .tr-cmp-key small{color:var(--muted);}
+  @media (max-width:640px){
+    #page-trends .tr-cmp th, #page-trends .tr-cmp td{padding:6px 4px; font-size:12px;}
+    #page-trends .tr-cmp tbody th{font-size:12px; line-height:1.25;}
+    #page-trends .tr-cmp td b{font-size:12px;}
+    #page-trends .tr-cd{font-size:11px; white-space:normal;}
+    #page-trends .tr-cmp-tools .field select{min-height:44px;}
+  }
+  /* the entire leg: one bar per line */
+  #page-trends .tr-bars{display:grid; gap:10px;}
+  #page-trends .tr-barrow{display:grid; grid-template-columns:minmax(120px,190px) 1fr minmax(96px,auto); gap:10px; align-items:center;}
+  #page-trends .tr-barlbl{display:flex; align-items:center; gap:6px; color:var(--paper); font-size:13px;}
+  #page-trends .tr-bartrack{height:16px; border-radius:4px; background:var(--calc-bg, rgba(127,127,127,.15)); overflow:hidden;}
+  #page-trends .tr-bargap{background:transparent;}
+  #page-trends .tr-barfill{display:block; height:100%; border-radius:4px;}
+  #page-trends .tr-barval{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--paper); text-align:right;}
+  #page-trends .tr-barlbl .tr-sw{display:inline-block; width:10px; height:10px; border-radius:2px; flex:0 0 auto;}
+  @media (max-width:560px){
+    #page-trends .tr-barrow{grid-template-columns:1fr auto; grid-template-areas:"lbl val" "bar bar";}
+    #page-trends .tr-barlbl{grid-area:lbl;} #page-trends .tr-barval{grid-area:val;} #page-trends .tr-bartrack{grid-area:bar;}
+  }
   @media (max-width:760px){
     #page-trends .tr-tools{grid-template-columns:1fr;}
     #page-trends .tr-tip{min-width:130px; max-width:200px;}
@@ -4838,26 +4886,47 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
     <div class="panel">
       <h2>Consumption Trends</h2>
       <div class="tr-tools">
-        <div class="field"><label for="trRange">Reports shown</label>
-          <select id="trRange">
-            <option value="7">Last 7 reports</option>
-            <option value="14" selected>Last 14 reports</option>
-            <option value="30">Last 30 reports</option>
-            <option value="all">Whole voyage</option>
+        <div class="field"><label for="trView">View by</label>
+          <select id="trView">
+            <option value="daily" selected>Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="leg">Entire voyage leg</option>
           </select></div>
+        <div class="field"><label for="trRange" id="trRangeLbl">Days shown</label>
+          <select id="trRange"></select></div>
         <div class="field"><label for="trBasis">Measured as</label>
           <select id="trBasis">
-            <option value="day" selected>Per day (MT/day)</option>
-            <option value="period">Per report period (MT)</option>
+            <option value="day" selected>Per day (average rate)</option>
+            <option value="period">Total for the period</option>
           </select></div>
         <div class="field"><label class="ge-on-label" for="trSeaOnly">
           <input type="checkbox" id="trSeaOnly"><span>Sea passage only (M/E running)</span></label></div>
       </div>
-      <div class="hint" id="trHint">Drawn from the reports in the log. Tap or hover a chart to read each report; tap a name below a chart to hide or show that line.</div>
+      <div class="hint" id="trHint"></div>
     </div>
     <div class="panel">
       <h2>At a Glance</h2>
       <div class="stat-strip cols4" id="trStats"></div>
+    </div>
+    <div class="panel" id="trWeekPanel">
+      <h2>Last 7 Days — Each Figure and How It Moved</h2>
+      <div class="hint" id="trWeekHint"></div>
+      <div class="tr-cards" id="trWeekCards"></div>
+    </div>
+    <div class="panel" id="trCmpPanel">
+      <h2>Compare</h2>
+      <div class="tr-tools tr-cmp-tools">
+        <div class="field"><label for="trCmpMode">Compare</label>
+          <select id="trCmpMode">
+            <option value="day" selected>Day with day</option>
+            <option value="week">Week with week</option>
+            <option value="leg">Voyage leg with voyage leg</option>
+          </select></div>
+        <div class="field"><label for="trCmpA">A</label><select id="trCmpA"></select></div>
+        <div class="field"><label for="trCmpB">B</label><select id="trCmpB"></select></div>
+        <div class="field"><button type="button" class="ghost small" id="trCmpSwap" style="width:100%;">Swap A and B</button></div>
+      </div>
+      <div id="trCmpBody"></div>
     </div>
     <div class="panel">
       <h2>Fuel Burned by Grade</h2>
@@ -4876,6 +4945,21 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       <div class="tr-chart" id="trChartSpeed" role="group" aria-label="Speed and propeller revolutions"></div>
     </div>
     <div class="panel">
+      <h2>Distance and Slip</h2>
+      <div class="tr-legend" id="trLegendDist"></div>
+      <div class="tr-chart" id="trChartDist" role="group" aria-label="Distance and slip"></div>
+    </div>
+    <div class="panel">
+      <h2>Lube Oil Consumption</h2>
+      <div class="tr-legend" id="trLegendLube"></div>
+      <div class="tr-chart" id="trChartLube" role="group" aria-label="Lube oil consumption"></div>
+    </div>
+    <div class="panel">
+      <h2>Fresh Water Produced and Consumed</h2>
+      <div class="tr-legend" id="trLegendFw"></div>
+      <div class="tr-chart" id="trChartFw" role="group" aria-label="Fresh water produced and consumed"></div>
+    </div>
+    <div class="panel" id="trCumPanel">
       <h2>Cumulative Burn Over the Selection</h2>
       <div class="tr-legend" id="trLegendCum"></div>
       <div class="tr-chart" id="trChartCum" role="group" aria-label="Cumulative fuel burned"></div>
@@ -17118,7 +17202,7 @@ async function saveSetup(){
 }
 
 /* ---------------- tabs ---------------- */
-const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'eca', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
+const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'eca', 'trends', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
 const BUNKER_PLAN_SIDES = [
   { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
   { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
@@ -18436,24 +18520,67 @@ function bindBunkerFileLinks(){
   });
 }
 /* ---------- Consumption trends page ---------- */
-const TRENDS = { hidden: {}, charts: {} };
+const TRENDS = { hidden: {} };
 const TRENDS_GRADES = ['HFO', 'LSFO', 'MDO/MGO', 'LSMGO'];
 const TRENDS_MARKS = ['circle', 'square', 'diamond', 'triangle'];
+const TRENDS_RANGES = {
+  daily:  { label: 'Days shown',  opts: [['7', 'Last 7 days'], ['14', 'Last 14 days'], ['30', 'Last 30 days'], ['all', 'Whole voyage leg']], def: '14' },
+  weekly: { label: 'Weeks shown', opts: [['4', 'Last 4 weeks'], ['8', 'Last 8 weeks'], ['12', 'Last 12 weeks'], ['all', 'Whole voyage leg']], def: '8' },
+  leg:    { label: 'Shown',       opts: [['all', 'Entire voyage leg']], def: 'all' }
+};
 function trendsNum(v){ return (v == null || v === '' || isNaN(Number(v))) ? null : Number(v); }
-function trendsRows(){
-  let rows = [];
-  try { rows = computeDerived().rows || []; } catch (_e) { rows = []; }
-  rows = rows.filter(r => r && r.datetime && r.hrs != null && Number(r.hrs) > 0);
-  const range = (document.getElementById('trRange') || {}).value || '14';
-  if (range !== 'all') rows = rows.slice(-Number(range));
-  if ((document.getElementById('trSeaOnly') || {}).checked) rows = rows.filter(r => !r.meStopped && r.rpmEff != null);
-  return rows;
-}
-function trendsFmtDate(ms){
-  try { return new Date(ms).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); } catch (_e) { return ''; }
+function trendsDay(r){ return String(r.datetime).slice(0, 10); }
+function trendsDayIndex(day){ const p = String(day).split('-').map(Number); return Math.round(Date.UTC(p[0], (p[1] || 1) - 1, p[2] || 1) / 864e5); }
+function trendsFmtDay(day){
+  try { const p = String(day).split('-').map(Number); return new Date(p[0], (p[1] || 1) - 1, p[2] || 1).toLocaleDateString(undefined, { day: '2-digit', month: 'short' }); } catch (_e) { return String(day); }
 }
 function trendsFmtDateTime(ms){
   try { return new Date(ms).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_e) { return ''; }
+}
+/* the reports of the leg, with a ship's time span, narrowed by the sea-only box */
+function trendsLegRows(){
+  let rows = [];
+  try { rows = computeDerived().rows || []; } catch (_e) { rows = []; }
+  rows = rows.filter(r => r && r.datetime && r.hrs != null && Number(r.hrs) > 0);
+  if ((document.getElementById('trSeaOnly') || {}).checked) rows = rows.filter(r => !r.meStopped && r.rpmEff != null);
+  return rows;
+}
+/* group the reports: a calendar day each, a seven-day block from the first report, or the whole leg in one */
+function trendsBuckets(rows, view, range){
+  const out = [];
+  if (!rows.length) return out;
+  if (view === 'leg') {
+    out.push({ rows, label: 'Leg', from: trendsDay(rows[0]), to: trendsDay(rows[rows.length - 1]), ms: new Date(rows[0].datetime).getTime() });
+    return out;
+  }
+  const first = trendsDayIndex(trendsDay(rows[0]));
+  const map = new Map();
+  rows.forEach(r => {
+    const day = trendsDay(r);
+    const key = view === 'weekly' ? Math.floor((trendsDayIndex(day) - first) / 7) : day;
+    if (!map.has(key)) map.set(key, { rows: [], key, from: day, to: day });
+    const b = map.get(key); b.rows.push(r); b.to = day;
+  });
+  map.forEach(b => {
+    b.ms = new Date(b.rows[0].datetime).getTime();
+    b.label = view === 'weekly' ? 'Wk ' + (Number(b.key) + 1) : trendsFmtDay(b.from);
+  });
+  let list = Array.from(map.values());
+  if (range !== 'all') list = list.slice(-Number(range));
+  return list;
+}
+/* A rate or a total over a bucket. A rate is the sum divided by the hours it covers, so a long report weighs more than a short one. */
+function trendsSum(rows, get, mode){
+  let v = 0, h = 0, any = false;
+  rows.forEach(r => { const x = trendsNum(get(r)); if (x != null) { v += x; h += Number(r.hrs) || 0; any = true; } });
+  if (!any) return null;
+  return mode === 'day' ? (h > 0 ? v * 24 / h : null) : v;
+}
+/* a mean weighted by the hours the engine ran (or the report covers) */
+function trendsMean(rows, get){
+  let num = 0, den = 0;
+  rows.forEach(r => { const x = trendsNum(get(r)); const w = Number(r.meHrs != null ? r.meHrs : r.hrs) || 0; if (x != null && w > 0) { num += x * w; den += w; } });
+  return den > 0 ? num / den : null;
 }
 function trendsNice(min, max, count){
   if (!(max > min)) { max = min + 1; }
@@ -18473,8 +18600,8 @@ function trendsMarker(kind, x, y, r, color){
   if (kind === 'triangle') return `<path d="M${x} ${y - r - 1} L${x + r + 1} ${y + r} L${x - r - 1} ${y + r} Z" fill="${color}"/>`;
   return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/>`;
 }
-/* One line chart. series: [{ key, label, color, mark, dash, vals, axis:'l'|'r', fmt }] ; xs: report times. */
-function trendsLineChart(cfg){
+/* One chart. series: [{ key, label, color, mark, dash, vals, axis:'l'|'r', fmt }]. With one bucket (the entire leg) it is a bar list. */
+function trendsChart(cfg){
   const host = document.getElementById(cfg.host);
   const legend = document.getElementById(cfg.legend);
   if (!host) return;
@@ -18492,15 +18619,30 @@ function trendsLineChart(cfg){
       renderTrends();
     }));
   }
-  if (!cfg.xs.length || !live.length) { host.innerHTML = '<div class="tr-empty">No reports to chart yet. Enter log reports and the trend appears here.</div>'; return; }
+  if (!cfg.xs.length || !live.length) { host.innerHTML = '<div class="tr-empty">' + escHtml(cfg.emptyText || 'Nothing recorded for this yet. Enter it in the log and it appears here.') + '</div>'; return; }
   const shown = live.filter(s => !TRENDS.hidden[cfg.host + ':' + s.key]);
+  const n = cfg.xs.length;
+  /* the entire leg: one figure per line, laid out as bars that scale against each other (per unit) */
+  if (n === 1) {
+    const maxOf = (side) => Math.max.apply(null, [0].concat(shown.filter(s => (s.axis || 'l') === side).map(s => Math.abs(s.vals[0] || 0))));
+    const mx = { l: maxOf('l'), r: maxOf('r') };
+    const cnt = { l: shown.filter(s => (s.axis || 'l') === 'l').length, r: shown.filter(s => s.axis === 'r').length };
+    host.innerHTML = '<div class="tr-bars" role="list">' + shown.map(s => {
+      const v = s.vals[0], side = s.axis || 'l', pct = (v == null || !mx[side]) ? 0 : Math.max(1.5, Math.abs(v) / mx[side] * 100);
+      /* a bar says "this much against that": a line that is alone in its unit has nothing to be set against */
+      const bar = cnt[side] > 1 ? `<span class="tr-bartrack"><span class="tr-barfill" style="width:${pct}%;background:${s.color}"></span></span>` : '<span class="tr-bartrack tr-bargap" aria-hidden="true"></span>';
+      return `<div class="tr-barrow" role="listitem"><span class="tr-barlbl"><span class="tr-sw" style="background:${s.color}"></span>${escHtml(s.label)}</span>` +
+        bar +
+        `<b class="tr-barval">${v == null ? '—' : escHtml((s.fmt || String)(v))}</b></div>`;
+    }).join('') + '</div>' + (cfg.notes && cfg.notes[0] ? `<div class="tr-note">${escHtml(cfg.notes[0])}</div>` : '');
+    return;
+  }
   const W = Math.max(280, Math.floor(host.clientWidth || host.parentElement.clientWidth || 600));
   const narrow = W < 520;
   const H = narrow ? 230 : 280;
   const hasR = shown.some(s => s.axis === 'r');
-  const m = { l: narrow ? 44 : 54, r: hasR ? (narrow ? 44 : 54) : 14, t: 12, b: 34 };
+  const m = { l: narrow ? 46 : 56, r: hasR ? (narrow ? 44 : 54) : 14, t: 12, b: 34 };
   const pw = W - m.l - m.r, ph = H - m.t - m.b;
-  const n = cfg.xs.length;
   const px = i => m.l + (n === 1 ? pw / 2 : (pw * i) / (n - 1));
   const range = (side) => {
     let lo = Infinity, hi = -Infinity;
@@ -18512,12 +18654,9 @@ function trendsLineChart(cfg){
   };
   const L = range('l'), R = hasR ? range('r') : null;
   const py = (v, sc) => m.t + ph - ((v - sc.lo) / (sc.hi - sc.lo)) * ph;
-  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${escHtml(cfg.title)}. Use the left and right arrow keys to read each report.">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${escHtml(cfg.title)}. Use the left and right arrow keys to read each point.">`;
   const gridSc = L || R;
-  if (gridSc) gridSc.ticks.forEach(t => {
-    const y = py(t, gridSc);
-    svg += `<line class="tr-grid" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`;
-  });
+  if (gridSc) gridSc.ticks.forEach(t => { const y = py(t, gridSc); svg += `<line class="tr-grid" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/>`; });
   if (L) L.ticks.forEach(t => { svg += `<text x="${m.l - 6}" y="${py(t, L) + 4}" text-anchor="end">${escHtml(cfg.yFmt ? cfg.yFmt(t) : String(t))}</text>`; });
   if (R) R.ticks.forEach(t => { svg += `<text x="${W - m.r + 6}" y="${py(t, R) + 4}" text-anchor="start">${escHtml(cfg.y2Fmt ? cfg.y2Fmt(t) : String(t))}</text>`; });
   svg += `<line class="tr-axis" x1="${m.l}" x2="${W - m.r}" y1="${m.t + ph}" y2="${m.t + ph}"/>`;
@@ -18525,7 +18664,7 @@ function trendsLineChart(cfg){
   cfg.xs.forEach((ms, i) => {
     if (i % every !== 0 && i !== n - 1) return;
     if (i === n - 1 && i % every !== 0 && (n - 1 - (Math.floor((n - 1) / every) * every)) < every * 0.6 && n > 2) return;
-    svg += `<text x="${px(i)}" y="${H - 12}" text-anchor="middle">${escHtml(trendsFmtDate(ms))}</text>`;
+    svg += `<text x="${px(i)}" y="${H - 12}" text-anchor="middle">${escHtml(cfg.xLabels ? cfg.xLabels[i] : '')}</text>`;
   });
   if (cfg.yTitle) svg += `<text class="tr-axis-title" transform="translate(12 ${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${escHtml(cfg.yTitle)}</text>`;
   if (hasR && cfg.y2Title) svg += `<text class="tr-axis-title" transform="translate(${W - 10} ${m.t + ph / 2}) rotate(90)" text-anchor="middle">${escHtml(cfg.y2Title)}</text>`;
@@ -18533,17 +18672,12 @@ function trendsLineChart(cfg){
     const sc = (s.axis === 'r' && R) ? R : L;
     if (!sc) return;
     let d = '', pen = false;
-    s.vals.forEach((v, i) => {
-      if (v == null) { pen = false; return; }
-      d += (pen ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(v, sc).toFixed(1) + ' ';
-      pen = true;
-    });
+    s.vals.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(v, sc).toFixed(1) + ' '; pen = true; });
     if (d) svg += `<path class="tr-line" d="${d}" stroke="${s.color}"${s.dash ? ' stroke-dasharray="' + s.dash + '"' : ''}/>`;
     s.vals.forEach((v, i) => { if (v != null) svg += trendsMarker(s.mark, px(i).toFixed(1), py(v, sc).toFixed(1), n > 24 ? 2.2 : 3.4, s.color); });
   });
   svg += `<line class="tr-guide" id="${cfg.host}-guide" x1="0" x2="0" y1="${m.t}" y2="${m.t + ph}" style="display:none"/>`;
-  svg += `<rect class="tr-hit" x="${m.l}" y="${m.t}" width="${pw}" height="${ph}"/>`;
-  svg += '</svg>';
+  svg += `<rect class="tr-hit" x="${m.l}" y="${m.t}" width="${pw}" height="${ph}"/></svg>`;
   host.innerHTML = svg + `<div class="tr-tip" id="${cfg.host}-tip" hidden></div>`;
   const el = host.querySelector('svg'), tip = document.getElementById(cfg.host + '-tip'), guide = document.getElementById(cfg.host + '-guide');
   let at = -1;
@@ -18553,7 +18687,7 @@ function trendsLineChart(cfg){
     const x = px(i);
     guide.setAttribute('x1', x); guide.setAttribute('x2', x); guide.style.display = '';
     const rows = shown.map(s => `<div class="tr-row"><span><span class="tr-sw" style="background:${s.color}"></span>${escHtml(s.label)}</span><b style="display:inline;margin:0">${s.vals[i] == null ? '—' : escHtml((s.fmt || String)(s.vals[i]))}</b></div>`).join('');
-    tip.innerHTML = `<b>${escHtml(trendsFmtDateTime(cfg.xs[i]))}</b>` + (cfg.notes && cfg.notes[i] ? `<div class="tr-note" style="margin:0 0 4px">${escHtml(cfg.notes[i])}</div>` : '') + rows;
+    tip.innerHTML = `<b>${escHtml(cfg.tips ? cfg.tips[i] : trendsFmtDateTime(cfg.xs[i]))}</b>` + (cfg.notes && cfg.notes[i] ? `<div class="tr-note" style="margin:0 0 4px">${escHtml(cfg.notes[i])}</div>` : '') + rows;
     tip.hidden = false;
     const tw = tip.offsetWidth || 160;
     let left = x + 12;
@@ -18565,7 +18699,7 @@ function trendsLineChart(cfg){
   const idxAt = (clientX) => {
     const r = el.getBoundingClientRect();
     const x = (clientX - r.left) * (W / Math.max(1, r.width));
-    return Math.max(0, Math.min(n - 1, Math.round(n === 1 ? 0 : ((x - m.l) / pw) * (n - 1))));
+    return Math.max(0, Math.min(n - 1, Math.round(((x - m.l) / pw) * (n - 1))));
   };
   el.addEventListener('pointermove', e => show(idxAt(e.clientX)));
   el.addEventListener('pointerdown', e => show(idxAt(e.clientX)));
@@ -18577,83 +18711,285 @@ function trendsLineChart(cfg){
   });
   el.addEventListener('blur', hide);
 }
+function trendsSyncRange(view){
+  const sel = document.getElementById('trRange'), lbl = document.getElementById('trRangeLbl');
+  const cfg = TRENDS_RANGES[view] || TRENDS_RANGES.daily;
+  if (!sel) return;
+  if (sel.dataset.view !== view) {
+    sel.innerHTML = cfg.opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
+    sel.value = cfg.def; sel.dataset.view = view;
+  }
+  sel.disabled = view === 'leg';
+  if (lbl) lbl.textContent = cfg.label;
+}
+/* ---- last 7 days, and compare two days, weeks or voyage legs ---- */
+const TRENDS_UNITS = { mt: ['MT', 'MT/day'], l: ['L', 'L/day'], m3: ['m³', 'm³/day'], nm: ['nm', 'nm/day'], kn: ['kn', 'kn'], rpm: ['rpm', 'rpm'], pct: ['%', '%'] };
+function trendsGradeSum(g){ return r => r.consByType && r.consByType[g]; }
+const TRENDS_METRICS = [
+  { key: 'fuel', label: 'Fuel (HFO / LSFO)', u: 'mt', d: 2, sum: r => sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]) },
+  { key: 'dogo', label: 'DO/GO (MDO/MGO, LSMGO)', u: 'mt', d: 2, sum: r => sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[1]) },
+  { key: 'HFO', label: 'HFO', u: 'mt', d: 2, sum: trendsGradeSum('HFO') },
+  { key: 'LSFO', label: 'LSFO', u: 'mt', d: 2, sum: trendsGradeSum('LSFO') },
+  { key: 'MDO', label: 'MDO/MGO', u: 'mt', d: 2, sum: trendsGradeSum('MDO/MGO') },
+  { key: 'LSMGO', label: 'LSMGO', u: 'mt', d: 2, sum: trendsGradeSum('LSMGO') },
+  { key: 'me', label: 'Main engine', u: 'mt', d: 2, sum: r => r.meCons },
+  { key: 'ge', label: 'Generators', u: 'mt', d: 2, sum: r => r.geCons },
+  { key: 'blr', label: 'Boiler', u: 'mt', d: 2, sum: r => r.blrCons },
+  { key: 'spd', label: 'Speed', u: 'kn', d: 2, speed: true },
+  { key: 'rpm', label: 'RPM', u: 'rpm', d: 1, mean: r => r.rpmEff },
+  { key: 'mcr', label: 'Load (% MCR)', u: 'pct', d: 1, mean: r => r.mcrPct },
+  { key: 'ds', label: 'Distance by ship', u: 'nm', d: 1, sum: r => r.distanceShip },
+  { key: 'de', label: 'Distance by engine', u: 'nm', d: 1, sum: r => r.distEngine },
+  { key: 'slip', label: 'Slip', u: 'pct', d: 2, mean: r => r.slip },
+  { key: 'cyl', label: 'Cylinder oil', u: 'l', d: 0, sum: r => r.cylCons },
+  { key: 'melo', label: 'M/E system oil', u: 'l', d: 0, sum: r => r.meLoCons },
+  { key: 'gelo', label: 'G/E system oil', u: 'l', d: 0, sum: r => r.geLoCons },
+  { key: 'fwp', label: 'Fresh water produced', u: 'm3', d: 2, sum: r => litresToM3(r.fwProdD) },
+  { key: 'fwc', label: 'Fresh water consumed', u: 'm3', d: 2, sum: r => litresToM3(r.fwConsD) }
+];
+TRENDS_UNITS.m3 = ['m³', 'm³/day'];
+function trendsSpeedOf(rows){
+  const d = rows.reduce((a, r) => a + (trendsNum(r.distanceShip) || 0), 0), h = rows.reduce((a, r) => a + (trendsNum(r.distanceShip) != null ? Number(r.hrs) || 0 : 0), 0);
+  return h > 0 ? d / h : trendsMean(rows, r => r.speedShip);
+}
+function trendsMetricValue(m, rows, mode){
+  if (!rows || !rows.length) return null;
+  if (m.speed) return trendsSpeedOf(rows);
+  if (m.mean) return trendsMean(rows, m.mean);
+  return trendsSum(rows, m.sum, mode);
+}
+function trendsUnitText(m, mode){ const u = TRENDS_UNITS[m.u] || ['', '']; return mode === 'day' ? u[1] : u[0]; }
+function trendsChange(cur, prev){
+  if (cur == null || prev == null) return { diff: null, pct: null, dir: 'none' };
+  const diff = cur - prev;
+  const pct = prev !== 0 ? diff / Math.abs(prev) * 100 : null;
+  const dir = Math.abs(pct != null ? pct : diff) < 0.5 ? 'same' : diff > 0 ? 'up' : 'down';
+  return { diff, pct, dir };
+}
+const TRENDS_ARROW = { up: '▲', down: '▼', same: '■', none: '' };
+const TRENDS_DIRTEXT = { up: 'up', down: 'down', same: 'about the same', none: '' };
+function trendsSpark(vals, labels, color){
+  const W = 132, H = 38, p = 4, pts = vals.map((v, i) => ({ v, i })).filter(x => x.v != null);
+  if (pts.length < 2) return `<svg class="tr-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="${p}" x2="${W - p}" y1="${H / 2}" y2="${H / 2}" class="tr-spark-base"/></svg>`;
+  let lo = Math.min.apply(null, pts.map(x => x.v)), hi = Math.max.apply(null, pts.map(x => x.v));
+  if (hi === lo) { hi += 1; lo -= 1; }
+  const n = vals.length, px = i => p + (n === 1 ? (W - 2 * p) / 2 : (W - 2 * p) * i / (n - 1)), py = v => H - p - (v - lo) / (hi - lo) * (H - 2 * p);
+  const d = pts.map((x, k) => (k ? 'L' : 'M') + px(x.i).toFixed(1) + ' ' + py(x.v).toFixed(1)).join(' ');
+  return `<svg class="tr-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+    pts.map(x => `<circle cx="${px(x.i).toFixed(1)}" cy="${py(x.v).toFixed(1)}" r="${x === pts[pts.length - 1] ? 3.2 : 2}" fill="${color}"><title>${escHtml((labels[x.i] || '') + ': ' + fmt(x.v, 2))}</title></circle>`).join('') + '</svg>';
+}
+/* the last seven days of the leg, each figure with its small trend and how it moved against the seven days before */
+function trendsRenderWeek(legRows){
+  const host = document.getElementById('trWeekCards');
+  if (!host) return;
+  const days = trendsBuckets(legRows, 'daily', 'all');
+  const last = days.slice(-7), prev = days.slice(-14, -7);
+  const hint = document.getElementById('trWeekHint');
+  if (!last.length) { host.innerHTML = '<div class="tr-empty">No reports yet. The last seven days appear here once the log has entries.</div>'; if (hint) hint.textContent = ''; return; }
+  if (hint) hint.textContent = `${trendsFmtDay(last[0].from)} to ${trendsFmtDay(last[last.length - 1].to)} (${last.length} day${last.length === 1 ? '' : 's'}), as a per-day rate. The change is the average of these days against ${prev.length ? 'the ' + prev.length + ' day' + (prev.length === 1 ? '' : 's') + ' before (' + trendsFmtDay(prev[0].from) + ' to ' + trendsFmtDay(prev[prev.length - 1].to) + ')' : 'nothing earlier yet'}.`;
+  const css = getComputedStyle(document.documentElement);
+  const colors = [1, 2, 3, 4].map(i => (css.getPropertyValue('--tr' + i) || '').trim() || ['#5cc2ee', '#e8b05a', '#f0806a', '#7fd49a'][i - 1]);
+  const labels = last.map(b => trendsFmtDay(b.from));
+  const prevRows = [].concat.apply([], prev.map(b => b.rows)), lastRows = [].concat.apply([], last.map(b => b.rows));
+  const cards = [];
+  TRENDS_METRICS.forEach((m, mi) => {
+    const series = last.map(b => trendsMetricValue(m, b.rows, 'day'));
+    if (!series.some(v => v != null)) return;
+    const avg = trendsMetricValue(m, lastRows, 'day'), before = prev.length ? trendsMetricValue(m, prevRows, 'day') : null;
+    const ch = trendsChange(avg, before);
+    const dTxt = ch.dir === 'none' ? 'no earlier days to compare' : (ch.pct != null ? (ch.diff > 0 ? '+' : '') + fmt(ch.pct, 1) + ' %' : (ch.diff > 0 ? '+' : '') + fmt(ch.diff, m.d));
+    cards.push(`<div class="tr-card" data-dir="${ch.dir}">` +
+      `<div class="tr-card-h">${escHtml(m.label)}</div>` +
+      `<div class="tr-card-v"><b>${avg == null ? '—' : fmt(avg, m.d)}</b><span>${escHtml(trendsUnitText(m, 'day'))} · 7-day average</span></div>` +
+      trendsSpark(series, labels, colors[mi % 4]) +
+      `<div class="tr-card-d"><span class="tr-arrow" aria-hidden="true">${TRENDS_ARROW[ch.dir]}</span><span>${escHtml(dTxt)}</span>` +
+      `<span class="tr-sr"> (${escHtml(TRENDS_DIRTEXT[ch.dir])} against the days before)</span></div></div>`);
+  });
+  host.innerHTML = cards.length ? cards.join('') : '<div class="tr-empty">Nothing recorded for these days yet.</div>';
+}
+/* compare: two days, two weeks or two voyage legs, side by side */
+function trendsLegRowsOf(leg, legRows){
+  if (leg.active) return legRows;
+  const sea = (document.getElementById('trSeaOnly') || {}).checked;
+  let rows = [];
+  try { rows = withLegState(leg.pack, () => (computeDerived().rows || []).map(r => Object.assign({}, r))); } catch (_e) { rows = []; }
+  rows = rows.filter(r => r && r.datetime && r.hrs != null && Number(r.hrs) > 0);
+  return sea ? rows.filter(r => !r.meStopped && r.rpmEff != null) : rows;
+}
+function trendsCmpOptions(mode, legRows, pool){
+  if (mode === 'leg') return ((pool && pool.legs) || []).map(l => ({ v: l.key, label: l.label, rows: () => trendsLegRowsOf(l, legRows) })).reverse();
+  const bks = trendsBuckets(legRows, mode === 'week' ? 'weekly' : 'daily', 'all');
+  return bks.map(b => ({ v: String(b.key != null ? b.key : b.from), label: (mode === 'week' ? b.label + ' · ' : '') + (b.from === b.to ? trendsFmtDay(b.from) : trendsFmtDay(b.from) + ' – ' + trendsFmtDay(b.to)), rows: () => b.rows })).reverse();
+}
+function trendsRenderCompare(legRows){
+  const host = document.getElementById('trCmpBody'), selA = document.getElementById('trCmpA'), selB = document.getElementById('trCmpB'), modeEl = document.getElementById('trCmpMode');
+  if (!host || !selA || !selB || !modeEl) return;
+  const mode = modeEl.value || 'day';
+  let pool = null;
+  if (mode === 'leg') {
+    if (!TRENDS.pool) { host.innerHTML = '<div class="tr-empty">Reading the saved voyage legs…</div>'; loadRangeLegPool().then(p => { TRENDS.pool = p; renderTrends(); }).catch(() => { TRENDS.pool = { legs: [] }; renderTrends(); }); return; }
+    pool = TRENDS.pool;
+  }
+  const opts = trendsCmpOptions(mode, legRows, pool);
+  const sig = mode + '|' + opts.map(o => o.v).join(',');
+  if (selA.dataset.sig !== sig) {
+    const html = opts.map(o => `<option value="${escHtml(o.v)}">${escHtml(o.label)}</option>`).join('');
+    selA.innerHTML = html; selB.innerHTML = html;
+    selA.value = opts[0] ? opts[0].v : ''; selB.value = opts[1] ? opts[1].v : (opts[0] ? opts[0].v : '');
+    selA.dataset.sig = sig; selB.dataset.sig = sig;
+  }
+  const noun = mode === 'leg' ? 'voyage legs' : mode === 'week' ? 'weeks' : 'days';
+  if (opts.length < 2) { host.innerHTML = `<div class="tr-empty">${mode === 'leg' ? 'Only one voyage leg is saved on this device, so there is nothing to compare it with yet.' : 'At least two ' + noun + ' of reports are needed to compare.'}</div>`; return; }
+  const find = v => opts.find(o => o.v === v) || opts[0];
+  const oa = find(selA.value), ob = find(selB.value);
+  const rowsA = oa.rows(), rowsB = ob.rows();
+  const cmode = ((document.getElementById('trBasis') || {}).value || 'day') === 'day' ? 'day' : 'period';
+  const lines = [];
+  TRENDS_METRICS.forEach(m => {
+    const a = trendsMetricValue(m, rowsA, cmode), b = trendsMetricValue(m, rowsB, cmode);
+    if (a == null && b == null) return;
+    const ch = trendsChange(a, b);
+    const top = Math.max(Math.abs(a || 0), Math.abs(b || 0)) || 1;
+    const bar = (v, c) => `<span class="tr-cbar"><span class="tr-cfill" style="width:${v == null ? 0 : Math.max(1.5, Math.abs(v) / top * 100)}%;background:${c}"></span></span>`;
+    const ctext = ch.diff == null ? '—' : (ch.diff > 0 ? '+' : '') + fmt(ch.diff, m.d);
+    lines.push(`<tr><th scope="row">${escHtml(m.label)} <span class="tr-unit">${escHtml(trendsUnitText(m, cmode))}</span></th>` +
+      `<td><b>${a == null ? '—' : fmt(a, m.d)}</b>${bar(a, 'var(--tr1)')}</td><td><b>${b == null ? '—' : fmt(b, m.d)}</b>${bar(b, 'var(--tr2)')}</td>` +
+      `<td class="tr-cd" data-dir="${ch.dir}"><span class="tr-arrow" aria-hidden="true">${TRENDS_ARROW[ch.dir]}</span> ${escHtml(ctext)}</td>` +
+      `<td class="tr-cd" data-dir="${ch.dir}">${ch.pct == null ? '—' : (ch.diff > 0 ? '+' : '') + fmt(ch.pct, 1) + ' %'}<span class="tr-sr"> (${escHtml(TRENDS_DIRTEXT[ch.dir])})</span></td></tr>`);
+  });
+  const nRep = (rows) => rows.length + ' report' + (rows.length === 1 ? '' : 's');
+  host.innerHTML = `<div class="tr-cmp-key"><div><span class="tr-sw" style="background:var(--tr1)"></span><b>A</b> ${escHtml(oa.label)} <small>${escHtml(nRep(rowsA))}</small></div>` +
+    `<div><span class="tr-sw" style="background:var(--tr2)"></span><b>B</b> ${escHtml(ob.label)} <small>${escHtml(nRep(rowsB))}</small></div></div>` +
+    `<div class="table-scroll"><table class="tr-cmp"><thead><tr><th>${cmode === 'day' ? 'Per day' : 'Total'}</th><th>A</th><th>B</th><th>A − B</th><th>Change</th></tr></thead><tbody>${lines.join('')}</tbody></table></div>` +
+    `<div class="tr-note">Change is A against B. ▲ means A is higher, ▼ lower, ■ within half a per cent. Nothing here says higher is better or worse.</div>`;
+}
 function renderTrends(){
   const page = document.getElementById('page-trends');
   if (!page) return;
-  const basisDay = ((document.getElementById('trBasis') || {}).value || 'day') === 'day';
-  const rows = trendsRows();
-  const xs = rows.map(r => new Date(r.datetime).getTime());
-  const per = (v, r) => { v = trendsNum(v); if (v == null) return null; return basisDay ? (r.hrs > 0 ? v * 24 / r.hrs : null) : v; };
-  const unit = basisDay ? 'MT/day' : 'MT';
-  const f2 = v => fmt(v, 2);
-  const f3 = v => fmt(v, 3);
+  const view = (document.getElementById('trView') || {}).value || 'daily';
+  trendsSyncRange(view);
+  const mode = ((document.getElementById('trBasis') || {}).value || 'day') === 'day' ? 'day' : 'period';
+  const range = (document.getElementById('trRange') || {}).value || 'all';
+  const legRows = trendsLegRows();
+  trendsRenderWeek(legRows);
+  trendsRenderCompare(legRows);
+  const buckets = trendsBuckets(legRows, view, range);
+  const used = [].concat.apply([], buckets.map(b => b.rows));
+  const xs = buckets.map(b => b.ms);
+  const xLabels = buckets.map(b => b.label);
+  const dayOf = b => b.from === b.to ? trendsFmtDay(b.from) : trendsFmtDay(b.from) + ' – ' + trendsFmtDay(b.to);
+  const tips = buckets.map(b => view === 'daily' ? trendsFmtDay(b.from) : view === 'weekly' ? b.label + ' · ' + dayOf(b) : 'Entire voyage leg · ' + dayOf(b));
+  const notes = buckets.map(b => b.rows.length + ' report' + (b.rows.length === 1 ? '' : 's') + (view === 'daily' ? (b.rows[0].operation ? ' · ' + b.rows[0].operation : '') : ''));
+  const rate = mode === 'day';
+  const U = { mt: rate ? 'MT/day' : 'MT', l: rate ? 'L/day' : 'L', m3: rate ? 'm³/day' : 'm³', nm: rate ? 'nm/day' : 'nm' };
+  const f2 = v => fmt(v, 2), f1 = v => fmt(v, 1), f0 = v => fmt(v, 0);
   const css = getComputedStyle(document.documentElement);
   const col = i => (css.getPropertyValue('--tr' + i) || '').trim() || ['#5cc2ee', '#e8b05a', '#f0806a', '#7fd49a'][i - 1];
-  const notes = rows.map(r => (r.operation || '') + (r.meStopped ? ' · M/E stopped' : ''));
+  const S = (get) => buckets.map(b => trendsSum(b.rows, get, mode));
+  const M = (get) => buckets.map(b => trendsMean(b.rows, get));
   const hint = document.getElementById('trHint');
-  if (hint) hint.textContent = rows.length
-    ? `${rows.length} report${rows.length === 1 ? '' : 's'} from ${trendsFmtDate(xs[0])} to ${trendsFmtDate(xs[xs.length - 1])}. Tap or hover a chart to read each report; tap a name below a chart to hide or show that line.`
+  if (hint) hint.textContent = used.length
+    ? `${used.length} report${used.length === 1 ? '' : 's'} from ${trendsFmtDay(buckets[0].from)} to ${trendsFmtDay(buckets[buckets.length - 1].to)}, ` + (view === 'daily' ? 'one point per day.' : view === 'weekly' ? 'one point per seven days from the first report.' : 'the entire voyage leg as one figure per line.') + (view === 'leg' ? '' : ' Tap or hover a chart to read it; tap a name below a chart to hide or show that line.')
     : 'No reports with a time span yet. The trends need at least two log reports.';
-  /* what the burn was, grade by grade */
-  const gradeSeries = TRENDS_GRADES.map((g, i) => ({ key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals: rows.map(r => per(r.consByType && r.consByType[g], r)), fmt: v => f2(v) + ' ' + unit }));
-  trendsLineChart({ host: 'trChartGrade', legend: 'trLegendGrade', title: 'Fuel burned by grade, ' + unit, xs, notes, series: gradeSeries, yTitle: unit, yFmt: f2 });
-  const userSeries = [
-    { key: 'me', label: 'Main engine', color: col(1), mark: 'circle', vals: rows.map(r => per(r.meCons, r)) },
-    { key: 'ge', label: 'Generators', color: col(2), mark: 'square', vals: rows.map(r => per(r.geCons, r)) },
-    { key: 'blr', label: 'Boiler', color: col(3), mark: 'diamond', dash: '6 4', vals: rows.map(r => per(r.blrCons, r)) }
-  ].map(s => Object.assign(s, { fmt: v => f2(v) + ' ' + unit }));
-  trendsLineChart({ host: 'trChartUser', legend: 'trLegendUser', title: 'Consumption by consumer, ' + unit, xs, notes, series: userSeries, yTitle: unit, yFmt: f2 });
-  const speedSeries = [
-    { key: 'spd', label: 'Speed (kn)', color: col(1), mark: 'circle', axis: 'l', vals: rows.map(r => trendsNum(r.speedShip)), fmt: v => fmt(v, 2) + ' kn' },
-    { key: 'rpm', label: 'RPM', color: col(2), mark: 'square', axis: 'r', vals: rows.map(r => trendsNum(r.rpmEff)), fmt: v => fmt(v, 1) + ' rpm' },
-    { key: 'mcr', label: 'Load (% MCR)', color: col(4), mark: 'triangle', dash: '6 4', axis: 'r', vals: rows.map(r => trendsNum(r.mcrPct)), fmt: v => fmt(v, 1) + ' %' }
-  ];
-  trendsLineChart({ host: 'trChartSpeed', legend: 'trLegendSpeed', title: 'Speed, revolutions and load', xs, notes, series: speedSeries, yTitle: 'knots', y2Title: 'rpm  /  % MCR', yFmt: v => fmt(v, 1), y2Fmt: v => fmt(v, 0) });
-  /* running totals over the selection, one line per fuel group (never residual plus distillate) */
-  const cum = {};
+  const common = { xs, xLabels, tips, notes };
+  trendsChart(Object.assign({}, common, { host: 'trChartGrade', legend: 'trLegendGrade', title: 'Fuel burned by grade, ' + U.mt, yTitle: U.mt, yFmt: f2,
+    series: TRENDS_GRADES.map((g, i) => ({ key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals: S(r => r.consByType && r.consByType[g]), fmt: v => f2(v) + ' ' + U.mt })) }));
+  trendsChart(Object.assign({}, common, { host: 'trChartUser', legend: 'trLegendUser', title: 'Consumption by consumer, ' + U.mt, yTitle: U.mt, yFmt: f2,
+    series: [
+      { key: 'me', label: 'Main engine', color: col(1), mark: 'circle', vals: S(r => r.meCons) },
+      { key: 'ge', label: 'Generators', color: col(2), mark: 'square', vals: S(r => r.geCons) },
+      { key: 'blr', label: 'Boiler', color: col(3), mark: 'diamond', dash: '6 4', vals: S(r => r.blrCons) }
+    ].map(s => Object.assign(s, { fmt: v => f2(v) + ' ' + U.mt })) }));
+  trendsChart(Object.assign({}, common, { host: 'trChartSpeed', legend: 'trLegendSpeed', title: 'Speed, revolutions and load', yTitle: 'knots', y2Title: 'rpm  /  % MCR', yFmt: f1, y2Fmt: f0,
+    series: [
+      { key: 'spd', label: 'Speed (kn)', color: col(1), mark: 'circle', axis: 'l', vals: buckets.map(b => { const d = b.rows.reduce((a, r) => a + (trendsNum(r.distanceShip) || 0), 0), h = b.rows.reduce((a, r) => a + (trendsNum(r.distanceShip) != null ? Number(r.hrs) || 0 : 0), 0); return h > 0 ? d / h : trendsMean(b.rows, r => r.speedShip); }), fmt: v => fmt(v, 2) + ' kn' },
+      { key: 'rpm', label: 'RPM', color: col(2), mark: 'square', axis: 'r', vals: M(r => r.rpmEff), fmt: v => fmt(v, 1) + ' rpm' },
+      { key: 'mcr', label: 'Load (% MCR)', color: col(4), mark: 'triangle', dash: '6 4', axis: 'r', vals: M(r => r.mcrPct), fmt: v => fmt(v, 1) + ' %' }
+    ] }));
+  trendsChart(Object.assign({}, common, { host: 'trChartDist', legend: 'trLegendDist', title: 'Distance and slip', yTitle: U.nm, y2Title: 'slip %', yFmt: f0, y2Fmt: f1,
+    series: [
+      { key: 'ds', label: 'Distance by ship', color: col(1), mark: 'circle', axis: 'l', vals: S(r => r.distanceShip), fmt: v => f1(v) + ' ' + U.nm },
+      { key: 'de', label: 'Distance by engine', color: col(2), mark: 'square', axis: 'l', vals: S(r => r.distEngine), fmt: v => f1(v) + ' ' + U.nm },
+      { key: 'slip', label: 'Slip (%)', color: col(3), mark: 'diamond', dash: '6 4', axis: 'r', vals: M(r => r.slip), fmt: v => fmt(v, 2) + ' %' }
+    ] }));
+  trendsChart(Object.assign({}, common, { host: 'trChartLube', legend: 'trLegendLube', title: 'Lube oil consumption, ' + U.l, yTitle: U.l, yFmt: f0, emptyText: 'No lube oil readings in these reports yet.',
+    series: [
+      { key: 'cyl', label: 'Cylinder oil', color: col(1), mark: 'circle', vals: S(r => r.cylCons) },
+      { key: 'melo', label: 'M/E system oil', color: col(2), mark: 'square', vals: S(r => r.meLoCons) },
+      { key: 'gelo', label: 'G/E system oil', color: col(3), mark: 'diamond', dash: '6 4', vals: S(r => r.geLoCons) }
+    ].map(s => Object.assign(s, { fmt: v => f1(v) + ' ' + U.l })) }));
+  trendsChart(Object.assign({}, common, { host: 'trChartFw', legend: 'trLegendFw', title: 'Fresh water, ' + U.m3, yTitle: U.m3, yFmt: f1, emptyText: 'No fresh water readings in these reports yet.',
+    series: [
+      { key: 'prod', label: 'Produced', color: col(4), mark: 'triangle', vals: S(r => litresToM3(r.fwProdD)) },
+      { key: 'cons', label: 'Consumed', color: col(2), mark: 'square', dash: '6 4', vals: S(r => litresToM3(r.fwConsD)) }
+    ].map(s => Object.assign(s, { fmt: v => f2(v) + ' ' + U.m3 })) }));
+  /* running totals over the selection: one line per grade (never residual plus distillate); not drawn for the leg as a whole, which is the totals already */
+  const cumPanel = document.getElementById('trCumPanel');
+  if (cumPanel) cumPanel.hidden = view === 'leg';
   const cumSeries = TRENDS_GRADES.map((g, i) => {
     let sum = 0, any = false;
-    const vals = rows.map(r => { const v = trendsNum(r.consByType && r.consByType[g]); if (v != null) { sum += v; any = true; } return any ? sum : null; });
-    cum[g] = any ? sum : null;
-    return { key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals, fmt: v => f3(v) + ' MT' };
+    const vals = buckets.map(b => { const v = trendsSum(b.rows, r => r.consByType && r.consByType[g], 'period'); if (v != null) { sum += v; any = true; } return any ? sum : null; });
+    return { key: g, label: g, color: col(i + 1), mark: TRENDS_MARKS[i], dash: i > 1 ? '6 4' : '', vals, fmt: v => fmt(v, 3) + ' MT' };
   });
-  trendsLineChart({ host: 'trChartCum', legend: 'trLegendCum', title: 'Cumulative fuel burned, MT', xs, notes, series: cumSeries, yTitle: 'MT', yFmt: v => fmt(v, v < 10 ? 1 : 0) });
-  /* at a glance */
+  if (view !== 'leg') trendsChart(Object.assign({}, common, { host: 'trChartCum', legend: 'trLegendCum', title: 'Cumulative fuel burned, MT', yTitle: 'MT', yFmt: v => fmt(v, v < 10 ? 1 : 0), series: cumSeries }));
+  /* at a glance: the whole selection */
   const stats = document.getElementById('trStats');
   if (stats) {
     const stat = (v, l, u) => `<div class="stat"><div class="num">${withUnit(v, u)}</div><div class="lbl">${escHtml(l)}</div></div>`;
-    const resid = rows.map(r => trendsNum(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]))).filter(v => v != null);
-    const dist = rows.map(r => trendsNum(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[1]))).filter(v => v != null);
-    const hrsAll = rows.reduce((a, r) => a + (Number(r.hrs) || 0), 0);
-    const perDay = (arr) => (arr.length && hrsAll > 0) ? arr.reduce((a, b) => a + b, 0) * 24 / hrsAll : null;
-    const spd = rows.map(r => trendsNum(r.speedShip)).filter(v => v != null);
-    const dayVals = rows.map(r => per(sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[0]), r)).filter(v => v != null);
-    const sum = a => a.reduce((x, y) => x + y, 0);
+    const tot = (get) => trendsSum(used, get, 'period');
+    const avg = (get) => trendsSum(used, get, 'day');
+    const grp = (i) => r => sumFuelGroup(r.consByType, FUEL_CONS_GROUPS[i]);
+    const n1 = v => v == null ? '—' : fmt(v, 1), n3 = v => v == null ? '—' : fmt(v, 3), n2 = v => v == null ? '—' : fmt(v, 2), n0 = v => v == null ? '—' : fmt(v, 0);
+    const hrsAll = used.reduce((a, r) => a + (Number(r.hrs) || 0), 0);
+    const dShip = tot(r => r.distanceShip);
+    const speedAvg = (dShip != null && used.some(r => trendsNum(r.distanceShip) != null)) ? (() => { const h = used.reduce((a, r) => a + (trendsNum(r.distanceShip) != null ? Number(r.hrs) || 0 : 0), 0); return h > 0 ? dShip / h : null; })() : trendsMean(used, r => r.speedShip);
+    const slipAvg = trendsMean(used, r => r.slip);
+    const fwP = tot(r => litresToM3(r.fwProdD)), fwC = tot(r => litresToM3(r.fwConsD));
     stats.innerHTML = [
-      stat(rows.length ? String(rows.length) : '—', 'Reports charted'),
-      stat(resid.length ? fmt(sum(resid), 3) : '—', 'Fuel (HFO / LSFO) burned', 'MT'),
-      stat(dist.length ? fmt(sum(dist), 3) : '—', 'DO/GO burned', 'MT'),
-      stat(perDay(resid) == null ? '—' : fmt(perDay(resid), 2), 'Fuel average', 'MT/day'),
-      stat(perDay(dist) == null ? '—' : fmt(perDay(dist), 2), 'DO/GO average', 'MT/day'),
-      stat(spd.length ? fmt(sum(spd) / spd.length, 2) : '—', 'Average speed', 'kn'),
-      stat(dayVals.length ? fmt(Math.max.apply(null, dayVals), 2) : '—', 'Highest fuel day', basisDay ? 'MT/day' : 'MT'),
-      stat(dayVals.length ? fmt(Math.min.apply(null, dayVals), 2) : '—', 'Lowest fuel day', basisDay ? 'MT/day' : 'MT')
+      stat(used.length ? String(used.length) : '—', 'Reports charted'),
+      stat(n2(hrsAll || null), 'Hours covered', 'hrs'),
+      stat(n3(tot(grp(0))), 'Fuel (HFO / LSFO) burned', 'MT'),
+      stat(n3(tot(grp(1))), 'DO/GO burned', 'MT'),
+      stat(n2(avg(grp(0))), 'Fuel average', 'MT/day'),
+      stat(n2(avg(grp(1))), 'DO/GO average', 'MT/day'),
+      stat(n1(dShip), 'Distance by ship', 'nm'),
+      stat(speedAvg == null ? '—' : fmt(speedAvg, 2), 'Average speed', 'kn'),
+      stat(slipAvg == null ? '—' : fmt(slipAvg, 2), 'Average slip', '%'),
+      stat(n0(tot(r => r.cylCons)), 'Cylinder oil', 'L'),
+      stat(n0(tot(r => (trendsNum(r.meLoCons) || 0) + (trendsNum(r.geLoCons) || 0))), 'System oil (M/E + G/E)', 'L'),
+      stat(fwP == null ? '—' : fmt(fwP, 2), 'Fresh water produced', 'm³'),
+      stat(fwC == null ? '—' : fmt(fwC, 2), 'Fresh water consumed', 'm³')
     ].join('');
   }
-  /* the table behind the charts */
+  /* the table behind the charts: one row per point on the charts */
   const head = document.getElementById('trTableHead'), body = document.getElementById('trTableBody');
   if (head && body) {
-    head.innerHTML = '<tr><th>Report</th><th>Operation</th><th>Hours</th>' + TRENDS_GRADES.map(g => `<th>${escHtml(g)} ${unit}</th>`).join('') + '<th>M/E</th><th>G/E</th><th>Boiler</th><th>Speed kn</th><th>RPM</th></tr>';
-    body.innerHTML = rows.length ? rows.map(r => {
-      const c = v => { v = per(v, r); return v == null ? '—' : fmt(v, 2); };
-      return `<tr><td>${escHtml(trendsFmtDateTime(new Date(r.datetime).getTime()))}</td><td>${escHtml(r.operation || '')}</td><td>${fmt(r.hrs, 2)}</td>` +
-        TRENDS_GRADES.map(g => `<td>${c(r.consByType && r.consByType[g])}</td>`).join('') +
-        `<td>${c(r.meCons)}</td><td>${c(r.geCons)}</td><td>${c(r.blrCons)}</td><td>${r.speedShip == null ? '—' : fmt(r.speedShip, 2)}</td><td>${r.rpmEff == null ? '—' : fmt(r.rpmEff, 1)}</td></tr>`;
-    }).join('') : '<tr class="empty-row"><td colspan="11">No reports to show.</td></tr>';
+    const per = view === 'daily' ? 'Day' : view === 'weekly' ? 'Week' : 'Leg';
+    head.innerHTML = '<tr><th>' + per + '</th><th>Reports</th><th>Hours</th>' + TRENDS_GRADES.map(g => `<th>${escHtml(g)} ${U.mt}</th>`).join('') +
+      `<th>M/E ${U.mt}</th><th>G/E ${U.mt}</th><th>Boiler ${U.mt}</th><th>Speed kn</th><th>RPM</th><th>Load %MCR</th><th>Dist. ship ${U.nm}</th><th>Dist. eng ${U.nm}</th><th>Slip %</th><th>Cyl oil ${U.l}</th><th>M/E LO ${U.l}</th><th>G/E LO ${U.l}</th><th>FW prod ${U.m3}</th><th>FW cons ${U.m3}</th></tr>`;
+    const c = (v, d) => v == null ? '—' : fmt(v, d);
+    body.innerHTML = buckets.length ? buckets.map((b, i) => {
+      const s = (get) => trendsSum(b.rows, get, mode);
+      const hrs = b.rows.reduce((a, r) => a + (Number(r.hrs) || 0), 0);
+      const speed = (() => { const d = b.rows.reduce((a, r) => a + (trendsNum(r.distanceShip) || 0), 0), h = b.rows.reduce((a, r) => a + (trendsNum(r.distanceShip) != null ? Number(r.hrs) || 0 : 0), 0); return h > 0 ? d / h : trendsMean(b.rows, r => r.speedShip); })();
+      return `<tr><td>${escHtml(tips[i])}</td><td>${b.rows.length}</td><td>${fmt(hrs, 2)}</td>` +
+        TRENDS_GRADES.map(g => `<td>${c(s(r => r.consByType && r.consByType[g]), 2)}</td>`).join('') +
+        `<td>${c(s(r => r.meCons), 2)}</td><td>${c(s(r => r.geCons), 2)}</td><td>${c(s(r => r.blrCons), 2)}</td>` +
+        `<td>${c(speed, 2)}</td><td>${c(trendsMean(b.rows, r => r.rpmEff), 1)}</td><td>${c(trendsMean(b.rows, r => r.mcrPct), 1)}</td>` +
+        `<td>${c(s(r => r.distanceShip), 1)}</td><td>${c(s(r => r.distEngine), 1)}</td><td>${c(trendsMean(b.rows, r => r.slip), 2)}</td>` +
+        `<td>${c(s(r => r.cylCons), 0)}</td><td>${c(s(r => r.meLoCons), 0)}</td><td>${c(s(r => r.geLoCons), 0)}</td>` +
+        `<td>${c(s(r => litresToM3(r.fwProdD)), 2)}</td><td>${c(s(r => litresToM3(r.fwConsD)), 2)}</td></tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="19">No reports to show.</td></tr>';
   }
 }
 (function bindTrends(){
-  ['trRange', 'trBasis', 'trSeaOnly'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  ['trView', 'trRange', 'trBasis', 'trSeaOnly', 'trCmpMode', 'trCmpA', 'trCmpB'].forEach(id => document.getElementById(id)?.addEventListener('change', renderTrends));
+  document.getElementById('trCmpSwap')?.addEventListener('click', () => {
+    const a = document.getElementById('trCmpA'), b = document.getElementById('trCmpB');
+    if (!a || !b) return;
+    const t = a.value; a.value = b.value; b.value = t;
+    renderTrends();
+  });
   let t = null;
   const again = () => { if (document.getElementById('page-trends')?.classList.contains('active')) { clearTimeout(t); t = setTimeout(renderTrends, 120); } };
   window.addEventListener('resize', again);
@@ -18696,7 +19032,7 @@ function switchTab(pageName){
     requestAnimationFrame(()=> animateRobGauges());
     requestTankSurveyCompare();
   }
-  if (pageName === 'trends') { try { renderTrends(); requestAnimationFrame(renderTrends); } catch (_e) { /* the page shows what it can */ } }
+  if (pageName === 'trends') { try { TRENDS.pool = null; renderTrends(); requestAnimationFrame(renderTrends); } catch (_e) { /* the page shows what it can */ } }
   if (pageName === 'eca' && typeof renderChangeoverLog === 'function') renderChangeoverLog();
   if (pageName === 'eca' && typeof renderCoConsumerRows === 'function') renderCoConsumerRows();
   if (pageName === 'spares'){
