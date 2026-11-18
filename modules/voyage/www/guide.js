@@ -34,6 +34,7 @@
         'Spares — spare and store requisitions: the form, what was sent, and what was received.',
         'Cons Plan — whether the bunkers last, and whether to stem.',
         'Consumption, Voyage Abstract, Range Totals — printouts of entries already saved.',
+        'Trends — charts of fuel burned by grade, main engine / generators / boiler, speed and RPM, and the running total. Pick how many reports, per day or per report, and sea passage only. Tap a chart to read each report.',
         'Receipts — bunker and lube deliveries that feed the ROB.',
         'Reports — supplementary reports.',
         'Reference — weather, NOx, fuel, and SFOC tables.',

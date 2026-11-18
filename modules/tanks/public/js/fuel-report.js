@@ -231,6 +231,7 @@ const FuelReport = (() => {
 
     bindEvents(wrap);
     refreshComputed();
+    if (window.TankCardCapture) TankCardCapture.addButton('.page-head .btn-row', 'fr-capture', 'report', () => currentBundle());
   }
 
   function renderHeaderPanel() {
@@ -994,7 +995,7 @@ const FuelReport = (() => {
         await OfflineDB.idbSet('vessel:' + STATE.activeVesselId, bundle);
         if (!quiet) showToast(snapshot ? 'Report saved' : 'Draft saved');
       } catch {
-        await Api.mutate(`/api/vessels/${STATE.activeVesselId}/fuel-report`, { method: 'PUT', body });
+        await Api.mutate(`/api/vessels/${STATE.activeVesselId}/fuel-report`, { method: 'PUT', body: { ...body, late: true } });
         if (!quiet) showToast('Saved offline — will sync when online');
       }
     };

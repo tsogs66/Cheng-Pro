@@ -101,6 +101,9 @@ const reminders = createReminders({
   writeFile: (file, text) => fs.promises.writeFile(file, text, 'utf8'),
   openFile: (file) => shell.openPath(file),
 });
+const network = require('./network');
+ipcMain.handle('cheng-firewall-status', () => network.status());
+ipcMain.handle('cheng-firewall-allow', (_event, ports) => network.allowLiveSync(ports));
 ipcMain.handle('cheng-reminders-sync', (_event, list) => reminders.sync(list));
 ipcMain.handle('cheng-reminders-calendar', (_event, payload = {}) =>
   reminders.openCalendar(payload.filename, payload.text));

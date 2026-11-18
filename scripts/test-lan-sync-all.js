@@ -309,6 +309,14 @@ const asked = (w, kind, what) => w.calls.filter((c) => c[0] === kind && c[1] ===
     base.w.tank.pairedCount = 0;
     return { w: base.w, cmpCalls, ctl: All.create(deps2) };
   };
+  await check('direct mode: when the other PC does not answer, nothing is called paired, and the page says what to check', async () => {
+    const { ctl } = direct({ tankFails: { '/api/lan/peers/pair': 'Nothing answered at http://10.86.177.31:47617. Check the address.' } });
+    await assert.rejects(() => ctl.pair('http://10.86.177.31:47617', '123456'), /Nothing answered/);
+    const n = ctl.snapshot().notice;
+    assert.strictEqual(n.kind, 'bad');
+    assert.ok(/NOT PAIRED/.test(n.text) && /Windows Firewall/.test(n.text) && /same Wi-Fi/.test(n.text), n.text);
+    assert.ok(!/^Paired/.test(n.text), 'it must not say Paired');
+  });
   await check('in direct mode Voyage Chief\'s own engine is never called, and the device is set to wait for ticks', async () => {
     const { w, ctl } = direct();
     await ctl.refresh();

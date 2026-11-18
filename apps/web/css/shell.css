@@ -373,7 +373,10 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
   html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar .nav {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    /* Never hide menu entries: when the window is too short for all of them the menu scrolls, with a visible bar. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
   html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar-meta {
     flex-shrink: 0;
@@ -389,18 +392,25 @@ html.bright .sidebar { background: rgba(255,255,255,0.7); }
 .nav { display: flex; flex-direction: column; gap: 6px; }
 /* A long license value wraps instead of being cut at the box edge. */
 .lic-wrap { width: 100%; resize: none; line-height: 1.4; }
-/* Short windows: the menu keeps all 14 entries on screen by tightening them. A very short window
-   scrolls the menu on its own rather than hiding the last entries. */
+/* Short windows: the menu keeps all 14 entries on screen by tightening them (a Windows laptop at 125-150% display
+   scaling gives a window of only 560-760 CSS pixels). The selectors are written out in full so they win over the
+   plain .nav-item / .sidebar-meta rules that follow; a very short window scrolls the menu rather than hiding entries. */
 @media (min-width: 901px) and (max-height: 960px) {
-  .nav { gap: 3px; }
-  .nav-item { padding: 8px 14px; }
-  .sidebar { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+  aside.sidebar .nav { gap: 3px; }
+  aside.sidebar .nav-item { padding: 8px 14px; }
+  aside.sidebar { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
 }
-@media (min-width: 901px) and (max-height: 700px) {
-  html:not(.aio-android-nav):not(.use-bottom-nav):not(.aio-fullscreen-embed) .sidebar .nav {
-    overflow-y: auto; scrollbar-width: thin;
-  }
+@media (min-width: 901px) and (max-height: 820px) {
+  aside.sidebar .nav { gap: 2px; }
+  aside.sidebar .nav-item { padding: 5px 12px; font-size: 0.92rem; }
+  aside.sidebar { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  aside.sidebar .sidebar-meta { padding-top: 6px; padding-bottom: 6px; }
 }
+@media (min-width: 901px) and (max-height: 640px) {
+  aside.sidebar .nav-item { padding: 3px 12px; font-size: 0.88rem; }
+  aside.sidebar .sidebar-meta .registered { display: none; }
+}
+
 .nav-item, .bottom-item, .btn, .icon-btn { border: 1px solid transparent; background: transparent; cursor: pointer; }
 .nav-item { text-align: left; padding: 12px 14px; border-radius: 12px; color: var(--muted); }
 .nav-item:hover, .bottom-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
