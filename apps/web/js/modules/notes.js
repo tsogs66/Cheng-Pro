@@ -253,7 +253,7 @@ window.ChengProModules = window.ChengProModules || {};
       saveAll(next);
       syncAlarms();
       delete host.dataset.editId;
-      host.dataset.status = '';
+      host.dataset.status = editing ? 'Note updated.' : 'Note saved.';
       if (saved && (calendar || alarm) && !deadline) host.dataset.status = 'Saved. Add a deadline to use the calendar or the alarm.';
       paint(host);
       if (saved && calendar && deadline && R()) {
@@ -287,6 +287,7 @@ window.ChengProModules = window.ChengProModules || {};
         const name = row && row.title ? row.title : 'this note';
         if (!window.confirm('Delete “' + name + '”?')) return;
         saveAll(loadAll().filter((n) => n.id !== id));
+        host.dataset.status = 'Note deleted.';
         if (R() && row && row.calendar) R().removeFromCalendar(id);
         syncAlarms();
         if (host.dataset.editId === id) delete host.dataset.editId;
