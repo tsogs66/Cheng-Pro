@@ -36662,12 +36662,24 @@ document.getElementById('btnOrbPrefillFromVessel')?.addEventListener('click', ()
   const embedded = ()=>{ try{ return typeof isChengAioEmbedded === 'function' && isChengAioEmbedded(); }catch(_){ return false; } };
   row.hidden = !embedded();
   let waiting = null;
+  /* "No.1 HFO Service", "NO 1 HFO SERVICE" and "no1 hfo service" are one tank. */
+  const tankKey = s => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '');
   function merge(list, incoming, withService){
-    const stats = { updated: 0, added: 0 };
+    const stats = { updated: 0, added: 0, skipped: 0 };
+    const seen = new Set();
     incoming.forEach(t=>{
-      const nameKey = String(t.name || '').trim().toLowerCase();
+      const nameKey = tankKey(t.name);
+      const idKey = t.id ? 'id:' + t.id : '';
+      /* The same tank twice in what Tank Chief sent is copied once. */
+      if ((idKey && seen.has(idKey)) || (nameKey && seen.has('n:' + nameKey))){ stats.skipped++; return; }
+      if (idKey) seen.add(idKey);
+      if (nameKey) seen.add('n:' + nameKey);
+      /* A tank already in the list is updated, never copied again: by its Tank Chief id, then by its
+         name ignoring case, spaces and punctuation, then by its frame number. */
       let hit = list.find(x => x.tankChiefId && x.tankChiefId === t.id)
-             || list.find(x => !x.tankChiefId && String(x.name || '').trim().toLowerCase() === nameKey);
+             || (nameKey && list.find(x => tankKey(x.name) === nameKey))
+             || (t.frameNo && list.find(x => x.frameNo && tankKey(x.frameNo) === tankKey(t.frameNo)
+                  && (!x.tankChiefId || x.tankChiefId === t.id)));
       const fields = {
         name: t.name || (hit && hit.name) || 'Tank',
         capacityM3: t.capacityM3 != null ? t.capacityM3 : (hit ? hit.capacityM3 : null),
@@ -36719,7 +36731,7 @@ document.getElementById('btnOrbPrefillFromVessel')?.addEventListener('click', ()
     state.setup.orb = setup;
     renderOrbTankEditors();
     try{ await saveSetup(); markPendingSync(); }catch(_){}
-    try{ showToast(`Tank Chief: fuel ${f.updated} updated, ${f.added} added · lube ${l.updated} updated, ${l.added} added`); }catch(_){}
+    try{ showToast(`Tank Chief: fuel ${f.updated} updated, ${f.added} added · lube ${l.updated} updated, ${l.added} added` + ((f.skipped + l.skipped) ? ` · ${f.skipped + l.skipped} duplicate skipped` : '')); }catch(_){}
   });
 })();
 document.getElementById('btnOrbSaveSetup')?.addEventListener('click', async ()=>{
