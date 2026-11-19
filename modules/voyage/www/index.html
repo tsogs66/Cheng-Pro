@@ -3490,6 +3490,14 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
 .hist-fold[open] > summary .hist-tap{display:none;}
 .hist-fold > summary h2{flex:1;}
 .hist-count{font-weight:400; opacity:.8; font-size:.8em;}
+
+  /* One small confirmation message for saves, prints, exports and fetches. */
+  .app-toast{position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom,0px)); transform:translate(-50%,16px);
+    max-width:min(92vw,520px); padding:10px 16px; border-radius:8px; z-index:100000; pointer-events:none; opacity:0;
+    background:var(--panel); color:var(--paper); border:1px solid var(--line-strong); box-shadow:0 8px 24px rgba(0,0,0,.4);
+    font-size:14px; line-height:1.35; text-align:center; transition:opacity .18s ease, transform .18s ease;}
+  .app-toast.show{opacity:1; transform:translate(-50%,0);}
+  @media print{ .app-toast{display:none !important;} }
 </style>
 <style>
 /* Same rule as the AIO shell and Tank (scripts/test-suite-scale.js keeps the three identical). */
@@ -18278,6 +18286,7 @@ function downloadReqFile(){
   document.body.appendChild(link);
   link.click();
   link.remove();
+  showToast('File download started — check Downloads');
 }
 function reqSortByDate(rows, field){
   return rows.slice().sort(function(a, b){
@@ -18532,6 +18541,7 @@ async function saveRequisitionFromForm(){
   }
   clearReqForm();
   renderRequisitions();
+  showToast('Requisition saved');
 }
 function bindBunkerFileLinks(){
   const row = document.getElementById('bunkerFileLinks');
@@ -20947,6 +20957,7 @@ function exportWeeklyAbstractCsv(){
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  showToast('Weekly abstract CSV download started — check Downloads');
 }
 
 /** Index of the report category currently listed — drives the active button state. */
@@ -21687,6 +21698,34 @@ function endPrintHold(){
   }catch(_e){}
 }
 function printHoldActive(){ return _printHoldSync > 0; }
+/* Confirmation message. A second message that follows within a moment waits its turn, so
+   "Saved" and "Sent to print" can both be read. */
+function showToast(msg){
+  try{
+    const now = Date.now();
+    if (showToast._until && now < showToast._until){
+      clearTimeout(showToast._d);
+      showToast._d = setTimeout(()=>showToast(msg), showToast._until - now);
+      return;
+    }
+    showToast._until = now + 1300;
+    let el = document.getElementById('appToast');
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'appToast';
+      el.className = 'app-toast';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      document.body.appendChild(el);
+    }
+    el.textContent = String(msg == null ? '' : msg);
+    el.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>el.classList.remove('show'), 2600);
+  }catch(_e){}
+}
+function notePrintSent(){ showToast('Sent to print — choose a printer or Save as PDF'); }
+
 
 /** Prefer AIO shell / Android PrintManager when window.print is a no-op. */
 function shouldBridgePrint(){
@@ -21735,6 +21774,7 @@ function deliverPrintHtml(html, title, localWin, cleanup){
       } else if (window.ChengAndroidPrint && typeof ChengAndroidPrint.printHtml === 'function'){
         ChengAndroidPrint.printHtml(payload.html, payload.title);
         delivered = true;
+        notePrintSent();
         try{ cleanup && cleanup(); }catch(_e){}
         setTimeout(finish, 1500);
         return;
@@ -21743,6 +21783,7 @@ function deliverPrintHtml(html, title, localWin, cleanup){
         delivered = true;
       }
       if (!delivered) throw new Error('No print bridge');
+      notePrintSent();
       /* Local iframe is no longer needed — parent/native has the HTML. */
       try{ cleanup && cleanup(); }catch(_e){}
       setTimeout(finish, 180000);
@@ -21773,6 +21814,7 @@ function runSystemPrintLocal(win, cleanup){
   try{
     win.focus();
     win.print();
+    notePrintSent();
   }catch(err){
     finish();
     throw err;
@@ -25648,6 +25690,7 @@ document.getElementById('btnPrintVoyageSummary').addEventListener('click', async
   try {
     const saved = await saveOpenVoyageSummary({ close: false });
     if (!saved) { endPrintHold(); return; }
+    showToast('Voyage report saved');
     printVoyageSummary(id);
   } catch (err) {
     endPrintHold();
@@ -27657,6 +27700,7 @@ async function saveLogEntryFromForm(opts){
        distance / report edits looked like they belonged to the next entry. */
     loadEntryIntoForm(entry.id);
     updateEntryActionButtons();
+    showToast(existing ? 'Log entry updated' : 'Log entry saved');
   }
   return true;
 }
@@ -28059,6 +28103,7 @@ function downloadAbstractCsv(a){
   link.href = URL.createObjectURL(blob);
   link.download = a.filename.replace(/\.json$/i,'.csv');
   link.click();
+  showToast('Abstract CSV download started — check Downloads');
 }
 
 /* ---------------- BDN documents (PDF or photo, stored in-browser) ---------------- */
@@ -32781,6 +32826,7 @@ async function downloadJsonFile(filename, obj){
     }, 4000);
     saved = { method: 'anchor', filename: safeName };
   }
+  try{ showToast('File ' + downloadWhereLabel(saved)); }catch(_e){}
 
   try {
     /* The header's health line reads this row, so repaint it once it is written. */
@@ -34832,6 +34878,7 @@ async function downloadCSV(filename, header, lines){
   const csv = [header.join(","), ...lines.map(l=>l.join(","))].join("\n");
   if (window.ChengSaveFile){
     const saved = await ChengSaveFile.saveJson(filename, csv, { mime: 'text/csv' });
+    showToast('File ' + ChengSaveFile.whereLabel(saved));
     return ChengSaveFile.whereLabel(saved);
   }
   const blob = new Blob([csv], {type:'text/csv'});
@@ -34840,12 +34887,14 @@ async function downloadCSV(filename, header, lines){
   a.download = filename;
   a.click();
   setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch(_){} }, 10000);
+  showToast('File download started — check Downloads for ' + filename);
   return '';
 }
 /** Same handover as the CSV, for the PDF the office prints or files. */
 async function downloadNamedFile(filename, text, mime){
   if (window.ChengSaveFile){
     const saved = await ChengSaveFile.saveJson(filename, text, { mime: mime || 'application/octet-stream' });
+    showToast('File ' + ChengSaveFile.whereLabel(saved));
     return ChengSaveFile.whereLabel(saved);
   }
   const blob = new Blob([text], { type: mime || 'application/octet-stream' });
@@ -37132,6 +37181,10 @@ document.getElementById('btnOrbFilter')?.addEventListener('click', ()=>{
   renderOrbBrowse();
   renderOrbTankStatus();
   renderOrbBook();
+  try{
+    const n = filteredOrbEntries().length;
+    showToast(n ? `${n} record${n === 1 ? '' : 's'} fetched` : 'No records in that range');
+  }catch(_e){}
 });
 /* Lines struck through and awaiting their correction, so the next entry saved
    can be tied to them. Not persisted: a correction that is not written in the
