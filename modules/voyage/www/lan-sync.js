@@ -355,7 +355,7 @@
     var typing = host.contains(document.activeElement) || Array.prototype.some.call(host.querySelectorAll('input[type=text],input:not([type])'), function (i) { return i.value; });
     if (typing && host.dataset.drawn) return;
     var cfg = load();
-    var tone = { connected: 'var(--teal,#2a9d8f)', 'different-vessel': 'var(--brass,#c99a53)', 'different-license': '#c0392b', 'no-license': '#c0392b', unpaired: '#c0392b', offline: '#c0392b' }[st.status] || '#667';
+    var tone = { connected: 'var(--teal,#2a9d8f)', 'different-vessel': 'var(--brass,#c99a53)', 'different-license': 'var(--alert,#c0392b)', 'no-license': 'var(--alert,#c0392b)', unpaired: 'var(--alert,#c0392b)', offline: 'var(--alert,#c0392b)' }[st.status] || 'var(--muted,#667)';
     var code = st.pairing && Date.now() < st.pairing.until
       ? '<div style="font-size:26px;letter-spacing:6px;font-weight:700;margin:6px 0">' + esc(st.pairing.code) + '</div>' +
         '<div class="hint">Type this on the other device. It works once, for five minutes' + (st.pairing.shareAll ? ', and hands over access to every vessel on this server' : ', and gives access to this vessel only') + '. This server is at <code>' + esc(st.pairing.address) + '</code>.</div>'

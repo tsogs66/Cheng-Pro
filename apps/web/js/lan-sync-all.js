@@ -422,7 +422,7 @@
     /** The pairing area explains itself: what to check, what to press on which device, and what to do when it fails. */
     function pairGuide(s, code, found) {
       var paired = (s.peers && s.peers.length) || s.pairedCount;
-      var num = function (n) { return '<span style="flex:none;width:24px;height:24px;border-radius:50%;background:var(--teal,#2a9d8f);color:#fff;font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center">' + n + '</span>'; };
+      var num = function (n) { var ink = document.documentElement.classList.contains('bright') ? '#fff' : '#04181a'; return '<span style="flex:none;width:24px;height:24px;border-radius:50%;background:var(--teal,#2a9d8f);color:' + ink + ';font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center">' + n + '</span>'; };
       var step = function (n, title, body) {
         return '<div style="display:flex;gap:10px;margin:10px 0;align-items:flex-start">' + num(n) + '<div style="flex:1;min-width:0"><div style="font-weight:600">' + title + '</div>' + body + '</div></div>';
       };

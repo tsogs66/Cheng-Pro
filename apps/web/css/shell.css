@@ -935,6 +935,8 @@ html.bright .home-voyage-strip .stat { background: transparent; }
 .gauge-box { text-align: center; padding: 8px 2px 2px; }
 .gauge-box svg.analog-gauge { width: 100%; max-width: 170px; height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,0.28)); }
 .gauge-value { font-family: var(--mono); font-size: 16px; color: var(--gauge-ink, var(--brass)); font-weight: 600; }
+/* The ink is the tank's pipe hue, which can be a dark brown (1.8:1 on the dark themes): lift it toward white there. */
+html:not(.bright) .gauge-value { color: color-mix(in srgb, var(--gauge-ink, var(--brass)) 62%, #fff); }
 .gauge-value .unit,
 .home-voyage-strip .stat .num .unit,
 .stat .num .unit {
@@ -1440,6 +1442,7 @@ html.aio-fullscreen-embed .aio-return-fabs:not([hidden]) {
   border-color: transparent;
   font-weight: 700;
 }
+html.bright .guide-chip.is-on { color: #fff; }
 .guide-item {
   border-top: 1px solid var(--line, rgba(255,255,255,0.12));
   padding: 8px 0 4px;
