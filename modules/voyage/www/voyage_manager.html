@@ -17611,6 +17611,7 @@ function loadBunkerPlanRob(){
   if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
   renderBunkerPlan();
   scheduleBunkerPlanSave();
+  showToast('Current ROB loaded from the log');
 }
 
 function clearBunkerPlan(){
@@ -17621,6 +17622,7 @@ function clearBunkerPlan(){
   state.setup.bunkerPlan.date = new Date().toISOString().slice(0,10);
   renderBunkerPlan();
   scheduleBunkerPlanSave();
+  showToast('Bunker consumption plan cleared');
 }
 
 function buildBunkerPlanPrintHtml(){
@@ -34511,7 +34513,7 @@ document.getElementById('fileImportVesselBackup')?.addEventListener('change', as
 });
 
 
-document.getElementById('btnRefreshDeletedBackup')?.addEventListener('click', ()=>{ renderDeletedBackupList(); });
+document.getElementById('btnRefreshDeletedBackup')?.addEventListener('click', ()=>{ renderDeletedBackupList(); showToast('List refreshed'); });
 document.getElementById('btnPurgeDeletedBackup')?.addEventListener('click', async ()=>{
   if (!confirm('Discard deleted backups older than ' + DELETED_BACKUP_DAYS + ' days (or over the ' + DELETED_BACKUP_MAX + ' cap)?')) return;
   await pruneDeletedBackups();
@@ -34707,7 +34709,7 @@ document.getElementById('dbSnapshotBody')?.addEventListener('click', async (ev)=
   }
 });
 
-document.getElementById('btnRefreshSyncLog')?.addEventListener('click', ()=>{ refreshSyncLogPanel(); });
+document.getElementById('btnRefreshSyncLog')?.addEventListener('click', ()=>{ refreshSyncLogPanel(); showToast('List refreshed'); });
 
 document.getElementById('btnDbBackup')?.addEventListener('click', async ()=>{
   const btn = document.getElementById('btnDbBackup');
