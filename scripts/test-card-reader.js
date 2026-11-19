@@ -153,6 +153,38 @@ check('no text reader: the way up is the end where the bold title is, the darker
 });
 
 Promise.all(pending).then(() => {
-  console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
+  console.log('Low-resolution pictures');
+check('a picture with a card 1200 px across is read without a warning', () => {
+  const sq = [{ x: 100, y: 100 }, { x: 1300, y: 100 }, { x: 1300, y: 900 }, { x: 100, y: 900 }];
+  assert.strictEqual(R.resolutionNote({ upscaled: 1 }, sq), null);
+});
+check('a card 750 px across (a 1280 px camera frame) is warned about', () => {
+  const sq = [{ x: 0, y: 0 }, { x: 750, y: 0 }, { x: 750, y: 500 }, { x: 0, y: 500 }];
+  const n = R.resolutionNote({ upscaled: 1 }, sq);
+  assert.ok(n && n.level === 1 && /low resolution/.test(n.text) && /750 pixels/.test(n.text));
+});
+check('a card 400 px across is called too small, and every figure is flagged', () => {
+  const sq = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 280 }, { x: 0, y: 280 }];
+  const n = R.resolutionNote({ upscaled: 1 }, sq);
+  assert.ok(n && n.level === 2 && /too small/.test(n.text));
+});
+check('the size counts the picture\'s own pixels, not the blown-up copy', () => {
+  /* a 640 px picture blown up x3.1 shows the card 1200 px across in the copy but only about 387 in the picture */
+  const sq = [{ x: 0, y: 0 }, { x: 1200, y: 0 }, { x: 1200, y: 800 }, { x: 0, y: 800 }];
+  const n = R.resolutionNote({ upscaled: 3.1 }, sq);
+  assert.ok(n && n.level === 2 && /387 pixels/.test(n.text));
+});
+check('the card camera asks the camera for its best picture, not 1280 x 960', () => {
+  const cam = fs.readFileSync(path.join(__dirname, '../apps/web/js/camera-capture.js'), 'utf8');
+  const rd = fs.readFileSync(path.join(__dirname, '../apps/web/js/card-reader.js'), 'utf8');
+  assert.ok(/options && options\.highRes \? 4096 : 1280/.test(cam));
+  assert.ok(/highRes: true/.test(rd));
+});
+check('small pictures are blown up to a working size before they are read', () => {
+  const rd = fs.readFileSync(path.join(__dirname, '../apps/web/js/card-reader.js'), 'utf8');
+  assert.ok(/MIN_WORKING_SIDE = 2000/.test(rd) && /longest < MIN_WORKING_SIDE/.test(rd));
+});
+
+console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
   process.exit(failed ? 1 : 0);
 });

@@ -561,15 +561,24 @@
     } finally { frame.remove(); }
   }
 
+  var MIN_WORKING_SIDE = 2000;
+
   function photoToImageData(source, maxSide) {
     return new Promise(function (resolve, reject) {
       var done = function (bmp, w, h) {
-        var scale = Math.min(1, (maxSide || 2200) / Math.max(w, h));
+        var longest = Math.max(w, h);
+        /* A small picture (a tablet's front camera, a picture that was shrunk to send) is blown up to a working size
+           first: the pen strokes are then a few pixels wide as the reading expects, instead of one blurred pixel. */
+        var wanted = longest < MIN_WORKING_SIDE ? MIN_WORKING_SIDE : Math.min(longest, maxSide || 2200);
+        var scale = wanted / longest;
         var c = document.createElement('canvas');
         c.width = Math.round(w * scale); c.height = Math.round(h * scale);
         var ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        try { ctx.imageSmoothingQuality = 'high'; } catch (_) { /* default quality */ }
         ctx.drawImage(bmp, 0, 0, c.width, c.height);
-        resolve({ canvas: c, image: ctx.getImageData(0, 0, c.width, c.height) });
+        var data = ctx.getImageData(0, 0, c.width, c.height);
+        resolve({ canvas: c, image: data, sourceSide: longest, upscaled: scale > 1.15 ? scale : 1 });
       };
       if (source instanceof HTMLCanvasElement) return done(source, source.width, source.height);
       if (source instanceof HTMLImageElement) return done(source, source.naturalWidth, source.naturalHeight);
@@ -951,6 +960,24 @@
    * The whole read: photo -> corners -> straightened card -> fields. If the marks are not found, `needCorners` is true
    * and the caller can ask the person to place the corners (see pickCornersByHand) and call readWithCorners.
    */
+  /**
+   * How many picture pixels the card's long side really has (before any blowing up): a picture from a weak camera, or
+   * one that was shrunk to send, has too few for pen strokes. Returns null when the picture is sharp enough.
+   */
+  function cardPixels(photo, corners) {
+    if (!photo || !corners || corners.length < 4) return 0;
+    var d = function (a, b) { return Math.hypot(a.x - b.x, a.y - b.y); };
+    var longest = Math.max(d(corners[0], corners[1]), d(corners[1], corners[2]), d(corners[2], corners[3]), d(corners[3], corners[0]));
+    return Math.round(longest / (photo.upscaled || 1));
+  }
+  function resolutionNote(photo, corners) {
+    var px = cardPixels(photo, corners);
+    if (!px) return null;
+    if (px < 600) return { level: 2, px: px, text: 'This picture is too small to read reliably: the card is only ' + px + ' pixels across. Check every figure, or Retake closer to the card, or use Device Camera for a sharper picture.' };
+    if (px < 900) return { level: 1, px: px, text: 'This picture is low resolution (the card is ' + px + ' pixels across). Look closely at the figures, especially decimal points, or Retake closer to the card.' };
+    return null;
+  }
+
   async function readPhoto(file, layout, onProgress) {
     var photo = await photoToImageData(file, 2200);
     var corners = findCorners(photo, layout);
@@ -1221,7 +1248,7 @@
         pick.onclick = function () { file.click(); };
         take.onclick = async function () {
           if (!root.ChengCamera || !root.ChengCamera.takePicture) { file.click(); return; }
-          try { var f = await root.ChengCamera.takePicture({ title: opts.title || 'Card', basename: 'card', preferSystem: /Android/i.test(navigator.userAgent || '') }); if (f) process(f); }
+          try { var f = await root.ChengCamera.takePicture({ title: opts.title || 'Card', basename: 'card', highRes: true, preferSystem: /Android/i.test(navigator.userAgent || '') }); if (f) process(f); }
           catch (e) { if (!e || String(e.message) !== 'cancelled') file.click(); }
         };
         ft.appendChild(file); ft.appendChild(pick); ft.appendChild(take);
@@ -1258,6 +1285,12 @@
             else if (/loading|initializ/i.test(m.status)) status.textContent = 'Starting the reader (' + m.status + (m.progress ? ' ' + Math.round(m.progress * 100) + '%' : '') + ')…';
           }), 240000, 'Reading the card');
           if (stale()) return;
+          var res = resolutionNote(read.photo, corners);
+          if (res) {
+            result.note = [result.note, res.text].filter(Boolean).join(' ');
+            /* a small picture: every figure is a guess until the person has looked at it */
+            if (res.level > 1) result.rows.forEach(function (r) { if (!r.blank && r.type !== 'text') r.conf = Math.min(r.conf, 60); });
+          }
           reviewStep(result, layout, read);
         } catch (e) {
           if (stale()) return;
@@ -1341,7 +1374,7 @@
     measureLayout: measureLayout, photoToImageData: photoToImageData, findCorners: findCorners, straighten: straighten,
     findRules: findRules, alignAxis: alignAxis, alignToPrintedLines: alignToPrintedLines, rotationCandidates: rotationCandidates, titleScore: titleScore,
     readPhoto: readPhoto, readWithCorners: readWithCorners, readFields: readFields, getWorker: getWorker, imageDataToCanvas: imageDataToCanvas,
-    pickCornersByHand: pickCornersByHand, capture: capture, turnCorners: turnCorners, alignScore: alignScore, titleInk: titleInk, withTimeout: withTimeout,
+    pickCornersByHand: pickCornersByHand, resolutionNote: resolutionNote, cardPixels: cardPixels, capture: capture, turnCorners: turnCorners, alignScore: alignScore, titleInk: titleInk, withTimeout: withTimeout,
     VENDOR: VENDOR,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
