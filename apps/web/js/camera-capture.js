@@ -195,8 +195,9 @@
             audio: false,
             video: {
               facingMode: { ideal: facingMode },
-              width: { ideal: 1280 },
-              height: { ideal: 960 }
+              /* A written card needs every pixel the camera has; the ordinary 1280 x 960 is too coarse for pen strokes */
+              width: { ideal: options && options.highRes ? 4096 : 1280 },
+              height: { ideal: options && options.highRes ? 3072 : 960 }
             }
           });
           if (errBox) errBox.hidden = true;
@@ -252,7 +253,7 @@
               return;
             }
             finishOk(fileFromBlob(blob, options && options.basename));
-          }, 'image/jpeg', 0.88);
+          }, 'image/jpeg', options && options.highRes ? 0.94 : 0.88);
         } catch (err) {
           showErr((err && err.message) || 'Capture failed');
         }
