@@ -6371,6 +6371,8 @@ window.addEventListener('message', async (ev) => {
   for (let i = 0; i < 100 && !(STATE.bundle && STATE.bundle.tanks); i++) {
     await new Promise((r) => setTimeout(r, 250));
   }
+  /* Soundings typed or loaded on Tank Monitoring but not saved yet are the ship's current ROB. */
+  try { if (window.FuelReport && FuelReport.flushIfDirty) await FuelReport.flushIfDirty(); } catch (_) { /* offline */ }
   let rob = {};
   try {
     const fuelTanks = STATE.bundle?.tanks?.fuel || [];
@@ -6391,6 +6393,8 @@ window.addEventListener('message', async (ev) => {
     await new Promise((r) => setTimeout(r, 250));
   }
   const loaded = !!(STATE.bundle && STATE.bundle.tanks);
+  /* Soundings typed or loaded on Tank Monitoring but not saved yet are the ship's current ROB. */
+  try { if (window.FuelReport && FuelReport.flushIfDirty) await FuelReport.flushIfDirty(); } catch (_) { /* offline */ }
   const out = { fuel: [], lube: [], loaded };
   try {
     const tanks = STATE.bundle?.tanks || {};
