@@ -97,6 +97,38 @@ check('a plan with an absurd number of slots is refused, and a missing plan too'
   assert.throws(() => store.mergePlanFromPeer(v.id, null), /Not a bunker plan/);
 });
 
+console.log('The distillate line inside the plan');
+check('two devices working the two lines at once: each line keeps its own soundings, in either merge order', () => {
+  const withD = (res, dist) => Object.assign(plan(res), { distillate: plan(dist) });
+  const base = store.stampPlanChanges(null, withD([slot({ tankId: 'h1' })], [slot({ tankId: 'm1' })]), T(0));
+  const a = store.stampPlanChanges(base, { ...base, sequence: [{ ...base.sequence[0], currentSoundingMM: '900' }], updatedAt: T(5) }, T(5));
+  const b = store.stampPlanChanges(base, { ...base, distillate: { ...base.distillate, sequence: [{ ...base.distillate.sequence[0], currentSoundingMM: '450' }] }, updatedAt: T(6) }, T(6));
+  const ab = store.mergeBunkerPlanDocs(a, b);
+  assert.strictEqual(ab.sequence[0].currentSoundingMM, '900');
+  assert.strictEqual(ab.distillate.sequence[0].currentSoundingMM, '450');
+  assert.deepStrictEqual(ab, store.mergeBunkerPlanDocs(b, a), 'the same plan whichever device merges first');
+});
+check('starting the distillate pump on one device and the residual on the other keeps both clocks', () => {
+  const withD = (res, dist) => Object.assign(plan(res), { distillate: plan(dist) });
+  const base = store.stampPlanChanges(null, withD([slot({ tankId: 'h1' })], [slot({ tankId: 'm1' })]), T(0));
+  const a = store.stampPlanChanges(base, { ...base, status: 'pumping', startedAt: T(10), updatedAt: T(10) }, T(10));
+  const b = store.stampPlanChanges(base, { ...base, distillate: { ...base.distillate, status: 'pumping', startedAt: T(12) }, updatedAt: T(12) }, T(12));
+  const m = store.mergeBunkerPlanDocs(a, b);
+  assert.strictEqual(m.startedAt, T(10));
+  assert.strictEqual(m.distillate.startedAt, T(12));
+});
+check('a plan is live while only its distillate line is pumping', () => {
+  const p = Object.assign(plan([]), { distillate: plan([], { startedAt: T(1) }) });
+  assert.strictEqual(store.planIsLive(p), true);
+  assert.strictEqual(store.planIsLive(Object.assign(plan([]), { distillate: plan([]) })), false);
+});
+check('a distillate line that only one device has is kept', () => {
+  const base = store.stampPlanChanges(null, plan([slot({ tankId: 'h1' })]), T(0));
+  const withDist = store.stampPlanChanges(base, { ...base, distillate: plan([slot({ tankId: 'm1' })]), updatedAt: T(4) }, T(4));
+  assert.ok(store.mergeBunkerPlanDocs(base, withDist).distillate);
+  assert.ok(store.mergeBunkerPlanDocs(withDist, base).distillate);
+});
+
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
 console.log(`\n${pass} passed${failed ? `, ${failed} FAILED` : ''}`);
 process.exit(failed ? 1 : 0);
