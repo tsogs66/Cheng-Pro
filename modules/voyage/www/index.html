@@ -153,8 +153,8 @@
     --ink:#f4f1ea; --panel:#ffffff; --panel2:#f7f5ef;
     /* Match AIO shell muted for labels/hints on cream. */
     --paper:#122238; --paper-dim:#3d4a5c;
-    --brass:#8a5a1a; --brass-dim:#a67c3a; --brass-bright:#b8862d;
-    --teal:#1f7a72; --alert:#b33a22; --good:#2f7a45;
+    --brass:#7a4f16; --brass-dim:#a67c3a; --brass-bright:#b8862d;
+    --teal:#17625b; --alert:#b33a22; --good:#2f7a45;
     --line:rgba(18,34,56,0.12); --line-strong:rgba(18,34,56,0.28);
     --nav-bg:rgba(255,255,255,0.98);
     --nav-shadow:0 -8px 24px rgba(18,34,56,0.14);
@@ -1124,6 +1124,8 @@
   .gauge-grid.large .gauge-cap{font-size:12px;}
   .gauge-label{font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--paper-dim); margin-top:2px;}
   .gauge-value{font-family:'IBM Plex Mono',monospace; font-size:16px; color:var(--gauge-ink, var(--brass)); font-weight:800;}
+  /* The ink is the tank's pipe hue, which can be a dark brown: lift it toward white on the dark themes so the figure stays readable. */
+  html:not(.bright) .gauge-value{color:color-mix(in srgb, var(--gauge-ink, var(--brass)) 62%, #fff);}
   .gauge-value .unit,.stat .num .unit,.cii-card .val .unit{
     font-size:0.75em; font-weight:500; color:var(--paper-dim); margin-left:0.28em; letter-spacing:0.02em;
   }
@@ -1530,6 +1532,7 @@
   .orb-form-notes p:last-child{margin-bottom:0;}
   .orb-form-prereq ul{margin:6px 0 0 18px; padding:0;}
   .orb-weekly-due{margin-top:10px;}
+  html:not(.bright) .orb-weekly-due.err, html:not(.bright) .orb-weekly-due.warn, html:not(.bright) .orb-weekly-due.first{color:color-mix(in srgb, var(--alert) 78%, #fff) !important;}
   .orb-weekly-due.warn{border-left-color:var(--brass);}
   .orb-weekly-due.err{border-left-color:var(--alert);}
   .orb-weekly-table{
@@ -2542,6 +2545,7 @@
   .ref-timeline .tl b{font-family:'IBM Plex Mono',monospace; color:var(--brass);}
   .cii-band-A{color:#5f9e6e;} .cii-band-B{color:#7fb069;} .cii-band-C{color:var(--brass);}
   .cii-band-D{color:#d08a4a;} .cii-band-E{color:var(--alert);}
+  html.bright .cii-band-A{color:#2f6f3f;} html.bright .cii-band-B{color:#47693a;} html.bright .cii-band-D{color:#8a5a2c;}
   #page-reference table td{white-space:normal;}
   #page-reference table.compact td,#page-reference table.compact th{padding:5px 7px; font-size:12px;}
   .lube-equiv-list{display:flex; flex-direction:column; gap:8px; margin-top:8px;}
@@ -3203,6 +3207,20 @@ button.primary:hover:not(.bn-item):not(.small){
     radial-gradient(circle at 8px 50%, var(--ink) 2px, transparent 2.7px),
     radial-gradient(circle at calc(100% - 8px) 50%, var(--ink) 2px, transparent 2.7px),
     linear-gradient(180deg, var(--brass-bright), var(--brass) 40%, var(--brass-dim));
+}
+html.bright button.primary:not(.bn-item):not(.small){
+  background-color:#8a5a1a;
+  background-image:
+    radial-gradient(circle at 8px 50%, var(--ink) 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 8px) 50%, var(--ink) 2px, transparent 2.7px),
+    linear-gradient(180deg, #96681f, #8a5a1a 48%, #7a4f16);
+}
+html.bright button.primary:hover:not(.bn-item):not(.small){
+  background-color:#96681f;
+  background-image:
+    radial-gradient(circle at 8px 50%, var(--ink) 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 8px) 50%, var(--ink) 2px, transparent 2.7px),
+    linear-gradient(180deg, #9c6e22, #8f6019 40%, #7f5318);
 }
 table button{background-image:none; box-shadow:none;}
 .tab.active{
