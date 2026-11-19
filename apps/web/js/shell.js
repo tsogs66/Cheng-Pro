@@ -634,8 +634,17 @@
     }
   }
 
+  /* Consumption Plan, Bunkering Plan, e-ORB, ECA and Spares keep the AIO main menu on screen. */
+  const MENU_EMBED_MODULES = ['bunkerplan', 'bunkeringplan', 'eorb', 'eca', 'spares'];
+
   function setFullscreenEmbed(on) {
-    const active = !!on && wantsFullscreenEmbed();
+    /* On a wide desktop window (Windows or any wide non-touch screen) the main menu is the normal sidebar. The
+       full-screen embed hides the sidebar and keeps the main menu as a bottom bar, which only exists on phones and
+       tablets, so these modules there lost their menu and left a dead strip along the bottom. They stay in the
+       ordinary desktop layout instead. */
+    const wideDesktop = !wantsBottomNav();
+    const keepsMenu = MENU_EMBED_MODULES.includes(current);
+    const active = !!on && wantsFullscreenEmbed() && !(keepsMenu && wideDesktop);
     document.documentElement.classList.toggle('aio-fullscreen-embed', active);
     document.body.classList.toggle('aio-fullscreen-embed', active);
     /* Consumption Plan, Bunkering Plan and e-ORB keep the AIO main menu on screen; the others bring their own. */

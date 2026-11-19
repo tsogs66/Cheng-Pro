@@ -680,7 +680,7 @@ function mergeReadings(current, incoming) {
  * its own: every tank slot (`at`), the header (`headerAt`), and the pump state (`topAt`). A piece changed on one
  * device is taken whole; a piece nobody touched stays. Ties break on the text of the piece, so two devices that
  * hold the same pieces always end on the same plan whichever way they merge. */
-const PLAN_TOP_KEYS = ['status', 'distributionMode', 'startedAt', 'pausedAt', 'elapsedPausedMs', 'completedAt'];
+const PLAN_TOP_KEYS = ['status', 'distributionMode', 'soundingEntry', 'startedAt', 'pausedAt', 'elapsedPausedMs', 'completedAt'];
 /* Keys sorted, so the same plan written by two devices compares equal whatever order each built it in. */
 function planJson(v) {
   const canon = (x) => {
@@ -693,11 +693,15 @@ function planJson(v) {
 function planSlotCore(slot) { const { at, ...rest } = slot || {}; return rest; }
 function planTopCore(doc) { const o = {}; for (const k of PLAN_TOP_KEYS) o[k] = doc && doc[k] !== undefined ? doc[k] : null; return o; }
 function planPieceAt(stamp, doc) { return String(stamp || (doc && doc.updatedAt) || ''); }
-function planIsLive(plan, nowMs) {
+function lineIsLive(plan, nowMs) {
   if (!plan || typeof plan !== 'object' || !plan.startedAt) return false;
   if (!plan.completedAt) return true;
   const done = Date.parse(plan.completedAt);
   return Number.isFinite(done) && (nowMs || Date.now()) - done < 120000;
+}
+/* A plan is live while either of its two fuel lines (residual, and the distillate line inside it) is pumping. */
+function planIsLive(plan, nowMs) {
+  return lineIsLive(plan, nowMs) || Boolean(plan && plan.distillate && lineIsLive(plan.distillate, nowMs));
 }
 
 /** Mark what was edited since `current` was stored. A piece that arrives with a stamp of its own is left alone. */
@@ -712,9 +716,16 @@ function stampPlanChanges(current, data, nowIso) {
     const changed = planJson(planSlotCore(slot)) !== planJson(planSlotCore(c));
     return changed && String(slot.at || '') === String(c.at || '') ? { ...slot, at: stampNow } : slot;
   });
-  if (!cur) { if (!out.headerAt) out.headerAt = stampNow; if (!out.topAt) out.topAt = stampNow; return out; }
+  if (!cur) {
+    if (!out.headerAt) out.headerAt = stampNow;
+    if (!out.topAt) out.topAt = stampNow;
+    if (data.distillate && typeof data.distillate === 'object') out.distillate = stampPlanChanges(null, data.distillate, stampNow);
+    return out;
+  }
   if (planJson(data.header) !== planJson(cur.header) && String(data.headerAt || '') === String(cur.headerAt || '')) out.headerAt = stampNow;
   if (planJson(planTopCore(data)) !== planJson(planTopCore(cur)) && String(data.topAt || '') === String(cur.topAt || '')) out.topAt = stampNow;
+  /* The distillate line is a plan of its own inside this one, stamped the same way. */
+  if (data.distillate && typeof data.distillate === 'object') out.distillate = stampPlanChanges(cur.distillate, data.distillate, stampNow);
   return out;
 }
 
@@ -748,6 +759,11 @@ function mergeBunkerPlanDocs(a, b) {
   for (const k of PLAN_TOP_KEYS) out[k] = top[k] !== undefined ? top[k] : null;
   out.topAt = top.topAt || top.updatedAt || null;
   out.sequence = sequence;
+  /* The distillate line merges the same way, piece by piece. If only one device has one, it is kept
+     (taking a distillate line away on one device is not carried to the other). */
+  out.distillate = isPlanDoc(a.distillate) && isPlanDoc(b.distillate)
+    ? mergeBunkerPlanDocs(a.distillate, b.distillate)
+    : (a.distillate || b.distillate || null);
   out.updatedAt = [a.updatedAt, b.updatedAt, ...sequence.map((s) => s && s.at), out.headerAt, out.topAt]
     .filter(Boolean).map(String).sort().pop() || null;
   return out;
