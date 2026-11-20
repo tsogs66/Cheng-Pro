@@ -132,5 +132,15 @@ console.log('\nhand-over to the e-ORB Part III C item 4 (Panama)');
   check('no density falls back to 890', L.partThreeValues(rec2, st2, null).volumeM3, 19.55);
 }
 
+{
+  const hr = L.ecaFuelCheck({ changeoverUsedMt: 5.2, transitHours: 30, consMtHr: 1, onBoardMt: 40 });
+  const day = L.ecaFuelCheck({ changeoverUsedMt: 5.2, transitHours: 30, consMtDay: 24, onBoardMt: 40 });
+  check('fuel check: MT/hr equals the older MT/day figure', hr.needMt, day.needMt);
+  check('fuel check: 30 h at 1 MT/hr is 30 MT', hr.transitMt, 30);
+  const arr = Date.UTC(2026, 0, 1), dep = arr + 12 * 3600000;
+  const e = L.euBerthPlan({ arrivalMs: arr, departureMs: dep, changeoverHours: 3, consMtHr: 0.5 });
+  check('EU plan: 9 h compliant at 0.5 MT/hr is 4.5 MT', e.needMt, 4.5);
+}
+
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);

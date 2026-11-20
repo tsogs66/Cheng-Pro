@@ -23,7 +23,7 @@ const check = (label, actual, expected) => {
   if (!ok) { failed++; console.log(`FAIL ${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`); }
 };
 function build(entries, receipts) {
-  const code = [grab('receiptDayAfter'), grab('pendingReceiptsAfterLatest')].join('\n') +
+  const code = [grab('receiptDayAfter'), grab('receiptMoment'), grab('receiptJoinedBy'), grab('pendingReceiptsAfterLatest')].join('\n') +
     '\nreturn pendingReceiptsAfterLatest;';
   return new Function('sortedEntries', 'state', code)(() => entries, { receipts })();
 }

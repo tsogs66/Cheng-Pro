@@ -4516,13 +4516,14 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
           </table>
         </div>
         <div class="hint">Leave Received blank unless bunkers were taken. R.O.B. follows as Previous + Received − Consumption. Save Report stores typed Received on the entry and as bunker receipts for the day.</div>
+        <div class="hint" id="vsRobReceiptsLog" hidden></div>
         <button class="ghost small" id="btnVsResetConsOverride" type="button" style="margin-top:8px;">Reset Lube ROB Cons. to Calculated</button>
         <details class="vs-fold vs-fold-nested">
           <summary>Bunker Survey / R.O.B. Correction <span class="vs-fold-hint">optional</span></summary>
           <div class="vs-fold-body">
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Tank</th><th>Calculated</th><th>Correction (+/−)</th><th>Measured (survey)</th></tr></thead>
+                <thead><tr><th>Tank</th><th>Previous (book)</th><th>Correction (+/−)</th><th>Measured (survey)</th></tr></thead>
                 <tbody id="vsSurveyBody"></tbody>
               </table>
             </div>
@@ -4537,7 +4538,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
             </div>
             <div class="hint" id="vsSurveyStatus"></div>
             <div class="hint">Sounding correction only: type the <strong>measured</strong> tank figure or enter a <strong>correction</strong> only (+/− vs Calculated). Calculated shows the book figure with the correction in parentheses, e.g. 1331.942 (−4.062). Bunkers received belong on the Previous / Received / Consumption / R.O.B. table above (or on Receipts).</div>
-            <div class="hint">A survey re-bases R.O.B. from this report onward: later reports open from the measured figure, and bunkers received after it are added on top. Negative corrections (short sounding vs book) are allowed.</div>
+            <div class="hint">A survey is made before this report: the measured figure becomes this report's Previous R.O.B. Bunkers received since the previous report (by the time they were logged) are added and this report's consumption is taken off; that result is the next report's Previous. A receipt logged late still counts for the reports its time falls in. Negative corrections (short sounding vs book) are allowed.</div>
           </div>
         </details>
       </div>
@@ -4770,7 +4771,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <div class="field"><label>Sulphur of fuel changing to (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLow" placeholder="e.g. 0.07"></div>
         <div class="field"><label>Limit at engine inlet (% m/m)</label><input type="number" step="0.001" min="0" id="co_sLimit" value="0.10"></div>
         <div class="field"><label>Service system volume (m³)</label><input type="number" step="0.01" min="0" id="co_volume" placeholder="tanks + pipework"></div>
-        <div class="field"><label>Consumption at planned load (MT/day)</label><input type="number" step="0.01" min="0" id="co_consMtDay" placeholder="e.g. 24.5"></div>
+        <div class="field"><label>Consumption at planned load (MT/hr)</label><input type="number" step="0.001" min="0" id="co_consMtHr" placeholder="e.g. 1.02"></div>
         <div class="field"><label>Density of new fuel @15 °C (kg/m³)</label><input type="number" step="0.1" min="0" id="co_density" value="890"></div>
         <div class="field"><label>ECA boundary — planned crossing</label><input type="datetime-local" id="co_ecaAt"></div>
         <div class="field"><label>Safety margin (hours)</label><input type="number" step="0.25" min="0" id="co_margin" value="1"></div>
@@ -4804,7 +4805,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <button type="button" class="ghost small" id="btnCoPrint">Print changeover plan</button>
       </div>
       <div class="hint" style="margin-top:8px;"><strong>Method.</strong> The service system is taken as one well-mixed volume <em>V</em> being fed low-sulphur fuel while the engine draws from it at <em>Q</em>, so the sulphur at the inlet falls away exponentially rather than in a straight line:<br>
-        <code>S(t) = S_low + (S_high − S_low) · e^(−Qt/V)</code>, so <code>t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)]</code>.<br>
+        <code>S(t) = S_low + (S_high − S_low) · e^(−Qt/V)</code>, so <code>t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)]</code>, with <em>Q</em> = consumption in MT/hr ÷ density (the same basis as a fuel-oil changeover calculator; 24 MT/day = 1 MT/hr).<br>
         Put the whole blending volume into <em>V</em> — service tank, mixing/deaeration tank, supply and circulating pipes and the engine itself — because anything left out makes the answer shorter than the truth. Under MARPOL Annex VI Reg. 14.3 the limit inside an ECA is 0.10&nbsp;% m/m. The figure is an estimate for planning: the completion time that goes in the record is the one actually observed, and Reg. 14.6 wants it with the position and the volume of low-sulphur fuel on board.</div>
       <div class="hint" id="coThermalHint"></div>
       <h3 class="sub" style="margin-top:16px;">EU port call — 0.10 % S at berth</h3>
@@ -4812,7 +4813,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       <div class="form-grid cols3">
         <div class="field"><label>Arrival at berth</label><input type="datetime-local" id="co_euArrive"></div>
         <div class="field"><label>Departure from berth</label><input type="datetime-local" id="co_euDepart"></div>
-        <div class="field"><label>Consumption in port (MT/day)</label><input type="number" step="0.01" min="0" id="co_euCons" placeholder="e.g. 4"></div>
+        <div class="field"><label>Consumption in port (MT/hr)</label><input type="number" step="0.001" min="0" id="co_euCons" placeholder="e.g. 0.17"></div>
         <div class="field"><label>Change back — hours before departure</label><input type="number" step="0.25" min="0" id="co_euBack" value="0"></div>
         <div class="field" style="align-self:end;"><button type="button" class="primary small" id="btnCoEu" style="width:100%;">Plan the port call</button></div>
       </div>
@@ -5053,8 +5054,10 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <button type="button" class="ghost small" data-aio-mod="tanks" data-aio-page="bunker-summary">BDN summary</button>
       </div>
       <div class="receipts-list" id="receiptsList"></div>
+      <div class="hint">The date and time a receipt is logged decide which log entry it first goes into: it joins R.O.B. with the first report at or after that time. A receipt with a date only counts from the first report of that day.</div>
       <div class="form-grid cols3">
         <div class="field"><label>Date</label><input type="date" id="rcpt_date"></div>
+        <div class="field"><label>Time (ship's clock)</label><input type="time" id="rcpt_time"></div>
         <div class="field"><label>Category</label>
           <select id="rcpt_category">
             <option value="fuel">Fuel</option>
@@ -11925,6 +11928,87 @@ function receiptDayAfter(receiptDate, surveyDatetime){
   return d > s;
 }
 
+/**
+ * The moment a receipt joins R.O.B.: its date and time on the ship's clock ("2026-09-01T12:00"), or null for an
+ * old receipt that carries a date only (then the whole day counts, as it always did). The receipts that a bunker
+ * survey mirrors carry the report's own date-time in `date`, which is read the same way.
+ */
+function receiptMoment(r){
+  if (!r) return null;
+  const d = String(r.date || '');
+  if (d.length < 10) return null;
+  const t = r.time ? String(r.time).slice(0, 5) : (d.length >= 16 ? d.slice(11, 16) : '');
+  return /^\d{2}:\d{2}$/.test(t) ? `${d.slice(0, 10)}T${t}` : null;
+}
+
+/** Has this receipt joined R.O.B. by the report at `cutoff`? A timed receipt goes into the first report at or after its time. */
+function receiptJoinedBy(r, cutoff, cutoffDay){
+  const m = receiptMoment(r);
+  if (m){
+    const t = new Date(m).getTime();
+    const limit = cutoff instanceof Date ? cutoff.getTime() : new Date(cutoff).getTime();
+    if (Number.isFinite(t) && Number.isFinite(limit)) return t <= limit;
+  }
+  const day = String(r && r.date || '').slice(0, 10);
+  return !!day && day <= String(cutoffDay || '');
+}
+
+/** Is the receipt later than the survey? The measured figure was taken at the survey report, so only a later receipt is new. */
+function receiptAfterSurvey(r, survey){
+  const m = receiptMoment(r);
+  if (m){
+    const t = new Date(m).getTime();
+    const sv = new Date(survey && survey.date).getTime();
+    if (Number.isFinite(t) && Number.isFinite(sv)) return t > sv;
+  }
+  return receiptDayAfter(r && r.date, survey && survey.date);
+}
+
+/** The first log entry a receipt goes into: at or after its time (or its day, when only a date was logged). */
+function receiptTargetEntry(r){
+  const m = receiptMoment(r);
+  const day = String(r && r.date || '').slice(0, 10);
+  const list = (typeof sortedEntries === 'function' ? sortedEntries() : []);
+  for (const e of list){
+    if (!e || !e.datetime) continue;
+    if (m ? new Date(e.datetime).getTime() >= new Date(m).getTime() : String(e.datetime).slice(0, 10) >= day) return e;
+  }
+  return null;
+}
+
+/** Receipts-log items that join R.O.B. with this report: after the previous report's time, up to this report's. */
+function receiptsLogInPeriod(entry){
+  if (!entry || !entry.datetime) return [];
+  const prev = (typeof previousEntryFor === 'function') ? previousEntryFor(entry.id) : null;
+  const at = new Date(entry.datetime), day = String(entry.datetime).slice(0, 10);
+  const pAt = prev ? new Date(prev.datetime) : null, pDay = prev ? String(prev.datetime).slice(0, 10) : '';
+  return (state.receipts || []).filter(r => r && r.source !== 'rob-survey' && r.category !== 'survey' && Number(r.qty) > 0
+    && receiptJoinedBy(r, at, day) && !(pAt && receiptJoinedBy(r, pAt, pDay)));
+}
+
+/**
+ * What joins a tank's R.O.B. with this report: the receipts-log items of its period if there are any (they are
+ * preferred, as in R.O.B. itself), otherwise the Received typed on the report.
+ */
+function vsReceivedForRow(entry, r, typed){
+  const tanks = r.cat === 'fuel' ? fuelTankList() : (r.cat === 'lube' ? lubeTankList() : fwTankList());
+  const tank = tanks.find(t => t.id === r.key);
+  let logged = 0;
+  if (tank){
+    for (const x of receiptsLogInPeriod(entry)){
+      if (receiptMatchesTankStrict(x, tank, [r.cat])) logged += Number(x.qty) || 0;
+    }
+  }
+  return logged > 0 ? logged : (Number.isFinite(typed) ? typed : 0);
+}
+
+function receiptEntryTargetText(r){
+  const e = receiptTargetEntry(r);
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  if (!e) return 'joins R.O.B. with the next log entry';
+  return `goes into the ${when(e.datetime)} report${e.operation ? ' (' + e.operation + ')' : ''}`;
+}
+
 
 /**
  * Record a bunker survey against an entry. The measured figures become the new ROB
@@ -11935,8 +12019,7 @@ function receiptDayAfter(receiptDate, surveyDatetime){
 async function recordRobSurvey(entryId, { measured = {}, measuredLube = {}, place = '', remark = '', surveyor = '' } = {}){
   const entry = state.entries.find(e=>e.id===entryId);
   if (!entry) throw new Error('No such entry');
-  /* Calculated is burn-only — exclude this report's Received so the sounding
-     book does not jump with bunkers (those live on the ROB Received column). */
+  /* The book the surveyor corrected: this report's Previous R.O.B. */
   const before = surveyCalculatedBook(entryId) || { rob:{}, robLube:{} };
   const num = v => (v===''||v==null||isNaN(Number(v))) ? null : Number(v);
 
@@ -11949,6 +12032,7 @@ async function recordRobSurvey(entryId, { measured = {}, measuredLube = {}, plac
   Object.keys(cleanLube).forEach(k=> diffLube[k] = cleanLube[k] - (before.robLube?.[k] ?? 0));
 
   entry.robSurvey = {
+    basis: 'previous',   /* measured = this report's Previous R.O.B. (surveys saved before this had it as the closing figure) */
     takenAt: new Date().toISOString(),
     place, remark, surveyor,
     measured: clean, measuredLube: cleanLube,
@@ -12109,15 +12193,12 @@ function entryReceivedOrMirrorQty(entryId, tankId, cat){
  * add (Measured ≈ Calculated+Received), which then raised every later Previous.
  */
 function surveyCalculatedBook(entryId){
-  /* Book before today's Received = previous report's closing ROB, less this
-     report's consumption only. Do NOT start from robAsOfEntry(this) and subtract
-     Received: robAsOf on a surveyed entry re-bases to Measured and zeroes the
-     consumption delta (same-row survey), which froze wrong Calculated stamps
-     (e.g. LSFO ≈ Present + 3×Received, GE = Previous with no burn). */
+  /* The book to correct is the report's PREVIOUS R.O.B.: the previous report's closing (or the opening figure
+     on the first report). The survey is made before the report, so its measured figure replaces this and the
+     report's own receipts and consumption are then taken from it. */
   const { rows } = computeDerived();
   const idx = rows.findIndex(r => r.id === entryId);
   if (idx < 0) return { rob:{}, robLube:{} };
-  const row = rows[idx];
   const prevRow = idx > 0 ? rows[idx - 1] : null;
   const prevAsOf = prevRow
     ? (robAsOfComputedRow(prevRow, rows) || { rob:{}, robLube:{} })
@@ -12125,38 +12206,7 @@ function surveyCalculatedBook(entryId){
         rob: Object.assign({}, (state.setup && state.setup.rob) || {}),
         robLube: Object.assign({}, (state.setup && state.setup.robLube) || {})
       };
-  const rob = Object.assign({}, prevAsOf.rob || {});
-  const robLube = Object.assign({}, prevAsOf.robLube || {});
-  const prevCumFuel = (prevRow && prevRow.cumFuel) || {};
-  const prevCumLube = (prevRow && prevRow.cumLube) || {};
-  FUEL_TYPES.forEach(g => {
-    const delta = Math.max(0, (Number(row.cumFuel && row.cumFuel[g]) || 0) - (Number(prevCumFuel[g]) || 0));
-    if (delta) deductGradeConsumption(rob, fuelTankList(), g, 'grade', delta);
-  });
-  [
-    ['cylHigh', 'CYL HIGH'],
-    ['cylLow', 'CYL LOW'],
-    ['meSys', 'ME SYS OIL'],
-    ['geSys', 'GE SYS OIL']
-  ].forEach(([kind, label]) => {
-    const delta = Math.max(0, (Number(row.cumLube && row.cumLube[label]) || 0) - (Number(prevCumLube[label]) || 0));
-    if (delta) deductLubeConsumption(robLube, kind, delta);
-  });
-  /* FW: keep prior closing, then apply this report's tank ROB / consumption when known. */
-  fwTankList().forEach(t => {
-    if (row.fwByTank && row.fwByTank[t.id] != null) {
-      /* Sounded FW ROB on this report already includes received/consumed — for
-         Calculated (before Received) prefer prior closing less this report's cons. */
-      const prevFw = Number(robLube[t.id]);
-      const cons = row.fwConsByTank && row.fwConsByTank[t.id] != null
-        ? Number(row.fwConsByTank[t.id]) || 0
-        : 0;
-      if (Number.isFinite(prevFw)) robLube[t.id] = prevFw - cons;
-    } else if (t === fwTankList()[0] && row.fwConsD != null && Number.isFinite(Number(robLube[t.id]))) {
-      robLube[t.id] = Number(robLube[t.id]) - (Number(row.fwConsD) || 0);
-    }
-  });
-  return { rob, robLube };
+  return { rob: Object.assign({}, prevAsOf.rob || {}), robLube: Object.assign({}, prevAsOf.robLube || {}) };
 }
 
 /** Remove a survey, putting the ROB chain back on the book figures. */
@@ -12339,7 +12389,9 @@ function renderVsSurvey(){
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
     const bookNum = book == null ? null : Number(book);
     const storedDiff = sv ? (store==='rob' ? sv.difference?.[t.id] : sv.differenceLube?.[t.id]) : null;
-    const diff = storedDiff != null ? Number(storedDiff) : ((meas!=null && bookNum!=null) ? meas - bookNum : null);
+    /* The correction is read against the book as it stands now (receipts included), so an older survey that stored a
+       difference against the burn-only book still shows the true correction. */
+    const diff = (meas!=null && bookNum!=null) ? meas - bookNum : (storedDiff != null ? Number(storedDiff) : null);
     const calcLabel = fmtRob(book, cat) + (diff != null ? formatSurveyCorrectionParen(diff, cat) : '');
     const corrVal = diff != null ? formatSurveyCorrectionInput(diff) : '';
     const measVal = meas != null ? (cat==='fw' ? fwInputValue(meas) : meas) : '';
@@ -12356,8 +12408,8 @@ function renderVsSurvey(){
   const status = document.getElementById('vsSurveyStatus');
   if (status){
     status.textContent = sv
-      ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : "No survey on this report. Calculated is the book before today's Received. Enter Measured or Correction (+/−) — bunkers received are on the ROB table above.";
+      ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — this report's Previous R.O.B. is the measured figure; receipts and consumption follow from it.`
+      : "No survey on this report. Previous (book) is the previous report's R.O.B. Enter a Correction (+/−) to add or subtract from it, or the Measured figure: it becomes this report's Previous R.O.B., then this report's receipts are added and its consumption taken off, and the result is the next report's Previous. Receipts are never overwritten.";
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -12402,6 +12454,7 @@ function bindRobSurveyUi(){
     if (!confirm('Remove the survey? R.O.B. goes back to the calculated figures. Bunkers received on the ROB table are kept.')) return;
     await clearRobSurvey(currentVsEntryId);
     renderVsSurvey();
+    updateVsRobLiveFromCons();
   });
 }
 
@@ -12429,8 +12482,9 @@ function stampedReceivedAsOf(tankId, cat, cutoff, survey){
       const t = new Date(e.datetime).getTime();
       if (Number.isFinite(t) && t > limit) continue;
       if (survey){
-        /* Survey day and earlier are inside / before the measured re-base. */
-        if (!receiptDayAfter(e.datetime, survey.date)) continue;
+        /* Up to the survey report is inside the measured re-base; a later report's Received is new. */
+        const sv = new Date(survey.date).getTime();
+        if (Number.isFinite(t) && Number.isFinite(sv) ? !(t > sv) : !receiptDayAfter(e.datetime, survey.date)) continue;
       }
     } else if (survey){
       /* No datetime — cannot place relative to survey; skip under survey rebase. */
@@ -12440,6 +12494,23 @@ function stampedReceivedAsOf(tankId, cat, cutoff, survey){
     if (map && map[tankId] != null) sum += Number(map[tankId]) || 0;
   }
   return sum;
+}
+
+/**
+ * The Previous R.O.B. of a log entry: the previous report's closing — or, when a bunker survey was made before
+ * this report, the surveyor's measured figure (a tank not sounded keeps the book).
+ */
+function robPreviousForEntry(entry, priorEntry){
+  const book = priorEntry
+    ? robAsOfEntry(priorEntry.id)
+    : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const sv = entry && entry.robSurvey;
+  if (!sv || sv.basis !== 'previous') return book;
+  const rob = Object.assign({}, book && book.rob);
+  const robLube = Object.assign({}, book && book.robLube);
+  Object.keys(sv.measured || {}).forEach(k => { if (sv.measured[k] != null) rob[k] = Number(sv.measured[k]); });
+  lubeTankList().forEach(t => { if (sv.measuredLube && sv.measuredLube[t.id] != null) robLube[t.id] = Number(sv.measuredLube[t.id]); });
+  return { rob, robLube };
 }
 
 function robAsOfEntry(entryId){
@@ -12457,25 +12528,41 @@ function robAsOfComputedRow(row, rowsHint){
   const cutoff = new Date(row.datetime);
   const cutoffDay = String(row.datetime || '').slice(0, 10);
 
-  /* A bunker survey re-bases the ROB chain. Everything before it is history; from
-     the survey onward ROB counts from the MEASURED figure, plus anything bunkered
-     after it, less what has been burnt since. Without this the book figure and the
-     tank never reconverge — the survey difference would be carried, silently, for
-     the rest of the voyage. */
+  /* A bunker survey re-bases the ROB chain. It is made BEFORE the report it is attached to, so its measured
+     figure is that report's PREVIOUS R.O.B.: the report then adds what was received in its own period
+     (by the time each receipt was logged) and takes off its consumption, and the result is the next
+     report's Previous. Receipts logged at or before the previous report are already inside the measured
+     figure; a late-logged receipt still counts for every report its time falls in, and the surveyor's
+     figure stays with the report it was committed on.
+     (A survey saved by an older version has no basis: its measured figure was the report's closing ROB,
+     and that is still how it is read, so history is not moved.) */
   const survey = latestRobSurveyAtOrBefore(cutoff);
-  let sRow = null;
+  const fromPrevious = !!(survey && survey.basis === 'previous');
+  let sRow = null, sPrevRow = null, prevBook = null, refDate = '';
   if (survey){
-    sRow = survey.entryId === row.id
-      ? row
-      : (rowsHint || computeDerived().rows).find(r=>r.id===survey.entryId) || null;
+    const all = rowsHint || computeDerived().rows;
+    const sIdx = all.findIndex(r => r.id === survey.entryId);
+    sRow = sIdx >= 0 ? all[sIdx] : null;
+    if (fromPrevious){
+      sPrevRow = sIdx > 0 ? all[sIdx - 1] : null;
+      prevBook = sPrevRow
+        ? (robAsOfComputedRow(sPrevRow, all) || { rob: {}, robLube: {} })
+        : { rob: (state.setup && state.setup.rob) || {}, robLube: (state.setup && state.setup.robLube) || {} };
+      refDate = sPrevRow ? sPrevRow.datetime : String((state.setup && state.setup.initDateTime) || '');
+    }
   }
+  /* The receipts that are new to the survey: after the previous report (new basis) or after the survey report (old). */
+  const receivedSurvey = !survey ? null : (fromPrevious ? (refDate ? { date: refDate } : null) : survey);
+  /* Consumption counts from the report the measured figure belongs to. */
+  const cumBase = (key, group) => !survey ? 0 : Number((fromPrevious ? sPrevRow : sRow)?.[group]?.[key]) || 0;
   /* A re-based tank must never fall back to the voyage-initial figure: consumption
      is being counted only since the survey, so the opening figure has to be the
-     survey's too. Any tank the surveyor did not sound falls back to what the book
-     said at that moment, which the survey stores alongside the measurement. */
-  const base = (store, t, measured, calculated) => {
+     survey's too. A tank the surveyor did not sound keeps the book: the previous report's closing (new basis),
+     or what the book said when the survey was taken (older surveys). */
+  const base = (store, t, measured, calculated, bookStore) => {
     if (!survey) return tankRobValue(store, t);
     if (measured?.[t.id] != null) return Number(measured[t.id]);
+    if (fromPrevious) return tankRobValue(bookStore || {}, t);
     if (calculated?.[t.id] != null) return Number(calculated[t.id]);
     return tankRobValue(store, t);
   };
@@ -12484,25 +12571,25 @@ function robAsOfComputedRow(row, rowsHint){
   /* Book bunkers prefer-once: hand Receipts, else rob-survey mirrors, else stamp.
      Never hand+stamp (Save Report mirrors Received into Receipts — counting both
      inflated LSFO R.O.B. / Calculated Present after bunkering). */
-  const receivedOpts = { cutoff, cutoffDay, survey };
+  const receivedOpts = { cutoff, cutoffDay, survey: receivedSurvey };
 
   const rob = {};
   fuelTankList().forEach(t=>{
     const received = bookReceivedPreferOnce(t, 'fuel', receivedOpts);
-    rob[t.id] = base(state.setup.rob, t, survey?.measured, survey?.calculated) + received;
+    rob[t.id] = base(state.setup.rob, t, survey?.measured, survey?.calculated, prevBook?.rob) + received;
   });
   FUEL_TYPES.forEach(g=> deductGradeConsumption(rob, fuelTankList(), g, 'grade',
-    Math.max(0, (row.cumFuel?.[g]||0) - (survey ? (sRow?.cumFuel?.[g]||0) : 0))));
+    Math.max(0, (row.cumFuel?.[g]||0) - cumBase(g, 'cumFuel'))));
 
   const robLube = {};
   lubeTankList().forEach(t=>{
     const received = bookReceivedPreferOnce(t, 'lube', receivedOpts);
-    robLube[t.id] = base(state.setup.robLube, t, survey?.measuredLube, survey?.calculatedLube) + received;
+    robLube[t.id] = base(state.setup.robLube, t, survey?.measuredLube, survey?.calculatedLube, prevBook?.robLube) + received;
   });
-  deductLubeConsumption(robLube, 'cylHigh', Math.max(0, (row.cumLube?.['CYL HIGH']||0) - (survey ? (sRow?.cumLube?.['CYL HIGH']||0) : 0)));
-  deductLubeConsumption(robLube, 'cylLow', Math.max(0, (row.cumLube?.['CYL LOW']||0) - (survey ? (sRow?.cumLube?.['CYL LOW']||0) : 0)));
-  deductLubeConsumption(robLube, 'meSys', Math.max(0, (row.cumLube?.['ME SYS OIL']||0) - (survey ? (sRow?.cumLube?.['ME SYS OIL']||0) : 0)));
-  deductLubeConsumption(robLube, 'geSys', Math.max(0, (row.cumLube?.['GE SYS OIL']||0) - (survey ? (sRow?.cumLube?.['GE SYS OIL']||0) : 0)));
+  deductLubeConsumption(robLube, 'cylHigh', Math.max(0, (row.cumLube?.['CYL HIGH']||0) - cumBase('CYL HIGH', 'cumLube')));
+  deductLubeConsumption(robLube, 'cylLow', Math.max(0, (row.cumLube?.['CYL LOW']||0) - cumBase('CYL LOW', 'cumLube')));
+  deductLubeConsumption(robLube, 'meSys', Math.max(0, (row.cumLube?.['ME SYS OIL']||0) - cumBase('ME SYS OIL', 'cumLube')));
+  deductLubeConsumption(robLube, 'geSys', Math.max(0, (row.cumLube?.['GE SYS OIL']||0) - cumBase('GE SYS OIL', 'cumLube')));
   /* FW Received stamped on entries (and manual FW receipts) also carry forward. */
   fwTankList().forEach(t=>{
     const received = bookReceivedPreferOnce(t, 'fw', receivedOpts);
@@ -13639,9 +13726,11 @@ function robGaugeSource(){
 function pendingReceiptsAfterLatest(){
   const list = sortedEntries();
   if (!list.length) return [];
-  const lastDay = String(list[list.length - 1].datetime || '').slice(0, 10);
+  const last = list[list.length - 1];
+  const lastDay = String(last.datetime || '').slice(0, 10);
+  const lastAt = new Date(last.datetime);
   return (state.receipts || []).filter(r => r && r.category !== 'survey'
-    && receiptDayAfter(r.date, lastDay) && Number(r.qty) > 0);
+    && !receiptJoinedBy(r, lastAt, lastDay) && Number(r.qty) > 0);
 }
 
 function renderRobPendingReceipts(){
@@ -13652,7 +13741,7 @@ function renderRobPendingReceipts(){
   const line = r => {
     const unit = r.category === 'fw' ? ' L' : (r.category === 'lube' ? ' L' : ' MT');
     const q = Number(r.qty).toLocaleString(undefined, { maximumFractionDigits: 2 });
-    return `${r.type || r.category} +${q}${unit}${r.bdnNo ? ' (BDN ' + r.bdnNo + ')' : ''}, ${r.date}`;
+    return `${r.type || r.category} +${q}${unit}${r.bdnNo ? ' (BDN ' + r.bdnNo + ')' : ''}, ${r.date}${r.time ? ' ' + r.time : ''}`;
   };
   el.hidden = false;
   el.textContent = 'Received since the latest report, not in the gauges yet: ' + pend.map(line).join('; ')
@@ -13718,7 +13807,7 @@ function printRobPageSheet(){
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
-  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const prevRobData = robPreviousForEntry(entry, priorEntry);
   const asOf = robAsOfEntry(entryId);
   const rowsForPrint = robBalanceRows(row, prevRobData, asOf);
   printRobSnapshot(entry, new Date(entry.datetime), rowsForPrint);
@@ -14513,16 +14602,19 @@ function computeFuelChangeover(input){
   const sLow = num(input.sLow);
   const sLimit = num(input.sLimit);
   const volumeM3 = num(input.volumeM3);
-  const consMtDay = num(input.consMtDay);
+  /* The basis is MT/hr, as on a fuel-oil system calculator. consMtDay is still
+     accepted (older saved rows) and is simply divided by 24. */
+  const consMtHr = isFinite(num(input.consMtHr)) ? num(input.consMtHr)
+    : (isFinite(num(input.consMtDay)) ? num(input.consMtDay) / 24 : NaN);
   const density = num(input.density);
   const marginHrs = isFinite(num(input.marginHrs)) ? num(input.marginHrs) : 0;
 
   const bad = (reason) => ({ ok: false, reason });
-  if (![sHigh, sLow, sLimit, volumeM3, consMtDay, density].every(v => isFinite(v))){
+  if (![sHigh, sLow, sLimit, volumeM3, consMtHr, density].every(v => isFinite(v))){
     return bad('Fill in every figure above — sulphur contents, the service system volume, the consumption rate and the density.');
   }
   if (volumeM3 <= 0) return bad('The service system volume has to be more than nothing.');
-  if (consMtDay <= 0) return bad('The consumption rate has to be more than nothing — with the engine stopped nothing is displaced and the changeover never completes.');
+  if (consMtHr <= 0) return bad('The consumption rate has to be more than nothing — with the engine stopped nothing is displaced and the changeover never completes.');
   if (density <= 0) return bad('The density has to be more than nothing.');
   if (sLow >= sHigh){
     return bad(`The fuel being changed to (${fmt(sLow, 3)} %) is not lower in sulphur than what is in service (${fmt(sHigh, 3)} %). Nothing to change over.`);
@@ -14537,21 +14629,21 @@ function computeFuelChangeover(input){
 
   /* Volumetric displacement rate. The consumption is booked in mass, so it goes
      through the density of the fuel actually being burned. */
-  const m3PerHour = (consMtDay * 1000 / density) / 24;
+  const m3PerHour = consMtHr * 1000 / density;
   const tau = volumeM3 / m3PerHour;                   /* hours for one system volume */
   const hours = tau * Math.log((sHigh - sLow) / (sLimit - sLow));
 
   const sulphurAt = (t) => sLow + (sHigh - sLow) * Math.exp(-t / tau);
   /* Every litre displaced is new fuel, so the quantity used is simply the rate
      times the time — useful as a check that the LS tank actually holds it. */
-  const lowSulphurUsedMt = (consMtDay / 24) * hours;
+  const lowSulphurUsedMt = consMtHr * hours;
 
   /* A curve the engineer can read against the clock, ending at the answer. */
   const steps = 10;
   const curve = [];
   for (let i = 0; i <= steps; i++){
     const t = (hours * i) / steps;
-    curve.push({ hours: t, sulphur: sulphurAt(t), usedMt: (consMtDay / 24) * t });
+    curve.push({ hours: t, sulphur: sulphurAt(t), usedMt: consMtHr * t });
   }
 
   let startBy = null, latestStart = null;
@@ -14566,6 +14658,7 @@ function computeFuelChangeover(input){
   return {
     ok: true,
     tauHours: tau,
+    consMtHr,
     hours,
     marginHrs,
     totalHours: hours + marginHrs,
@@ -14586,14 +14679,22 @@ function computeFuelChangeover(input){
  * The slowest one supplies the curve and the times, so the rest of the page
  * (plan sheet, start time) works from the figure that actually governs.
  */
+/* MT/hr of a consumer row: the new field, or an older MT/day row divided by 24. */
+function consOfRow(c){
+  const h = numOrNull(c && c.consMtHr);
+  if (h != null) return h;
+  const d = numOrNull(c && c.consMtDay);
+  return d == null ? null : d / 24;
+}
+
 function computeFuelChangeoverMulti(input, consumers){
-  const list = (consumers || []).filter(c => c && numOrNull(c.volumeM3) != null && numOrNull(c.consMtDay) != null);
+  const list = (consumers || []).filter(c => c && numOrNull(c.volumeM3) != null && consOfRow(c) != null);
   if (!list.length) return computeFuelChangeover(input);
   const rows = [];
   for (const c of list){
-    const res = computeFuelChangeover(Object.assign({}, input, { volumeM3: c.volumeM3, consMtDay: c.consMtDay }));
+    const res = computeFuelChangeover(Object.assign({}, input, { volumeM3: c.volumeM3, consMtHr: consOfRow(c) }));
     if (!res.ok) return { ok: false, reason: (c.name || 'A consumer') + ': ' + res.reason };
-    rows.push({ name: c.name || 'Consumer', consMtDay: Number(c.consMtDay), volumeM3: Number(c.volumeM3), res });
+    rows.push({ name: c.name || 'Consumer', consMtHr: consOfRow(c), volumeM3: Number(c.volumeM3), res });
   }
   if (rows.every(r => r.res.alreadyCompliant)) return rows[0].res;
   const live = rows.filter(r => !r.res.alreadyCompliant);
@@ -14604,10 +14705,10 @@ function computeFuelChangeoverMulti(input, consumers){
   return Object.assign({}, slow.res, {
     lowSulphurUsedMt: sumMt,
     lowSulphurUsedM3: sumM3,
-    consMtDayTotal: rows.reduce((a, r) => a + r.consMtDay, 0),
+    consMtHrTotal: rows.reduce((a, r) => a + r.consMtHr, 0),
     slowest: slow.name,
     perConsumer: rows.map(r => ({
-      name: r.name, volumeM3: r.volumeM3, consMtDay: r.consMtDay,
+      name: r.name, volumeM3: r.volumeM3, consMtHr: r.consMtHr,
       hours: r.res.alreadyCompliant ? 0 : r.res.hours,
       usedMt: r.res.alreadyCompliant ? 0 : r.res.lowSulphurUsedMt,
       alreadyCompliant: !!r.res.alreadyCompliant,
@@ -14650,7 +14751,7 @@ function printChangeoverPlan(res){
       <tr><td class="row-lbl">Sulphur of fuel changing to</td><td>${escPrint(fmt(Number(i.sLow), 3))} % m/m</td></tr>
       <tr><td class="row-lbl">Limit at engine inlet</td><td>${escPrint(fmt(Number(i.sLimit), 3))} % m/m</td></tr>
       <tr><td class="row-lbl">Service system volume</td><td>${escPrint(fmt(Number(i.volumeM3), 2))} m³</td></tr>
-      <tr><td class="row-lbl">Consumption at planned load</td><td>${escPrint(fmt(Number(i.consMtDay), 2))} MT/day</td></tr>
+      <tr><td class="row-lbl">Consumption at planned load</td><td>${escPrint(fmt(Number(res.consMtHr != null ? res.consMtHr : i.consMtHr), 3))} MT/hr</td></tr>
       <tr><td class="row-lbl">Density of new fuel @15 °C</td><td>${escPrint(fmt(Number(i.density), 1))} kg/m³</td></tr>
       <tr><td class="row-lbl">Displacement rate</td><td>${escPrint(fmt(res.m3PerHour, 3))} m³/h</td></tr>
       <tr><td class="row-lbl">One system volume</td><td>${escPrint(hm(res.tauHours))}</td></tr>
@@ -14695,7 +14796,7 @@ function printChangeoverPlan(res){
     ${printDocHeader({ title: 'Fuel Changeover Plan', subtitle: 'MARPOL Annex VI Reg. 14 — sulphur limit at engine inlet' })}
     ${printSection('Worked from', givens)}
     ${printSection('Plan', plan)}
-    ${res.perConsumer ? printSection('Consumers — each with its own service volume', `<table class="pr-table"><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/day</th><th>Changeover time</th><th>Low-S (MT)</th></tr>${res.perConsumer.map(r => `<tr><td class="row-lbl">${escPrint(r.name)}${r.slowest ? ' — slowest, sets the time' : ''}</td><td>${escPrint(fmt(r.volumeM3, 2))}</td><td>${escPrint(fmt(r.consMtDay, 2))}</td><td>${escPrint(r.alreadyCompliant ? 'under the limit' : hm(r.hours))}</td><td>${escPrint(fmt(r.usedMt, 2))}</td></tr>`).join('')}</table>`) : ''}
+    ${res.perConsumer ? printSection('Consumers — each with its own service volume', `<table class="pr-table"><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/hr</th><th>Changeover time</th><th>Low-S (MT)</th></tr>${res.perConsumer.map(r => `<tr><td class="row-lbl">${escPrint(r.name)}${r.slowest ? ' — slowest, sets the time' : ''}</td><td>${escPrint(fmt(r.volumeM3, 2))}</td><td>${escPrint(fmt(r.consMtDay, 2))}</td><td>${escPrint(r.alreadyCompliant ? 'under the limit' : hm(r.hours))}</td><td>${escPrint(fmt(r.usedMt, 2))}</td></tr>`).join('')}</table>`) : ''}
     ${printSection('Sulphur at the engine inlet', curve)}
     ${printSection('To be recorded (Annex VI Reg. 14.6)', observed)}
     <div class="pr-note">S(t) = S_low + (S_high − S_low) · e^(−Qt/V); t = (V/Q) · ln[(S_high − S_low) ÷ (S_limit − S_low)].
@@ -14718,7 +14819,7 @@ function readChangeoverForm(){
     sLow: val('co_sLow'),
     sLimit: val('co_sLimit'),
     volumeM3: val('co_volume'),
-    consMtDay: val('co_consMtDay'),
+    consMtHr: val('co_consMtHr'),
     density: val('co_density'),
     ecaAt: val('co_ecaAt'),
     marginHrs: val('co_margin')
@@ -14736,6 +14837,13 @@ let _lastCoEu = null;
 /* Per-consumer windows: a few rows kept with the ship's setup. */
 function changeoverConsumers(){
   if (!Array.isArray(state.setup.changeoverConsumers)) state.setup.changeoverConsumers = [];
+  /* Older rows were kept in MT/day; the page works in MT/hr now. */
+  state.setup.changeoverConsumers.forEach(c => {
+    if (c && c.consMtDay != null){
+      if (c.consMtHr == null) c.consMtHr = Math.round(Number(c.consMtDay) / 24 * 10000) / 10000;
+      delete c.consMtDay;
+    }
+  });
   return state.setup.changeoverConsumers;
 }
 
@@ -14747,7 +14855,7 @@ function renderCoConsumerRows(){
     <div class="form-grid cols4" data-co-consumer="${i}" style="margin-bottom:6px;">
       <div class="field"><label>Consumer</label><input data-co-cf="name" value="${escAttr(c.name || '')}" placeholder="M/E, G/E 1, Boiler"></div>
       <div class="field"><label>Service volume (m³)</label><input type="number" step="0.01" min="0" data-co-cf="volumeM3" value="${escAttr(c.volumeM3 == null ? '' : c.volumeM3)}"></div>
-      <div class="field"><label>Consumption (MT/day)</label><input type="number" step="0.01" min="0" data-co-cf="consMtDay" value="${escAttr(c.consMtDay == null ? '' : c.consMtDay)}"></div>
+      <div class="field"><label>Consumption (MT/hr)</label><input type="number" step="0.001" min="0" data-co-cf="consMtHr" value="${escAttr(c.consMtHr == null ? '' : c.consMtHr)}"></div>
       <div class="field" style="justify-content:flex-end;"><button type="button" class="ghost small" data-co-del="${i}">Remove</button></div>
     </div>`).join('') || '<div class="hint">No consumers listed — the single volume and consumption above are used.</div>';
 }
@@ -14756,14 +14864,15 @@ function renderCoConsumerTable(res){
   const host = document.getElementById('coConsumerTable');
   if (!host) return;
   if (!res || !res.ok || !res.perConsumer){ host.innerHTML = ''; return; }
+  const note = `<div class="hint alert-text">The consumer list below governs this result — the single volume and consumption above are <strong>not used</strong>. Total ${escHtml(fmt(res.consMtHrTotal, 3))} MT/hr. Remove the rows to calculate from the single figures.</div>`;
   const hm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
-  host.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/day</th><th>Changeover time</th><th>Low-S displaced (MT)</th><th></th></tr></thead><tbody>${
-    res.perConsumer.map(r => `<tr><td>${escHtml(r.name)}</td><td>${escHtml(fmt(r.volumeM3, 2))}</td><td>${escHtml(fmt(r.consMtDay, 2))}</td><td>${r.alreadyCompliant ? 'already under the limit' : escHtml(hm(r.hours))}</td><td>${escHtml(fmt(r.usedMt, 2))}</td><td>${r.slowest ? '<strong>slowest — sets the time</strong>' : ''}</td></tr>`).join('')
+  host.innerHTML = note + `<div class="table-scroll"><table><thead><tr><th>Consumer</th><th>Volume (m³)</th><th>MT/hr</th><th>Changeover time</th><th>Low-S displaced (MT)</th><th></th></tr></thead><tbody>${
+    res.perConsumer.map(r => `<tr><td>${escHtml(r.name)}</td><td>${escHtml(fmt(r.volumeM3, 2))}</td><td>${escHtml(fmt(r.consMtHr, 3))}</td><td>${r.alreadyCompliant ? 'already under the limit' : escHtml(hm(r.hours))}</td><td>${escHtml(fmt(r.usedMt, 2))}</td><td>${r.slowest ? '<strong>slowest — sets the time</strong>' : ''}</td></tr>`).join('')
   }</tbody></table></div>`;
 }
 
 document.getElementById('btnCoAddConsumer')?.addEventListener('click', ()=>{
-  changeoverConsumers().push({ id: 'cc-' + Date.now().toString(36), name: '', volumeM3: null, consMtDay: null });
+  changeoverConsumers().push({ id: 'cc-' + Date.now().toString(36), name: '', volumeM3: null, consMtHr: null });
   renderCoConsumerRows();
 });
 document.getElementById('coConsumerRows')?.addEventListener('input', (e)=>{
@@ -14803,7 +14912,7 @@ function renderCoFuelCheck(res){
   const chk = FuelChangeoverLog.ecaFuelCheck({
     changeoverUsedMt: res.lowSulphurUsedMt,
     transitHours: coNum('co_ecaHours'),
-    consMtDay: res.consMtDayTotal != null ? res.consMtDayTotal : Number(res.input && res.input.consMtDay),
+    consMtHr: res.consMtHrTotal != null ? res.consMtHrTotal : Number(res.consMtHr),
     onBoardMt: coNum('co_lsOnBoard'),
     reservePct: coNum('co_reserve')
   });
@@ -14835,14 +14944,14 @@ function renderCoEu(){
   const cons = coNum('co_euCons');
   const arr = document.getElementById('co_euArrive')?.value;
   const dep = document.getElementById('co_euDepart')?.value;
-  const res = computeFuelChangeover(Object.assign({}, base, { consMtDay: cons == null ? base.consMtDay : cons }));
+  const res = computeFuelChangeover(Object.assign({}, base, { consMtHr: cons == null ? base.consMtHr : cons }));
   if (!res.ok){ out.textContent = res.reason; out.className = 'hint alert-text'; return; }
   if (res.alreadyCompliant){ out.textContent = res.reason; out.className = 'hint good-text'; return; }
   const plan = FuelChangeoverLog.euBerthPlan({
     arrivalMs: arr ? new Date(arr).getTime() : null,
     departureMs: dep ? new Date(dep).getTime() : null,
     changeoverHours: res.hours, changeoverUsedMt: res.lowSulphurUsedMt,
-    consMtDay: cons == null ? Number(base.consMtDay) : cons,
+    consMtHr: cons == null ? Number(res.consMtHr) : cons,
     onBoardMt: coNum('co_lsOnBoard'), changeBackMarginHours: coNum('co_euBack')
   });
   if (!plan.ok){ out.textContent = plan.reason; out.className = 'hint'; return; }
@@ -14850,7 +14959,7 @@ function renderCoEu(){
   const when = (ms) => new Date(ms).toLocaleString(undefined, { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
   const hmm = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`; };
   const lines = [
-    `Stay ${hmm(plan.stayHours)}. Start the changeover on arrival (${when(plan.startMs)}); the fuel is under the limit by ${when(plan.compliantByMs)} (${hmm(res.hours)} at ${escHtml(fmt(cons == null ? Number(base.consMtDay) : cons, 2))} MT/day).`,
+    `Stay ${hmm(plan.stayHours)}. Start the changeover on arrival (${when(plan.startMs)}); the fuel is under the limit by ${when(plan.compliantByMs)} (${hmm(res.hours)} at ${escHtml(fmt(cons == null ? Number(res.consMtHr) : cons, 3))} MT/hr).`,
     `Change back to residual fuel from ${when(plan.changeBackStartMs)}.`,
     `Low-sulphur fuel for the stay about ${escHtml(fmt(plan.needMt, 2))} MT` + (plan.onBoardMt != null ? (plan.enough ? ' — covered by what is on board.' : ' — more than the ' + escHtml(fmt(plan.onBoardMt, 2)) + ' MT on board.') : '.')
   ];
@@ -14917,6 +15026,7 @@ function renderChangeover(){
   const res = computeFuelChangeoverMulti(input, consumers);
   _lastChangeover = res.ok ? Object.assign({ input }, res) : null;
   renderCoConsumerTable(res);
+  const usingList = !!res.perConsumer;
 
   if (!res.ok || res.alreadyCompliant){
     renderCoFuelCheck(null);
@@ -16458,7 +16568,7 @@ document.getElementById('btnPmsPrint')?.addEventListener('click', ()=>{
   printPortraitPages([sheetHtml]);
 });
 
-['co_sHigh','co_sLow','co_sLimit','co_volume','co_consMtDay','co_density','co_ecaAt','co_margin']
+['co_sHigh','co_sLow','co_sLimit','co_volume','co_consMtHr','co_density','co_ecaAt','co_margin']
   .forEach(id => document.getElementById(id)?.addEventListener('input', renderChangeover));
 document.getElementById('btnCoCalc')?.addEventListener('click', renderChangeover);
 
@@ -16821,15 +16931,17 @@ function render(){
   if (state.receipts.length===0){
     rl.innerHTML = `<div class="hint">No receipts logged yet.</div>`;
   } else {
-    rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r=>{
+    rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(receiptMoment(b) || b.date)-new Date(receiptMoment(a) || a.date)).map(r=>{
       const dens = r.density15!=null ? `ρ ${fmt(r.density15,1)}` : '';
       const lcv = r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : '';
       const visc = r.viscosity!=null ? `${fmt(r.viscosity,1)} cSt` : '';
       const extra = [r.bdnNo?`BDN ${r.bdnNo}`:'', r.company||'', r.location||'', dens, lcv, visc].filter(Boolean).join(' · ');
       const qtyStr = r.category==='fuel' ? fmtFuel(r.qty) : (r.category==='fw' ? fmtFw(r.qty) : fmtLube(r.qty));
       const unit = r.category==='fuel' ? 'MT' : (r.category==='fw' ? 'm³' : 'L');
+      const when = r.date + (r.time ? ' ' + r.time : '');
+      const goes = r.source === 'rob-survey' ? '' : `<br><small class="hint" style="margin:0;">${r.time ? '' : 'date only — counts from the first report of that day · '}${escHtml(receiptEntryTargetText(r))}</small>`;
       return `<div class="receipt-row">
-        <span class="desc">${r.date} — ${r.category.toUpperCase()} — ${r.type}${extra?' — '+extra:''}</span>
+        <span class="desc">${when} — ${r.category.toUpperCase()} — ${r.type}${extra?' — '+extra:''}${goes}</span>
         <span class="qty">+${qtyStr} ${unit}</span>
         <button class="small danger" data-del-receipt="${r.id}">✕</button>
       </div>`;
@@ -19790,10 +19902,10 @@ function bookReceivedPreferOnce(tank, categories, opts){
   const allowReceipt = (r) => {
     if (!receiptMatchesTankStrict(r, tank, cats)) return false;
     if (!cutoffDay) return true;
-    const rDay = String(r.date || '').slice(0, 10);
-    if (!rDay || rDay > cutoffDay) return false;
-    /* Bunkers on/before survey day are already inside the measured figure. */
-    return !survey || receiptDayAfter(r.date, survey.date);
+    /* A timed receipt joins the first report at or after its time; a date-only one counts from its day. */
+    if (!receiptJoinedBy(r, cutoff || new Date(cutoffDay + 'T23:59:59'), cutoffDay)) return false;
+    /* Bunkers up to the survey report are already inside the measured figure; later ones are new. */
+    return !survey || receiptAfterSurvey(r, survey);
   };
 
   let hand = 0, surveyFallback = 0;
@@ -19883,7 +19995,7 @@ function voyageConsumedFromLog(tank, cat, rows){
 
 /** Present ROB for Dep/Arr: saved log ROB when available, else Opening + Received − Consumed. */
 function depArrPresentRob(tank, cat, open, received, consumed, lastEntry){
-  if (lastEntry && lastEntry.robSurvey){
+  if (lastEntry && lastEntry.robSurvey && lastEntry.robSurvey.basis !== 'previous'){
     if (cat === 'fuel' && lastEntry.robSurvey.measured && lastEntry.robSurvey.measured[tank.id] != null){
       return Number(lastEntry.robSurvey.measured[tank.id]);
     }
@@ -19916,7 +20028,7 @@ function depArrRobRows(consByFuel, consByLube){
     : null;
   const asOfLast = lastRow ? robAsOfComputedRow(lastRow, derivedRows) : null;
   const presentFromChain = (t, cat) => {
-    if (lastEntry && lastEntry.robSurvey){
+    if (lastEntry && lastEntry.robSurvey && lastEntry.robSurvey.basis !== 'previous'){
       const p = depArrPresentRob(t, cat, 0, 0, 0, lastEntry);
       if (cat === 'fuel' && lastEntry.robSurvey.measured?.[t.id] != null) return p;
       if (cat !== 'fuel' && lastEntry.robSurvey.measuredLube?.[t.id] != null) return p;
@@ -24022,7 +24134,7 @@ function openRobSnapshot(entryId){
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
-  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const prevRobData = robPreviousForEntry(entry, priorEntry);
   const asOf = robAsOfEntry(entryId);
 
   const dt = new Date(entry.datetime);
@@ -24193,7 +24305,7 @@ function openVoyageSummary(entryId){
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
-  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const prevRobData = robPreviousForEntry(entry, priorEntry);
   const asOf = robAsOfEntry(entryId);
 
   const stat = vsStatHtml;
@@ -24471,7 +24583,7 @@ function openVoyageSummary(entryId){
     if (r.total){
       return `<tr class="rob-total">
       <td><strong>${r.label}</strong></td>
-      <td>${fmtRob(r.prevVal, r.cat)}</td>
+      <td id="vs_prev_${slugKey(r.key)}">${fmtRob(r.prevVal, r.cat)}</td>
       <td id="vs_recv_${slugKey(r.key)}">${r.recvVal==null?'—':fmtRob(r.recvVal, r.cat)}</td>
       <td>${r.consVal==null?'—':fmtRob(r.consVal, r.cat)}</td>
       <td id="vs_rob_${slugKey(r.key)}">${fmtRob(r.nowVal, r.cat)}</td>
@@ -24484,12 +24596,25 @@ function openVoyageSummary(entryId){
     const store = r.cat === 'fuel' ? 'rob' : 'robLube';
     return `<tr>
       <td>${r.label}</td>
-      <td>${fmtRob(r.prevVal, r.cat)}</td>
+      <td id="vs_prev_${slugKey(r.key)}">${fmtRob(r.prevVal, r.cat)}</td>
       <td><input class="pf-input" style="width:80px;" type="number" step="${robConsStep(r.cat)}" id="vs_recv_${slugKey(r.key)}" data-rob-recv="${r.key}" data-rob-recv-cat="${r.cat}" data-rob-recv-store="${store}" value="${recvDisp !== '' && recvDisp != null ? fmtRobInput(r.recvVal, r.cat) : ''}" placeholder="0"></td>
       <td><input class="pf-input" style="width:80px;" type="number" step="${robConsStep(r.cat)}" id="vs_cons_${slugKey(r.key)}" value="${fmtRobInput(r.consVal, r.cat)}" data-prev="${r.prevVal||0}" data-cat="${r.cat}" data-key="${r.key}"${lubeEditable?'':' readonly'}></td>
       <td id="vs_rob_${slugKey(r.key)}">${fmtRob(r.nowVal, r.cat)}</td>
     </tr>`;
   }).join('');
+
+  const logLine = document.getElementById('vsRobReceiptsLog');
+  if (logLine){
+    const inPeriod = receiptsLogInPeriod(entry);
+    logLine.hidden = !inPeriod.length;
+    logLine.textContent = inPeriod.length
+      ? 'From the Receipts log, in this report’s R.O.B.: ' + inPeriod.map(r => {
+          const unit = r.category === 'fuel' ? 'MT' : (r.category === 'fw' ? 'm³' : 'L');
+          const q = r.category === 'fw' ? fmtFw(r.qty) : (r.category === 'fuel' ? fmtFuel(r.qty) : fmtLube(r.qty));
+          return `${r.type || r.category} +${q} ${unit} (${r.date}${r.time ? ' ' + r.time : ''}${r.bdnNo ? ', BDN ' + r.bdnNo : ''})`;
+        }).join('; ') + '. R.O.B. = Previous + receipts − consumption.'
+      : '';
+  }
 
   const recalcRobFromRecvCons = (key, cat, prevVal) => {
     const recvEl = document.getElementById('vs_recv_' + slugKey(key));
@@ -24509,7 +24634,7 @@ function openVoyageSummary(entryId){
       recvVal = Number.isFinite(v) ? v : 0;
     }
     const consVal = parseFloat(consEl.value)||0;
-    robEl.textContent = fmtRob(prevVal + recvVal - consVal, cat);
+    robEl.textContent = fmtRob(prevVal + vsReceivedForRow(entry, { key, cat }, recvVal) - consVal, cat);
   };
 
   robBody.querySelectorAll('[data-rob-recv]').forEach(inp=>{
@@ -24622,13 +24747,23 @@ function updateVsRobLiveFromCons(){
     // Fuel grades + FW are calculated (not editable); leave lube oil cons as the user set it.
     if (r.cat!=='lube'){
       const priorEntry = previousEntryFor(entry.id);
-      const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+      const prevRobData = robPreviousForEntry(entry, priorEntry);
       const liveCons = robRowCons({
         consByType: live.consByType,
         lubeByType: live.lubeByType,
         fwConsByTank: live.fwConsByTank
       }, r, prevRobData);
       consEl.value = fmtRobInput(liveCons, r.cat);
+    }
+    /* a survey applied or removed above changes this report's Previous R.O.B. */
+    if (r.cat !== 'fw'){
+      const livePrev = robPreviousForEntry(entry, previousEntryFor(entry.id));
+      const pv = r.cat === 'fuel' ? livePrev.rob?.[r.key] : livePrev.robLube?.[r.key];
+      if (pv != null && Number.isFinite(Number(pv))){
+        consEl.dataset.prev = String(pv);
+        const prevCell = document.getElementById('vs_prev_' + slugKey(r.key));
+        if (prevCell) prevCell.textContent = fmtRob(pv, r.cat);
+      }
     }
     const prevVal = parseFloat(consEl.dataset.prev)||0;
     const consVal = parseFloat(consEl.value)||0;
@@ -24652,7 +24787,7 @@ function updateVsRobLiveFromCons(){
       /* Do not auto-fill Received from the FW balance — blank means no bunker;
          inventing a figure here used to stamp phantom FW on every save. */
     } else {
-      robEl.textContent = fmtRob(prevVal + recvVal - consVal, r.cat);
+      robEl.textContent = fmtRob(prevVal + vsReceivedForRow(entry, r, recvVal) - consVal, r.cat);
     }
   });
   refreshVsRobTotalRows();
@@ -25421,7 +25556,7 @@ function buildVoyageNoonSheetHTML(entry){
   const sorted = sortedEntries();
   const idx = sorted.findIndex(x=>x.id===entryId);
   const priorEntry = idx>0 ? sorted[idx-1] : null;
-  const prevRobData = priorEntry ? robAsOfEntry(priorEntry.id) : { rob: state.setup.rob, robLube: state.setup.robLube };
+  const prevRobData = robPreviousForEntry(entry, priorEntry);
   const asOf = robAsOfEntry(entryId);
 
   const stamp = (dt)=> dt ? new Date(dt).toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '\u2014';
@@ -28228,6 +28363,7 @@ document.getElementById('rcpt_category').addEventListener('change', (e)=>{
 
 document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const date = document.getElementById('rcpt_date').value;
+  const time = document.getElementById('rcpt_time').value;
   const category = document.getElementById('rcpt_category').value;
   let qty = parseFloat(document.getElementById('rcpt_qty').value);
   if (!date || isNaN(qty) || qty<=0){ alert('Enter a date and a positive quantity.'); return; }
@@ -28237,6 +28373,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const visc = parseFloat(document.getElementById('rcpt_viscosity').value);
   const receipt = {
     id: uid(), date, category,
+    ...(/^\d{2}:\d{2}$/.test(time) ? { time } : {}),
     type: document.getElementById('rcpt_type').selectedOptions[0]?.textContent || document.getElementById('rcpt_type').value,
     tankId: document.getElementById('rcpt_type').value,
     qty,
@@ -28251,6 +28388,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   state.receipts.push(receipt);
   await dbPut('receipts', receipt);
   markPendingSync();
+  try{ showToast(`Receipt logged — ${receiptEntryTargetText(receipt)}`); }catch(_e){}
   document.getElementById('rcpt_qty').value = '';
   document.getElementById('rcpt_bdn').value = '';
   document.getElementById('rcpt_company').value = '';
@@ -39470,6 +39608,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       setShipTzUi(defaultShipTzOffsetMin(), 0);
     }catch(_){}
     document.getElementById('rcpt_date').value = now.toISOString().slice(0,10);
+    document.getElementById('rcpt_time').value = now.toISOString().slice(11,16);
     document.getElementById('rcpt_category').dispatchEvent(new Event('change'));
     renderReportCategoryButtons();
     bindReferenceCalculators();
