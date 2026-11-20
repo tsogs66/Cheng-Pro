@@ -4516,6 +4516,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
           </table>
         </div>
         <div class="hint">Leave Received blank unless bunkers were taken. R.O.B. follows as Previous + Received − Consumption. Save Report stores typed Received on the entry and as bunker receipts for the day.</div>
+        <div class="hint" id="vsRobReceiptsLog" hidden></div>
         <button class="ghost small" id="btnVsResetConsOverride" type="button" style="margin-top:8px;">Reset Lube ROB Cons. to Calculated</button>
         <details class="vs-fold vs-fold-nested">
           <summary>Bunker Survey / R.O.B. Correction <span class="vs-fold-hint">optional</span></summary>
@@ -5053,8 +5054,10 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <button type="button" class="ghost small" data-aio-mod="tanks" data-aio-page="bunker-summary">BDN summary</button>
       </div>
       <div class="receipts-list" id="receiptsList"></div>
+      <div class="hint">The date and time a receipt is logged decide which log entry it first goes into: it joins R.O.B. with the first report at or after that time. A receipt with a date only counts from the first report of that day.</div>
       <div class="form-grid cols3">
         <div class="field"><label>Date</label><input type="date" id="rcpt_date"></div>
+        <div class="field"><label>Time (ship's clock)</label><input type="time" id="rcpt_time"></div>
         <div class="field"><label>Category</label>
           <select id="rcpt_category">
             <option value="fuel">Fuel</option>
@@ -11903,11 +11906,12 @@ function getComputedRow(entryId){
  * cutoff that carries one. Returns null for the ordinary case of no survey, which
  * keeps the ROB engine on its original path.
  */
-function latestRobSurveyAtOrBefore(cutoff){
+function latestRobSurveyAtOrBefore(cutoff, skipEntryId){
   const limit = cutoff instanceof Date ? cutoff.getTime() : new Date(cutoff).getTime();
   let best = null, bestTime = -Infinity;
   for (const e of (state.entries || [])){
     if (!e || !e.robSurvey) continue;
+    if (skipEntryId && e.id === skipEntryId) continue;
     const t = new Date(e.datetime).getTime();
     if (!isFinite(t) || t > limit || t <= bestTime) continue;
     bestTime = t;
@@ -11923,6 +11927,71 @@ function receiptDayAfter(receiptDate, surveyDatetime){
   const d = String(receiptDate || '').slice(0, 10);
   const s = String(surveyDatetime || '').slice(0, 10);
   return d > s;
+}
+
+/**
+ * The moment a receipt joins R.O.B.: its date and time on the ship's clock ("2026-09-01T12:00"), or null for an
+ * old receipt that carries a date only (then the whole day counts, as it always did). The receipts that a bunker
+ * survey mirrors carry the report's own date-time in `date`, which is read the same way.
+ */
+function receiptMoment(r){
+  if (!r) return null;
+  const d = String(r.date || '');
+  if (d.length < 10) return null;
+  const t = r.time ? String(r.time).slice(0, 5) : (d.length >= 16 ? d.slice(11, 16) : '');
+  return /^\d{2}:\d{2}$/.test(t) ? `${d.slice(0, 10)}T${t}` : null;
+}
+
+/** Has this receipt joined R.O.B. by the report at `cutoff`? A timed receipt goes into the first report at or after its time. */
+function receiptJoinedBy(r, cutoff, cutoffDay){
+  const m = receiptMoment(r);
+  if (m){
+    const t = new Date(m).getTime();
+    const limit = cutoff instanceof Date ? cutoff.getTime() : new Date(cutoff).getTime();
+    if (Number.isFinite(t) && Number.isFinite(limit)) return t <= limit;
+  }
+  const day = String(r && r.date || '').slice(0, 10);
+  return !!day && day <= String(cutoffDay || '');
+}
+
+/** Is the receipt later than the survey? The measured figure was taken at the survey report, so only a later receipt is new. */
+function receiptAfterSurvey(r, survey){
+  const m = receiptMoment(r);
+  if (m){
+    const t = new Date(m).getTime();
+    const sv = new Date(survey && survey.date).getTime();
+    if (Number.isFinite(t) && Number.isFinite(sv)) return t > sv;
+  }
+  return receiptDayAfter(r && r.date, survey && survey.date);
+}
+
+/** The first log entry a receipt goes into: at or after its time (or its day, when only a date was logged). */
+function receiptTargetEntry(r){
+  const m = receiptMoment(r);
+  const day = String(r && r.date || '').slice(0, 10);
+  const list = (typeof sortedEntries === 'function' ? sortedEntries() : []);
+  for (const e of list){
+    if (!e || !e.datetime) continue;
+    if (m ? new Date(e.datetime).getTime() >= new Date(m).getTime() : String(e.datetime).slice(0, 10) >= day) return e;
+  }
+  return null;
+}
+
+/** Receipts-log items that join R.O.B. with this report: after the previous report's time, up to this report's. */
+function receiptsLogInPeriod(entry){
+  if (!entry || !entry.datetime) return [];
+  const prev = (typeof previousEntryFor === 'function') ? previousEntryFor(entry.id) : null;
+  const at = new Date(entry.datetime), day = String(entry.datetime).slice(0, 10);
+  const pAt = prev ? new Date(prev.datetime) : null, pDay = prev ? String(prev.datetime).slice(0, 10) : '';
+  return (state.receipts || []).filter(r => r && r.source !== 'rob-survey' && r.category !== 'survey' && Number(r.qty) > 0
+    && receiptJoinedBy(r, at, day) && !(pAt && receiptJoinedBy(r, pAt, pDay)));
+}
+
+function receiptEntryTargetText(r){
+  const e = receiptTargetEntry(r);
+  const when = (iso) => new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  if (!e) return 'joins R.O.B. with the next log entry';
+  return `goes into the ${when(e.datetime)} report${e.operation ? ' (' + e.operation + ')' : ''}`;
 }
 
 
@@ -12119,6 +12188,10 @@ function surveyCalculatedBook(entryId){
   if (idx < 0) return { rob:{}, robLube:{} };
   const row = rows[idx];
   const prevRow = idx > 0 ? rows[idx - 1] : null;
+  /* The book to correct against is the whole book at this report: previous closing, plus every receipt
+     that has joined by this report's time, less this report's burn — but without THIS report's own survey.
+     A correction typed against it is added or subtracted; it never wipes a receipt. */
+  const withReceipts = robAsOfComputedRow(row, rows, { excludeOwnSurvey: true }) || { rob:{}, robLube:{} };
   const prevAsOf = prevRow
     ? (robAsOfComputedRow(prevRow, rows) || { rob:{}, robLube:{} })
     : {
@@ -12156,6 +12229,8 @@ function surveyCalculatedBook(entryId){
       robLube[t.id] = Number(robLube[t.id]) - (Number(row.fwConsD) || 0);
     }
   });
+  fuelTankList().forEach(t => { if (withReceipts.rob && withReceipts.rob[t.id] != null) rob[t.id] = withReceipts.rob[t.id]; });
+  lubeTankList().forEach(t => { if (withReceipts.robLube && withReceipts.robLube[t.id] != null) robLube[t.id] = withReceipts.robLube[t.id]; });
   return { rob, robLube };
 }
 
@@ -12339,7 +12414,9 @@ function renderVsSurvey(){
     const meas = sv ? (store==='rob' ? sv.measured?.[t.id] : sv.measuredLube?.[t.id]) : null;
     const bookNum = book == null ? null : Number(book);
     const storedDiff = sv ? (store==='rob' ? sv.difference?.[t.id] : sv.differenceLube?.[t.id]) : null;
-    const diff = storedDiff != null ? Number(storedDiff) : ((meas!=null && bookNum!=null) ? meas - bookNum : null);
+    /* The correction is read against the book as it stands now (receipts included), so an older survey that stored a
+       difference against the burn-only book still shows the true correction. */
+    const diff = (meas!=null && bookNum!=null) ? meas - bookNum : (storedDiff != null ? Number(storedDiff) : null);
     const calcLabel = fmtRob(book, cat) + (diff != null ? formatSurveyCorrectionParen(diff, cat) : '');
     const corrVal = diff != null ? formatSurveyCorrectionInput(diff) : '';
     const measVal = meas != null ? (cat==='fw' ? fwInputValue(meas) : meas) : '';
@@ -12357,7 +12434,7 @@ function renderVsSurvey(){
   if (status){
     status.textContent = sv
       ? `Survey applied${sv.place?` at ${sv.place}`:''}${sv.surveyor?` by ${sv.surveyor}`:''} — R.O.B. from this report onward counts from the measured figures.`
-      : "No survey on this report. Calculated is the book before today's Received. Enter Measured or Correction (+/−) — bunkers received are on the ROB table above.";
+      : "No survey on this report. Calculated is the book as it stands now: previous R.O.B. + receipts up to this report − this report's consumption. Enter a Correction (+/−) to add or subtract from it, or the Measured figure, which becomes this report's R.O.B. and the Previous R.O.B. of the next report. Receipts are never overwritten.";
   }
   const place = document.getElementById('vs_surveyPlace');
   const who = document.getElementById('vs_surveyor');
@@ -12429,8 +12506,9 @@ function stampedReceivedAsOf(tankId, cat, cutoff, survey){
       const t = new Date(e.datetime).getTime();
       if (Number.isFinite(t) && t > limit) continue;
       if (survey){
-        /* Survey day and earlier are inside / before the measured re-base. */
-        if (!receiptDayAfter(e.datetime, survey.date)) continue;
+        /* Up to the survey report is inside the measured re-base; a later report's Received is new. */
+        const sv = new Date(survey.date).getTime();
+        if (Number.isFinite(t) && Number.isFinite(sv) ? !(t > sv) : !receiptDayAfter(e.datetime, survey.date)) continue;
       }
     } else if (survey){
       /* No datetime — cannot place relative to survey; skip under survey rebase. */
@@ -12452,7 +12530,7 @@ function robAsOfEntry(entryId){
  * many entries (Voyage Abstract, CSV export) can run computeDerived() once instead of
  * once per row.
  */
-function robAsOfComputedRow(row, rowsHint){
+function robAsOfComputedRow(row, rowsHint, opts){
   if (!row) return null;
   const cutoff = new Date(row.datetime);
   const cutoffDay = String(row.datetime || '').slice(0, 10);
@@ -12462,7 +12540,8 @@ function robAsOfComputedRow(row, rowsHint){
      after it, less what has been burnt since. Without this the book figure and the
      tank never reconverge — the survey difference would be carried, silently, for
      the rest of the voyage. */
-  const survey = latestRobSurveyAtOrBefore(cutoff);
+  /* opts.excludeOwnSurvey: the book as it stands before THIS report's survey, to correct against. */
+  const survey = latestRobSurveyAtOrBefore(cutoff, opts && opts.excludeOwnSurvey ? row.id : null);
   let sRow = null;
   if (survey){
     sRow = survey.entryId === row.id
@@ -13639,9 +13718,11 @@ function robGaugeSource(){
 function pendingReceiptsAfterLatest(){
   const list = sortedEntries();
   if (!list.length) return [];
-  const lastDay = String(list[list.length - 1].datetime || '').slice(0, 10);
+  const last = list[list.length - 1];
+  const lastDay = String(last.datetime || '').slice(0, 10);
+  const lastAt = new Date(last.datetime);
   return (state.receipts || []).filter(r => r && r.category !== 'survey'
-    && receiptDayAfter(r.date, lastDay) && Number(r.qty) > 0);
+    && !receiptJoinedBy(r, lastAt, lastDay) && Number(r.qty) > 0);
 }
 
 function renderRobPendingReceipts(){
@@ -13652,7 +13733,7 @@ function renderRobPendingReceipts(){
   const line = r => {
     const unit = r.category === 'fw' ? ' L' : (r.category === 'lube' ? ' L' : ' MT');
     const q = Number(r.qty).toLocaleString(undefined, { maximumFractionDigits: 2 });
-    return `${r.type || r.category} +${q}${unit}${r.bdnNo ? ' (BDN ' + r.bdnNo + ')' : ''}, ${r.date}`;
+    return `${r.type || r.category} +${q}${unit}${r.bdnNo ? ' (BDN ' + r.bdnNo + ')' : ''}, ${r.date}${r.time ? ' ' + r.time : ''}`;
   };
   el.hidden = false;
   el.textContent = 'Received since the latest report, not in the gauges yet: ' + pend.map(line).join('; ')
@@ -16821,15 +16902,17 @@ function render(){
   if (state.receipts.length===0){
     rl.innerHTML = `<div class="hint">No receipts logged yet.</div>`;
   } else {
-    rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r=>{
+    rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(receiptMoment(b) || b.date)-new Date(receiptMoment(a) || a.date)).map(r=>{
       const dens = r.density15!=null ? `ρ ${fmt(r.density15,1)}` : '';
       const lcv = r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : '';
       const visc = r.viscosity!=null ? `${fmt(r.viscosity,1)} cSt` : '';
       const extra = [r.bdnNo?`BDN ${r.bdnNo}`:'', r.company||'', r.location||'', dens, lcv, visc].filter(Boolean).join(' · ');
       const qtyStr = r.category==='fuel' ? fmtFuel(r.qty) : (r.category==='fw' ? fmtFw(r.qty) : fmtLube(r.qty));
       const unit = r.category==='fuel' ? 'MT' : (r.category==='fw' ? 'm³' : 'L');
+      const when = r.date + (r.time ? ' ' + r.time : '');
+      const goes = r.source === 'rob-survey' ? '' : `<br><small class="hint" style="margin:0;">${r.time ? '' : 'date only — counts from the first report of that day · '}${escHtml(receiptEntryTargetText(r))}</small>`;
       return `<div class="receipt-row">
-        <span class="desc">${r.date} — ${r.category.toUpperCase()} — ${r.type}${extra?' — '+extra:''}</span>
+        <span class="desc">${when} — ${r.category.toUpperCase()} — ${r.type}${extra?' — '+extra:''}${goes}</span>
         <span class="qty">+${qtyStr} ${unit}</span>
         <button class="small danger" data-del-receipt="${r.id}">✕</button>
       </div>`;
@@ -19790,10 +19873,10 @@ function bookReceivedPreferOnce(tank, categories, opts){
   const allowReceipt = (r) => {
     if (!receiptMatchesTankStrict(r, tank, cats)) return false;
     if (!cutoffDay) return true;
-    const rDay = String(r.date || '').slice(0, 10);
-    if (!rDay || rDay > cutoffDay) return false;
-    /* Bunkers on/before survey day are already inside the measured figure. */
-    return !survey || receiptDayAfter(r.date, survey.date);
+    /* A timed receipt joins the first report at or after its time; a date-only one counts from its day. */
+    if (!receiptJoinedBy(r, cutoff || new Date(cutoffDay + 'T23:59:59'), cutoffDay)) return false;
+    /* Bunkers up to the survey report are already inside the measured figure; later ones are new. */
+    return !survey || receiptAfterSurvey(r, survey);
   };
 
   let hand = 0, surveyFallback = 0;
@@ -24491,6 +24574,19 @@ function openVoyageSummary(entryId){
     </tr>`;
   }).join('');
 
+  const logLine = document.getElementById('vsRobReceiptsLog');
+  if (logLine){
+    const inPeriod = receiptsLogInPeriod(entry);
+    logLine.hidden = !inPeriod.length;
+    logLine.textContent = inPeriod.length
+      ? 'From the Receipts log, in this report’s R.O.B.: ' + inPeriod.map(r => {
+          const unit = r.category === 'fuel' ? 'MT' : (r.category === 'fw' ? 'm³' : 'L');
+          const q = r.category === 'fw' ? fmtFw(r.qty) : (r.category === 'fuel' ? fmtFuel(r.qty) : fmtLube(r.qty));
+          return `${r.type || r.category} +${q} ${unit} (${r.date}${r.time ? ' ' + r.time : ''}${r.bdnNo ? ', BDN ' + r.bdnNo : ''})`;
+        }).join('; ') + '. R.O.B. = Previous + receipts − consumption.'
+      : '';
+  }
+
   const recalcRobFromRecvCons = (key, cat, prevVal) => {
     const recvEl = document.getElementById('vs_recv_' + slugKey(key));
     const consEl = document.getElementById('vs_cons_' + slugKey(key));
@@ -28228,6 +28324,7 @@ document.getElementById('rcpt_category').addEventListener('change', (e)=>{
 
 document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const date = document.getElementById('rcpt_date').value;
+  const time = document.getElementById('rcpt_time').value;
   const category = document.getElementById('rcpt_category').value;
   let qty = parseFloat(document.getElementById('rcpt_qty').value);
   if (!date || isNaN(qty) || qty<=0){ alert('Enter a date and a positive quantity.'); return; }
@@ -28237,6 +28334,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const visc = parseFloat(document.getElementById('rcpt_viscosity').value);
   const receipt = {
     id: uid(), date, category,
+    ...(/^\d{2}:\d{2}$/.test(time) ? { time } : {}),
     type: document.getElementById('rcpt_type').selectedOptions[0]?.textContent || document.getElementById('rcpt_type').value,
     tankId: document.getElementById('rcpt_type').value,
     qty,
@@ -28251,6 +28349,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   state.receipts.push(receipt);
   await dbPut('receipts', receipt);
   markPendingSync();
+  try{ showToast(`Receipt logged — ${receiptEntryTargetText(receipt)}`); }catch(_e){}
   document.getElementById('rcpt_qty').value = '';
   document.getElementById('rcpt_bdn').value = '';
   document.getElementById('rcpt_company').value = '';
@@ -39470,6 +39569,7 @@ document.getElementById('btnFoCopyPassword')?.addEventListener('click', copyFoPa
       setShipTzUi(defaultShipTzOffsetMin(), 0);
     }catch(_){}
     document.getElementById('rcpt_date').value = now.toISOString().slice(0,10);
+    document.getElementById('rcpt_time').value = now.toISOString().slice(11,16);
     document.getElementById('rcpt_category').dispatchEvent(new Event('change'));
     renderReportCategoryButtons();
     bindReferenceCalculators();
