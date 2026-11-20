@@ -5076,7 +5076,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <div class="field"><label>Company</label><input id="rcpt_company"></div>
         <div class="field"><label>Location</label><input id="rcpt_location"></div>
         <div class="field"><label>Density @ 15°C (kg/m³)</label><input type="number" step="0.1" id="rcpt_density" placeholder="e.g. 991"></div>
-        <div class="field"><label>LCV (kJ/kg)</label><input type="number" step="1" id="rcpt_lcv" placeholder="e.g. 40500"></div>
+        <div class="field"><label>Sulphur content (% m/m)</label><input type="number" step="0.001" min="0" id="rcpt_sulphur" placeholder="e.g. 0.49"></div>
         <div class="field"><label>Viscosity (cSt)</label><input type="number" step="0.1" id="rcpt_viscosity" placeholder="e.g. 380"></div>
       </div>
       <div class="btn-row"><button class="primary small" id="btnAddReceipt">Log Receipt</button></div>
@@ -16933,7 +16933,8 @@ function render(){
   } else {
     rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(receiptMoment(b) || b.date)-new Date(receiptMoment(a) || a.date)).map(r=>{
       const dens = r.density15!=null ? `ρ ${fmt(r.density15,1)}` : '';
-      const lcv = r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : '';
+      /* Receipts logged before the field changed keep the LCV they were given. */
+      const lcv = r.sulphur!=null ? `S ${fmt(r.sulphur,3)} %` : (r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : '');
       const visc = r.viscosity!=null ? `${fmt(r.viscosity,1)} cSt` : '';
       const extra = [r.bdnNo?`BDN ${r.bdnNo}`:'', r.company||'', r.location||'', dens, lcv, visc].filter(Boolean).join(' · ');
       const qtyStr = r.category==='fuel' ? fmtFuel(r.qty) : (r.category==='fw' ? fmtFw(r.qty) : fmtLube(r.qty));
@@ -28369,7 +28370,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   if (!date || isNaN(qty) || qty<=0){ alert('Enter a date and a positive quantity.'); return; }
   if (category === 'fw') qty = m3ToLitres(qty);
   const dens = parseFloat(document.getElementById('rcpt_density').value);
-  const lcv = parseFloat(document.getElementById('rcpt_lcv').value);
+  const sulphur = parseFloat(document.getElementById('rcpt_sulphur').value);
   const visc = parseFloat(document.getElementById('rcpt_viscosity').value);
   const receipt = {
     id: uid(), date, category,
@@ -28383,7 +28384,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
     location: document.getElementById('rcpt_location').value
   };
   if (Number.isFinite(dens) && dens > 0) receipt.density15 = dens;
-  if (Number.isFinite(lcv) && lcv > 0) receipt.lcv = lcv;
+  if (Number.isFinite(sulphur) && sulphur >= 0) receipt.sulphur = sulphur;
   if (Number.isFinite(visc) && visc > 0) receipt.viscosity = visc;
   state.receipts.push(receipt);
   await dbPut('receipts', receipt);
@@ -28394,7 +28395,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   document.getElementById('rcpt_company').value = '';
   document.getElementById('rcpt_location').value = '';
   document.getElementById('rcpt_density').value = '';
-  document.getElementById('rcpt_lcv').value = '';
+  document.getElementById('rcpt_sulphur').value = '';
   document.getElementById('rcpt_viscosity').value = '';
   render();
 });
