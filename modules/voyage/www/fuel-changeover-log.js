@@ -302,17 +302,25 @@
    * consumption while inside the area. The change back to residual fuel runs on
    * a blend again and is not counted, so a small reserve is kept on top.
    */
+  /* Consumption in MT/hr; an older MT/day figure is divided by 24. */
+  function consPerHour(p) {
+    var h = num(p && p.consMtHr);
+    if (h != null) return h;
+    var d = num(p && p.consMtDay);
+    return d == null ? null : d / 24;
+  }
+
   function ecaFuelCheck(p) {
     var used = num(p && p.changeoverUsedMt);
     var hours = num(p && p.transitHours);
-    var cons = num(p && p.consMtDay);
+    var cons = consPerHour(p);
     var onBoard = num(p && p.onBoardMt);
     var reservePct = num(p && p.reservePct);
     if (reservePct == null) reservePct = 10;
     if (used == null || hours == null || cons == null || onBoard == null || hours < 0 || cons <= 0) {
       return { ok: false, reason: 'Give the low-sulphur fuel on board, the time in the ECA and the consumption.' };
     }
-    var transit = cons * hours / 24;
+    var transit = cons * hours;
     var need = used + transit;
     var needWithReserve = need * (1 + reservePct / 100);
     var spare = onBoard - needWithReserve;
@@ -332,7 +340,7 @@
   function euBerthPlan(p) {
     var arr = num(p && p.arrivalMs), dep = num(p && p.departureMs);
     var hours = num(p && p.changeoverHours), used = num(p && p.changeoverUsedMt);
-    var cons = num(p && p.consMtDay), onBoard = num(p && p.onBoardMt);
+    var cons = consPerHour(p), onBoard = num(p && p.onBoardMt);
     var back = num(p && p.changeBackMarginHours);
     if (back == null) back = 0;
     if (arr == null || dep == null || hours == null || cons == null || dep <= arr) {
@@ -342,7 +350,7 @@
     var compliantBy = arr + hours * 3600000;
     var changeBackStart = dep - back * 3600000;
     var compliantHours = Math.max(0, stayH - hours - back);
-    var transit = cons * Math.max(0, stayH - hours - back) / 24;
+    var transit = cons * Math.max(0, stayH - hours - back);
     var need = (used == null ? 0 : used) + transit;
     return {
       ok: true, stayHours: stayH, startMs: arr, departureMs: dep, compliantByMs: compliantBy, changeBackStartMs: changeBackStart,
