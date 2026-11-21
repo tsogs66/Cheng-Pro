@@ -29,7 +29,7 @@ function make(setup, entries, rows) {
   };
   vm.createContext(sb);
   vm.runInContext("const FUEL_GRADE_IDS = { 'HFO': 'hfo', 'LSFO': 'lsfo', 'MDO/MGO': 'mdo', 'LSMGO': 'lsmgo' }; let _tankRegMemo = null;", sb);
-  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
+  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'computeTankDrift', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
     .map(extract).join('\n'), sb);
   return sb;
 }
@@ -61,6 +61,18 @@ const setup2 = { lcvRef: 42700, tankFuelManual: [{ id: 'tf-1', name: 'HFO 1S', g
 const sb2 = make(setup2, [], {});
 const man = sb2.fuelTanksOfGrade('hfo', null);
 check('a typed tank is offered with its ROB and LCV (MJ/kg read as kJ/kg)', man.length === 1 && man[0].lcv === 40500 && man[0].estMt === 120 && man[0].bdn === '777');
+
+console.log('drift at the next monitoring');
+{
+  const oldC = { monitoring: { ts: '2026-11-01T00:00:00Z', rob: { T3P: { mt: 30, grade: 'hfo', name: 'HFO 3P' }, T2P: { mt: 300, grade: 'hfo', name: 'HFO 2P' } } }, events };
+  /* entries e1,e2 burned 10+12 from T3P (est. 8); e3 burned 11 from T2P (est. 289) */
+  const sounded = (t3, t2) => ({ monitoring: { ts: '2026-11-05T00:00:00Z', rob: { T3P: { mt: t3, grade: 'hfo', name: 'HFO 3P' }, T2P: { mt: t2, grade: 'hfo', name: 'HFO 2P' } } }, events });
+  check('a sounding that matches the estimate raises nothing', sb.computeTankDrift(oldC, sounded(8, 289)).length === 0);
+  const d = sb.computeTankDrift(oldC, sounded(8, 262));
+  check('a tank 27 MT under the estimate is flagged with the gap', d.length === 1 && d[0].tankId === 'T2P' && near(d[0].diffMt, -27));
+  check('an older sounding is not compared', sb.computeTankDrift(sounded(8, 289), oldC).length === 0);
+  check('without a previous monitoring there is nothing to compare', sb.computeTankDrift(null, sounded(8, 289)).length === 0);
+}
 
 console.log('SFOC correction');
 const withTank = { me: { type: 'HFO' }, fuelInUse: { hfo: { tankId: 'T2P', lcv: 40200 } } };
