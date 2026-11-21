@@ -22,3 +22,7 @@ __pycache__/
 *.AppImage
 data/licenses.json
 data/license-mail-outbox.jsonl
+
+# patch leftovers
+*.orig
+*.rej

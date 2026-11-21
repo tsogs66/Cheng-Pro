@@ -185,7 +185,9 @@ async function main() {
     try {
       server.close();
     } catch { /* ignore */ }
-    // voyage child killed on SIGTERM of process — force exit
+    /* The voyage sync server is a child of this process. Exiting without stopping it leaves it running, and enough
+       leftovers eventually hold the random port the next run picks ("Address already in use"). */
+    try { require('child_process').execSync(`pkill -TERM -P ${process.pid}`, { stdio: 'ignore' }); } catch { /* none left, or no pkill */ }
     setTimeout(() => process.exit(0), 500);
   }
 }

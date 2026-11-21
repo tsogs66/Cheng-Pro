@@ -22662,7 +22662,7 @@ function recentBurnMtDay(gradeId){
 }
 
 /* Every tank that can feed a grade: Tank Chief's register tanks, then the hand-typed ones. */
-function fuelTanksOfGrade(gradeId, ts){
+function fuelTanksOfGrade(gradeId, ts, keepId){
   const out = [];
   const reg = tankFuelRegister();
   const cache = tankFuelCache() || {};
@@ -22685,12 +22685,17 @@ function fuelTanksOfGrade(gradeId, ts){
   Object.keys(mon.rob || {}).forEach(id=>{
     const m = mon.rob[id];
     if (m.grade !== gradeId) return;
+    /* The fuel is drawn from the storage tanks; settling, service and overflow tanks are not offered
+       (a tank the entry already names stays). Older caches carry no role and are all offered. */
+    if (m.role && m.role !== 'storage' && id !== keepId) return;
     const p = TankFuelRegister.propertiesAt(reg, id, ts) || {};
     addTank(id, m.name || id, gradeId, p, m.mt, mon.ts, false);
   });
   Object.keys(reg.tanks || {}).forEach(id=>{
     const t = reg.tanks[id];
     if (t.grade !== gradeId) return;
+    /* Already judged from the monitoring figures (left out as a non-storage tank, or listed above). */
+    if (mon.rob && mon.rob[id]) return;
     const p = TankFuelRegister.propertiesAt(reg, id, ts) || { lcv: t.lcv, sulphur: t.sulphur, density: t.density, lots: t.bdns };
     addTank(id, t.tankName || id, gradeId, p, null, null, false);
   });
@@ -22699,7 +22704,9 @@ function fuelTanksOfGrade(gradeId, ts){
     addTank(r.id, r.name || 'Tank', gradeId, { lcv: TankFuelRegister.lcvKjKg(r.lcv), sulphur: r.sulphur, density: r.density, bdn: r.bdn },
       r.mt != null && r.mt !== '' ? Number(r.mt) : null, r.asOf, true);
   });
-  return out;
+  /* A tank estimated empty cannot be drawn from: leave it off the list, unless it is the one already chosen
+     (so the warning on it still shows). */
+  return out.filter(t=> t.id === keepId || t.estMt == null || t.estMt > 0.05);
 }
 
 function fuelInUseGrades(){
@@ -22728,7 +22735,7 @@ function fuelInUseForSave(dtVal){
   fuelInUseGrades().forEach(g=>{
     const id = _fuelInUseSel[g] !== undefined ? _fuelInUseSel[g] : fuelInUseDefault(g, editing);
     if (!id) return;
-    const t = fuelTanksOfGrade(g, dtVal).find(x=> x.id === id);
+    const t = fuelTanksOfGrade(g, dtVal, id).find(x=> x.id === id);
     const prev = editing && editing.fuelInUse && editing.fuelInUse[g];
     if (t) out[g] = { tankId: t.id, tankName: t.name, lcv: t.lcv != null ? t.lcv : null, sulphur: t.sulphur != null ? t.sulphur : null,
       density: t.density != null ? t.density : null, bdn: t.bdn || '', blend: !!t.blend };
@@ -22771,8 +22778,8 @@ function renderFuelInUse(){
   host.hidden = false;
   let html = '<h3 class="sub">Fuel in use — storage tank</h3><div class="form-grid cols4">';
   grades.forEach(g=>{
-    const tanks = fuelTanksOfGrade(g, dt);
     let sel = _fuelInUseSel[g] !== undefined ? _fuelInUseSel[g] : fuelInUseDefault(g, editing);
+    const tanks = fuelTanksOfGrade(g, dt, sel);
     const rec = editing && editing.fuelInUse && editing.fuelInUse[g];
     if (sel && !tanks.find(t=>t.id === sel) && rec && rec.tankId === sel){
       tanks.push({ id: rec.tankId, name: rec.tankName, grade: g, lcv: rec.lcv, sulphur: rec.sulphur, density: rec.density, bdn: rec.bdn, blend: rec.blend, estMt: null, recorded: true });
@@ -22938,7 +22945,17 @@ function bookTankRobAt(tankId, moment){
     rows.forEach(r=>{ if (new Date(r.datetime).getTime() <= t) last = r; });
     if (last){
       const v = robAsOfComputedRow(last, rows)?.rob?.[tankId];
-      return v == null ? null : Math.max(0, Number(v));
+      if (v == null) return null;
+      /* The book only counts a receipt once a log entry follows it. One logged since the last entry but before this
+         moment is already in the tank, so it belongs in what the new delivery is blended with. */
+      const lastT = new Date(last.datetime).getTime();
+      let pending = 0;
+      (state.receipts || []).forEach(r=>{
+        if (!r || r.category !== 'fuel' || r.tankId !== tankId) return;
+        const rt = new Date(receiptMoment(r) || (r.date + 'T00:00')).getTime();
+        if (rt > lastT && rt <= t) pending += Number(r.qty) || 0;
+      });
+      return Math.max(0, Number(v) + pending);
     }
     const c = effectiveCarryover() || {};
     const v = (c.rob || c.fuelRob || {})[tankId];

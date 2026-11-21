@@ -62,6 +62,26 @@ const sb2 = make(setup2, [], {});
 const man = sb2.fuelTanksOfGrade('hfo', null);
 check('a typed tank is offered with its ROB and LCV (MJ/kg read as kJ/kg)', man.length === 1 && man[0].lcv === 40500 && man[0].estMt === 120 && man[0].bdn === '777');
 
+console.log('only storage tanks with fuel are offered');
+{
+  const mon = { ts: '2026-11-01T00:00:00Z', rob: {
+    S1: { mt: 100, grade: 'hfo', name: 'HFO STORAGE 1', role: 'storage' },
+    S2: { mt: 0, grade: 'hfo', name: 'HFO STORAGE 2 (empty)', role: 'storage' },
+    SE: { mt: 40, grade: 'hfo', name: 'HFO SETTLING', role: 'settling' },
+    SV: { mt: 30, grade: 'hfo', name: 'HFO SERVICE', role: 'service' },
+    OV: { mt: 5, grade: 'hfo', name: 'HFO OVERFLOW', role: 'overflow' },
+    OLD: { mt: 60, grade: 'hfo', name: 'cached before roles existed' } } };
+  /* the bunkering history carries every tank, settling and service ones included */
+  const evAll = [{ id: 'x1', ts: '2026-10-01T00:00:00Z', tanks: ['S1', 'S2', 'SE', 'SV', 'OV', 'OLD'].map((id) => ({ tankId: id, tankName: id, grade: 'hfo', beforeMt: 0, afterMt: 10 })),
+    bdns: [{ number: '1', grade: 'hfo', qty: 60, lcv: 40000, sulphur: 0.5, density: 0.98 }] }];
+  const s3 = make({ lcvRef: 42700, tankFuel: { fetchedAt: '2026-11-01T00:00:00Z', events: evAll, monitoring: mon } }, [], {});
+  const ids = (keep) => s3.fuelTanksOfGrade('hfo', null, keep).map((x) => x.id).sort().join();
+  check('storage tanks with fuel, and old caches with no role, are offered', ids() === 'OLD,S1');
+  check('settling, service, overflow and empty tanks are not', !/SE|SV|OV|S2/.test(ids().replace('OLD', '')));
+  check('a settling tank the entry already names stays on the list', ids('SE') === 'OLD,S1,SE');
+  check('and so does an empty tank that is the one chosen, so its warning shows', ids('S2') === 'OLD,S1,S2');
+}
+
 console.log('drift at the next monitoring');
 {
   const oldC = { monitoring: { ts: '2026-11-01T00:00:00Z', rob: { T3P: { mt: 30, grade: 'hfo', name: 'HFO 3P' }, T2P: { mt: 300, grade: 'hfo', name: 'HFO 2P' } } }, events };

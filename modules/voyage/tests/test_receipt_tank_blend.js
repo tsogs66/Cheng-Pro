@@ -18,7 +18,7 @@ function extract(name) {
   return HTML.slice(start, i + 1);
 }
 function make({ rob, rows = [], setup = {} }) {
-  const state = { setup: { tankFuelManual: [], ...setup }, entries: [] };
+  const state = { setup: { tankFuelManual: [], ...setup }, entries: [], receipts: [] };
   const sb = {
     state, window: { TankFuelRegister: R }, TankFuelRegister: R, console, uid: (() => { let n = 0; return () => 'u' + (++n); })(),
     fuelTankList: () => [{ id: 'hfo1', name: 'HFO 1P', grade: 'HFO' }, { id: 'mgo1', name: 'MGO 1', grade: 'MDO/MGO' }],
@@ -64,6 +64,21 @@ console.log('a tank holding fuel with no figures on record');
   check('S and LCV stay unknown rather than being invented', r.lcv === null && r.sulphur === null);
   check('and the note says why and what to do', /no figures on record/.test(note) && /Setup/.test(note));
   check('the ROB is still carried', near(r.mt, 1000));
+}
+console.log('a receipt logged since the last entry is already in the tank');
+{
+  const sb = make({ rob: { hfo1: 100 }, rows: row1 });
+  sb.state.receipts.push({ category: 'fuel', tankId: 'hfo1', qty: 50, date: '2026-11-10', time: '06:00' });   /* after the last entry (09 Nov), before the new one */
+  sb.state.receipts.push({ category: 'fuel', tankId: 'hfo1', qty: 999, date: '2026-11-12', time: '06:00' });  /* later than the new one: not yet in the tank */
+  sb.state.receipts.push({ category: 'fuel', tankId: 'mgo1', qty: 777, date: '2026-11-10', time: '06:00' });  /* another tank */
+  sb.applyReceiptToTankFuel(rcpt({ date: '2026-11-10', time: '10:00', qty: 300 }));
+  const r = sb.state.setup.tankFuelManual[0];
+  check('the blend base is the book ROB plus that earlier receipt (100 + 50), not just the book', near(r.mt, 450));
+  check('and a later receipt or another tank does not count', r.mt !== 450 + 999 && r.mt !== 450 + 777);
+  const day = make({ rob: { hfo1: 100 }, rows: row1 });
+  day.state.receipts.push({ category: 'fuel', tankId: 'hfo1', qty: 20, date: '2026-11-10' });                   /* date only: counts as the whole day */
+  day.applyReceiptToTankFuel(rcpt({ date: '2026-11-10', time: '10:00', qty: 300 }));
+  check('a date-only receipt of the same day is counted too', near(day.state.setup.tankFuelManual[0].mt, 420));
 }
 console.log('what cannot be blended is said so');
 {
