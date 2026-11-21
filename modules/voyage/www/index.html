@@ -22882,6 +22882,7 @@ function renderTankFuelPanel(){
         <div class="field"><label>Grade</label><select data-tf="grade">${Object.keys(FUEL_GRADE_LABEL).map(g=>`<option value="${g}" ${r.grade === g ? 'selected' : ''}>${FUEL_GRADE_LABEL[g]}</option>`).join('')}</select></div>
         <div class="field"><label>ROB (MT) as of now</label><input type="number" step="0.01" data-tf="mt" value="${escAttr(r.mt == null ? '' : r.mt)}"></div>
         <div class="field"><label>BDN no.</label><input data-tf="bdn" value="${escAttr(r.bdn || '')}"></div>
+        <div class="field"><label>Voyage tank (receipts blend into it)</label><select data-tf="linkTankId"><option value="">— none —</option>${fuelTankList().map(t=>`<option value="${escAttr(t.id)}" ${r.linkTankId === t.id ? 'selected' : ''}>${escHtml(t.name || t.id)}</option>`).join('')}</select>${r.needsCheck ? '<div class="hint alert-text">Check these figures: the ROB before the last receipt was not known.</div>' : ''}</div>
         <div class="field"><label>LCV (kJ/kg)</label><input type="number" step="1" data-tf="lcv" value="${escAttr(r.lcv == null ? '' : r.lcv)}"></div>
         <div class="field"><label>Sulphur (% m/m)</label><input type="number" step="0.001" data-tf="sulphur" value="${escAttr(r.sulphur == null ? '' : r.sulphur)}"></div>
         <div class="field"><label>Density @15°C</label><input type="number" step="0.001" data-tf="density" value="${escAttr(r.density == null ? '' : r.density)}"></div>
@@ -22905,7 +22906,7 @@ document.getElementById('tankFuelPanel')?.addEventListener('input', (ev)=>{
   if (!row || !f) return;
   const r = manualTankFuel()[Number(row.getAttribute('data-tf-row'))];
   if (!r) return;
-  if (f === 'name' || f === 'bdn' || f === 'grade') r[f] = ev.target.value;
+  if (f === 'name' || f === 'bdn' || f === 'grade' || f === 'linkTankId') r[f] = ev.target.value;
   else r[f] = ev.target.value === '' ? null : Number(ev.target.value);
   if (f === 'mt') r.asOf = new Date().toISOString();
 });
@@ -22922,6 +22923,75 @@ document.getElementById('tankFuelPanel')?.addEventListener('click', async (ev)=>
   try{ await saveSetup(); markPendingSync(); }catch(_){}
   renderFuelInUse();
 });
+
+/* ---- Standalone: a fuel receipt blends into its tank's figures ------------------------
+   Without Tank Chief, each Voyage fuel tank that receives a delivery gets a hand-typed
+   row (Setup › Fuel in the storage tanks). Logging a receipt for that tank blends the
+   delivery into the row the way the bunkering would: the tank's ROB just before it (the
+   book), plus the quantity received, with LCV and sulphur mass-weighted and density by
+   volume. A tank bunkered empty simply takes the delivery. */
+function bookTankRobAt(tankId, moment){
+  try{
+    const rows = (computeDerived().rows || []).slice().sort((a, b)=> new Date(a.datetime) - new Date(b.datetime));
+    const t = new Date(moment).getTime();
+    let last = null;
+    rows.forEach(r=>{ if (new Date(r.datetime).getTime() <= t) last = r; });
+    if (last){
+      const v = robAsOfComputedRow(last, rows)?.rob?.[tankId];
+      return v == null ? null : Math.max(0, Number(v));
+    }
+    const c = effectiveCarryover() || {};
+    const v = (c.rob || c.fuelRob || {})[tankId];
+    return v == null ? null : Math.max(0, Number(v));
+  }catch(_){ return null; }
+}
+
+function normalizedDensity(d){
+  const v = Number(d);
+  if (!isFinite(v) || v <= 0) return null;
+  return v > 5 ? v / 1000 : v;
+}
+
+/* Returns a short note for the toast, or '' when nothing applies. Call BEFORE the receipt is added to the log. */
+function applyReceiptToTankFuel(receipt){
+  if (!receipt || receipt.category !== 'fuel' || !(receipt.qty > 0) || !window.TankFuelRegister) return '';
+  try{
+    const c = tankFuelCache();
+    if (typeof isChengAioEmbedded === 'function' && isChengAioEmbedded() && c && Object.keys(tankFuelRegister().tanks).length) return ''; /* Tank Chief is the source */
+  }catch(_){}
+  const tank = fuelTankList().find(t=> t.id === receipt.tankId);
+  const gradeId = tank ? fuelGradeId(tank.grade) : null;
+  if (!tank || !gradeId) return '';
+  const rows = manualTankFuel();
+  let row = rows.find(r=> r.linkTankId === tank.id);
+  const moment = receiptMoment(receipt) || receipt.date;
+  const iso = new Date(moment).toISOString();
+  const add = { mt: receipt.qty, lcv: TankFuelRegister.lcvKjKg(receipt.lcv), sulphur: receipt.sulphur != null ? Number(receipt.sulphur) : null, density: normalizedDensity(receipt.density15) };
+  let before = bookTankRobAt(tank.id, moment);
+  if (before == null && row && row.mt != null && row.mt !== '' && row.asOf){
+    const est = TankFuelRegister.estimateRob({ measuredMt: Number(row.mt), consumedSinceMt: tankConsumedSince(row.id, gradeId, row.asOf, iso) });
+    before = est.ok ? est.mt : null;
+  }
+  if (!row){
+    row = { id: 'tf-' + uid(), name: tank.name || 'Tank', grade: gradeId, linkTankId: tank.id, mt: null, asOf: null, bdn: '', lcv: null, sulphur: null, density: null };
+    rows.push(row);
+  }
+  const bdn = receipt.bdnNo ? String(receipt.bdnNo) : '';
+  if (before == null){
+    /* The ROB before this delivery is not known, so it cannot be blended: take the delivery's figures and say so. */
+    Object.assign(row, { lcv: add.lcv, sulphur: add.sulphur, density: add.density, bdn, mt: receipt.qty, asOf: iso, needsCheck: true });
+    return `${row.name}: ROB before this receipt was not known, so the tank takes the delivery's figures — check them in Setup.`;
+  }
+  const old = { mt: before, lcv: TankFuelRegister.lcvKjKg(row.lcv), sulphur: row.sulphur == null || row.sulphur === '' ? null : Number(row.sulphur), density: normalizedDensity(row.density) };
+  const b = TankFuelRegister.blend(old, add);
+  const mixed = before > 0.05;
+  Object.assign(row, { mt: Math.round(b.mt * 1000) / 1000, asOf: iso, lcv: b.lcv, sulphur: b.sulphur, density: b.density,
+    bdn: mixed ? [row.bdn, bdn].filter(Boolean).join(' + ') : bdn, needsCheck: false });
+  if (mixed && b.lcv == null && b.sulphur == null && old.lcv == null && old.sulphur == null){
+    return `${row.name}: the ${Math.round(before)} MT already in it has no figures on record, so S and LCV stay unknown — type that fuel's figures in Setup › Fuel in the storage tanks and the next receipt will blend.`;
+  }
+  return `${row.name}: ${mixed ? 'blended with the ' + Math.round(before) + ' MT already in it' : 'bunkered empty'} — S ${b.sulphur != null ? b.sulphur.toFixed(3) : '?'} %, LCV ${b.lcv != null ? Math.round(b.lcv) : '?'}.`;
+}
 
 function loadEntryIntoForm(id){
   const e = state.entries.find(x=>x.id===id);
@@ -28753,10 +28823,13 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   if (Number.isFinite(sulphur) && sulphur >= 0) receipt.sulphur = sulphur;
   if (Number.isFinite(lcvIn) && lcvIn > 0) receipt.lcv = lcvIn;
   if (Number.isFinite(visc) && visc > 0) receipt.viscosity = visc;
+  let tankFuelNote = '';
+  try{ tankFuelNote = applyReceiptToTankFuel(receipt); }catch(_e){}
   state.receipts.push(receipt);
   await dbPut('receipts', receipt);
+  if (tankFuelNote){ try{ await saveSetup(); renderTankFuelPanel(); renderFuelInUse(); }catch(_e){} }
   markPendingSync();
-  try{ showToast(`Receipt logged — ${receiptEntryTargetText(receipt)}`); }catch(_e){}
+  try{ showToast(`Receipt logged — ${receiptEntryTargetText(receipt)}` + (tankFuelNote ? ' · ' + tankFuelNote : '')); }catch(_e){}
   document.getElementById('rcpt_qty').value = '';
   document.getElementById('rcpt_bdn').value = '';
   document.getElementById('rcpt_company').value = '';

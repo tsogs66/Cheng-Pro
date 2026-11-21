@@ -5084,6 +5084,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <div class="field"><label>Location</label><input id="rcpt_location"></div>
         <div class="field"><label>Density @ 15°C (kg/m³)</label><input type="number" step="0.1" id="rcpt_density" placeholder="e.g. 991"></div>
         <div class="field"><label>Sulphur content (% m/m)</label><input type="number" step="0.001" min="0" id="rcpt_sulphur" placeholder="e.g. 0.49"></div>
+        <div class="field"><label>LCV (kJ/kg) — if on the BDN</label><input type="number" step="1" id="rcpt_lcv" placeholder="e.g. 40500"></div>
         <div class="field"><label>Viscosity (cSt)</label><input type="number" step="0.1" id="rcpt_viscosity" placeholder="e.g. 380"></div>
       </div>
       <div class="btn-row"><button class="primary small" id="btnAddReceipt">Log Receipt</button></div>
@@ -16946,7 +16947,7 @@ function render(){
     rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(receiptMoment(b) || b.date)-new Date(receiptMoment(a) || a.date)).map(r=>{
       const dens = r.density15!=null ? `ρ ${fmt(r.density15,1)}` : '';
       /* Receipts logged before the field changed keep the LCV they were given. */
-      const lcv = r.sulphur!=null ? `S ${fmt(r.sulphur,3)} %` : (r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : '');
+      const lcv = [r.sulphur!=null ? `S ${fmt(r.sulphur,3)} %` : '', r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : ''].filter(Boolean).join(' · ');
       const visc = r.viscosity!=null ? `${fmt(r.viscosity,1)} cSt` : '';
       const extra = [r.bdnNo?`BDN ${r.bdnNo}`:'', r.company||'', r.location||'', dens, lcv, visc].filter(Boolean).join(' · ');
       const qtyStr = r.category==='fuel' ? fmtFuel(r.qty) : (r.category==='fw' ? fmtFw(r.qty) : fmtLube(r.qty));
@@ -22606,11 +22607,13 @@ function tankFuelRegister(){
 }
 
 /* Fuel burned from a tank since a moment, from the saved entries that name that tank for the grade. */
-function tankConsumedSince(tankId, gradeId, sinceTs){
+function tankConsumedSince(tankId, gradeId, sinceTs, untilTs){
   const since = sinceTs ? new Date(sinceTs).getTime() : -Infinity;
+  const until = untilTs ? new Date(untilTs).getTime() : Infinity;
   let sum = 0;
   sortedEntries().forEach(e=>{
-    if (new Date(e.datetime).getTime() <= since) return;
+    const et = new Date(e.datetime).getTime();
+    if (et <= since || et > until) return;
     const pick = e.fuelInUse && e.fuelInUse[gradeId];
     if (!pick || pick.tankId !== tankId) return;
     const row = getComputedRow(e.id) || {};
@@ -22619,6 +22622,28 @@ function tankConsumedSince(tankId, gradeId, sinceTs){
     });
   });
   return sum;
+}
+
+/* New monitoring against the estimate it replaces: a big gap means the tank chosen in the log was probably wrong
+   for some stretch. Returns the tanks outside 2 % of the measured ROB (or 2 MT on a small tank). */
+function computeTankDrift(oldCache, newCache){
+  const out = [];
+  const o = oldCache && oldCache.monitoring, n = newCache && newCache.monitoring;
+  if (!o || !n || !o.ts || !n.ts || !(new Date(n.ts) > new Date(o.ts))) return out;
+  const loadedIn = {};
+  TankFuelRegister.build((newCache && newCache.events) || []).history.forEach(h=>{
+    if (h.gained && new Date(h.ts) > new Date(o.ts) && new Date(h.ts) <= new Date(n.ts)) loadedIn[h.tankId] = (loadedIn[h.tankId] || 0) + (h.loadedMt || 0);
+  });
+  Object.keys(n.rob || {}).forEach(id=>{
+    const was = o.rob && o.rob[id], now = n.rob[id];
+    if (!was || !now || was.grade !== now.grade) return;
+    const est = TankFuelRegister.estimateRob({ measuredMt: was.mt, loadedSinceMt: loadedIn[id] || 0, consumedSinceMt: tankConsumedSince(id, now.grade, o.ts, n.ts) });
+    if (!est.ok) return;
+    const d = TankFuelRegister.drift(est.mt, now.mt, Math.max(now.mt, was.mt, 100));
+    if (d && (d.flag || Math.abs(d.diffMt) >= 2 + 0.005 * Math.max(now.mt, was.mt)))
+      out.push({ tankId: id, name: now.name || id, estMt: est.mt, measuredMt: now.mt, diffMt: d.diffMt, ts: n.ts });
+  });
+  return out;
 }
 
 /* What the log burns a day of this grade, from the latest entries — for "about N h left". */
@@ -22721,6 +22746,19 @@ function entryLcv(entry){
   return isFinite(v) && v > 0 ? v : null;
 }
 
+/* What the entry being typed burns of a grade, from the flowmeters on the form. */
+function liveGradeCons(gradeId){
+  try{
+    const cur = readCurrentFormAsEntry();
+    const m = meterDerivedUnitCons(cur) || {};
+    let sum = 0, any = false;
+    [['me_type','meCons'],['ge_type','geCons'],['blr_type','blrCons']].forEach(([id, f])=>{
+      if (fuelGradeId(document.getElementById(id)?.value) === gradeId && m[f] != null){ sum += Number(m[f]) || 0; any = true; }
+    });
+    return any ? sum : null;
+  }catch(_){ return null; }
+}
+
 function renderFuelInUse(){
   const host = document.getElementById('fuelInUse');
   if (!host) return;
@@ -22753,7 +22791,7 @@ function renderFuelInUse(){
       if (t.blend) info += ' — blend of several BDN, figures averaged';
       if (t.lcv == null){ info += ' — SFOC uses the Setup LCV for this entry.'; cls = 'hint alert-text'; }
       if (t.estMt != null){
-        const st = TankFuelRegister.tankStatus({ estMt: t.estMt, entryConsMt: null, burnMtPerDay: recentBurnMtDay(g) });
+        const st = TankFuelRegister.tankStatus({ estMt: t.estMt, entryConsMt: liveGradeCons(g), burnMtPerDay: recentBurnMtDay(g) });
         if (st.level === 'empty'){ info += ' ⚠ ' + st.text + '. Choose another tank or sound this one.'; cls = 'hint alert-text'; }
         else if (st.level === 'low'){ info += ' · ' + st.text; cls = 'hint alert-text'; }
       }
@@ -22802,13 +22840,20 @@ window.addEventListener('message', async (ev)=>{
   const f = msg.fuel;
   if (!f){ if (manual) alert('Tank Chief did not answer. Open Tank Management once, then try again.'); return; }
   if (f.loaded === false){ if (manual) alert('Tank Chief is still loading this ship. Wait a moment and try again.'); return; }
-  state.setup.tankFuel = { fetchedAt: new Date().toISOString(), events: f.events || [], monitoring: f.monitoring || { ts: null, rob: {} } };
+  const fresh = { fetchedAt: new Date().toISOString(), events: f.events || [], monitoring: f.monitoring || { ts: null, rob: {} } };
+  try{
+    const drift = computeTankDrift(state.setup.tankFuel, fresh);
+    if (drift.length){ state.setup.tankFuelDrift = drift; }
+    else if (fresh.monitoring.ts && state.setup.tankFuel && state.setup.tankFuel.monitoring && fresh.monitoring.ts !== state.setup.tankFuel.monitoring.ts) state.setup.tankFuelDrift = [];
+  }catch(_){}
+  state.setup.tankFuel = fresh;
   _tankRegMemo = null;
   try{ await saveSetup(); markPendingSync(); }catch(_){}
   renderTankFuelPanel();
   renderFuelInUse();
   if (manual){
     const n = Object.keys(tankFuelRegister().tanks).length;
+    try{ if ((state.setup.tankFuelDrift || []).length) showToast('Tank Chief monitoring differs from the log estimate — see Setup › Fuel in the storage tanks'); }catch(_){}
     try{ showToast(n ? `Tank Chief: ${n} tank${n === 1 ? '' : 's'} with fuel figures` : 'Tank Chief has no bunkering with tank figures yet — save a bunker summary there after the next bunkering'); }catch(_){}
   }
 });
@@ -22826,6 +22871,8 @@ function renderTankFuelPanel(){
   });
   const head = c && c.fetchedAt ? `From Tank Chief, fetched ${escHtml(new Date(c.fetchedAt).toLocaleString())}.` : 'Nothing fetched from Tank Chief yet.';
   let html = `<div class="hint">${head}</div>`;
+  const dr = state.setup.tankFuelDrift || [];
+  if (dr.length) html += `<div class="hint alert-text"><strong>The last monitoring differs from the log's estimate:</strong> ${dr.map(d=> `${escHtml(d.name)} estimated ${escHtml(fmt(d.estMt,1))} MT, measured ${escHtml(fmt(d.measuredMt,1))} MT (${d.diffMt>0?'+':''}${escHtml(fmt(d.diffMt,1))})`).join('; ')}. A tank chosen wrongly in the log entries since the previous monitoring is the usual cause — check which tank each entry drew from.</div>`;
   if (rows.length) html += `<div class="table-scroll"><table><thead><tr><th>Tank</th><th>Grade</th><th>S (%)</th><th>LCV</th><th>BDN</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   const man = manualTankFuel();
   if (man.length){
@@ -28689,6 +28736,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   if (category === 'fw') qty = m3ToLitres(qty);
   const dens = parseFloat(document.getElementById('rcpt_density').value);
   const sulphur = parseFloat(document.getElementById('rcpt_sulphur').value);
+  const lcvIn = parseFloat(document.getElementById('rcpt_lcv').value);
   const visc = parseFloat(document.getElementById('rcpt_viscosity').value);
   const receipt = {
     id: uid(), date, category,
@@ -28703,6 +28751,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   };
   if (Number.isFinite(dens) && dens > 0) receipt.density15 = dens;
   if (Number.isFinite(sulphur) && sulphur >= 0) receipt.sulphur = sulphur;
+  if (Number.isFinite(lcvIn) && lcvIn > 0) receipt.lcv = lcvIn;
   if (Number.isFinite(visc) && visc > 0) receipt.viscosity = visc;
   state.receipts.push(receipt);
   await dbPut('receipts', receipt);
@@ -28714,6 +28763,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   document.getElementById('rcpt_location').value = '';
   document.getElementById('rcpt_density').value = '';
   document.getElementById('rcpt_sulphur').value = '';
+  document.getElementById('rcpt_lcv').value = '';
   document.getElementById('rcpt_viscosity').value = '';
   render();
 });
