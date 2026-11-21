@@ -1101,6 +1101,9 @@
     if (d.type === 'chengaio-request-tank-list') {
       answerTankList(e.source);
     }
+    if (d.type === 'chengaio-request-tank-fuel') {
+      answerTankFuel(e.source);
+    }
   });
 
   /* The Tank embed's bunkering alarm, mirrored on the whole window edge so it is
@@ -1152,6 +1155,35 @@
     setTimeout(() => deliver(null), 40000);
     const ask = () => {
       try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-list' }, '*'); } catch { /* ignore */ }
+    };
+    if (_tankRobFrame && _tankRobFrame.contentWindow) { ask(); return; }
+    _tankRobFrame = document.createElement('iframe');
+    _tankRobFrame.style.cssText = 'position:absolute;width:0;height:0;border:none;opacity:0;pointer-events:none;';
+    _tankRobFrame.title = 'Tank ROB bridge';
+    _tankRobFrame.src = ChengPro.tankEmbedUrl({ robOnly: '1' });
+    document.body.appendChild(_tankRobFrame);
+    _tankRobFrame.onload = () => { setTimeout(ask, 600); };
+  }
+  /* Voyage Chief's log entry: what is in each storage tank (BDN, LCV, sulphur, density) and the last measured ROB,
+     asked of the hidden Tank frame the same way as the tank list. */
+  function answerTankFuel(source) {
+    let done = false;
+    const deliver = (fuel) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('message', onMsg);
+      try {
+        if (source && source.postMessage) source.postMessage({ type: 'tank-fuel-response', fuel: fuel }, '*');
+      } catch { /* ignore */ }
+    };
+    const onMsg = (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'tank-fuel-response' && msg.fuel) deliver(msg.fuel);
+    };
+    window.addEventListener('message', onMsg);
+    setTimeout(() => deliver(null), 40000);
+    const ask = () => {
+      try { _tankRobFrame.contentWindow.postMessage({ type: 'request-tank-fuel' }, '*'); } catch { /* ignore */ }
     };
     if (_tankRobFrame && _tankRobFrame.contentWindow) { ask(); return; }
     _tankRobFrame = document.createElement('iframe');
