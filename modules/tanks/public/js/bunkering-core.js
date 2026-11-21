@@ -1320,7 +1320,7 @@ function priorTankFromFuelReport(bundle, conversion) {
   const report = FuelReport.computeFuelReport(bundle, bundle && bundle.fuelReport, conversion);
   for (const section of report.sections) {
     for (const row of section.rows) {
-      if (row.actualMT != null) out[row.tankId] = { mt: row.actualMT, grade: row.fuelType, name: row.name };
+      if (row.weightAirMT != null) out[row.tankId] = { mt: row.weightAirMT, grade: row.fuelType, name: row.name };
     }
   }
   return out;
@@ -1342,6 +1342,8 @@ function normalizeAfterReport(bundle, form, conversion) {
     ...merged,
     priorRob: { ...(base.priorRob || {}), ...(src.priorRob || {}) },
     priorTank: (src.priorTank && Object.keys(src.priorTank).length) ? src.priorTank : (base.priorTank || {}),
+    /* Figures typed for fuel that was already in a tank: { tankId: { bdn, sulphur, lcv, density } }. */
+    priorFigures: (src.priorFigures && typeof src.priorFigures === 'object') ? src.priorFigures : {},
     linkedPlanId: src.linkedPlanId || null,
     updatedAt: src.updatedAt || null,
   };
@@ -1367,6 +1369,7 @@ function computeAfterBunkering(bundle, form, conversion) {
     grades,
     priorRob: normalized.priorRob,
     priorTank: normalized.priorTank,
+    priorFigures: normalized.priorFigures,
     totals: {
       ...report.totals,
       priorMT: round(grades.reduce((a, g) => a + (g.priorMT || 0), 0), 3),
@@ -1386,11 +1389,13 @@ function tankLoadsFromAfter(afterComputed) {
   const prior = (afterComputed && afterComputed.priorTank) || {};
   for (const section of ((afterComputed && afterComputed.sections) || [])) {
     for (const row of section.rows) {
-      if (row.actualMT == null) continue;
+      if (row.weightAirMT == null) continue;
       const before = prior[row.tankId] ? prior[row.tankId].mt : null;
+      const figures = (afterComputed.priorFigures || {})[row.tankId];
       out.push({
         tankId: row.tankId, tankName: row.name, grade: row.fuelType,
-        beforeMt: before == null ? null : round(before, 3), afterMt: round(row.actualMT, 3),
+        beforeMt: before == null ? null : round(before, 3), afterMt: round(row.weightAirMT, 3),
+        ...(figures && Object.values(figures).some((v) => v !== '' && v != null) ? { prior: figures } : {}),
       });
     }
   }
