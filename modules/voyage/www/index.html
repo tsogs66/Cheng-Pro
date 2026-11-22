@@ -3953,8 +3953,8 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
           <div class="field"><label>M/E KW (85% Load)</label><input type="number" step="1" id="s_csrKw"></div>
           <div class="field"><label>SFOC - 100% (g/kW.hr)</label><input type="number" step="0.1" id="s_sfoc100"></div>
           <div class="field"><label>SFOC - 85% (g/kW.hr)</label><input type="number" step="0.1" id="s_sfoc85"></div>
-          <div class="field"><label>Shop-trial LCV (kJ/kg)</label><input type="number" step="1" id="s_lcvRef" placeholder="42700"></div>
-          <div class="field"><label>Bunker LCV (kJ/kg)</label><input type="number" step="1" id="s_lcvActual" placeholder="from BDN"></div>
+          <div class="field"><label>Shop-trial LCV / net specific energy (kJ/kg)</label><input type="number" step="1" id="s_lcvRef" placeholder="42700"></div>
+          <div class="field"><label>Bunker LCV / net specific energy (kJ/kg or MJ/kg)</label><input type="number" step="any" id="s_lcvActual" placeholder="e.g. 40500 or 40.5"></div>
           <div class="field full-width" style="grid-column:1/-1;" id="tankFuelSetup">
             <h3 class="sub">Fuel in the storage tanks</h3>
             <div class="hint">The log entry takes LCV and sulphur from the tank each grade is drawn from. In ChEng AIO they come from Tank Chief's bunkering reports (the BDN of each tank, blended where a tank was topped up); otherwise type them here. The Bunker LCV above is only used for entries with no tank chosen.</div>
@@ -5084,7 +5084,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <div class="field"><label>Location</label><input id="rcpt_location"></div>
         <div class="field"><label>Density @ 15°C (kg/m³)</label><input type="number" step="0.1" id="rcpt_density" placeholder="e.g. 991"></div>
         <div class="field"><label>Sulphur content (% m/m)</label><input type="number" step="0.001" min="0" id="rcpt_sulphur" placeholder="e.g. 0.49"></div>
-        <div class="field"><label>LCV (kJ/kg) — if on the BDN</label><input type="number" step="1" id="rcpt_lcv" placeholder="e.g. 40500"></div>
+        <div class="field"><label>LCV / net specific energy — kJ/kg or MJ/kg (test report or BDN)</label><input type="number" step="any" id="rcpt_lcv" placeholder="e.g. 40500 or 40.5"></div>
         <div class="field"><label>Viscosity (cSt)</label><input type="number" step="0.1" id="rcpt_viscosity" placeholder="e.g. 380"></div>
       </div>
       <div class="btn-row"><button class="primary small" id="btnAddReceipt">Log Receipt</button> <button class="ghost small" id="btnCancelReceiptEdit" hidden>Cancel edit</button></div>
@@ -16950,7 +16950,7 @@ function render(){
     rl.innerHTML = state.receipts.slice().sort((a,b)=>new Date(receiptMoment(b) || b.date)-new Date(receiptMoment(a) || a.date)).map(r=>{
       const dens = r.density15!=null ? `ρ ${fmt(r.density15,1)}` : '';
       /* Receipts logged before the field changed keep the LCV they were given. */
-      const lcv = [r.sulphur!=null ? `S ${fmt(r.sulphur,3)} %` : '', r.lcv!=null ? `LCV ${fmt(r.lcv,0)}` : ''].filter(Boolean).join(' · ');
+      const lcv = [r.sulphur!=null ? `S ${fmt(r.sulphur,3)} %` : '', r.lcv!=null ? `LCV ${fmt(normLcv(r.lcv) || r.lcv,0)}` : ''].filter(Boolean).join(' · ');
       const visc = r.viscosity!=null ? `${fmt(r.viscosity,1)} cSt` : '';
       const extra = [r.bdnNo?`BDN ${r.bdnNo}`:'', r.company||'', r.location||'', dens, lcv, visc].filter(Boolean).join(' · ');
       const qtyStr = r.category==='fuel' ? fmtFuel(r.qty) : (r.category==='fw' ? fmtFw(r.qty) : fmtLube(r.qty));
@@ -18202,7 +18202,7 @@ function updateRefSfocCalc(){
   if (!out) return;
   const flow = parseFloat(document.getElementById('ref_sfoc_flow')?.value); // kg/h
   const kw = parseFloat(document.getElementById('ref_sfoc_kw')?.value);
-  const lcv = parseFloat(document.getElementById('ref_sfoc_lcv')?.value) || DEFAULT_LCV_REF;
+  const lcv = normLcv(document.getElementById('ref_sfoc_lcv')?.value) || DEFAULT_LCV_REF;
   if (!(flow > 0) || !(kw > 0)){
     out.textContent = 'SFOC (g/kWh) = fuel flow (g/h) ÷ kW. BTE (%) = 3600 × 100 ÷ (SFOC × LCV/1000) with SFOC in g/kWh and LCV in kJ/kg.';
     return;
@@ -22608,11 +22608,18 @@ function withTypedFigures(id, p){
   if (!t) return p;
   const has = (v)=> v != null && v !== '' && isFinite(Number(v));
   const out = Object.assign({}, p);
-  if (has(t.lcv) && Number(t.lcv) > 0) out.lcv = Number(t.lcv);
+  if (has(t.lcv) && normLcv(t.lcv) != null) out.lcv = normLcv(t.lcv);
   if (has(t.sulphur)) out.sulphur = Number(t.sulphur);
   if (has(t.density) && Number(t.density) > 0) out.density = Number(t.density);
   if (t.bdn){ out.lots = null; out.bdn = String(t.bdn); }
   return out;
+}
+/* A BDN or a fuel test report gives the heating value as "net specific energy" (MJ/kg), which is the LCV. The program works in
+   kJ/kg, so a figure below 100 is read as MJ/kg: 40.5 means 40 500 kJ/kg. */
+function normLcv(v){
+  const n = Number(v);
+  if (!isFinite(n) || n <= 0) return null;
+  return n < 100 ? Math.round(n * 1000) : n;
 }
 function manualTankFuel(){
   if (!Array.isArray(state.setup.tankFuelManual)) state.setup.tankFuelManual = [];
@@ -22910,7 +22917,7 @@ function renderTankFuelPanel(){
     const rb = (t.bdns || []).map(l=> (l.numbers || []).join('/')).filter(Boolean).join(' + ');
     rows.push(`<tr><td>${escHtml(t.tankName || m.name || id)}${m.mt != null ? `<div class="hint" style="margin:0;">${escHtml(fmt(m.mt, 1))} MT in monitoring</div>` : ''}</td><td>${escHtml(FUEL_GRADE_LABEL[grade] || grade || '')}</td>`
       + `<td>${box(id, 'sulphur', '5.5em', '0.001', ty.sulphur, t.sulphur != null ? fmt(t.sulphur, 3) : 'S %')}</td>`
-      + `<td>${box(id, 'lcv', '6em', '1', ty.lcv, t.lcv != null ? fmt(t.lcv, 0) : 'LCV')}</td>`
+      + `<td>${box(id, 'lcv', '6em', 'any', ty.lcv, t.lcv != null ? fmt(t.lcv, 0) : 'LCV / MJ/kg')}</td>`
       + `<td>${box(id, 'density', '6em', '0.001', ty.density, t.density != null ? fmt(t.density, 3) : 'ρ15')}</td>`
       + `<td><input data-tft="bdn" data-tft-id="${escAttr(id)}" style="width:8em;" value="${escAttr(ty.bdn || '')}" placeholder="${escAttr(rb || 'BDN no.')}">${(t.bdns || []).length > 1 ? ' <i>(blend)</i>' : ''}</td></tr>`);
   });
@@ -22918,7 +22925,7 @@ function renderTankFuelPanel(){
   let html = `<div class="hint">${head}</div>`;
   const dr = state.setup.tankFuelDrift || [];
   if (dr.length) html += `<div class="hint alert-text"><strong>The last monitoring differs from the log's estimate:</strong> ${dr.map(d=> `${escHtml(d.name)} estimated ${escHtml(fmt(d.estMt,1))} MT, measured ${escHtml(fmt(d.measuredMt,1))} MT (${d.diffMt>0?'+':''}${escHtml(fmt(d.diffMt,1))})`).join('; ')}. A tank chosen wrongly in the log entries since the previous monitoring is the usual cause — check which tank each entry drew from.</div>`;
-  if (rows.length) html += `<div class="table-scroll"><table><thead><tr><th>Tank</th><th>Grade</th><th>S (%)</th><th>LCV (kJ/kg)</th><th>ρ @15</th><th>BDN</th></tr></thead><tbody>${rows.join('')}</tbody></table></div><div class="hint">The tank names come from Tank Chief. Type a tank's LCV, sulphur, density or BDN in its boxes; what you type is used for the log entry in place of the figure Tank Chief holds (shown faint), and clearing a box brings the Tank Chief figure back.</div>`;
+  if (rows.length) html += `<div class="table-scroll"><table><thead><tr><th>Tank</th><th>Grade</th><th>S (%)</th><th>LCV / net specific energy (kJ/kg or MJ/kg)</th><th>ρ @15</th><th>BDN</th></tr></thead><tbody>${rows.join('')}</tbody></table></div><div class="hint">The tank names come from Tank Chief. Type a tank's LCV, sulphur, density or BDN in its boxes; what you type is used for the log entry in place of the figure Tank Chief holds (shown faint), and clearing a box brings the Tank Chief figure back.</div>`;
   const man = manualTankFuel();
   if (man.length){
     html += '<h4 class="sub">Typed by hand</h4>' + man.map((r, i)=> `
@@ -22928,7 +22935,7 @@ function renderTankFuelPanel(){
         <div class="field"><label>ROB (MT) as of now</label><input type="number" step="0.01" data-tf="mt" value="${escAttr(r.mt == null ? '' : r.mt)}"></div>
         <div class="field"><label>BDN no.</label><input data-tf="bdn" value="${escAttr(r.bdn || '')}"></div>
         <div class="field"><label>Voyage tank (receipts blend into it)</label><select data-tf="linkTankId"><option value="">— none —</option>${fuelTankList().map(t=>`<option value="${escAttr(t.id)}" ${r.linkTankId === t.id ? 'selected' : ''}>${escHtml(t.name || t.id)}</option>`).join('')}</select>${r.needsCheck ? '<div class="hint alert-text">Check these figures: the ROB before the last receipt was not known.</div>' : ''}</div>
-        <div class="field"><label>LCV (kJ/kg)</label><input type="number" step="1" data-tf="lcv" value="${escAttr(r.lcv == null ? '' : r.lcv)}"></div>
+        <div class="field"><label>LCV / net specific energy (kJ/kg or MJ/kg)</label><input type="number" step="any" data-tf="lcv" value="${escAttr(r.lcv == null ? '' : r.lcv)}"></div>
         <div class="field"><label>Sulphur (% m/m)</label><input type="number" step="0.001" data-tf="sulphur" value="${escAttr(r.sulphur == null ? '' : r.sulphur)}"></div>
         <div class="field"><label>Density @15°C</label><input type="number" step="0.001" data-tf="density" value="${escAttr(r.density == null ? '' : r.density)}"></div>
         <div class="field" style="justify-content:flex-end;"><button type="button" class="ghost small" data-tf-del="${i}">Remove</button></div>
@@ -22945,6 +22952,19 @@ document.getElementById('btnTankFuelAdd')?.addEventListener('click', async ()=>{
   renderTankFuelPanel();
   try{ await saveSetup(); }catch(_){}
 });
+/* Net specific energy typed in MJ/kg (40.5) becomes kJ/kg (40500) as the box is left. */
+document.addEventListener('change', (ev)=>{
+  const el = ev.target;
+  if (!el || !el.getAttribute) return;
+  const isLcv = ['s_lcvRef','s_lcvActual','rcpt_lcv','ref_sfoc_lcv'].includes(el.id)
+    || el.getAttribute('data-tf') === 'lcv' || el.getAttribute('data-tft') === 'lcv';
+  if (!isLcv || el.value === '') return;
+  const n = Number(el.value);
+  if (isFinite(n) && n > 0 && n < 100){
+    el.value = String(Math.round(n * 1000));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}, true);
 document.getElementById('tankFuelPanel')?.addEventListener('input', (ev)=>{
   const tid = ev.target.getAttribute && ev.target.getAttribute('data-tft-id');
   if (tid){
@@ -23593,8 +23613,8 @@ async function saveSetupFromForm(opts){
   state.setup.csrKw = parseFloat(document.getElementById('s_csrKw').value)||null;
   state.setup.sfoc100 = parseFloat(document.getElementById('s_sfoc100').value)||null;
   state.setup.sfoc85 = parseFloat(document.getElementById('s_sfoc85').value)||null;
-  state.setup.lcvRef = parseFloat(document.getElementById('s_lcvRef')?.value)||DEFAULT_LCV_REF;
-  state.setup.lcvActual = parseFloat(document.getElementById('s_lcvActual')?.value)||null;
+  state.setup.lcvRef = normLcv(document.getElementById('s_lcvRef')?.value)||DEFAULT_LCV_REF;
+  state.setup.lcvActual = normLcv(document.getElementById('s_lcvActual')?.value)||null;
   state.setup.alternatorMaxKw = parseFloat(document.getElementById('s_alternatorMaxKw').value)||null;
   state.setup.generatorCount = parseInt(document.getElementById('s_generatorCount').value) || 1;
   state.setup.meCylinderCount = parseInt(document.getElementById('s_meCylinderCount').value) || 6;
@@ -28918,7 +28938,7 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   if (editing && editing.source) receipt.source = editing.source;
   if (Number.isFinite(dens) && dens > 0) receipt.density15 = dens;
   if (Number.isFinite(sulphur) && sulphur >= 0) receipt.sulphur = sulphur;
-  if (Number.isFinite(lcvIn) && lcvIn > 0) receipt.lcv = lcvIn;
+  if (normLcv(lcvIn) != null) receipt.lcv = normLcv(lcvIn);
   if (Number.isFinite(visc) && visc > 0) receipt.viscosity = visc;
   let tankFuelNote = '';
   /* A correction replaces the receipt in place. The tank's blended figures were worked out from the first version

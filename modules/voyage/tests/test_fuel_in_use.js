@@ -29,7 +29,7 @@ function make(setup, entries, rows) {
   };
   vm.createContext(sb);
   vm.runInContext("const FUEL_GRADE_IDS = { 'HFO': 'hfo', 'LSFO': 'lsfo', 'MDO/MGO': 'mdo', 'LSMGO': 'lsmgo' }; let _tankRegMemo = null;", sb);
-  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'typedTankFuel', 'withTypedFigures', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'computeTankDrift', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
+  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'normLcv', 'typedTankFuel', 'withTypedFigures', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'computeTankDrift', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
     .map(extract).join('\n'), sb);
   return sb;
 }
@@ -55,6 +55,9 @@ const typedList = sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z');
 const ty3 = typedList.find(t => t.id === 'T3P'), ty2 = typedList.find(t => t.id === 'T2P');
 check('typed LCV / S / density / BDN replace the register ones on that tank', ty3.lcv === 41234 && near(ty3.sulphur, 0.51) && near(ty3.density, 0.95) && ty3.bdn === 'MY-9');
 check('other tanks keep the register figures', ty2.lcv === 40200 && ty2.bdn === '111');
+setup.tankFuelTyped = { T3P: { lcv: 40.5 } };
+check('a typed LCV in MJ/kg (net specific energy) is read as kJ/kg', sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z').find(t => t.id === 'T3P').lcv === 40500);
+check('normLcv: 40.5 -> 40500, 40500 stays, blank/zero -> none', sb.normLcv(40.5) === 40500 && sb.normLcv(40500) === 40500 && sb.normLcv('') === null && sb.normLcv(0) === null);
 delete setup.tankFuelTyped;
 check('clearing them gives the register figures back', sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z').find(t => t.id === 'T3P').lcv === 40200);
 
