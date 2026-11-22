@@ -5087,7 +5087,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <div class="field"><label>LCV (kJ/kg) — if on the BDN</label><input type="number" step="1" id="rcpt_lcv" placeholder="e.g. 40500"></div>
         <div class="field"><label>Viscosity (cSt)</label><input type="number" step="0.1" id="rcpt_viscosity" placeholder="e.g. 380"></div>
       </div>
-      <div class="btn-row"><button class="primary small" id="btnAddReceipt">Log Receipt</button></div>
+      <div class="btn-row"><button class="primary small" id="btnAddReceipt">Log Receipt</button> <button class="ghost small" id="btnCancelReceiptEdit" hidden>Cancel edit</button></div>
     </div>
 
     <div class="panel">
@@ -16957,9 +16957,11 @@ function render(){
       return `<div class="receipt-row">
         <span class="desc">${when} — ${r.category.toUpperCase()} — ${r.type}${extra?' — '+extra:''}${goes}</span>
         <span class="qty">+${qtyStr} ${unit}</span>
+        ${r.source === 'rob-survey' ? '' : `<button class="small ghost" data-edit-receipt="${r.id}" title="Correct this receipt">Edit</button>`}
         <button class="small danger" data-del-receipt="${r.id}">✕</button>
       </div>`;
     }).join('');
+    rl.querySelectorAll('[data-edit-receipt]').forEach(b=> b.addEventListener('click', ()=> startEditReceipt(b.dataset.editReceipt)));
     rl.querySelectorAll('[data-del-receipt]').forEach(b=> b.addEventListener('click', async ()=>{
       state.receipts = state.receipts.filter(r=>r.id!==b.dataset.delReceipt);
       await dbDelete('receipts', b.dataset.delReceipt);
@@ -28814,6 +28816,37 @@ document.getElementById('rcpt_category').addEventListener('change', (e)=>{
   }
 });
 
+let editingReceiptId = null;
+function startEditReceipt(id){
+  const r = state.receipts.find(x=>x.id===id);
+  if (!r || r.source === 'rob-survey') return;
+  editingReceiptId = id;
+  const $ = (k)=> document.getElementById(k);
+  $('rcpt_category').value = r.category;
+  $('rcpt_category').dispatchEvent(new Event('change'));
+  const sel = $('rcpt_type');
+  if (![...sel.options].some(o=>o.value===r.tankId)){
+    const byName = [...sel.options].find(o=>o.textContent===r.type);
+    if (byName) r.tankId = byName.value;
+  }
+  sel.value = r.tankId || sel.value;
+  $('rcpt_date').value = String(r.date||'').slice(0,10);
+  $('rcpt_time').value = r.time || '';
+  $('rcpt_qty').value = r.category==='fw' ? litresToM3(r.qty) : r.qty;
+  $('rcpt_bdn').value = r.bdnNo || ''; $('rcpt_company').value = r.company || ''; $('rcpt_location').value = r.location || '';
+  $('rcpt_density').value = r.density15 ?? ''; $('rcpt_sulphur').value = r.sulphur ?? '';
+  $('rcpt_lcv').value = r.lcv ?? ''; $('rcpt_viscosity').value = r.viscosity ?? '';
+  $('btnAddReceipt').textContent = 'Save changes';
+  $('btnCancelReceiptEdit').hidden = false;
+  $('rcpt_qty').scrollIntoView({ block:'center', behavior:'smooth' });
+}
+function stopEditReceipt(keepValues){
+  editingReceiptId = null;
+  const b = document.getElementById('btnAddReceipt'); if (b) b.textContent = 'Log Receipt';
+  const c = document.getElementById('btnCancelReceiptEdit'); if (c) c.hidden = true;
+  if (!keepValues) ['rcpt_qty','rcpt_bdn','rcpt_company','rcpt_location','rcpt_density','rcpt_sulphur','rcpt_lcv','rcpt_viscosity','rcpt_time'].forEach(k=>{ document.getElementById(k).value = ''; });
+}
+document.getElementById('btnCancelReceiptEdit').addEventListener('click', ()=> stopEditReceipt(false));
 document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const date = document.getElementById('rcpt_date').value;
   const time = document.getElementById('rcpt_time').value;
@@ -28825,8 +28858,9 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
   const sulphur = parseFloat(document.getElementById('rcpt_sulphur').value);
   const lcvIn = parseFloat(document.getElementById('rcpt_lcv').value);
   const visc = parseFloat(document.getElementById('rcpt_viscosity').value);
+  const editing = editingReceiptId ? state.receipts.find(x=>x.id===editingReceiptId) : null;
   const receipt = {
-    id: uid(), date, category,
+    id: editing ? editing.id : uid(), date, category,
     ...(/^\d{2}:\d{2}$/.test(time) ? { time } : {}),
     type: document.getElementById('rcpt_type').selectedOptions[0]?.textContent || document.getElementById('rcpt_type').value,
     tankId: document.getElementById('rcpt_type').value,
@@ -28836,17 +28870,28 @@ document.getElementById('btnAddReceipt').addEventListener('click', async ()=>{
     company: document.getElementById('rcpt_company').value,
     location: document.getElementById('rcpt_location').value
   };
+  if (editing && editing.source) receipt.source = editing.source;
   if (Number.isFinite(dens) && dens > 0) receipt.density15 = dens;
   if (Number.isFinite(sulphur) && sulphur >= 0) receipt.sulphur = sulphur;
   if (Number.isFinite(lcvIn) && lcvIn > 0) receipt.lcv = lcvIn;
   if (Number.isFinite(visc) && visc > 0) receipt.viscosity = visc;
   let tankFuelNote = '';
-  try{ tankFuelNote = applyReceiptToTankFuel(receipt); }catch(_e){}
-  state.receipts.push(receipt);
-  await dbPut('receipts', receipt);
+  /* A correction replaces the receipt in place. The tank's blended figures were worked out from the first version
+     and are typed figures in Setup, so they are not blended a second time — say so instead. */
+  if (editing){
+    const i = state.receipts.findIndex(x=>x.id===editing.id);
+    state.receipts[i] = Object.assign({}, editing, receipt);
+    if (receipt.category === 'fuel' && ['qty','density15','sulphur','lcv','bdnNo','tankId'].some(k=> String(editing[k] ?? '') !== String(receipt[k] ?? '')))
+      tankFuelNote = 'receipt corrected — if the tank’s S / LCV were blended from it, check them in Setup › Fuel in the storage tanks';
+    stopEditReceipt(true);
+  } else {
+    try{ tankFuelNote = applyReceiptToTankFuel(receipt); }catch(_e){}
+    state.receipts.push(receipt);
+  }
+  await dbPut('receipts', editing ? state.receipts.find(x=>x.id===receipt.id) : receipt);
   if (tankFuelNote){ try{ await saveSetup(); renderTankFuelPanel(); renderFuelInUse(); }catch(_e){} }
   markPendingSync();
-  try{ showToast(`Receipt logged — ${receiptEntryTargetText(receipt)}` + (tankFuelNote ? ' · ' + tankFuelNote : '')); }catch(_e){}
+  try{ showToast(`Receipt ${editing ? 'corrected' : 'logged'} — ${receiptEntryTargetText(receipt)}` + (tankFuelNote ? ' · ' + tankFuelNote : '')); }catch(_e){}
   document.getElementById('rcpt_qty').value = '';
   document.getElementById('rcpt_bdn').value = '';
   document.getElementById('rcpt_company').value = '';
