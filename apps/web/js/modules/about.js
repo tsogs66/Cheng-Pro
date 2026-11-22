@@ -118,11 +118,11 @@ window.ChengProModules.about = {
           </article>
           <article>
             <h3>Voyage Chief</h3>
-            <p>Noon and intermediate reports, ROB chain, bunker receipts, voyage library, abstracts, and printouts. Sync URL stays on the Setup tab when you use a self-hosted server.</p>
+            <p>Noon and intermediate reports, ROB chain, bunker receipts (with sulphur, LCV and an Edit button), the fuel-in-use tank on each log entry for the SFOC LCV, voyage library, abstracts, and printouts. The dashboard's Calculated ROB follows Voyage Chief's current ROB. Sync URL stays on the Setup tab when you use a self-hosted server.</p>
           </article>
           <article>
             <h3>Tank Chief</h3>
-            <p>Soundings with trim/list, calibration tables, fuel condition reports, bunkering, and peer sync of vessel folders.</p>
+            <p>Soundings with trim/list, calibration tables (including manual double interpolation for book corrections), fuel condition reports, bunkering with the sulphur, LCV and density of each tank's fuel, and peer sync of vessel folders.</p>
           </article>
           <article>
             <h3>e-ORB</h3>

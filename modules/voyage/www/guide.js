@@ -416,7 +416,7 @@
       q: "How do I plan the fuel changeover and keep the changeover log?",
       purpose: "The ECA page works out how long before the ECA boundary the changeover must start. The changeover log is the record of what was done, stage by stage, with the time, the position, the consumption and the quantity in each compliant tank.",
       steps: [
-        "Open ECA. Enter the sulphur now in service, the sulphur of the new fuel, the limit at the engine inlet, the service system volume, the consumption at planned load, the density and the planned crossing time of the ECA boundary. Press Calculate.",
+        "Open ECA. Enter the sulphur now in service, the sulphur of the new fuel, the limit at the engine inlet, the service system volume, the consumption at planned load in MT/hr, the density and the planned crossing time of the ECA boundary. Press Calculate.",
         "Read the time the changeover must start. Copy window to Voyage Setup stores the planned times. Print changeover plan prints the plan.",
         "Press New ECA record in the changeover log and give it a title, for example the area.",
         "The record has five stages: changeover commenced, changeover completed, entered ECA, departed ECA, after departure. For each stage press Fetch from log entry, or press Fetch all stages from the voyage log once.",
@@ -704,6 +704,133 @@
       undo: [
         "Reopen the entry and retype the figure."
 ]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "How do I choose which tank the fuel is drawn from, and why does it matter?",
+      purpose: "SFOC is corrected for the heating value (LCV) of the fuel actually burned. Each grade (HFO, LSFO, MDO/MGO, LSMGO) is drawn from one storage tank for the whole entry, so the entry takes that tank's LCV and sulphur. You choose the tank once per grade, not per engine.",
+      steps: [
+        "Open Log Entry. Under Fuel in use — storage tank there is one box for each grade the entry burns, for example HFO drawn from.",
+        "Open the box and pick the storage tank being drawn from. Tanks are listed with their estimated MT. Settling, service and overflow tanks are not offered, and a tank estimated empty is left off.",
+        "The line under the box shows the figures that will be kept: S in %, LCV in kJ/kg, density, and the BDN. A blend of several BDN says so.",
+        "If the tank has no LCV the line turns red and the SFOC uses the Setup LCV for this entry. Type the figure on the tank in Setup (see the LCV question).",
+        "Add Entry or Update Entry saves the chosen tank and a copy of its figures on the entry, so a later correction of the tank cannot rewrite old SFOC.",
+        "The next entry starts with the tank you chose last time for that grade."
+],
+      buttons: [
+        "Fuel in use — storage tank — one box per grade burned",
+        "— not chosen — — the entry uses the Setup LCV (Bunker LCV)",
+        "Add Entry / Update Entry — keeps the tank and its figures with the entry"
+],
+      undo: [
+        "A wrong tank on a saved entry: open it from Edit a previous entry, choose the right tank, and press Update Entry.",
+        "Choose — not chosen — to go back to the Setup LCV for that entry."
+]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "What do the tank estimate, the empty-tank warning and the monitoring warning mean?",
+      purpose: "Between two Tank Chief monitorings the program keeps an estimate of each storage tank: the last monitored MT, plus what was loaded since, minus what the saved entries that named that tank burned. It is only an estimate and is replaced at the next monitoring.",
+      steps: [
+        "The est. figure beside a tank name is that estimate in MT.",
+        "If the estimate cannot cover the entry being typed the line says the tank is estimated empty. Choose another tank, or sound this one.",
+        "If the tank has about a day left, or less, the line says how many hours remain at the recent burn.",
+        "When a new monitoring arrives from Tank Chief it is compared with the estimate. A difference of more than 2 % of the tank (or 2 MT on a small one) is listed in Setup under Fuel in the storage tanks as The last monitoring differs from the log's estimate.",
+        "The usual cause is a tank chosen wrongly in the entries since the previous monitoring. Open those entries and correct the tank, or accept the monitoring as the new truth."
+],
+      buttons: [
+        "Warning line under the tank box — empty or low tank",
+        "Setup › Ship Details › Fuel in the storage tanks — the monitoring difference list"
+],
+      undo: [
+        "Correct the tank on the entries concerned and press Update Entry on each. The estimate follows."
+]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "How do I log a receipt with sulphur and LCV, and correct it afterwards?",
+      purpose: "A receipt records a bunker, lube or fresh-water delivery and adds it to the ROB. For fuel it can also carry the figures of the delivery, so the tank gets its sulphur and LCV.",
+      steps: [
+        "Open Receipts. Enter the date, and the time on the ship's clock if known. A receipt with a time joins the first report at or after that time. A receipt with a date only counts from the first report of that day.",
+        "Choose the category and the tank, and type the quantity (MT for fuel, litres for lube, m³ for fresh water).",
+        "For fuel type the BDN no., company, location, density at 15 °C, sulphur content (% m/m), LCV (kJ/kg, if it is on the BDN) and viscosity.",
+        "Press Log Receipt. The message names the log entry the receipt goes into and what happened to the tank's figures.",
+        "In ChEng AIO the tank's figures come from Tank Chief. Without Tank Chief the receipt is blended into the typed tank: bunkered into an empty tank it takes the delivery figures; into a tank that holds fuel it is blended by mass (density by volume).",
+        "To correct a receipt press Edit on its row. It loads into the form and the button becomes Save changes. Change what is wrong and press Save changes; the same receipt is updated, it is not added twice. Cancel edit leaves it as it was."
+],
+      buttons: [
+        "Log Receipt — adds a receipt",
+        "Edit — loads a saved receipt into the form",
+        "Save changes / Cancel edit — keeps or drops the correction",
+        "✕ — deletes the receipt"
+],
+      undo: [
+        "Editing does not blend the tank figures a second time. If you changed the quantity, density, sulphur, LCV, BDN or tank on a fuel receipt, check the tank's figures in Setup.",
+        "Receipts made by a bunker survey have no Edit button: change them on the log entry that carries the survey."
+]
+    },
+    {
+      group: "Bunkers and ROB",
+      q: "How do I put LCV, sulphur, density and BDN on my storage tanks?",
+      purpose: "The log entry takes its LCV and sulphur from the tank the fuel is drawn from, so each storage tank needs its figures. They come from Tank Chief in ChEng AIO, or are typed in Setup.",
+      steps: [
+        "Open Setup, press Ship Details, and find Fuel in the storage tanks.",
+        "In ChEng AIO press Get fuel from Tank Chief. Every storage tank that holds fuel is listed by the name it has in Tank Chief, whether or not it was bunkered. The figures Tank Chief holds show faintly in the boxes.",
+        "Type a tank's S (%), LCV (kJ/kg), ρ @15 or BDN in its row. What you type is used for the log entry in place of the Tank Chief figure. Clearing a box brings the Tank Chief figure back.",
+        "Without Tank Chief, or for a tank that is not in it, press Add a tank by hand. Give the tank name, the grade, the ROB, the BDN, the LCV, the sulphur and the density.",
+        "Under Voyage tank (receipts blend into it) link the hand-typed row to the Voyage tank. Receipts logged to that tank then blend into its figures by themselves.",
+        "The figures are saved as you type. Open Log Entry and the tank shows its figures under Fuel in use."
+],
+      buttons: [
+        "Get fuel from Tank Chief — takes the tank names and monitoring (ChEng AIO)",
+        "Add a tank by hand — a row you type yourself",
+        "Remove — deletes a hand-typed row",
+        "S / LCV / ρ / BDN boxes — your figures for a Tank Chief tank"
+],
+      undo: [
+        "Clear a box to return to the Tank Chief figure.",
+        "Remove deletes a hand-typed row; entries already saved keep the figures they were saved with."
+]
+    },
+    {
+      group: "ECA and changeover",
+      q: "Why does the ECA calculator ask for consumption in MT/hr, and how do I recheck a saved plan?",
+      purpose: "The ECA page works on MT/hr, the same basis as the fuel-oil changeover calculator, so the plan, the printout and every later figure follow from one rate. A consumer's MT/day is divided by 24.",
+      steps: [
+        "Open ECA and type Consumption at planned load in MT/hr, for example 1.02. In port the consumption is also MT/hr.",
+        "Press Calculate. The time the changeover must start, the volume and the tank figures follow from that rate.",
+        "A saved plan or an older row that was kept in MT/day is read as MT/day divided by 24, so the answer is the same. Press Calculate again to refresh it.",
+        "Each consumer can have its own service volume; the result lists the consumers one by one.",
+        "Print changeover plan prints the basis as MT/hr."
+],
+      buttons: [
+        "Consumption at planned load (MT/hr)",
+        "Calculate — works out the changeover time",
+        "Print changeover plan"
+],
+      undo: [
+        "If a saved plan gives a different figure from before, press Calculate again and compare the MT/hr shown on the printout."
+]
+    },
+    {
+      group: "Problems",
+      q: "The calculated ROB on the ChEng AIO dashboard differs from Voyage Chief.",
+      purpose: "The dashboard shows the same ROB as Voyage Chief's current ROB: the opening or survey figure, plus the receipts that have joined, minus the consumption in the log. If the two differ, something in the data is read differently.",
+      steps: [
+        "Open Voyage Chief and read the current ROB on the ROB page.",
+        "Make sure the last log entry is saved and ChEng AIO has the same ship active.",
+        "A bunker survey made on an entry is that entry's Previous ROB: the measured figure is the opening of the period, and the period's receipts and consumption are then applied. It is not the closing ROB.",
+        "A receipt with a time joins the first report at or after that time. A receipt later than the last entry does not count yet.",
+        "If no carry-over has been saved, the opening meters come from Vessel Setup (the flowmeter readings and the date and time of the voyage start). Check them.",
+        "Open ChEng AIO again so the dashboard re-reads the log."
+],
+      buttons: [
+        "ROB page in Voyage Chief — the current ROB",
+        "Dashboard — Calculated ROB"
+],
+      undo: [
+        "Correct the receipt, survey or meter on the Voyage side. The dashboard follows the next time it is opened."
+]
     }
   ];
 
@@ -740,13 +867,64 @@
     document.head.appendChild(style);
   }
 
+  /* Search: every word must be found somewhere in a topic (any order); best matches first; related words
+     (for example "calorific" finds LCV) are matched too. When no topic has all the words, the closest ones are shown. */
+  const SYNONYMS = {
+    lcv: 'calorific heating value energy kj/kg sfoc', sulphur: 'sulfur s% sox', sulfur: 'sulphur', bdn: 'bunker delivery note',
+    blend: 'mix mixed mixing', ullage: 'dip sounding', sounding: 'ullage dip', empty: 'low run out estimate estimated',
+    receipt: 'bunker delivery received receipts', interpolation: 'interpolate table book correction trim heel',
+    eca: 'seca emission control area changeover', seca: 'eca', 'mt/hr': 'consumption rate hourly', rob: 'remaining on board stock',
+    backup: 'restore export save', delete: 'remove erase', edit: 'change correct amend fix', correct: 'edit fix amend change',
+    density: 'sg specific gravity', warning: 'alert alarm', print: 'printout pdf'
+  };
+  function guideHay(item) {
+    const base = [item.group, item.q, item.purpose].concat(item.steps || [], item.buttons || [], item.undo || []).join(' ').toLowerCase();
+    let extra = '';
+    Object.keys(SYNONYMS).forEach((k) => { if (base.indexOf(k) !== -1) extra += ' ' + SYNONYMS[k]; });
+    return { base: base, extra: extra };
+  }
+  function guideSearch(items, query) {
+    const tokens = String(query || '').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+    if (!tokens.length) return { list: items.slice(), tokens: tokens, partial: false };
+    const scored = items.map((item) => {
+      const h = item._h || (item._h = guideHay(item));
+      const title = String(item.q).toLowerCase(), grp = String(item.group).toLowerCase(), pur = String(item.purpose).toLowerCase();
+      let score = 0, hits = 0;
+      tokens.forEach((t) => {
+        let s = 0;
+        if (title.indexOf(t) !== -1) s += 6;
+        if (grp.indexOf(t) !== -1) s += 3;
+        if (pur.indexOf(t) !== -1) s += 2;
+        if (h.base.indexOf(t) !== -1) s += 1; else if (h.extra.indexOf(t) !== -1) s += 0.5;
+        if (s > 0) hits++;
+        score += s;
+      });
+      return { item: item, score: score, hits: hits };
+    });
+    let found = scored.filter((x) => x.hits === tokens.length);
+    let partial = false;
+    if (!found.length) { found = scored.filter((x) => x.hits > 0); partial = true; }
+    found.sort((a, b) => b.score - a.score);
+    return { list: found.map((x) => x.item), tokens: tokens, partial: partial };
+  }
+  function guideMark(escaped, tokens) {
+    let out = escaped;
+    (tokens || []).forEach((t) => {
+      const e = esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!e) return;
+      out = out.replace(new RegExp('(?![^<]*>)(' + e + ')', 'gi'), '<mark style="background:rgba(255,200,80,.38);color:inherit;border-radius:3px;padding:0 1px">$1</mark>');
+    });
+    return out;
+  }
+
   function render(host) {
     if (!host) return;
     ensureStyle();
     const groups = ['All'].concat(ITEMS.map((item) => item.group).filter((name, i, all) => all.indexOf(name) === i));
     host.innerHTML =
       '<label for="voyageGuideSearch">Search the guide</label>' +
-      '<input id="voyageGuideSearch" class="op-guide-search" type="search" placeholder="Try: delete entry, library, void, backup" autocomplete="off">' +
+      '<input id="voyageGuideSearch" class="op-guide-search" type="search" placeholder="Search (press /), e.g. lcv sulphur, edit receipt, empty tank, interpolation, eca mt/hr" autocomplete="off">' +
+      '<button type="button" class="op-guide-clear" id="voyageGuideClear" hidden style="margin-left:6px;">Clear</button>' +
       '<div class="op-guide-chips" id="voyageGuideChips"></div>' +
       '<p class="hint" id="voyageGuideCount"></p>' +
       '<div id="voyageGuideList"></div>';
@@ -771,36 +949,48 @@
       chips.appendChild(btn);
     });
 
-    function hay(item) {
-      return [item.group, item.q, item.purpose].concat(item.steps, item.buttons, item.undo).join(' ').toLowerCase();
-    }
-
+    const clearBtn = host.querySelector('#voyageGuideClear');
     function draw() {
-      const q = search.value.trim().toLowerCase();
-      const shown = ITEMS.filter((item) => {
-        if (active !== 'All' && item.group !== active) return false;
-        return !q || hay(item).indexOf(q) !== -1;
-      });
+      const qraw = search.value.trim();
+      const pool = ITEMS.filter((item) => active === 'All' || item.group === active);
+      const res = guideSearch(pool, qraw);
+      const shown = res.list, toks = res.tokens;
+      if (clearBtn) clearBtn.hidden = !qraw;
       if (!shown.length) {
-        listEl.innerHTML = '<p class="hint">Nothing matches. Try voyage, delete, receipt, void, or backup.</p>';
+        listEl.innerHTML = '<p class="hint">Nothing matches. Try fewer words, or voyage, receipt, lcv, eca, or backup.</p>';
       } else {
         let html = '';
         let last = '';
+        if (qraw && res.partial) html += '<p class="hint">No topic has all those words. These are the closest, matching some of them:</p>';
         shown.forEach((item) => {
-          if (item.group !== last) {
+          if (!qraw && item.group !== last) {
             html += '<h3 class="op-guide-sub">' + esc(item.group) + '</h3>';
             last = item.group;
           }
-          html += '<details class="op-guide-item"' + (q ? ' open' : '') + '><summary>' + esc(item.q) + '</summary>' +
-            '<p class="op-guide-purpose">' + esc(item.purpose) + '</p>' +
+          html += '<details class="op-guide-item"' + (qraw && shown.length <= 3 ? ' open' : '') + '><summary>' + guideMark(esc(item.q), toks) +
+            (qraw ? ' <small style="opacity:.65;">· ' + esc(item.group) + '</small>' : '') + '</summary>' +
+            '<p class="op-guide-purpose">' + guideMark(esc(item.purpose), toks) + '</p>' +
             list('Steps', item.steps) + list('Buttons', item.buttons) + list('If this was a mistake', item.undo) +
             '</details>';
         });
         listEl.innerHTML = html;
       }
-      countEl.textContent = shown.length + (shown.length === 1 ? ' topic' : ' topics') + (q ? ' match the search.' : ' in this list.');
+      countEl.textContent = shown.length + (shown.length === 1 ? ' topic' : ' topics') + (qraw ? (res.partial ? ' partly match the search.' : ' match the search, best first.') : ' in this list.');
     }
-
+    if (clearBtn) clearBtn.addEventListener('click', () => { search.value = ''; draw(); search.focus(); });
+    search.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && search.value) { search.value = ''; draw(); } });
+    /* "/" or Ctrl+K jumps to the search box while this guide is on screen (not while typing in another box). */
+    if (!host.dataset.searchKey) {
+      host.dataset.searchKey = '1';
+      document.addEventListener('keydown', (ev) => {
+        if (!host.isConnected || !host.offsetParent) return;
+        const t = ev.target, tag = t && t.tagName;
+        const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+        if ((ev.key === '/' && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) || ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k')) {
+          ev.preventDefault(); search.focus(); search.select();
+        }
+      });
+    }
     search.addEventListener('input', draw);
     draw();
   }
