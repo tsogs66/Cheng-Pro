@@ -1430,11 +1430,11 @@ window.ChengProAboutGuide = (function () {
     );
   }
 
-  function article(item, forceOpen) {
+  function article(item, forceOpen, toks, showGroup) {
     return (
       '<details class="guide-item"' + (forceOpen ? ' open' : '') + ' data-guide-group="' + esc(item.group) + '">' +
-        '<summary>' + esc(item.q) + '</summary>' +
-        '<p class="guide-purpose">' + esc(item.purpose) + '</p>' +
+        '<summary>' + guideMark(esc(item.q), toks) + (showGroup ? ' <small style="opacity:.65;">· ' + esc(item.group) + '</small>' : '') + '</summary>' +
+        '<p class="guide-purpose">' + guideMark(esc(item.purpose), toks) + '</p>' +
         list('Steps', item.steps) +
         list('Buttons', item.buttons) +
         list('If this was a mistake', item.undo) +
@@ -1442,12 +1442,63 @@ window.ChengProAboutGuide = (function () {
     );
   }
 
+  /* Search: every word must be found somewhere in a topic (any order); best matches first; related words
+     (for example "calorific" finds LCV) are matched too. When no topic has all the words, the closest ones are shown. */
+  const SYNONYMS = {
+    lcv: 'calorific heating value energy kj/kg sfoc', sulphur: 'sulfur s% sox', sulfur: 'sulphur', bdn: 'bunker delivery note',
+    blend: 'mix mixed mixing', ullage: 'dip sounding', sounding: 'ullage dip', empty: 'low run out estimate estimated',
+    receipt: 'bunker delivery received receipts', interpolation: 'interpolate table book correction trim heel',
+    eca: 'seca emission control area changeover', seca: 'eca', 'mt/hr': 'consumption rate hourly', rob: 'remaining on board stock',
+    backup: 'restore export save', delete: 'remove erase', edit: 'change correct amend fix', correct: 'edit fix amend change',
+    density: 'sg specific gravity', warning: 'alert alarm', print: 'printout pdf'
+  };
+  function guideHay(item) {
+    const base = [item.group, item.q, item.purpose].concat(item.steps || [], item.buttons || [], item.undo || []).join(' ').toLowerCase();
+    let extra = '';
+    Object.keys(SYNONYMS).forEach((k) => { if (base.indexOf(k) !== -1) extra += ' ' + SYNONYMS[k]; });
+    return { base: base, extra: extra };
+  }
+  function guideSearch(items, query) {
+    const tokens = String(query || '').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+    if (!tokens.length) return { list: items.slice(), tokens: tokens, partial: false };
+    const scored = items.map((item) => {
+      const h = item._h || (item._h = guideHay(item));
+      const title = String(item.q).toLowerCase(), grp = String(item.group).toLowerCase(), pur = String(item.purpose).toLowerCase();
+      let score = 0, hits = 0;
+      tokens.forEach((t) => {
+        let s = 0;
+        if (title.indexOf(t) !== -1) s += 6;
+        if (grp.indexOf(t) !== -1) s += 3;
+        if (pur.indexOf(t) !== -1) s += 2;
+        if (h.base.indexOf(t) !== -1) s += 1; else if (h.extra.indexOf(t) !== -1) s += 0.5;
+        if (s > 0) hits++;
+        score += s;
+      });
+      return { item: item, score: score, hits: hits };
+    });
+    let found = scored.filter((x) => x.hits === tokens.length);
+    let partial = false;
+    if (!found.length) { found = scored.filter((x) => x.hits > 0); partial = true; }
+    found.sort((a, b) => b.score - a.score);
+    return { list: found.map((x) => x.item), tokens: tokens, partial: partial };
+  }
+  function guideMark(escaped, tokens) {
+    let out = escaped;
+    (tokens || []).forEach((t) => {
+      const e = esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!e) return;
+      out = out.replace(new RegExp('(?![^<]*>)(' + e + ')', 'gi'), '<mark style="background:rgba(255,200,80,.38);color:inherit;border-radius:3px;padding:0 1px">$1</mark>');
+    });
+    return out;
+  }
+
   function render(host) {
     if (!host) return;
     host.innerHTML =
       '<div class="guide-tools">' +
         '<label class="guide-search-label" for="aboutGuideSearch">Search the guide</label>' +
-        '<input id="aboutGuideSearch" type="search" placeholder="Try: delete entry, sounding, license, backup, void" autocomplete="off">' +
+        '<input id="aboutGuideSearch" type="search" placeholder="Search, e.g. lcv sulphur, edit receipt, empty tank, interpolation, eca mt/hr" autocomplete="off">' +
+        '<button type="button" class="guide-chip" id="aboutGuideClear" hidden style="margin-left:6px;">Clear</button>' +
         '<div class="guide-groups" id="aboutGuideGroups"></div>' +
         '<p class="hint" id="aboutGuideCount"></p>' +
       '</div>' +
@@ -1477,31 +1528,33 @@ window.ChengProAboutGuide = (function () {
     groups.appendChild(chip('All'));
     GROUPS.forEach((name) => groups.appendChild(chip(name)));
 
+    const clearBtn = host.querySelector('#aboutGuideClear');
     function draw() {
-      const q = search.value.trim().toLowerCase();
-      const shown = ITEMS.filter((item) => {
-        if (activeGroup !== 'All' && item.group !== activeGroup) return false;
-        if (!q) return true;
-        return haystack(item).indexOf(q) !== -1;
-      });
+      const qraw = search.value.trim();
+      const pool = ITEMS.filter((item) => activeGroup === 'All' || item.group === activeGroup);
+      const res = guideSearch(pool, qraw);
+      const shown = res.list, toks = res.tokens;
+      if (clearBtn) clearBtn.hidden = !qraw;
       if (!shown.length) {
-        listEl.innerHTML = '<p class="hint">Nothing matches that. Try voyage, tank, delete, backup, license, requisition, or void.</p>';
+        listEl.innerHTML = '<p class="hint">Nothing matches that. Try fewer words, or voyage, tank, delete, backup, license, requisition, or void.</p>';
       } else {
         let html = '';
         let lastGroup = '';
+        if (qraw && res.partial) html += '<p class="hint">No topic has all those words. These are the closest, matching some of them:</p>';
         shown.forEach((item) => {
-          if (item.group !== lastGroup) {
+          if (!qraw && item.group !== lastGroup) {
             html += '<h3 class="about-sub">' + esc(item.group) + '</h3>';
             lastGroup = item.group;
           }
-          html += article(item, !!q);
+          html += article(item, !!qraw && shown.length <= 3, toks, !!qraw);
         });
         listEl.innerHTML = html;
       }
       const noun = shown.length === 1 ? 'topic' : 'topics';
-      countEl.textContent = shown.length + ' ' + noun + (q ? ' match the search.' : ' in this list.');
+      countEl.textContent = shown.length + ' ' + noun + (qraw ? (res.partial ? ' partly match the search.' : ' match the search, best first.') : ' in this list.');
     }
-
+    if (clearBtn) clearBtn.addEventListener('click', () => { search.value = ''; draw(); search.focus(); });
+    search.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && search.value) { search.value = ''; draw(); } });
     search.addEventListener('input', draw);
     draw();
   }
