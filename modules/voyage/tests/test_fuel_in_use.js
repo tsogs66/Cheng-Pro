@@ -29,7 +29,7 @@ function make(setup, entries, rows) {
   };
   vm.createContext(sb);
   vm.runInContext("const FUEL_GRADE_IDS = { 'HFO': 'hfo', 'LSFO': 'lsfo', 'MDO/MGO': 'mdo', 'LSMGO': 'lsmgo' }; let _tankRegMemo = null;", sb);
-  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'computeTankDrift', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
+  vm.runInContext(['fuelGradeId', 'tankFuelCache', 'typedTankFuel', 'withTypedFigures', 'manualTankFuel', 'tankFuelRegister', 'tankConsumedSince', 'computeTankDrift', 'fuelTanksOfGrade', 'entryLcv', 'lcvCorrectionFactor', 'isoCorrectedSfoc']
     .map(extract).join('\n'), sb);
   return sb;
 }
@@ -48,6 +48,15 @@ const hfo = sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z');
 check('both HFO storage tanks are offered', hfo.length === 2 && hfo.map(t => t.id).sort().join() === 'T2P,T3P');
 check('each carries its BDN figures', hfo.every(t => t.lcv === 40200 && near(t.sulphur, 2.8) && t.bdn === '111'));
 check('a grade with no tank gives none', sb.fuelTanksOfGrade('lsmgo', null).length === 0);
+
+console.log('figures typed on a Tank Chief tank');
+setup.tankFuelTyped = { T3P: { lcv: 41234, sulphur: 0.51, density: 0.95, bdn: 'MY-9' } };
+const typedList = sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z');
+const ty3 = typedList.find(t => t.id === 'T3P'), ty2 = typedList.find(t => t.id === 'T2P');
+check('typed LCV / S / density / BDN replace the register ones on that tank', ty3.lcv === 41234 && near(ty3.sulphur, 0.51) && near(ty3.density, 0.95) && ty3.bdn === 'MY-9');
+check('other tanks keep the register figures', ty2.lcv === 40200 && ty2.bdn === '111');
+delete setup.tankFuelTyped;
+check('clearing them gives the register figures back', sb.fuelTanksOfGrade('hfo', '2026-11-05T00:00:00Z').find(t => t.id === 'T3P').lcv === 40200);
 
 console.log('estimated ROB: last monitoring − burned from that tank since');
 const t3 = hfo.find(t => t.id === 'T3P'), t2 = hfo.find(t => t.id === 'T2P');

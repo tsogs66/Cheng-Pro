@@ -650,6 +650,38 @@
     return d > s;
   }
 
+  /** Voyage receiptMoment: date + time on the ship's clock, or null for a date-only receipt. */
+  function homeReceiptMoment(r) {
+    if (!r) return null;
+    const d = String(r.date || '');
+    if (d.length < 10) return null;
+    const t = r.time ? String(r.time).slice(0, 5) : (d.length >= 16 ? d.slice(11, 16) : '');
+    return /^\d{2}:\d{2}$/.test(t) ? d.slice(0, 10) + 'T' + t : null;
+  }
+
+  /** Voyage receiptJoinedBy: a timed receipt joins the first report at or after its time. */
+  function homeReceiptJoinedBy(r, cutoff, cutoffDay) {
+    const m = homeReceiptMoment(r);
+    if (m) {
+      const t = new Date(m).getTime();
+      const limit = cutoff instanceof Date ? cutoff.getTime() : new Date(cutoff).getTime();
+      if (Number.isFinite(t) && Number.isFinite(limit)) return t <= limit;
+    }
+    const day = String((r && r.date) || '').slice(0, 10);
+    return !!day && day <= String(cutoffDay || '');
+  }
+
+  /** Voyage receiptAfterSurvey. */
+  function homeReceiptAfterSurvey(r, survey) {
+    const m = homeReceiptMoment(r);
+    if (m) {
+      const t = new Date(m).getTime();
+      const sv = new Date(survey && survey.date).getTime();
+      if (Number.isFinite(t) && Number.isFinite(sv)) return t > sv;
+    }
+    return homeReceiptDayAfter(r && r.date, survey && survey.date);
+  }
+
   /** Dep/Arr match: tankId only; else exact tank name — never grade alone. */
   function homeReceiptMatchesTankStrict(r, tank, cat) {
     if (!r || !tank || r.category !== cat) return false;
@@ -672,7 +704,10 @@
       if (e.datetime) {
         const t = new Date(e.datetime).getTime();
         if (Number.isFinite(t) && t > limit) continue;
-        if (survey && !homeReceiptDayAfter(e.datetime, survey.date)) continue;
+        if (survey) {
+          const sv = new Date(survey.date).getTime();
+          if (Number.isFinite(t) && Number.isFinite(sv) ? !(t > sv) : !homeReceiptDayAfter(e.datetime, survey.date)) continue;
+        }
       } else if (survey) continue;
       const map = cat === 'fuel' ? e.robReceived : e.robReceivedLube;
       if (map && map[tankId] != null) sum += Number(map[tankId]) || 0;
@@ -690,9 +725,8 @@
     const allowReceipt = (r) => {
       if (!homeReceiptMatchesTankStrict(r, tank, cat)) return false;
       if (!cutoffDay) return true;
-      const rDay = String(r.date || '').slice(0, 10);
-      if (!rDay || rDay > cutoffDay) return false;
-      return !survey || homeReceiptDayAfter(r.date, survey.date);
+      if (!homeReceiptJoinedBy(r, cutoff || new Date(cutoffDay + 'T23:59:59'), cutoffDay)) return false;
+      return !survey || homeReceiptAfterSurvey(r, survey);
     };
     let hand = 0;
     let surveyFallback = 0;
@@ -944,37 +978,83 @@
     return homeSavedFuelConsByGrade(filtered, fuelTanks, carryover, setup);
   }
 
-  /** Fuel present per tank — mirrors Voyage robAsOfComputedRow on the last entry. */
+  /** Voyage carryoverFromSetup: opening meters from Vessel Setup flowmeters + defaults (used when no carry-over is saved). */
+  function homeDerivedCarryover(setup) {
+    if (!setup || !(setup.initDateTime || setup.flowmeters)) return null;
+    const fm = setup.flowmeters || {};
+    const arr = setup.flowArr || 'SINGLE';
+    const meDual = arr === 'DUAL_ME' || arr === 'DUAL_BOTH';
+    const geDual = arr === 'DUAL_GE' || arr === 'DUAL_BOTH';
+    const d = setup.defaults || {};
+    const rd = (k) => (fm[k] && fm[k].reading != null ? fm[k].reading : null);
+    return {
+      datetime: setup.initDateTime || null,
+      me: { meter: rd('main'), meterIn: rd('main'), meterOut: meDual ? rd('mainOut') : null, type: d.meType, sg: d.meSg },
+      ge: { meter: rd('aux'), meterIn: rd('aux'), meterOut: geDual ? rd('auxOut') : null, type: d.geType, sg: d.geSg },
+      blr: { meter: rd('boiler'), type: d.blrType, sg: d.blrSg },
+      revCounter: rd('rc'),
+    };
+  }
+
+  /**
+   * Fuel present per tank as of one log entry — mirrors Voyage robAsOfComputedRow:
+   * a bunker survey re-bases the chain (basis 'previous': measured figure is that report's Previous ROB;
+   * older surveys: measured figure is the closing ROB), receipts join by the time they were logged.
+   */
   function homeRobAsOfFuel(setup, entries, receipts, fuelTanks, lastEntry) {
     if (!lastEntry || !lastEntry.datetime) return {};
-    const cutoff = new Date(lastEntry.datetime);
-    const cutoffDay = String(lastEntry.datetime).slice(0, 10);
-    const survey = homeLatestRobSurveyAtOrBefore(entries, cutoff);
-    const carryover = setup && setup.carryover;
-    const cumAll = homeSavedFuelConsByGrade(entries, fuelTanks, carryover, setup);
-    let cumSurvey = null;
-    if (survey) {
-      const st = new Date(survey.date).getTime();
-      cumSurvey = homeFuelConsUpToTime(entries, fuelTanks, carryover, st, setup);
-    }
-    const receivedOpts = { cutoff, cutoffDay, survey };
+    const list = (entries || []).slice()
+      .sort((a, b) => String(a.datetime || '').localeCompare(String(b.datetime || '')));
+    const carryover = (setup && setup.carryover) || homeDerivedCarryover(setup);
+    const cache = {};
+    const consUpTo = (entry) => (entry
+      ? homeFuelConsUpToTime(list, fuelTanks, carryover, new Date(entry.datetime).getTime(), setup)
+      : null);
     const openStore = (setup && setup.rob) || {};
-    const rob = {};
-    for (const t of fuelTanks) {
-      let base = Number(openStore[t.id]) || 0;
+
+    function robAt(entry, depth) {
+      if (cache[entry.id]) return cache[entry.id];
+      const cutoff = new Date(entry.datetime);
+      const cutoffDay = String(entry.datetime).slice(0, 10);
+      const survey = homeLatestRobSurveyAtOrBefore(list, cutoff);
+      const fromPrevious = !!(survey && survey.basis === 'previous');
+      let sRow = null;
+      let sPrevRow = null;
+      let prevBook = null;
+      let refDate = '';
       if (survey) {
-        if (survey.measured && survey.measured[t.id] != null) base = Number(survey.measured[t.id]);
-        else if (survey.calculated && survey.calculated[t.id] != null) base = Number(survey.calculated[t.id]);
+        const sIdx = list.findIndex((r) => r.id === survey.entryId);
+        sRow = sIdx >= 0 ? list[sIdx] : null;
+        if (fromPrevious) {
+          sPrevRow = sIdx > 0 ? list[sIdx - 1] : null;
+          prevBook = sPrevRow && (depth || 0) < 200 ? robAt(sPrevRow, (depth || 0) + 1) : openStore;
+          refDate = sPrevRow ? sPrevRow.datetime : String((setup && setup.initDateTime) || '');
+        }
       }
-      const received = homeBookReceivedPreferOnce(receipts, entries, t, 'fuel', receivedOpts);
-      rob[t.id] = base + received;
+      const receivedSurvey = !survey ? null : (fromPrevious ? (refDate ? { date: refDate } : null) : survey);
+      const baseEntry = !survey ? null : (fromPrevious ? sPrevRow : sRow);
+      const cumBase = survey ? consUpTo(baseEntry) : null;
+      const cumNow = consUpTo(entry);
+      const receivedOpts = { cutoff, cutoffDay, survey: receivedSurvey };
+      const rob = {};
+      for (const t of fuelTanks) {
+        let base = Number(openStore[t.id]) || 0;
+        if (survey) {
+          if (survey.measured && survey.measured[t.id] != null) base = Number(survey.measured[t.id]);
+          else if (fromPrevious) base = Number((prevBook && prevBook[t.id]) || 0);
+          else if (survey.calculated && survey.calculated[t.id] != null) base = Number(survey.calculated[t.id]);
+        }
+        rob[t.id] = base + homeBookReceivedPreferOnce(receipts, list, t, 'fuel', receivedOpts);
+      }
+      HOME_FUEL_GRADES.forEach((g) => {
+        const total = Number(cumNow[g]) || 0;
+        const base = cumBase ? Number(cumBase[g]) || 0 : 0;
+        homeDeductGradeConsumption(rob, fuelTanks, g, Math.max(0, total - base));
+      });
+      cache[entry.id] = rob;
+      return rob;
     }
-    HOME_FUEL_GRADES.forEach((g) => {
-      const total = Number(cumAll[g]) || 0;
-      const base = survey ? Number(cumSurvey[g]) || 0 : 0;
-      homeDeductGradeConsumption(rob, fuelTanks, g, Math.max(0, total - base));
-    });
-    return rob;
+    return robAt(lastEntry, 0);
   }
 
   /**
@@ -983,6 +1063,10 @@
    */
   function homeFuelPresentForTank(t, setup, entries, receipts, lastEntry, robChain) {
     const sv = lastEntry && lastEntry.robSurvey;
+    if (sv && sv.basis === 'previous' && robChain && robChain[t.id] != null) {
+      /* Measured figure is this report's PREVIOUS ROB, not its closing — the chain already applies it. */
+      return Number(robChain[t.id]);
+    }
     if (sv) {
       const rawM = sv.measured && sv.measured[t.id];
       if (rawM != null && rawM !== '' && Number.isFinite(Number(rawM))) {
