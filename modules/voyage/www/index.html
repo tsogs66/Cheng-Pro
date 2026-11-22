@@ -22594,6 +22594,23 @@ let _tankFuelAsked = 0;
 
 function fuelGradeId(label){ return FUEL_GRADE_IDS[label] || null; }
 function tankFuelCache(){ return state.setup.tankFuel || null; }
+/* Figures typed in Setup on top of a Tank Chief tank (its LCV, sulphur, density, BDN). They win over what the register
+   holds, and clearing a box gives the Tank Chief figure back. */
+function typedTankFuel(){
+  if (!state.setup.tankFuelTyped || typeof state.setup.tankFuelTyped !== 'object') state.setup.tankFuelTyped = {};
+  return state.setup.tankFuelTyped;
+}
+function withTypedFigures(id, p){
+  const t = typedTankFuel()[id];
+  if (!t) return p;
+  const has = (v)=> v != null && v !== '' && isFinite(Number(v));
+  const out = Object.assign({}, p);
+  if (has(t.lcv) && Number(t.lcv) > 0) out.lcv = Number(t.lcv);
+  if (has(t.sulphur)) out.sulphur = Number(t.sulphur);
+  if (has(t.density) && Number(t.density) > 0) out.density = Number(t.density);
+  if (t.bdn){ out.lots = null; out.bdn = String(t.bdn); }
+  return out;
+}
 function manualTankFuel(){
   if (!Array.isArray(state.setup.tankFuelManual)) state.setup.tankFuelManual = [];
   return state.setup.tankFuelManual;
@@ -22690,7 +22707,7 @@ function fuelTanksOfGrade(gradeId, ts, keepId){
     /* The fuel is drawn from the storage tanks; settling, service and overflow tanks are not offered
        (a tank the entry already names stays). Older caches carry no role and are all offered. */
     if (m.role && m.role !== 'storage' && id !== keepId) return;
-    const p = TankFuelRegister.propertiesAt(reg, id, ts) || {};
+    const p = withTypedFigures(id, TankFuelRegister.propertiesAt(reg, id, ts) || {});
     addTank(id, m.name || id, gradeId, p, m.mt, mon.ts, false);
   });
   Object.keys(reg.tanks || {}).forEach(id=>{
@@ -22698,7 +22715,7 @@ function fuelTanksOfGrade(gradeId, ts, keepId){
     if (t.grade !== gradeId) return;
     /* Already judged from the monitoring figures (left out as a non-storage tank, or listed above). */
     if (mon.rob && mon.rob[id]) return;
-    const p = TankFuelRegister.propertiesAt(reg, id, ts) || { lcv: t.lcv, sulphur: t.sulphur, density: t.density, lots: t.bdns };
+    const p = withTypedFigures(id, TankFuelRegister.propertiesAt(reg, id, ts) || { lcv: t.lcv, sulphur: t.sulphur, density: t.density, lots: t.bdns });
     addTank(id, t.tankName || id, gradeId, p, null, null, false);
   });
   manualTankFuel().forEach(r=>{
@@ -22874,15 +22891,31 @@ function renderTankFuelPanel(){
   const c = tankFuelCache();
   const reg = tankFuelRegister();
   const rows = [];
-  Object.keys(reg.tanks).forEach(id=>{
-    const t = reg.tanks[id];
-    rows.push(`<tr><td>${escHtml(t.tankName || id)}</td><td>${escHtml(FUEL_GRADE_LABEL[t.grade] || t.grade || '')}</td><td>${t.sulphur != null ? escHtml(fmt(t.sulphur, 3)) : '—'}</td><td>${t.lcv != null ? escHtml(fmt(t.lcv, 0)) : '—'}</td><td>${escHtml((t.bdns || []).map(l=> (l.numbers || []).join('/')).filter(Boolean).join(' + '))}${(t.bdns || []).length > 1 ? ' (blend)' : ''}</td></tr>`);
+  const mon = (c && c.monitoring && c.monitoring.rob) || {};
+  const typed = typedTankFuel();
+  /* Every Tank Chief tank holding fuel (storage tanks), with or without a bunkering record: its name comes from Tank Chief
+     and the boxes take the figures to keep on top of it. */
+  const ids = [];
+  Object.keys(mon).forEach(id=>{ const m = mon[id]; if (m && FUEL_GRADE_LABEL[m.grade] && (!m.role || m.role === 'storage')) ids.push(id); });
+  Object.keys(reg.tanks).forEach(id=>{ if (!ids.includes(id)) ids.push(id); });
+  const box = (id, k, w, step, v, ph)=> `<input type="number" step="${step}" style="width:${w};" data-tft="${k}" data-tft-id="${escAttr(id)}" value="${escAttr(v == null ? '' : v)}" placeholder="${escAttr(ph == null ? '' : ph)}">`;
+  ids.forEach(id=>{
+    const t = reg.tanks[id] || {};
+    const m = mon[id] || {};
+    const ty = typed[id] || {};
+    const grade = t.grade || m.grade;
+    const rb = (t.bdns || []).map(l=> (l.numbers || []).join('/')).filter(Boolean).join(' + ');
+    rows.push(`<tr><td>${escHtml(t.tankName || m.name || id)}${m.mt != null ? `<div class="hint" style="margin:0;">${escHtml(fmt(m.mt, 1))} MT in monitoring</div>` : ''}</td><td>${escHtml(FUEL_GRADE_LABEL[grade] || grade || '')}</td>`
+      + `<td>${box(id, 'sulphur', '5.5em', '0.001', ty.sulphur, t.sulphur != null ? fmt(t.sulphur, 3) : 'S %')}</td>`
+      + `<td>${box(id, 'lcv', '6em', '1', ty.lcv, t.lcv != null ? fmt(t.lcv, 0) : 'LCV')}</td>`
+      + `<td>${box(id, 'density', '6em', '0.001', ty.density, t.density != null ? fmt(t.density, 3) : 'ρ15')}</td>`
+      + `<td><input data-tft="bdn" data-tft-id="${escAttr(id)}" style="width:8em;" value="${escAttr(ty.bdn || '')}" placeholder="${escAttr(rb || 'BDN no.')}">${(t.bdns || []).length > 1 ? ' <i>(blend)</i>' : ''}</td></tr>`);
   });
   const head = c && c.fetchedAt ? `From Tank Chief, fetched ${escHtml(new Date(c.fetchedAt).toLocaleString())}.` : 'Nothing fetched from Tank Chief yet.';
   let html = `<div class="hint">${head}</div>`;
   const dr = state.setup.tankFuelDrift || [];
   if (dr.length) html += `<div class="hint alert-text"><strong>The last monitoring differs from the log's estimate:</strong> ${dr.map(d=> `${escHtml(d.name)} estimated ${escHtml(fmt(d.estMt,1))} MT, measured ${escHtml(fmt(d.measuredMt,1))} MT (${d.diffMt>0?'+':''}${escHtml(fmt(d.diffMt,1))})`).join('; ')}. A tank chosen wrongly in the log entries since the previous monitoring is the usual cause — check which tank each entry drew from.</div>`;
-  if (rows.length) html += `<div class="table-scroll"><table><thead><tr><th>Tank</th><th>Grade</th><th>S (%)</th><th>LCV</th><th>BDN</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  if (rows.length) html += `<div class="table-scroll"><table><thead><tr><th>Tank</th><th>Grade</th><th>S (%)</th><th>LCV (kJ/kg)</th><th>ρ @15</th><th>BDN</th></tr></thead><tbody>${rows.join('')}</tbody></table></div><div class="hint">The tank names come from Tank Chief. Type a tank's LCV, sulphur, density or BDN in its boxes; what you type is used for the log entry in place of the figure Tank Chief holds (shown faint), and clearing a box brings the Tank Chief figure back.</div>`;
   const man = manualTankFuel();
   if (man.length){
     html += '<h4 class="sub">Typed by hand</h4>' + man.map((r, i)=> `
@@ -22910,6 +22943,15 @@ document.getElementById('btnTankFuelAdd')?.addEventListener('click', async ()=>{
   try{ await saveSetup(); }catch(_){}
 });
 document.getElementById('tankFuelPanel')?.addEventListener('input', (ev)=>{
+  const tid = ev.target.getAttribute && ev.target.getAttribute('data-tft-id');
+  if (tid){
+    const k = ev.target.getAttribute('data-tft');
+    const typed = typedTankFuel();
+    const o = typed[tid] || (typed[tid] = {});
+    if (k === 'bdn') o.bdn = ev.target.value; else o[k] = ev.target.value === '' ? null : Number(ev.target.value);
+    if (!o.bdn && o.lcv == null && o.sulphur == null && o.density == null) delete typed[tid];
+    return;
+  }
   const row = ev.target.closest && ev.target.closest('[data-tf-row]');
   const f = ev.target.getAttribute && ev.target.getAttribute('data-tf');
   if (!row || !f) return;
