@@ -1497,7 +1497,7 @@ window.ChengProAboutGuide = (function () {
     host.innerHTML =
       '<div class="guide-tools">' +
         '<label class="guide-search-label" for="aboutGuideSearch">Search the guide</label>' +
-        '<input id="aboutGuideSearch" type="search" placeholder="Search, e.g. lcv sulphur, edit receipt, empty tank, interpolation, eca mt/hr" autocomplete="off">' +
+        '<input id="aboutGuideSearch" type="search" placeholder="Search (press /), e.g. lcv sulphur, edit receipt, empty tank, interpolation, eca mt/hr" autocomplete="off">' +
         '<button type="button" class="guide-chip" id="aboutGuideClear" hidden style="margin-left:6px;">Clear</button>' +
         '<div class="guide-groups" id="aboutGuideGroups"></div>' +
         '<p class="hint" id="aboutGuideCount"></p>' +
@@ -1555,6 +1555,18 @@ window.ChengProAboutGuide = (function () {
     }
     if (clearBtn) clearBtn.addEventListener('click', () => { search.value = ''; draw(); search.focus(); });
     search.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && search.value) { search.value = ''; draw(); } });
+    /* "/" or Ctrl+K jumps to the search box while this guide is on screen (not while typing in another box). */
+    if (!host.dataset.searchKey) {
+      host.dataset.searchKey = '1';
+      document.addEventListener('keydown', (ev) => {
+        if (!host.isConnected || !host.offsetParent) return;
+        const t = ev.target, tag = t && t.tagName;
+        const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable);
+        if ((ev.key === '/' && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) || ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k')) {
+          ev.preventDefault(); search.focus(); search.select();
+        }
+      });
+    }
     search.addEventListener('input', draw);
     draw();
   }
