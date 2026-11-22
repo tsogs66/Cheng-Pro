@@ -5872,13 +5872,16 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <b>Voyage Abstract</b> and <b>Range Totals</b> print what is already saved.</p>
       <h3 class="sub">ROB and receipts</h3>
       <p>Remaining on board is carried from the log and corrected by a bunker survey. <b>Receipts</b> record bunker and lube
-        deliveries, keep the BDN and sample retention dates, and feed the ROB.</p>
+        deliveries, keep the BDN and sample retention dates, and feed the ROB. A receipt can carry the sulphur and LCV of the delivery,
+        has a time as well as a date, and can be corrected with <b>Edit</b>. On the log entry, <b>Fuel in use</b> picks the storage tank each
+        grade is drawn from, so the SFOC uses that tank's LCV; the tank's estimated ROB warns when it should be empty. The tank figures
+        (LCV, sulphur, density, BDN) come from Tank Chief in ChEng AIO and can be typed in Setup › Ship Details.</p>
       <h3 class="sub">Consumption plan</h3>
       <p>Plan fuel burn by voyage leg from distance, speed and daily consumption, with a margin per leg, and see the arrival ROB
         and whether to stem. A leg with only a daily consumption and the From and To filled counts as that quantity. Save a plan
         with a name and find it again by date or name.</p>
       <h3 class="sub">e-ORB, ECA and spares</h3>
-      <p>The <b>e-ORB</b> keeps the Oil Record Book with the flag's rules. The <b>ECA</b> page works out when to change over fuel,
+      <p>The <b>e-ORB</b> keeps the Oil Record Book with the flag's rules. The <b>ECA</b> page works out when to change over fuel (consumption in MT/hr),
         and the changeover log fetches each stage's time, position and consumption from the log. <b>Spares</b> files spare and
         store requisitions with the photo or PDF.</p>
       <h3 class="sub">Ships, offline and backup</h3>
