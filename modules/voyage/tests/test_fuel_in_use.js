@@ -8,8 +8,8 @@
  */
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
-const HTML = fs.readFileSync(path.join(__dirname, '..', 'voyage_manager.html'), 'utf8');
-const R = require('../tank-fuel-register.js');
+const HTML = fs.readFileSync(path.join(__dirname, '..', 'www', 'voyage_manager.html'), 'utf8');
+const R = require('../www/tank-fuel-register.js');
 let checks = 0, failures = 0;
 function check(label, cond) { checks++; if (!cond) failures++; console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${label}`); }
 const near = (a, b, e = 1e-6) => a != null && Math.abs(a - b) <= e;
