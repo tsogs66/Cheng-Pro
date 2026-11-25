@@ -1,25 +1,21 @@
-# Sea-lane network (phase 1 — coarse, approximate, NOT for navigation)
+# Sea-lane network (phase 2)
 
-- Source of truth: `scripts/sea-lane-network.js` (hand-authored waypoints + lanes). Build with
-  `node scripts/build-sea-lanes.js` -> `network.json` (validates ids, duplicates, connectivity, computes edge nm).
-- Router: `scripts/sea-route.js` (`SeaRoute.create(network).route(fromPort, toPort, {avoid:['SUEZ'|'PANAMA'], maxAttachNm})`).
-  A port is joined to its **nearest waypoint by a straight line** (may cross land for enclosed bays), then Dijkstra over lanes.
-  Results carry `warnings` when the attach leg is > 100 nm; ports > 300 nm from any waypoint return `ok:false`.
-- Test: `node scripts/test-sea-route.js` — checks 9 well-known passages within 10% of rough reference figures
-  (from memory, not an authoritative table). Real accuracy is about 3–7% high on the checked routes.
+Phase 1 was a hand-authored 111-waypoint backbone. Phase 2 replaces it with a real global lane graph
+(`marnet.json`, see `SOURCE.md` for provenance and the unverified licence status). The phase-1 files were removed.
 
-## Covered (phase 1)
-North Sea/Channel, Atlantic seaboard, Mediterranean backbone, Suez, Red Sea, Gulf of Aden, Arabian Sea, Persian Gulf,
-India west coast/Sri Lanka/Bay of Bengal (partial), Malacca/Singapore/Sunda, South China Sea, East China Sea, Korea Strait,
-Japan Pacific side (to Tokyo), North Atlantic to New York, West Africa, Cape of Good Hope, Indian Ocean, Caribbean to Panama.
-About 1460 of the 3669 listed ports are within 300 nm of a waypoint (529 within 100 nm).
+- Import: `python3 -I scripts/import-marnet.py` (source -> `marnet.json`, 414 KB).
+- Router: `scripts/sea-route.js`. `SeaRoute.create(network).route(from, to, opts)` with `from`/`to` = `{lat, lon}`.
+  Each end attaches to its 3 nearest lane nodes (straight line, may cross land in enclosed bays); Dijkstra with a binary heap.
+  Options: `avoid: ['suez','panama','malacca','sunda','gibraltar','bosporus','dardanelles','babalmandab','ormuz','south_africa','chili','bering']`,
+  `allowNorthwest` (Arctic passage is excluded by default), `maxAttachNm` (default 300).
+  Result: `nm`, `laneNm`, `attach {from,to}`, `passages[]`, `path [[lat,lon]...]`, `warnings[]`; `{ok:false,error}` if out of coverage.
+- Test: `node scripts/test-sea-route.js` — 15 reference routes within 10–15% of rough figures (from memory), plus symmetry,
+  passage avoidance and coverage. Observed errors are mostly within ±4% (Rotterdam–Singapore 8,387 nm via Suez, 11,875 via the Cape).
+- Coverage: 3581 of 3669 listed ports are within 100 nm of a lane node (3662 within 300 nm); now includes Baltic, Black Sea,
+  Gulf of Mexico, Pacific, Australia, East Africa and South America.
 
-## Not covered yet
-Baltic, Black Sea, Adriatic, Aegean, Gulf of Mexico/US east coast south of NY, Pacific (incl. Panama Pacific side), Australia,
-East Africa, Mozambique Channel, Philippines/Indonesia interior, Japan inland sea, rivers/lakes, ice routes, ECA/piracy/weather routing.
-
-## Known weaknesses
-- Waypoints were placed by hand and have **not** been checked against charts or a coastline; some legs may graze land/islands.
-- Distances are great-circle between waypoints, so they are slightly short of true track lengths in curved passages
-  but the lane geometry is coarse, so totals can still run high.
-- Treat results as planning estimates only. Replace with a verified network (e.g. a licensed/open sea-route dataset) before relying on them.
+## Limits
+- It is a coarse lane network from year-2000 data plus European enrichment: not chart-accurate, no draft/ECA/ice/weather/piracy logic,
+  no canal transit distances beyond what the network encodes. Planning estimates only.
+- Ports far from a lane node (e.g. Cape Town 68 nm, Santos 92 nm) get a long straight attach leg; `warnings` flags > 100 nm.
+- Inland/river ports are only as good as their nearest sea node.
