@@ -10,4 +10,8 @@ assert(pl.search('singap').length > 0, 'prefix search');
 assert(pl.search('rott', { country: 'NL' }).every(p => p.cc === 'NL'), 'country filter');
 assert.strictEqual(pl.nearest(51.9, 4.48, 1)[0].name, 'ROTTERDAM');
 assert.deepStrictEqual(pl.search('   '), []); assert.deepStrictEqual(pl.search(''), []);
+const rot = pl.search('rotterdam')[0];
+assert.strictEqual(rot.id, 31140, 'official WPI index number'); assert(rot.fo === 'Y' && rot.do === 'Y', 'fuel oil and diesel supply flags from the WPI');
+assert(/NGA World Port Index/.test(data.source) && !/NOT the official/.test(data.source), 'source note names the official package');
+assert(data.ports.some(p => p.fo === 'N') && data.ports.some(p => p.fo === null), 'Y / N / not stated all present');
 console.log('port-list OK (' + data.count + ' ports)');
