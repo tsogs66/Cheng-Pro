@@ -556,6 +556,7 @@ function savedReportsOf(bundle) {
     bunkerPlan: bundle.bunkerPlan || null,
     bunkerAfter: bundle.bunkerAfter || null,
     bunkerSummary: bundle.bunkerSummary || null,
+    bunkerConsumption: bundle.bunkerConsumption || null,
     /* The sounding sheet's header -- voyage, port, drafts, trim, heel. The open
        sheet is calculated with it, so it travels with the drafts. */
     voyage: (bundle && bundle.voyage) || null,
@@ -635,7 +636,7 @@ app.post('/api/vessels/:id/saved-reports/merge', (req, res) => {
       const merged = store.saveVesselPart(id, 'readings', body.readings);
       counts.readings = merged && typeof merged === 'object' ? Object.keys(merged).length : 0;
     }
-    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary']) {
+    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary', 'bunkerConsumption']) {
       if (body[part] == null) continue;
       store.saveVesselPart(id, part, body[part]);
       counts[part] = 1;
@@ -994,7 +995,7 @@ app.put('/api/vessels/:id/:part', (req, res) => {
   const allowed = [
     'tanks', 'readings', 'voyage', 'bunkering', 'transfers', 'bunkerOps',
     'fuelReport', 'reportHistory', 'voyageHistory', 'tankSummaryHistory', 'tankSummaryDraft',
-    'bunkerPlan', 'bunkerAfter', 'bunkerSummary', 'bunkerHistory', 'assets',
+    'bunkerPlan', 'bunkerAfter', 'bunkerSummary', 'bunkerConsumption', 'bunkerHistory', 'assets',
   ];
   if (!allowed.includes(req.params.part)) {
     return res.status(400).json({ error: 'Invalid part' });
@@ -2105,7 +2106,7 @@ app.post('/api/sync/saved-reports/merge', asyncHandler(async (req, res) => {
     store.saveVesselPart(id, 'tankSummaryHistory', peerReports.tankSummaryHistory);
     store.saveVesselPart(id, 'bunkerHistory', peerReports.bunkerHistory);
     store.saveVesselPart(id, 'readings', peerReports.readings || {});
-    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary']) {
+    for (const part of ['fuelReport', 'tankSummaryDraft', 'bunkerPlan', 'bunkerAfter', 'bunkerSummary', 'bunkerConsumption']) {
       if (peerReports[part]) store.saveVesselPart(id, part, peerReports[part]);
     }
     let peerUpdated = false;
