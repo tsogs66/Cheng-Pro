@@ -17546,8 +17546,8 @@ function bunkerResultCard(title, value, unit, raw){
 }
 function bunkerResultCardsHtml(sum){
   return [
-    bunkerResultCard('Days at Port / Anchor', fmt(sum.daysPort, 1), 'days'),
-    bunkerResultCard('Days at Sea', fmt(sum.daysSea, 1), 'days'),
+    bunkerResultCard('Days at Port / Anchor', fmt(sum.daysPort, 2), 'days'),
+    bunkerResultCard('Days at Sea', fmt(sum.daysSea, 2), 'days'),
     bunkerResultCard('Total Distance', fmt(sum.totalDist, 0), 'NM'),
     bunkerResultCard('Total Consumption', fmtFuel(sum.totalCons), 'MT'),
     bunkerResultCard('Total Margin', fmtFuel(sum.margin), 'MT'),
@@ -17564,11 +17564,11 @@ function paintBunkerResults(sideKey){
   if (!host) return;
   host.innerHTML = bunkerResultCardsHtml(summarizeBunkerSide(ensureBunkerPlan()[sideKey]));
 }
-/** The Days box: a figure worked out from distance and speed shows to one decimal; days typed by hand, and port stays, show as typed. */
+/** The Days box: a figure worked out from distance and speed shows to two decimals; days typed by hand, and port stays, show as typed. */
 function bunkerDaysShown(leg, days){
   if (days==null) return '';
   const worked = !leg.port && !(leg.daysManual && leg.days!=null) && Number(leg.distance)>0 && Number(leg.speed)>0;
-  return worked ? Math.round(days*10)/10 : days;
+  return worked ? Math.round(days*100)/100 : days;
 }
 function autoFillBunkerSeaDays(leg){
   /* Distance, speed or the port tick changed: sea days follow them again. */
@@ -17773,7 +17773,7 @@ function buildBunkerPlanPrintHtml(){
         <td>${leg.distance!=null ? fmt(leg.distance, 2) : ''}</td>
         <td>${leg.speed!=null ? fmt(leg.speed, 2) : ''}</td>
         <td>${leg.dailyCons!=null ? fmtFuel(leg.dailyCons) : ''}</td>
-        <td>${days!=null ? fmt(days, 3) : ''}</td>
+        <td>${days!=null ? fmt(days, 2) : ''}</td>
         <td>${qty!=null ? fmtFuel(qty) : ''}</td>
         <td>${leg.marginPct!=null ? fmt(leg.marginPct, 1) : ''}</td>
       </tr>`;
@@ -17799,8 +17799,8 @@ function buildBunkerPlanPrintHtml(){
           ${printMetaGrid([
             {label:'Current ROB', value: side.currentRob==null ? '—' : fmtFuel(side.currentRob)+' MT'},
             {label:'Qty to Receive', value: side.qtyReceive==null ? '—' : fmtFuel(side.qtyReceive)+' MT'},
-            {label:'Days Port', value: fmt(sum.daysPort, 1)},
-            {label:'Days Sea', value: fmt(sum.daysSea, 1)},
+            {label:'Days Port', value: fmt(sum.daysPort, 2)},
+            {label:'Days Sea', value: fmt(sum.daysSea, 2)},
             {label:'Total Distance', value: fmt(sum.totalDist, 0)+' nm'},
             {label:'Total Consumption', value: fmtFuel(sum.totalCons)+' MT'},
             {label:'Total Margin', value: fmtFuel(sum.margin)+' MT'},
