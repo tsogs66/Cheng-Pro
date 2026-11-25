@@ -17371,6 +17371,35 @@ function logRobByGrade(){
   planFuels().forEach(f=>{ out[f.id] = currentRobForGrade(f.id); });
   return out;
 }
+/** What the ship really burned per day, per fuel, over the last `days` days of the log: { grade: { sea, port } } in MT per day.
+ *  Sea = periods with the main engine turning, port = periods with it stopped. A fuel burned as needed (LSMGO) shows its real average. */
+function logDailyStats(days){
+  const out = {};
+  try{
+    const rows = computeDerived().rows.filter(r => r.hrs > 0 && r.datetime);
+    if (!rows.length) return out;
+    const last = new Date(rows[rows.length - 1].datetime).getTime();
+    const from = last - (days || 7) * 86400000;
+    const acc = {};
+    rows.forEach(r=>{
+      const t = new Date(r.datetime).getTime();
+      if (!(t > from)) return;
+      const kind = r.meStopped ? 'port' : 'sea';
+      Object.keys(r.consByType || {}).forEach(g=>{
+        const v = Number(r.consByType[g]);
+        if (!(v >= 0) || r.consByType[g] == null) return;
+        const k = ConsumptionPlan.normGrade(g);
+        const a = acc[k] || (acc[k] = { label: g, sea:{mt:0,h:0}, port:{mt:0,h:0} });
+        a[kind].mt += v; a[kind].h += r.hrs;
+      });
+    });
+    Object.keys(acc).forEach(k=>{
+      const a = acc[k];
+      out[a.label] = { sea: a.sea.h > 0 ? a.sea.mt / a.sea.h * 24 : null, port: a.port.h > 0 ? a.port.mt / a.port.h * 24 : null };
+    });
+  }catch(_){}
+  return out;
+}
 function requestTankRobForPlan(){
   return new Promise(resolve=>{
     _tankRobResolve = resolve;
@@ -17410,6 +17439,15 @@ function mountBunkerPlan(){
     }),
     buttons: [
       { id: 'load-log-rob', label: 'Load Voyage ROB', onClick: ()=> ({ rob: logRobByGrade(), message: 'Current ROB loaded from the log', empty: 'No ROB in the log yet' }) },
+      { id: 'suggest-daily', label: 'Suggest MT/day from log', onClick: ({plan})=>{
+        const recent = logDailyStats(7), longer = logDailyStats(30), stats = {};
+        Object.keys(longer).concat(Object.keys(recent)).forEach(g=>{
+          const r = recent[g] || {}, l = longer[g] || {};
+          stats[g] = { sea: r.sea != null ? r.sea : l.sea, port: r.port != null ? r.port : l.port };
+        });
+        const n = ConsumptionPlan.suggestDaily(plan, stats);
+        return { changed: n, message: n + ' MT/day figure' + (n === 1 ? '' : 's') + ' filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea lines from sea days, port lines from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its MT/day empty, and have some days logged' };
+      } },
       { id: 'load-tank-rob', label: 'Load Tank ROB', hidden: !isChengAioEmbedded(), onClick: async ()=>{
         const r = await requestTankRobForPlan();
         if (!r || !r.rob) return { rob: {}, empty: 'Tank Chief did not answer — open it once and try again' };

@@ -143,6 +143,7 @@ console.log(`consumption plan: ${pass} checks passed`);
 const fs = require('fs'), path = require('path');
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'www', 'voyage_manager.html'), 'utf8');
 const wired = (c, m) => { assert.ok(c, m); console.log('  ok   ' + m); };
+wired(/id: 'suggest-daily'/.test(HTML) && /function logDailyStats\(/.test(HTML) && /ConsumptionPlan\.suggestDaily\(/.test(HTML), 'Suggest MT/day from log is wired to the log');
 wired(/<script src="consumption-plan\.js"><\/script>/.test(HTML), 'the page loads the shared consumption plan');
 wired(/id="bunkerPlanMount"/.test(HTML), 'the consumption page is a mount point for it');
 wired(/ConsumptionPlan\.mount\(inner/.test(HTML) && /load\(\)\{/.test(HTML) && /persist\(data\)\{/.test(HTML), 'Voyage Chief tells it where the plan is kept');

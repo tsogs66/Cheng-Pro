@@ -861,6 +861,7 @@
         "Type each destination or stay as one line: From, To, distance and speed (or the days for a port stay).",
         "On the line pick Fuel 1, for example HFO, and type its MT per day. Pick Fuel 2, for example LSMGO, and type its MT per day. The fuels offered are the grades of the vessel's fuel tanks; with none set up they are Residual and Distillate.",
         "A fuel burned as needed (LSMGO for generators, boiler or other uses) is typed as its average MT per day. The plan multiplies it by the days of the line like any other fuel. Leave the box empty on a line where it is not burned.",
+        "Suggest MT/day from log (Voyage Chief) fills the empty MT/day boxes from what the ship really burned: sea lines from the sea days and port lines from the port days of the last 7 days (30 days when there was none in 7). A figure you typed is never changed; check the filled ones.",
         "For a fuel changeover during the voyage use two lines, before and after, and pick the different fuel on each line.",
         "+ Fuel column adds a third fuel to every line (up to four); − Fuel column takes the last one off.",
         "The days and the distance are worked out once. Below the table each fuel has its own block: Current ROB, Quantity to Receive, unpumpable, weather reserve, Delivery ROB, the result boxes and the stem advice.",
