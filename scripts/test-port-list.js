@@ -1,0 +1,13 @@
+'use strict';
+const assert = require('assert'); const fs = require('fs'); const path = require('path');
+const PL = require('./port-list.js');
+const data = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/ports/ports.json'), 'utf8'));
+const pl = PL.create(data);
+assert(data.count === data.ports.length && data.count > 3000, 'port count');
+assert(pl.all().every(p => p.name && p.lat >= -90 && p.lat <= 90 && p.lon >= -180 && p.lon <= 180), 'valid coords');
+assert.strictEqual(pl.search('rotterdam')[0].name, 'ROTTERDAM');
+assert(pl.search('singap').length > 0, 'prefix search');
+assert(pl.search('rott', { country: 'NL' }).every(p => p.cc === 'NL'), 'country filter');
+assert.strictEqual(pl.nearest(51.9, 4.48, 1)[0].name, 'ROTTERDAM');
+assert.deepStrictEqual(pl.search('   '), []); assert.deepStrictEqual(pl.search(''), []);
+console.log('port-list OK (' + data.count + ' ports)');
