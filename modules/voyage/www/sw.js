@@ -25,6 +25,7 @@ const PRECACHE = [
   './voyage_manager.html',
   './eorb.js',
   './stem-advice.js',
+  './consumption-plan.js',
   './ship_time.js',
   './theme.js',
   './license-config.js',

@@ -123,8 +123,9 @@ for (const [name, cls] of THEMES) {
     + `unit ${round(ratio(unit, bg))}:1  value/title ${round(ratio(value, title))}:1`);
 }
 
-check('Days at Sea is two decimals', /bunkerResultCard\('Days at Sea', fmt\(sum\.daysSea, 2\)/.test(HTML), true);
-check('Total Distance is a whole number', /bunkerResultCard\('Total Distance', fmt\(sum\.totalDist, 0\)/.test(HTML), true);
+const PLAN = fs.readFileSync(path.join(__dirname, '..', 'modules/voyage/www/consumption-plan.js'), 'utf8');
+check('Days at Sea is two decimals', /resultCard\('Days at Sea', fmtN\(route\.daysSea, 2\)/.test(PLAN), true);
+check('Total Distance is a whole number', /resultCard\('Total Distance', fmtN\(route\.totalDist, 0\)/.test(PLAN), true);
 
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
 process.exit(fails ? 1 : 0);
