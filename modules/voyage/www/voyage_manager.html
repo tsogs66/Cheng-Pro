@@ -4724,47 +4724,9 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
     </div>
   </div>
 
-  <!-- BUNKER PLAN (voyage fuel consumption estimator) -->
+  <!-- BUNKER PLAN (voyage fuel consumption estimator): drawn by consumption-plan.js -->
   <div class="page" id="page-bunkerplan">
-    <div class="panel">
-      <h2>Bunker Consumption Calculation</h2>
-      <div class="hint">Plan fuel burn by voyage leg for residual (HFO/LSFO) and distillate (MDO/MGO/LSMGO). Sea days auto-fill from Distance ÷ (Speed × 24) when Port/Anchor is unchecked (1 kn = 1 nm/h). Quantity = Daily Cons × Days. Required Quantity = Total Consumption + Margin %. Arrival ROB = Current ROB − Required (conservative). Next Departure ROB adds bunkers to be received.</div>
-      <div class="bunker-plan-head">
-        <div class="field"><label>Vessel</label><input id="bp_vessel" readonly></div>
-        <div class="field"><label>Voyage No.</label><input id="bp_voyageNo"></div>
-        <div class="field"><label>Date</label><input type="date" id="bp_date"></div>
-        <div class="btn-row" style="margin:0;">
-          <button type="button" class="ghost small" id="btnBpLoadRob">Load Voyage ROB</button>
-          <button type="button" class="ghost small" id="btnBpLoadTankRob" style="display:none;">Load Tank ROB</button>
-          <button type="button" class="ghost small" id="btnBpClear">Clear</button>
-        </div>
-      </div>
-      <div class="bunker-plan-grid" id="bunkerPlanGrid"></div>
-      <div class="bunker-plan-footer">
-        <label class="bunker-remarks">
-          <span>Remarks</span>
-          <textarea id="bp_remarks" rows="4" placeholder="Remarks for this calculation"></textarea>
-        </label>
-        <div class="btn-row bunker-plan-actions">
-          <button type="button" class="ghost small" id="btnBpSaveOnly">Save</button>
-          <button type="button" class="ghost small" id="btnBpPrintOnly">Print</button>
-          <button type="button" class="primary small" id="btnBpPrint">Save &amp; Print</button>
-        </div>
-      </div>
-      <div class="hint" style="margin-top:12px;">Industry practice: sea days ≈ distance (nm) ÷ (speed kn × 24); port/anchor days are entered directly. Start with one destination or stay, set a <strong>Margin %</strong> on that line if you want a reserve for it, then <strong>Add destination / stay</strong> for the next leg — each line can carry its own margin (e.g. different % to a bunkering port vs an anchorage).</div>
-    </div>
-    <div class="panel" id="bunkerPlanHistory" style="display:none;">
-      <details class="hist-fold" id="bpHistoryFold">
-      <summary><h2>Saved Calculations <span class="hist-count" id="bpHistoryCount"></span></h2><span class="hist-tap">tap to open</span></summary>
-      <input type="search" id="bpHistorySearch" class="hist-search" placeholder="Search by date, name or description" aria-label="Search saved calculations" autocomplete="off">
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Date</th><th>Name</th><th>Voyage</th><th>Residual</th><th>Distillate</th><th></th></tr></thead>
-          <tbody id="bpHistoryBody"><tr class="empty-row"><td colspan="6">No saved calculations yet.</td></tr></tbody>
-        </table>
-      </div>
-      </details>
-    </div>
+    <div id="bunkerPlanMount"></div>
   </div>
 
   <!-- ROB -->
@@ -6466,6 +6428,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
 <div id="printArea"></div>
 
 <script src="stem-advice.js"></script>
+<script src="consumption-plan.js"></script>
 <script src="eorb.js"></script>
 <script src="fuel-changeover-log.js"></script>
 <script src="tank-fuel-register.js"></script>
@@ -17372,86 +17335,7 @@ async function saveSetup(){
 
 /* ---------------- tabs ---------------- */
 const BOTTOM_NAV_MORE = new Set(['spares', 'bunkerplan', 'eca', 'trends', 'consumption', 'receipts', 'reference', 'guide', 'notes', 'orb', 'data', 'voyagesetup', 'setup']);
-const BUNKER_PLAN_SIDES = [
-  { key:'residual', title:'HFO / LSFO', grades:['HFO','LSFO'], defaultGrade:'HFO', qtyLabel:'HFO/LSFO' },
-  { key:'distillate', title:'MGO / LSMGO', grades:['MDO/MGO','LSMGO'], defaultGrade:'MDO/MGO', qtyLabel:'MGO/LSMGO' }
-];
 
-function emptyBunkerLeg(){
-  return { port:false, from:'', to:'', distance:null, speed:null, dailyCons:null, days:null, marginPct:null };
-}
-function bunkerLegIsBlank(leg){
-  if (!leg) return true;
-  return !leg.port
-    && !(String(leg.from || '').trim())
-    && !(String(leg.to || '').trim())
-    && leg.distance == null
-    && leg.speed == null
-    && leg.dailyCons == null
-    && leg.days == null;
-}
-function normalizeBunkerLegs(legs, legacySideMargin){
-  let list = Array.isArray(legs) ? legs.map(leg=>({
-    port: !!leg.port,
-    from: leg.from || '',
-    to: leg.to || '',
-    distance: leg.distance ?? null,
-    speed: leg.speed ?? null,
-    dailyCons: leg.dailyCons ?? null,
-    days: leg.days ?? null,
-    marginPct: (leg.marginPct==null || leg.marginPct==='') ? null : Number(leg.marginPct)
-  })) : [];
-  list.forEach(leg=>{ if (leg.marginPct!=null && isNaN(leg.marginPct)) leg.marginPct = null; });
-  /* Legacy plans padded to many blank rows. Collapse consecutive trailing blanks
-     but keep one empty row so "Add destination / stay" can show a new line
-     (ensureBunkerPlan → normalize runs on every render). */
-  while (list.length > 1
-      && bunkerLegIsBlank(list[list.length - 1])
-      && bunkerLegIsBlank(list[list.length - 2])) list.pop();
-  if (!list.length) list = [emptyBunkerLeg()];
-  /* Old plans had one Margin % for the whole side — copy onto filled legs once. */
-  const anyPerLeg = list.some(l => l.marginPct != null);
-  const legacy = (legacySideMargin==null || legacySideMargin==='') ? null : Number(legacySideMargin);
-  if (!anyPerLeg && legacy != null && !isNaN(legacy)){
-    list.forEach(leg=>{ if (!bunkerLegIsBlank(leg)) leg.marginPct = legacy; });
-  }
-  return list;
-}
-function emptyBunkerSide(defaultGrade){
-  return {
-    grade: defaultGrade,
-    legs: [emptyBunkerLeg()],
-    currentRob: null,
-    qtyReceive: null,
-    deliveryRob: null
-  };
-}
-function defaultBunkerPlan(){
-  return {
-    voyageNo: '',
-    date: '',
-    remarks: '',
-    residual: emptyBunkerSide('HFO'),
-    distillate: emptyBunkerSide('MDO/MGO')
-  };
-}
-function ensureBunkerPlan(){
-  if (!state.setup.bunkerPlan || typeof state.setup.bunkerPlan !== 'object'){
-    state.setup.bunkerPlan = defaultBunkerPlan();
-  }
-  const bp = state.setup.bunkerPlan;
-  BUNKER_PLAN_SIDES.forEach(side=>{
-    if (!bp[side.key]) bp[side.key] = emptyBunkerSide(side.defaultGrade);
-    const s = bp[side.key];
-    const legacyMargin = s.marginPct;
-    s.legs = normalizeBunkerLegs(s.legs, legacyMargin);
-    if ('marginPct' in s) delete s.marginPct;
-    if (!side.grades.includes(s.grade)) s.grade = side.defaultGrade;
-    if (s.deliveryRob === undefined) s.deliveryRob = null;
-  });
-  if (typeof bp.remarks !== 'string') bp.remarks = bp.remarks == null ? '' : String(bp.remarks);
-  return bp;
-}
 function currentRobForGrade(grade){
   try{
     const {consByFuel, consByLube} = computeDerived();
@@ -17461,496 +17345,137 @@ function currentRobForGrade(grade){
       .reduce((sum, t) => sum + (rob[t.id] || 0), 0);
   }catch(_){ return 0; }
 }
-function bunkerLegDays(leg){
-  const typed = leg.days!=null && leg.days!=='' && !isNaN(leg.days);
-  if (leg.port) return typed ? Number(leg.days) : null;
-  /* A sea leg's days are worked out from distance and speed, so they follow those
-     two and fall back to nothing when either is cleared. Only days the engineer
-     typed himself are kept. */
-  if (leg.daysManual && typed) return Number(leg.days);
-  const dist = Number(leg.distance), spd = Number(leg.speed);
-  /* Sea days = nm ÷ (kn × 24 h/day) — 1 kn = 1 nm/h */
-  if (dist>0 && spd>0) return dist / (spd * 24);
-  /* Plans saved before this carried the days on the leg itself. */
-  if (leg.daysManual === undefined && typed) return Number(leg.days);
-  return null;
-}
-function bunkerLegQty(leg){
-  const days = bunkerLegDays(leg);
-  const daily = Number(leg.dailyCons);
-  if (!(daily>=0) || isNaN(daily) || leg.dailyCons==null || leg.dailyCons==='') return null;
-  if (days!=null && days>0) return daily * days;
-  /* No distance, speed or days (blank or 0) on a line with its From and To filled in:
-     the consumption entered is the quantity for that line. */
-  const noRun = !(Number(leg.distance)>0) && !(Number(leg.speed)>0) && !(Number(leg.days)>0);
-  if (noRun && String(leg.from||'').trim() && String(leg.to||'').trim()) return daily;
-  return days==null ? null : daily * days;
-}
-function bunkerLegMarginMt(leg){
-  const qty = bunkerLegQty(leg);
-  const mp = Number(leg.marginPct);
-  if (qty==null || isNaN(mp)) return null;
-  return qty * (mp / 100);
-}
-function summarizeBunkerSide(side){
-  let daysPort=0, daysSea=0, totalDist=0, totalCons=0, margin=0;
-  (side.legs||[]).forEach(leg=>{
-    const days = bunkerLegDays(leg);
-    const qty = bunkerLegQty(leg);
-    const dist = Number(leg.distance);
-    if (dist>0) totalDist += dist;
-    if (days!=null){
-      if (leg.port) daysPort += days;
-      else daysSea += days;
-    }
-    if (qty!=null){
-      totalCons += qty;
-      const m = bunkerLegMarginMt(leg);
-      if (m!=null) margin += m;
-    }
-  });
-  const required = totalCons + margin;
-  const rob = (side.currentRob!=null && side.currentRob!=='' && !isNaN(side.currentRob)) ? Number(side.currentRob) : null;
-  const receive = (side.qtyReceive!=null && side.qtyReceive!=='' && !isNaN(side.qtyReceive)) ? Number(side.qtyReceive) : 0;
-  const arrivalRob = rob==null ? null : rob - required;
-  const nextDepRob = arrivalRob==null ? null : arrivalRob + receive;
-  const stemAdvice = (typeof StemAdvice !== 'undefined' && StemAdvice.advise)
-    ? StemAdvice.advise(side, { required: required, rob: rob, receive: receive })
-    : null;
-  const stem = stemAdvice && stemAdvice.stemStill != null
-    ? stemAdvice.stemStill
-    : (rob==null ? null : Math.max(0, required - rob - receive));
-  const delivery = (side.deliveryRob!=null && side.deliveryRob!=='' && !isNaN(side.deliveryRob)) ? Number(side.deliveryRob) : null;
-  /* Excess (Margin): what the next departure ROB leaves over the delivery / redelivery ROB. */
-  const excessMargin = (delivery==null || nextDepRob==null) ? null : nextDepRob - delivery;
-  /* Excess (Actual): the same with the plain consumption, no margin — ((ROB + to receive) − consumption) − delivery. */
-  const excessActual = (delivery==null || rob==null) ? null : ((rob + receive) - totalCons) - delivery;
-  return { daysPort, daysSea, totalDist, totalCons, margin, required, arrivalRob, nextDepRob, stem, stemAdvice, receive, delivery, excessMargin, excessActual };
-}
-function stemAdvicePlain(side, sum){
-  if (!sum || !sum.stemAdvice || typeof StemAdvice === 'undefined' || !StemAdvice.sentence) return '';
-  return StemAdvice.sentence(side && side.grade, sum.stemAdvice, fmtFuel);
-}
-function stemAdviceHtml(side, sum){
-  const text = stemAdvicePlain(side, sum);
-  if (!text) return '';
-  return text.replace(/(\d[\d,]*\.\d+)/g, '<b>$1</b>');
-}
-function bunkerResultCard(title, value, unit, raw){
-  const blank = value==null || value==='';
-  const shown = blank ? '—' : value;
-  const unitHtml = blank || !unit ? '' : `<span class="bp-result-unit">${unit}</span>`;
-  /* A negative figure glows red inside the box, slowly, like breathing. */
-  const neg = typeof raw === 'number' && isFinite(raw) && raw < 0 ? ' bp-result-neg' : '';
-  return `<div class="bp-result${neg}"><div class="bp-result-value"><b>${shown}</b>${unitHtml}</div><div class="bp-result-title">${title}</div></div>`;
-}
-function bunkerResultCardsHtml(sum){
-  return [
-    bunkerResultCard('Days at Port / Anchor', fmt(sum.daysPort, 1), 'days'),
-    bunkerResultCard('Days at Sea', fmt(sum.daysSea, 1), 'days'),
-    bunkerResultCard('Total Distance', fmt(sum.totalDist, 0), 'NM'),
-    bunkerResultCard('Total Consumption', fmtFuel(sum.totalCons), 'MT'),
-    bunkerResultCard('Total Margin', fmtFuel(sum.margin), 'MT'),
-    bunkerResultCard('Required Quantity', fmtFuel(sum.required), 'MT'),
-    bunkerResultCard('Arrival ROB', sum.arrivalRob==null?'':fmtFuel(sum.arrivalRob), 'MT', sum.arrivalRob),
-    bunkerResultCard('Next Departure ROB', sum.nextDepRob==null?'':fmtFuel(sum.nextDepRob), 'MT', sum.nextDepRob),
-    bunkerResultCard('Stem still needed', sum.stem==null?'':fmtFuel(sum.stem), 'MT'),
-    bunkerResultCard('Excess (Margin) Quantity', sum.excessMargin==null?'':fmtFuel(sum.excessMargin), 'MT', sum.excessMargin),
-    bunkerResultCard('Excess (Actual) Quantity', sum.excessActual==null?'':fmtFuel(sum.excessActual), 'MT', sum.excessActual)
-  ].join('');
-}
-function paintBunkerResults(sideKey){
-  const host = document.querySelector(`#bunkerPlanGrid .bunker-side[data-side="${sideKey}"] .bunker-results`);
-  if (!host) return;
-  host.innerHTML = bunkerResultCardsHtml(summarizeBunkerSide(ensureBunkerPlan()[sideKey]));
-}
-/** The Days box: a figure worked out from distance and speed shows to one decimal; days typed by hand, and port stays, show as typed. */
-function bunkerDaysShown(leg, days){
-  if (days==null) return '';
-  const worked = !leg.port && !(leg.daysManual && leg.days!=null) && Number(leg.distance)>0 && Number(leg.speed)>0;
-  return worked ? Math.round(days*10)/10 : days;
-}
-function autoFillBunkerSeaDays(leg){
-  /* Distance, speed or the port tick changed: sea days follow them again. */
-  if (leg.port) return;
-  leg.daysManual = false;
-  leg.days = null;
-}
-/** Refresh one row in place — days, quantity, the port-disabled boxes and the totals —
- *  without redrawing the grid, which would drop the box the engineer just tapped. */
-function syncBunkerRowDom(tr, leg){
-  const days = bunkerLegDays(leg), qty = bunkerLegQty(leg);
-  const daysEl = tr.querySelector('[data-f="days"]');
-  if (daysEl && document.activeElement !== daysEl) daysEl.value = bunkerDaysShown(leg, days);
-  const qtyEl = tr.querySelector('.col-qty input');
-  if (qtyEl) qtyEl.value = qty==null ? '' : fmtFuel(qty);
-  ['distance','speed'].forEach(f=>{ const el = tr.querySelector(`[data-f="${f}"]`); if (el) el.disabled = !!leg.port; });
-}
-function addBunkerPlanLeg(sideKey){
-  const side = ensureBunkerPlan()[sideKey];
-  if (!side) return;
-  side.legs.push(emptyBunkerLeg());
-  renderBunkerPlan();
-  scheduleBunkerPlanSave();
-  const row = document.querySelector(`#page-bunkerplan tr[data-side="${sideKey}"][data-row="${side.legs.length - 1}"]`);
-  if (row && row.scrollIntoView) row.scrollIntoView({ block:'nearest' });
-}
-function removeBunkerPlanLeg(sideKey){
-  const side = ensureBunkerPlan()[sideKey];
-  if (!side || side.legs.length <= 1) return;
-  side.legs.pop();
-  renderBunkerPlan();
-  scheduleBunkerPlanSave();
-}
-
 let _bpSaveTimer = null;
 function scheduleBunkerPlanSave(){
   clearTimeout(_bpSaveTimer);
   _bpSaveTimer = setTimeout(()=>{ try{ saveSetup(); }catch(_){} }, 400);
 }
 
-function renderBunkerPlan(){
-  const grid = document.getElementById('bunkerPlanGrid');
-  if (!grid) return;
-  const bp = ensureBunkerPlan();
-  const vesselEl = document.getElementById('bp_vessel');
-  const voyEl = document.getElementById('bp_voyageNo');
-  const dateEl = document.getElementById('bp_date');
-  if (vesselEl) vesselEl.value = state.setup.vesselName || '';
-  if (voyEl && document.activeElement !== voyEl){
-    if (!bp.voyageNo) bp.voyageNo = state.setup.voyageNumber || '';
-    voyEl.value = bp.voyageNo || '';
-  }
-  if (dateEl && document.activeElement !== dateEl){
-    if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
-    dateEl.value = bp.date || '';
-  }
-  const remEl = document.getElementById('bp_remarks');
-  if (remEl && document.activeElement !== remEl) remEl.value = bp.remarks || '';
-
-  grid.innerHTML = BUNKER_PLAN_SIDES.map(meta=>{
-    const side = bp[meta.key];
-    const sum = summarizeBunkerSide(side);
-    const gradeOpts = meta.grades.map(g=>`<option value="${g}" ${side.grade===g?'selected':''}>${g}</option>`).join('');
-    const rows = side.legs.map((leg, i)=>{
-      const days = bunkerLegDays(leg);
-      const qty = bunkerLegQty(leg);
-      return `<tr data-side="${meta.key}" data-row="${i}">
-        <td class="col-port"><input type="checkbox" data-f="port" ${leg.port?'checked':''} title="Port or anchorage stay"></td>
-        <td class="col-from"><input type="text" data-f="from" value="${escAttr(leg.from)}" placeholder="From" autocomplete="off"></td>
-        <td class="col-to"><input type="text" data-f="to" value="${escAttr(leg.to)}" placeholder="To / destination" autocomplete="off"></td>
-        <td class="col-num"><input type="number" step="0.1" data-f="distance" value="${leg.distance ?? ''}" ${leg.port?'disabled':''} inputmode="decimal"></td>
-        <td class="col-num"><input type="number" step="0.1" data-f="speed" value="${leg.speed ?? ''}" ${leg.port?'disabled':''} inputmode="decimal"></td>
-        <td class="col-num"><input type="number" step="0.01" data-f="dailyCons" value="${leg.dailyCons ?? ''}" inputmode="decimal"></td>
-        <td class="col-num"><input type="number" step="0.001" data-f="days" value="${bunkerDaysShown(leg, days)}" inputmode="decimal"></td>
-        <td class="col-qty"><input type="number" readonly tabindex="-1" value="${qty==null?'':fmtFuel(qty)}"></td>
-        <td class="col-margin"><input type="number" step="0.1" data-f="marginPct" value="${leg.marginPct ?? ''}" placeholder="%" title="Safety margin % for this destination / stay only" inputmode="decimal"></td>
-      </tr>`;
-    }).join('');
-    return `<div class="bunker-side" data-side="${meta.key}">
-      <h3>${meta.title}</h3>
-      <div class="field bunker-grade"><label>Grade for ROB / stem</label>
-        <select data-side-grade="${meta.key}">${gradeOpts}</select>
-      </div>
-      <div class="table-scroll" role="region" aria-label="${meta.title} legs">
-        <table class="bunker-table">
-          <thead><tr>
-            <th class="col-port" title="Check if port or anchorage">P/A</th>
-            <th class="col-from">From</th>
-            <th class="col-to">To</th>
-            <th class="col-num">Dist nm</th>
-            <th class="col-num">Speed kn</th>
-            <th class="col-num">Daily Cons</th>
-            <th class="col-num">Days</th>
-            <th class="col-qty">${meta.qtyLabel} MT</th>
-            <th class="col-margin" title="Optional reserve for this line only">Margin %</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div class="bunker-leg-actions">
-        <button type="button" class="ghost small" data-bp-add-leg="${meta.key}">Add destination / stay</button>
-        <button type="button" class="ghost small" data-bp-remove-leg="${meta.key}" ${side.legs.length<=1?'disabled':''}>Remove last line</button>
-      </div>
-      <div class="bunker-totals">
-        <div class="field"><label>Current ROB (MT)</label><input type="number" step="0.001" data-side-f="currentRob" data-side="${meta.key}" value="${side.currentRob ?? ''}"></div>
-        <div class="field"><label>Quantity to Receive (MT)</label><input type="number" step="0.001" data-side-f="qtyReceive" data-side="${meta.key}" value="${side.qtyReceive ?? ''}"></div>
-        <div class="field"><label>Unpumpable (MT)</label><input type="number" step="0.001" data-side-f="unpumpableMt" data-side="${meta.key}" value="${side.unpumpableMt ?? ''}" title="Oil that cannot be pumped" inputmode="decimal"></div>
-        <div class="field"><label>Weather reserve (MT)</label><input type="number" step="0.001" data-side-f="weatherMarginMt" data-side="${meta.key}" value="${side.weatherMarginMt ?? ''}" title="Extra tonnes to arrive with, beyond the line margins" inputmode="decimal"></div>
-        <div class="field full"><label>Delivery / Redelivery ROB (MT)</label><input type="number" step="0.001" data-side-f="deliveryRob" data-side="${meta.key}" value="${side.deliveryRob ?? ''}"></div>
-      </div>
-      <div class="bunker-results">
-        ${bunkerResultCardsHtml(sum)}
-      </div>
-      <div class="stem-advice">${stemAdviceHtml(side, sum)}</div>
-      <div class="bunker-formula">Sea days = Dist ÷ (Speed × 24) · Qty = Daily × Days · Line margin = Qty × Margin% · Required = Σ Qty + Σ margins · Order = Required + unpumpable + weather − Current ROB · Arrival if that order is taken keeps the unpumpable and the weather reserve</div>
-    </div>`;
-  }).join('');
+/* ---- Consumption plan: the page, the calculation, saved calculations and the printout are in consumption-plan.js (shared with
+   Tank Chief). This tells it about Voyage Chief: where the plan is kept, the vessel's fuels, where the ROB comes from, how to print. ---- */
+let _bunkerPlanCtl = null;
+let _tankRobResolve = null;
+/** The vessel's own fuels: the grades of its fuel tanks. With none set up the plan offers Residual and Distillate. */
+function planFuels(){
+  const seen = new Set(), out = [];
+  try{
+    fuelTankList().forEach(t=>{
+      const g = String(t.grade || t.name || '').trim();
+      if (g && !seen.has(g)){ seen.add(g); out.push({ id: g }); }
+    });
+  }catch(_){}
+  return out;
 }
-
-
+function logRobByGrade(){
+  const out = {};
+  planFuels().forEach(f=>{ out[f.id] = currentRobForGrade(f.id); });
+  return out;
+}
+/** What the ship really burned per day, per fuel, over the last `days` days of the log: { grade: { sea, port } } in MT per day.
+ *  Sea = periods with the main engine turning, port = periods with it stopped. A fuel burned as needed (LSMGO) shows its real average. */
+function logDailyStats(days){
+  const out = {};
+  try{
+    const rows = computeDerived().rows.filter(r => r.hrs > 0 && r.datetime);
+    if (!rows.length) return out;
+    const last = new Date(rows[rows.length - 1].datetime).getTime();
+    const from = last - (days || 7) * 86400000;
+    const acc = {};
+    rows.forEach(r=>{
+      const t = new Date(r.datetime).getTime();
+      if (!(t > from)) return;
+      const kind = r.meStopped ? 'port' : 'sea';
+      Object.keys(r.consByType || {}).forEach(g=>{
+        const v = Number(r.consByType[g]);
+        if (!(v >= 0) || r.consByType[g] == null) return;
+        const k = ConsumptionPlan.normGrade(g);
+        const a = acc[k] || (acc[k] = { label: g, sea:{mt:0,h:0}, port:{mt:0,h:0} });
+        a[kind].mt += v; a[kind].h += r.hrs;
+      });
+    });
+    Object.keys(acc).forEach(k=>{
+      const a = acc[k];
+      out[a.label] = { sea: a.sea.h > 0 ? a.sea.mt / a.sea.h * 24 : null, port: a.port.h > 0 ? a.port.mt / a.port.h * 24 : null };
+    });
+  }catch(_){}
+  return out;
+}
+function requestTankRobForPlan(){
+  return new Promise(resolve=>{
+    _tankRobResolve = resolve;
+    try{ window.parent.postMessage({ type: 'chengaio-request-tank-rob' }, '*'); }
+    catch(_){ _tankRobResolve = null; resolve(null); return; }
+    setTimeout(()=>{ if (_tankRobResolve === resolve){ _tankRobResolve = null; resolve(null); } }, 10000);
+  });
+}
+function mountBunkerPlan(){
+  const host = document.getElementById('bunkerPlanMount');
+  if (!host || !window.ConsumptionPlan) return;
+  host.innerHTML = '';
+  const inner = document.createElement('div');
+  host.appendChild(inner);
+  _bunkerPlanCtl = ConsumptionPlan.mount(inner, {
+    ui: { panel: 'panel', btn: 'ghost small', primary: 'primary small', hist: 'panel' },
+    fuels: planFuels,
+    load(){
+      if (!Array.isArray(state.setup.bunkerPlanHistory)) state.setup.bunkerPlanHistory = [];
+      return { plan: state.setup.bunkerPlan, history: state.setup.bunkerPlanHistory };
+    },
+    persist(data){
+      state.setup.bunkerPlan = data.plan;
+      state.setup.bunkerPlanHistory = data.history;
+      return saveSetup();
+    },
+    vesselName: ()=> state.setup.vesselName || '',
+    voyageNo: ()=> state.setup.voyageNumber || '',
+    toast: m=> showToast(m),
+    askName: async (plan)=> await askText({
+      title: 'Save calculation',
+      message: 'Give this calculation a name or short description so it is easy to find later in Saved Calculations.',
+      label: 'Name / description',
+      placeholder: 'e.g. Singapore to Rotterdam via Cape',
+      value: plan.saveName || '',
+      okLabel: 'Save'
+    }),
+    buttons: [
+      { id: 'load-log-rob', label: 'Load Voyage ROB', onClick: ()=> ({ rob: logRobByGrade(), message: 'Current ROB loaded from the log', empty: 'No ROB in the log yet' }) },
+      { id: 'suggest-daily', label: 'Suggest MT/day from log', onClick: ({plan})=>{
+        const recent = logDailyStats(7), longer = logDailyStats(30), stats = {};
+        Object.keys(longer).concat(Object.keys(recent)).forEach(g=>{
+          const r = recent[g] || {}, l = longer[g] || {};
+          stats[g] = { sea: r.sea != null ? r.sea : l.sea, port: r.port != null ? r.port : l.port };
+        });
+        const n = ConsumptionPlan.suggestDaily(plan, stats);
+        return { changed: n, message: n + ' MT/day figure' + (n === 1 ? '' : 's') + ' filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea lines from sea days, port lines from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its MT/day empty, and have some days logged' };
+      } },
+      { id: 'load-tank-rob', label: 'Load Tank ROB', hidden: !isChengAioEmbedded(), onClick: async ()=>{
+        const r = await requestTankRobForPlan();
+        if (!r || !r.rob) return { rob: {}, empty: 'Tank Chief did not answer — open it once and try again' };
+        return { rob: r.rob, message: 'Tank ROB loaded', empty: 'Tank Chief has no sounded fuel weight yet — sound the tanks on Tank Monitoring first' };
+      } }
+    ],
+    printMetaGrid: (items, cols)=> printMetaGrid(items, cols),
+    printHeader: (i)=> printDocHeader({ title: 'Bunker Consumption Calculation', subtitle: 'Voyage fuel plan — sea / port legs with margin', badge: i.voyageNo }),
+    printSignature: ()=> printSignatory(),
+    printExtraMeta: ()=> [{ label: 'Condition', value: escPrint(state.setup.shipCondition || '—') }],
+    printSheet(html){
+      beginPrintHold();
+      try {
+        printPortraitSinglePage(`<div class="pr-sheet pr-bunker-sheet">${html}</div>`);
+      } catch (err) {
+        endPrintHold();
+        throw err;
+      }
+    }
+  });
+}
+function renderBunkerPlan(){ mountBunkerPlan(); }
+function bindBunkerPlanUi(){ /* the shared page binds itself when it is drawn */ }
+/** Before a vessel save or a server check: the plan as typed, into the setup (it is otherwise written 0.4 s after the last keystroke). */
 function readBunkerPlanFromDom(){
-  const bp = ensureBunkerPlan();
-  const voyEl = document.getElementById('bp_voyageNo');
-  const dateEl = document.getElementById('bp_date');
-  if (voyEl) bp.voyageNo = voyEl.value.trim();
-  if (dateEl) bp.date = dateEl.value;
-  const remEl = document.getElementById('bp_remarks');
-  if (remEl) bp.remarks = remEl.value;
-  BUNKER_PLAN_SIDES.forEach(meta=>{
-    const side = bp[meta.key];
-    const gradeSel = document.querySelector(`select[data-side-grade="${meta.key}"]`);
-    if (gradeSel) side.grade = gradeSel.value;
-    document.querySelectorAll(`input[data-side-f][data-side="${meta.key}"]`).forEach(inp=>{
-      const f = inp.dataset.sideF;
-      const v = inp.value === '' ? null : parseFloat(inp.value);
-      side[f] = (v==null || isNaN(v) ? null : v);
-    });
-    side.legs.forEach((leg, i)=>{
-      const tr = document.querySelector(`tr[data-side="${meta.key}"][data-row="${i}"]`);
-      if (!tr) return;
-      const port = tr.querySelector('[data-f="port"]');
-      leg.port = !!(port && port.checked);
-      ['from','to'].forEach(f=>{
-        const el = tr.querySelector(`[data-f="${f}"]`);
-        if (el) leg[f] = el.value;
-      });
-      ['distance','speed','dailyCons','days','marginPct'].forEach(f=>{
-        const el = tr.querySelector(`[data-f="${f}"]`);
-        if (!el) return;
-        /* The Days box shows the worked-out figure on a sea leg; storing that back would
-           freeze it, so it is only kept for port stays and for days typed by hand. */
-        if (f === 'days' && !leg.port && !leg.daysManual) return;
-        const v = el.value === '' ? null : parseFloat(el.value);
-        leg[f] = (v==null || isNaN(v) ? null : v);
-      });
-    });
-  });
-  return bp;
+  try{ if (_bunkerPlanCtl) state.setup.bunkerPlan = ConsumptionPlan.finalize(_bunkerPlanCtl.plan()); }catch(_){}
 }
-
-function loadBunkerPlanRob(){
-  const bp = ensureBunkerPlan();
-  BUNKER_PLAN_SIDES.forEach(meta=>{
-    const side = bp[meta.key];
-    /* the grade the plan is set to; if the log holds none of it, every grade of that side */
-    let v = currentRobForGrade(side.grade);
-    if (!(v > 0)) v = meta.grades.reduce((sum, g) => sum + currentRobForGrade(g), 0);
-    side.currentRob = Math.round(v * 1000) / 1000;
-  });
-  if (!bp.voyageNo) bp.voyageNo = state.setup.voyageNumber || '';
-  if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
-  renderBunkerPlan();
-  scheduleBunkerPlanSave();
-  showToast('Current ROB loaded from the log');
-}
-
-function clearBunkerPlan(){
-  if (!confirm('Clear the bunker consumption plan for both fuel sides?')) return;
-  const voyageNo = state.setup.voyageNumber || '';
-  state.setup.bunkerPlan = defaultBunkerPlan();
-  state.setup.bunkerPlan.voyageNo = voyageNo;
-  state.setup.bunkerPlan.date = new Date().toISOString().slice(0,10);
-  renderBunkerPlan();
-  scheduleBunkerPlanSave();
-  showToast('Bunker consumption plan cleared');
-}
-
-function buildBunkerPlanPrintHtml(){
-  readBunkerPlanFromDom();
-  const bp = ensureBunkerPlan();
-  const voyageNo = bp.voyageNo || state.setup.voyageNumber || '—';
-  const sidesHtml = BUNKER_PLAN_SIDES.map(meta=>{
-    const side = bp[meta.key];
-    const sum = summarizeBunkerSide(side);
-    const body = side.legs.filter(leg=>!bunkerLegIsBlank(leg) || bunkerLegQty(leg)!=null).map((leg)=>{
-      const days = bunkerLegDays(leg);
-      const qty = bunkerLegQty(leg);
-      return `<tr>
-        <td>${leg.port ? '●' : ''}</td>
-        <td class="row-lbl">${escPrint(leg.from || '')}</td>
-        <td class="row-lbl">${escPrint(leg.to || '')}</td>
-        <td>${leg.distance!=null ? fmt(leg.distance, 2) : ''}</td>
-        <td>${leg.speed!=null ? fmt(leg.speed, 2) : ''}</td>
-        <td>${leg.dailyCons!=null ? fmtFuel(leg.dailyCons) : ''}</td>
-        <td>${days!=null ? fmt(days, 3) : ''}</td>
-        <td>${qty!=null ? fmtFuel(qty) : ''}</td>
-        <td>${leg.marginPct!=null ? fmt(leg.marginPct, 1) : ''}</td>
-      </tr>`;
-    }).join('');
-    return `
-      <section class="pr-section pr-bunker-block">
-        <h3 class="pr-section-title">${escPrint(meta.title)} — ${escPrint(side.grade)}</h3>
-        <div class="pr-section-body">
-          <table class="pr-table pr-bunker-entry-table">
-            <thead><tr>
-              <th style="width:6%">P/A</th>
-              <th style="width:15%">From</th>
-              <th style="width:15%">To</th>
-              <th style="width:9%">Dist</th>
-              <th style="width:9%">Speed</th>
-              <th style="width:10%">Daily</th>
-              <th style="width:9%">Days</th>
-              <th style="width:12%">Qty MT</th>
-              <th style="width:10%">Margin %</th>
-            </tr></thead>
-            <tbody>${body}</tbody>
-          </table>
-          ${printMetaGrid([
-            {label:'Current ROB', value: side.currentRob==null ? '—' : fmtFuel(side.currentRob)+' MT'},
-            {label:'Qty to Receive', value: side.qtyReceive==null ? '—' : fmtFuel(side.qtyReceive)+' MT'},
-            {label:'Days Port', value: fmt(sum.daysPort, 1)},
-            {label:'Days Sea', value: fmt(sum.daysSea, 1)},
-            {label:'Total Distance', value: fmt(sum.totalDist, 0)+' nm'},
-            {label:'Total Consumption', value: fmtFuel(sum.totalCons)+' MT'},
-            {label:'Total Margin', value: fmtFuel(sum.margin)+' MT'},
-            {label:'Required Quantity', value: fmtFuel(sum.required)+' MT'},
-            {label:'Arrival ROB', value: sum.arrivalRob==null ? '—' : fmtFuel(sum.arrivalRob)+' MT'},
-            {label:'Next Departure ROB', value: sum.nextDepRob==null ? '—' : fmtFuel(sum.nextDepRob)+' MT'},
-            {label:'Delivery / Redelivery ROB', value: sum.delivery==null ? '—' : fmtFuel(sum.delivery)+' MT'},
-            {label:'Excess (Margin) Quantity', value: sum.excessMargin==null ? '—' : fmtFuel(sum.excessMargin)+' MT'},
-            {label:'Excess (Actual) Quantity', value: sum.excessActual==null ? '—' : fmtFuel(sum.excessActual)+' MT'},
-            {label:'Unpumpable', value: sum.stemAdvice && sum.stemAdvice.unpumpable ? fmtFuel(sum.stemAdvice.unpumpable)+' MT' : '—'},
-            {label:'Weather reserve', value: sum.stemAdvice && sum.stemAdvice.weather ? fmtFuel(sum.stemAdvice.weather)+' MT' : '—'},
-            {label:'Order', value: sum.stemAdvice && sum.stemAdvice.orderMt!=null ? fmtFuel(sum.stemAdvice.orderMt)+' MT' : '—'},
-            {label:'Stem still needed', value: sum.stem==null ? '—' : fmtFuel(sum.stem)+' MT'}
-          ], 4)}
-          <div class="pr-remarks"><div class="pr-remarks-body">${escPrint(stemAdvicePlain(side, sum))}</div></div>
-          ${meta.key==='distillate' ? `<div class="pr-remarks">
-            <div class="pr-remarks-title">Remarks</div>
-            <div class="pr-remarks-body">${escPrint(bp.remarks || '—')}</div>
-          </div>` : ''}
-        </div>
-      </section>`;
-  }).join('');
-
-  return `<div class="pr-sheet pr-bunker-sheet">
-    ${printDocHeader({
-      title: 'Bunker Consumption Calculation',
-      subtitle: 'Voyage fuel plan — sea / port legs with margin',
-      badge: voyageNo
-    })}
-    ${printMetaGrid([
-      {label:'Voyage No.', value: escPrint(voyageNo)},
-      {label:'Date', value: escPrint(bp.date || '—')},
-      {label:'Vessel', value: escPrint(state.setup.vesselName || '—')},
-      {label:'Condition', value: escPrint(state.setup.shipCondition || '—')}
-    ], 4)}
-    ${sidesHtml}
-    <div class="pr-remarks">
-      <div class="pr-remarks-title">Calculation basis</div>
-      <div class="pr-remarks-body">Sea days = Dist ÷ (Speed × 24). Quantity = Daily Cons × Days. Each line may carry its own Margin % (line margin = Qty × Margin%). Required = Σ Qty + Σ line margins. Arrival ROB = Current ROB − Required. Next Departure ROB = Arrival ROB + Quantity to Receive.</div>
-    </div>
-    ${printSignatory()}
-  </div>`;
-}
-
-/* Ask what to call this save so it can be found again in Saved Calculations.
-   Resolves with the text (maybe empty), or null when the engineer cancels. */
-async function askBunkerPlanName(){
-  readBunkerPlanFromDom();
-  const bp = ensureBunkerPlan();
-  const name = await askText({
-    title: 'Save calculation',
-    message: 'Give this calculation a name or short description so it is easy to find later in Saved Calculations.',
-    label: 'Name / description',
-    placeholder: 'e.g. Singapore to Rotterdam via Cape',
-    value: bp.saveName || '',
-    okLabel: 'Save'
-  });
-  return name;
-}
-
-function saveBunkerPlanToHistory(name){
-  readBunkerPlanFromDom();
-  const bp = ensureBunkerPlan();
-  if (name != null) bp.saveName = name;
-  const snapshot = JSON.parse(JSON.stringify(bp));
-  snapshot.savedAt = new Date().toISOString();
-  if (!Array.isArray(state.setup.bunkerPlanHistory)) state.setup.bunkerPlanHistory = [];
-  state.setup.bunkerPlanHistory.unshift(snapshot);
-  if (state.setup.bunkerPlanHistory.length > 50) state.setup.bunkerPlanHistory.length = 50;
-  scheduleBunkerPlanSave();
-  renderBunkerPlanHistory();
-}
-
-function renderBunkerPlanHistory(){
-  const panel = document.getElementById('bunkerPlanHistory');
-  const body = document.getElementById('bpHistoryBody');
-  if (!panel || !body) return;
-  const history = state.setup.bunkerPlanHistory || [];
-  if (!history.length){
-    panel.style.display = 'none';
-    return;
-  }
-  panel.style.display = '';
-  const cnt = document.getElementById('bpHistoryCount');
-  if (cnt) cnt.textContent = '(' + history.length + ')';
-  const q = (document.getElementById('bpHistorySearch')?.value || '').trim().toLowerCase();
-  const shown = [];
-  history.forEach((h, i)=>{
-    const date = h.date || h.savedAt?.slice(0,10) || '—';
-    const hay = [date, h.savedAt, h.voyageNo, h.saveName, h.remarks].join(' ').toLowerCase();
-    if (!q || hay.includes(q)) shown.push([h, i, date]);
-  });
-  if (!shown.length){
-    body.innerHTML = '<tr class="empty-row"><td colspan="6">No saved calculation matches your search.</td></tr>';
-    return;
-  }
-  body.innerHTML = shown.map(([h, i, date])=>{
-    const resSum = summarizeBunkerSide(h.residual || emptyBunkerSide('HFO'));
-    const distSum = summarizeBunkerSide(h.distillate || emptyBunkerSide('MDO/MGO'));
-    return `<tr>
-      <td>${escAttr(date)}</td>
-      <td class="bp-hist-name">${escAttr(h.saveName || '—')}</td>
-      <td>${escAttr(h.voyageNo || '—')}</td>
-      <td>${fmtFuel(resSum.required)} MT req</td>
-      <td>${fmtFuel(distSum.required)} MT req</td>
-      <td><button class="ghost small" data-bp-load="${i}">Load</button> <button class="ghost small" data-bp-del="${i}">Del</button></td>
-    </tr>`;
-  }).join('');
-}
-
-async function printBunkerPlan(){
-  const name = await askBunkerPlanName();
-  if (name === null) return;
-  const sheetHtml = buildBunkerPlanPrintHtml();
-  saveBunkerPlanToHistory(name);
-  beginPrintHold();
-  try {
-    printPortraitSinglePage(sheetHtml);
-  } catch (err) {
-    endPrintHold();
-    throw err;
-  }
-}
-
-function printBunkerPlanOnly(){
-  const sheetHtml = buildBunkerPlanPrintHtml();
-  beginPrintHold();
-  try {
-    printPortraitSinglePage(sheetHtml);
-  } catch (err) {
-    endPrintHold();
-    throw err;
-  }
-}
-
-async function saveBunkerPlanOnly(){
-  const name = await askBunkerPlanName();
-  if (name === null) return;
-  saveBunkerPlanToHistory(name);
-  try{ showToast('Bunker plan saved'); }catch(_){}
-}
-
 let _tankRobIntent = '';
-function loadBunkerPlanFromTankRob(){
-  if (!isChengAioEmbedded()) return;
-  _tankRobIntent = 'plan';
-  try {
-    window.parent.postMessage({ type: 'chengaio-request-tank-rob' }, '*');
-  } catch (_) {}
-}
 function requestTankSurveyCompare(){
   const panel = document.getElementById('robTankCompare');
   if (!panel) return;
@@ -17993,159 +17518,9 @@ window.addEventListener('message', (ev)=>{
   const msg = ev.data || {};
   if (msg.type === 'tank-rob-response' && msg.rob){
     paintRobTankCompare(msg.rob);
-    if (_tankRobIntent !== 'plan') return;
-    const bp = ensureBunkerPlan();
-    const rob = msg.rob;
-    /* Tank Chief names grades its own way (hfo, lsfo, mdo, mgo, in lower case); bring them to the plan's names */
-    const norm = g => ({VLSFO:'LSFO', ULSFO:'LSFO', 'MO/MGO':'MDO/MGO', MDO:'MDO/MGO', MGO:'MDO/MGO'}[String(g||'').toUpperCase()] || String(g||'').toUpperCase());
-    let any = false;
-    BUNKER_PLAN_SIDES.forEach(meta=>{
-      const side = bp[meta.key];
-      const want = norm(side.grade);
-      const own = meta.grades.map(norm);
-      let val = 0;
-      Object.keys(rob).forEach(k=>{ if (norm(k) === want) val += Number(rob[k]) || 0; });
-      if (!(val > 0)) Object.keys(rob).forEach(k=>{ if (own.includes(norm(k))) val += Number(rob[k]) || 0; });
-      if (val > 0) { side.currentRob = Math.round(val * 1000) / 1000; any = true; }
-    });
-    if (!bp.date) bp.date = new Date().toISOString().slice(0,10);
-    renderBunkerPlan();
-    scheduleBunkerPlanSave();
-    try{ showToast(any ? 'Tank ROB loaded' : 'Tank Chief has no sounded fuel weight yet — sound the tanks on Tank Monitoring first'); }catch(_){}
+    if (_tankRobResolve){ const done = _tankRobResolve; _tankRobResolve = null; done({ rob: msg.rob }); }
   }
 });
-
-function bindBunkerPlanUi(){
-  const page = document.getElementById('page-bunkerplan');
-  if (!page || page.dataset.bound) return;
-  page.dataset.bound = '1';
-  if (isChengAioEmbedded()){
-    const tankBtn = document.getElementById('btnBpLoadTankRob');
-    if (tankBtn) tankBtn.style.display = '';
-  }
-  document.getElementById('btnBpLoadRob')?.addEventListener('click', loadBunkerPlanRob);
-  document.getElementById('btnBpLoadTankRob')?.addEventListener('click', loadBunkerPlanFromTankRob);
-  document.getElementById('btnBpClear')?.addEventListener('click', clearBunkerPlan);
-  document.getElementById('btnBpPrint')?.addEventListener('click', printBunkerPlan);
-  document.getElementById('btnBpPrintOnly')?.addEventListener('click', printBunkerPlanOnly);
-  document.getElementById('btnBpSaveOnly')?.addEventListener('click', saveBunkerPlanOnly);
-  document.getElementById('bpHistorySearch')?.addEventListener('input', renderBunkerPlanHistory);
-  document.getElementById('bp_voyageNo')?.addEventListener('change', ()=>{
-    ensureBunkerPlan().voyageNo = document.getElementById('bp_voyageNo').value.trim();
-    scheduleBunkerPlanSave();
-  });
-  document.getElementById('bp_date')?.addEventListener('change', ()=>{
-    ensureBunkerPlan().date = document.getElementById('bp_date').value;
-    scheduleBunkerPlanSave();
-  });
-  document.getElementById('bp_remarks')?.addEventListener('input', ()=>{
-    ensureBunkerPlan().remarks = document.getElementById('bp_remarks').value;
-    scheduleBunkerPlanSave();
-  });
-  page.addEventListener('click', (e)=>{
-    const addBtn = e.target.closest('[data-bp-add-leg]');
-    const remBtn = e.target.closest('[data-bp-remove-leg]');
-    if (addBtn){
-      e.preventDefault();
-      readBunkerPlanFromDom();
-      addBunkerPlanLeg(addBtn.dataset.bpAddLeg);
-      return;
-    }
-    if (remBtn){
-      e.preventDefault();
-      readBunkerPlanFromDom();
-      removeBunkerPlanLeg(remBtn.dataset.bpRemoveLeg);
-      return;
-    }
-  });
-  page.addEventListener('change', (e)=>{
-    const t = e.target;
-    if (!t) return;
-    if (t.matches('[data-side-grade], [data-side-f], .bunker-table [data-f]')){
-      const tr = t.closest('tr[data-side]');
-      if (tr && (t.dataset.f === 'distance' || t.dataset.f === 'speed' || t.dataset.f === 'port')){
-        readBunkerPlanFromDom();
-        const sideKey = tr.dataset.side;
-        const row = Number(tr.dataset.row);
-        const leg = ensureBunkerPlan()[sideKey].legs[row];
-        if (t.dataset.f === 'port' && leg.port){
-          /* keep days; distance/speed optional at port */
-        } else if (t.dataset.f === 'distance' || t.dataset.f === 'speed' || (t.dataset.f === 'port' && !leg.port)){
-          autoFillBunkerSeaDays(leg);
-        }
-      } else {
-        readBunkerPlanFromDom();
-      }
-      /* Updated in place: a full redraw here replaced the box the engineer was tapping
-         next, so with the keyboard up the second tap landed on nothing. */
-      if (tr){
-        const leg = ensureBunkerPlan()[tr.dataset.side].legs[Number(tr.dataset.row)];
-        syncBunkerRowDom(tr, leg);
-        paintBunkerResults(tr.dataset.side);
-      } else if (t.dataset.sideF && t.dataset.side){
-        paintBunkerResults(t.dataset.side);
-      } else {
-        BUNKER_PLAN_SIDES.forEach(m => paintBunkerResults(m.key));
-      }
-      scheduleBunkerPlanSave();
-    }
-  });
-  page.addEventListener('input', (e)=>{
-    const t = e.target;
-    if (!t || !t.matches('.bunker-table [data-f="dailyCons"], .bunker-table [data-f="days"], .bunker-table [data-f="distance"], .bunker-table [data-f="speed"], .bunker-table [data-f="from"], .bunker-table [data-f="to"], [data-side-f]')) return;
-    readBunkerPlanFromDom();
-    /* live qty refresh without full re-render to keep focus */
-    const tr = t.closest('tr[data-side]');
-    if (tr){
-      const sideKey = tr.dataset.side;
-      const row = Number(tr.dataset.row);
-      const leg = ensureBunkerPlan()[sideKey].legs[row];
-      if (t.dataset.f === 'days'){
-        const dv = t.value === '' ? NaN : parseFloat(t.value);
-        leg.days = isNaN(dv) ? null : dv;
-        leg.daysManual = !isNaN(dv);
-      } else if (t.dataset.f === 'distance' || t.dataset.f === 'speed'){
-        autoFillBunkerSeaDays(leg);
-        const daysEl = tr.querySelector('[data-f="days"]');
-        if (daysEl){ daysEl.value = bunkerDaysShown(leg, bunkerLegDays(leg)); }
-      }
-      const qtyInp = tr.querySelector('.col-qty input');
-      const qty = bunkerLegQty(leg);
-      if (qtyInp) qtyInp.value = qty==null ? '' : fmtFuel(qty);
-      paintBunkerResults(sideKey);
-    } else if (t.dataset.sideF && t.dataset.side){
-      paintBunkerResults(t.dataset.side);
-    }
-    scheduleBunkerPlanSave();
-  });
-  const histPanel = document.getElementById('bunkerPlanHistory');
-  if (histPanel) histPanel.addEventListener('click', (e)=>{
-    const loadBtn = e.target.closest('[data-bp-load]');
-    const delBtn = e.target.closest('[data-bp-del]');
-    if (loadBtn){
-      const idx = Number(loadBtn.dataset.bpLoad);
-      const history = state.setup.bunkerPlanHistory || [];
-      if (history[idx]){
-        const snap = JSON.parse(JSON.stringify(history[idx]));
-        delete snap.savedAt;
-        state.setup.bunkerPlan = snap;
-        renderBunkerPlan();
-        scheduleBunkerPlanSave();
-        try{ showToast('Loaded saved calculation'); }catch(_){}
-      }
-    }
-    if (delBtn){
-      const idx = Number(delBtn.dataset.bpDel);
-      const history = state.setup.bunkerPlanHistory || [];
-      if (history[idx] && confirm('Delete this saved calculation?')){
-        history.splice(idx, 1);
-        scheduleBunkerPlanSave();
-        renderBunkerPlanHistory();
-      }
-    }
-  });
-  renderBunkerPlanHistory();
-}
 
 /* ---------------- Reference calculators ---------------- */
 function noxLimitGPerKwh(tier, rpm){
@@ -32744,6 +32119,7 @@ let androidInstallAssets = [
   './voyage_manager.html',
   './eorb.js',
   './stem-advice.js',
+  './consumption-plan.js',
   './ship_time.js',
   './theme.js',
   './license-config.js',
@@ -36015,7 +35391,7 @@ function migrateSetup(setup){
   }
   if (setup.sync.deviceName==null) setup.sync.deviceName = '';
   if (!setup.bunkerPlan || typeof setup.bunkerPlan !== 'object'){
-    setup.bunkerPlan = defaultBunkerPlan();
+    setup.bunkerPlan = null;   /* the plan page makes its own on first open */
   }
   setup.orb = ensureOrbSetup(setup.orb);
   if (setup.tzOffsetMin == null || !isFinite(Number(setup.tzOffsetMin))) setup.tzOffsetMin = null;
