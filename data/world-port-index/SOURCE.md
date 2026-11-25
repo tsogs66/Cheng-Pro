@@ -1,35 +1,30 @@
-# World Port Index (NGA Pub. 150) — MIRROR COPY, NOT THE OFFICIAL NGA DOWNLOAD
+# World Port Index (NGA Pub. 150)
 
-## Provenance (read this first)
-The official NGA page could not be used: https://msi.nga.mil/Publications/WPI was
-unreachable (blocked by the session proxy with 403, and reported by the user to be
-under maintenance). Per the user's decision, a third-party mirror was used instead.
+## Source of truth
+**`official/WPI.dbf` + `official/WPI.shp`** (shapefile package, unchanged from the zip) is the source of truth.
+`world_port_index_MIRROR_superseded.csv` is the old third-party student-project mirror (7 columns, edition unknown, no licence). It is superseded and kept only for comparison; do not build from it.
 
-- Official page (NOT fetched): https://msi.nga.mil/Publications/WPI
-- Mirror file URL: https://raw.githubusercontent.com/danteboe/MINE4213-Proyecto/main/resources/world_port_index.csv
-- Mirror owner: GitHub user `danteboe`, repo `MINE4213-Proyecto` (a student project, unaffiliated with NGA). Commit not recorded; fetched from branch `main`.
-- Stored here as: `world_port_index.csv` (byte-identical to the download)
-- SHA-256: 8abb02b33c860a8a0925d5fff9cd3d3fa7533f44a79bc8781d92586fff788eb4
-- Download date: 2026-11-25
-- Publication edition/date: UNKNOWN. The file carries no edition information and the NGA page was not seen.
+## Provenance
+- Zip file name: `world_port_index.zip` (downloaded by the user to their Windows PC, then committed to the repo root of `main`; commit 861bf61b6ed9fc4ba4f64107a270d8312fff5c14)
+- Zip SHA-256: `45f677189f4cfaa0b1b1f219b9ff4c5d73ac0c66524f18acf78cd4756019b487`
+- Download date: not recorded by the user's machine (file added to the repo 2026-11-26 07:17 +0800)
+- Edition/date found in the package: dBASE header and all member files are dated **2017-03-28**. The zip has no readme or edition statement. The NGA page edition was not seen. Treat as "NGA WPI, file dated 2017-03-28"; this is older than the current NGA release. Verify against https://msi.nga.mil/Publications/WPI.
+- Extracted into a fresh folder outside the repo, nothing inside was executed. Files are copied unchanged to `official/`.
 
-## Important limitations
-- This is a **reduced extract** of the WPI (7 columns), not the full NGA CSV (which has
-  ~100+ columns: depths, pilotage, facilities, etc.). Column names are the mirror's own
-  (`INDEX_NO`, `HARBORSIZE`, ...), not NGA's. It cannot be verified against NGA here.
-- It may be outdated or edited. Replace it with the official file when msi.nga.mil is back.
+## Is it the official full package?
+It matches the **full NGA WPI attribute table** (78 fields: depths, pilotage, tugs, cranes, supplies, etc.), distributed as an ESRI shapefile. It is NOT a CSV. It does NOT contain an NGA readme, data dictionary, or licence text. The origin (downloaded from NGA vs. relayed) cannot be proven from the contents.
+
+Contents (SHA-256 of each file in `official/SHA256SUMS.txt`):
+WPI.dbf (attributes), WPI.shp / WPI.shx / WPI.sbn / WPI.sbx (geometry+indexes), WPI.prj (WGS84), WPI.cpg (UTF-8).
 
 ## Licence / usage statement
-- NGA page: not seen, so no NGA licence/distribution statement could be copied. **None is quoted here.**
-- Mirror repo: no LICENSE file (LICENSE and LICENSE.md return 404); its README (first lines only read) says nothing about this file's licence.
-- No licence text exists in the data file itself.
-- Nothing is paraphrased as if it were NGA's terms. Redistribution terms are therefore UNVERIFIED;
-  check the NGA page text before shipping this data inside an app.
+None found in the zip. The NGA statement still has to be copied verbatim from https://msi.nga.mil/Publications/WPI (not reachable from the cloud session). **Not yet recorded. Redistribution terms are UNVERIFIED.**
 
 ## Summary
-- Rows: 3669 data rows (3670 lines including header), UTF-8/ASCII, comma-separated, no quoting issues seen.
-- Header line:
-  `INDEX_NO,PORT_NAME,COUNTRY,LATITUDE,LONGITUDE,HARBORSIZE,HARBORTYPE`
-- Notes for the converter: LATITUDE/LONGITUDE are decimal degrees, all rows populated.
-  HARBORSIZE codes: V=2153, S=990, M=361, L=160, blank=5 (very small/small/medium/large).
-  COUNTRY is a 2-letter code. HARBORTYPE is a 2-letter code (e.g. CN, CB, RB, OR).
+- Rows: 3669 (dBASE record count)
+- Columns (78), exact order from the .dbf header:
+  `INDEX_NO,REGION_NO,PORT_NAME,COUNTRY,LATITUDE,LONGITUDE,LAT_DEG,LAT_MIN,LAT_HEMI,LONG_DEG,LONG_MIN,LONG_HEMI,PUB,CHART,HARBORSIZE,HARBORTYPE,SHELTER,ENTRY_TIDE,ENTRYSWELL,ENTRY_ICE,ENTRYOTHER,OVERHD_LIM,CHAN_DEPTH,ANCH_DEPTH,CARGODEPTH,OIL_DEPTH,TIDE_RANGE,MAX_VESSEL,HOLDGROUND,TURN_BASIN,PORTOFENTR,US_REP,ETAMESSAGE,PILOT_REQD,PILOTAVAIL,LOC_ASSIST,PILOTADVSD,TUGSALVAGE,TUG_ASSIST,PRATIQUE,SSCC_CERT,QUAR_OTHER,COMM_PHONE,COMM_FAX,COMM_RADIO,COMM_VHF,COMM_AIR,COMM_RAIL,CARGOWHARF,CARGO_ANCH,CARGMDMOOR,CARBCHMOOR,CARICEMOOR,MED_FACIL,GARBAGE,DEGAUSS,DRTYBALLST,CRANEFIXED,CRANEMOBIL,CRANEFLOAT,LIFT_100_,LIFT50_100,LIFT_25_49,LIFT_0_24,LONGSHORE,ELECTRICAL,SERV_STEAM,NAV_EQUIP,ELECREPAIR,PROVISIONS,WATER,FUEL_OIL,DIESEL,DECKSUPPLY,ENG_SUPPLY,REPAIRCODE,DRYDOCK,RAILWAY`
+- Example record: INDEX_NO 61090, PORT_NAME SHAKOTAN, COUNTRY RU, LATITUDE 43.866667, LONGITUDE 146.833333. Numeric fields are stored as text like `61090.000000`.
+- UN/LOCODE: **not present** (no LOCODE column).
+- Country names: **not present**; COUNTRY holds a 2-letter code (e.g. RU).
+- Note for the converter: it must read the .dbf (or convert to CSV) and parse the 78 real columns; the old 7-column CSV layout no longer applies.
