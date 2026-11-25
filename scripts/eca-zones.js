@@ -44,12 +44,12 @@
   }
   const label = id => (ZONES.find(z => z.id === id) || { label: id }).label;
   /** Walk a path of [lat, lon] points (great-circle legs, sampled every ~stepNm) and report how much lies in an ECA.
-   *  Returns { totalNm, ecaNm, zones: {id: nm}, runs: [{eca, zone, nm, from:[lat,lon], to:[lat,lon]}] } with runs in order. */
+   *  Returns { totalNm, ecaNm, zones: {id: nm}, runs: [{eca, zone, nm, from:[lat,lon], to:[lat,lon], pts:[[lat,lon]...]}] } with runs in order (pts follow the route, for drawing). */
   function measure(path, ids, stepNm) {
     const step = stepNm || 5, runs = []; let total = 0, eca = 0; const zones = {};
     const add = (z, nm, from, to) => {
       const last = runs[runs.length - 1];
-      if (last && last.zone === z) { last.nm += nm; last.to = to; } else runs.push({ eca: !!z, zone: z, nm, from, to });
+      if (last && last.zone === z) { last.nm += nm; last.to = to; last.pts.push(to); } else runs.push({ eca: !!z, zone: z, nm, from, to, pts: [from, to] });
       total += nm; if (z) { eca += nm; zones[z] = (zones[z] || 0) + nm; }
     };
     for (let i = 1; i < path.length; i++) {

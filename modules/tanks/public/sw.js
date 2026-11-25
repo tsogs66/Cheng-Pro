@@ -40,6 +40,8 @@ const ASSETS = [
   '/sea-distance/port-list.js',
   '/sea-distance/sea-route.js',
   '/sea-distance/eca-zones.js',
+  '/sea-distance/sea-map.js',
+  '/sea-distance/land.json',
   '/sea-distance/ports.json',
   '/sea-distance/marnet.json',
   '/js/bunker-consumption.js',
