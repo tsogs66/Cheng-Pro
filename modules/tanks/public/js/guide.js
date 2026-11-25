@@ -694,7 +694,9 @@
         "Changing an option recalculates the automatic distances. Press Recalculate automatic distances to do it again by hand.",
         "A distance you type yourself is never replaced. Typing over an automatic distance makes it yours.",
         "A note under the line says which passages the route uses. A warning appears when the From or To port is inside an avoided area, or far from the nearest sea lane.",
-        "The printout marks automatic distances with * and says how they were made. Arctic routes are never used.",
+        "ECA: when the automatic route passes through an Emission Control Area, the note under the line says how many nm are inside (for example Mediterranean 1,935 nm, North Sea & English Channel 418 nm), and a Distance in ECA box appears beside the distance boxes. The outlines (Baltic, North Sea & English Channel, Mediterranean, North America, US Caribbean) are approximate hand-drawn boundaries, not the official MARPOL limits, and you can switch a zone off under Route options.",
+  "Split into ECA / non-ECA lines (button in the note) replaces the line by one line per stretch, each with its own distance, days and quantity. Under Route options, Fuel 1 on the ECA lines becomes lets you pick the compliant fuel for those lines (for example LSMGO). MT/day, speed and margin carry over; check them. Split lines are not recalculated when you change the route options.",
+  "The printout marks automatic distances with * and says how they were made. Arctic routes are never used.",
         "The port list is the NGA World Port Index (3,669 ports, edition of 2017). Compare with your own passage plan or distance tables before relying on a figure."
 ],
       buttons: [

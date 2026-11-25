@@ -5,7 +5,7 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 const OUTS = [path.join(root, 'modules/voyage/www/sea-distance'), path.join(root, 'modules/tanks/public/sea-distance')];
-const FILES = { 'scripts/port-list.js': 'port-list.js', 'scripts/sea-route.js': 'sea-route.js',
+const FILES = { 'scripts/port-list.js': 'port-list.js', 'scripts/sea-route.js': 'sea-route.js', 'scripts/eca-zones.js': 'eca-zones.js',
   'data/ports/ports.json': 'ports.json', 'data/sea-lanes/marnet.json': 'marnet.json' };
 const check = process.argv.includes('--check');
 let bad = 0;

@@ -61,6 +61,7 @@ const PRECACHE = [
   './sea-distance/index.html',
   './sea-distance/port-list.js',
   './sea-distance/sea-route.js',
+  './sea-distance/eca-zones.js',
   './sea-distance/ports.json',
   './sea-distance/marnet.json'
 ];

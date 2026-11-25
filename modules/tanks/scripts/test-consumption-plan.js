@@ -201,4 +201,26 @@ ok(/8387\.00\*/.test(CP.printBody(sp, vessel, {})) && /sea-lane network/.test(CP
 ok(!/sea-lane network/.test(CP.printBody(CP.defaultPlan(vessel), vessel, {})), 'a plan with typed distances has no such note');
 ok(typeof CP.seaLoader === 'function', 'the loader for the optional sea data is exported');
 
+/* ---- ECA: split a line into outside / inside stretches ---- */
+const zl = (z) => ({ mediterranean: 'Mediterranean Sea', north_sea: 'North Sea & English Channel', baltic: 'Baltic Sea' }[z] || z);
+const ecaLeg = CP.emptyLeg(2);
+Object.assign(ecaLeg, { from: 'KEPPEL', to: 'ROTTERDAM', fromPort: 1, toPort: 2, distance: 8387, distAuto: true, speed: 12, ecaNm: 2429, marginPct: 5 });
+ecaLeg.fuels[0] = { grade: 'HFO', daily: 30 }; ecaLeg.fuels[1] = { grade: 'LSMGO', daily: 2 };
+const runs = [{ eca: false, nm: 4992, from: [1, 103], to: [36, -5.6] }, { eca: true, zone: 'mediterranean', nm: 2011, from: [36, -5.6], to: [31, 32.3] }, { eca: false, nm: 966, from: [31, 32.3], to: [48.5, -5] }, { eca: true, zone: 'north_sea', nm: 418, from: [48.5, -5], to: [51.9, 4.4] }];
+const parts = CP.splitLegAtEca(ecaLeg, runs, zl, 'LSMGO');
+ok(parts.length === 4 && parts.reduce((a, l) => a + l.distance, 0) === 8387, 'four stretches that add up to the distance of the line');
+ok(parts[0].from === 'KEPPEL' && parts[3].to === 'ROTTERDAM' && parts[0].fromPort === 1 && parts[3].toPort === 2 && parts[1].fromPort === null, 'the first and last stretch keep the ports; the others have none');
+ok(/ECA entry 36\.0N 5\.6W \(Mediterranean Sea\)/.test(parts[0].to) && /ECA exit/.test(parts[1].to), 'the stretches are named by where the ECA starts and ends');
+ok(parts[1].ecaNm === parts[1].distance && parts[0].ecaNm === null && parts[1].fuels[0].grade === 'LSMGO' && parts[0].fuels[0].grade === 'HFO', 'only the ECA stretches count as ECA and take the ECA fuel');
+ok(parts.every((l) => l.marginPct === 5 && l.speed === 12 && l.fuels[0].daily === 30 && l.distAuto), 'speed, margin and MT/day carry over');
+ok(CP.splitLegAtEca(ecaLeg, [runs[0]], zl) === null && CP.splitLegAtEca(ecaLeg, [], zl) === null, 'a line with a single stretch is not split');
+const adj = CP.splitLegAtEca(ecaLeg, [runs[0], { eca: true, zone: 'north_sea', nm: 400, from: [1, 1], to: [2, 2] }, { eca: true, zone: 'baltic', nm: 800, from: [2, 2], to: [3, 3] }], zl);
+ok(adj.length === 2 && /North Sea & English Channel, Baltic Sea/.test(adj[1].ecaZones), 'neighbouring ECA stretches (North Sea then Baltic) become one line');
+const spl = CP.defaultPlan(vessel); spl.legs = parts; spl.legs[0].ecaNm = null;
+ok(CP.routeSummary(spl).totalEca === parts[1].distance + parts[3].distance, 'the route total counts the distance inside the ECA');
+ok(/Distance in ECA/.test(CP.routeCardsHtml(CP.routeSummary(spl))) && !/Distance in ECA/.test(CP.routeCardsHtml(CP.routeSummary(CP.defaultPlan(vessel)))), 'the ECA card appears only when there is ECA distance');
+ok(/Of which in ECA/.test(CP.printBody(spl, vessel, {})), 'the printout shows the ECA distance');
+const eb = CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(Object.assign(CP.defaultPlan(vessel), { legs: [ecaLeg], sea: { avoid: [], areas: [], ecaOff: ['baltic'], ecaFuel: 'LSMGO' } })))), vessel);
+ok(eb.legs[0].ecaNm === 2429 && eb.sea.ecaOff[0] === 'baltic' && eb.sea.ecaFuel === 'LSMGO', 'ECA distance and the ECA options survive saving');
+
 console.log(`consumption plan: ${pass} checks passed`);
