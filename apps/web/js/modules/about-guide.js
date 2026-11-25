@@ -1495,6 +1495,29 @@ window.ChengProAboutGuide = (function () {
         "A leg added by mistake: − Last voyage leg removes it.",
         "A calculation with one leg looks and prints exactly as before."
 ]
+    },
+    {
+      group: "Bunkers",
+      q: "How do I get the distance of a voyage line automatically, and avoid a canal or an area?",
+      purpose: "The consumption plan can work out the distance between two ports offline, from a built-in list of ports and a network of sea lanes. It is a planning estimate, not for navigation.",
+      steps: [
+        "On a sea line, type a few letters of the From port and pick it from the list; do the same for To. The distance is filled in at once and shown in italics with a dashed border.",
+        "The days follow from the distance and the speed you type, and the quantities follow from the days, as for any other line.",
+        "Under the table, Distance from ports · route options lets you avoid passages (Suez, Panama, Bab-el-Mandeb, Malacca, Hormuz, Cape of Good Hope and others) and keep out of areas (Gulf of Aden, Red Sea, Somali Basin, Gulf of Guinea, Black Sea, Taiwan Strait). The areas are approximate boxes that you choose; they are not official designations.",
+        "Changing an option recalculates the automatic distances. Press Recalculate automatic distances to do it again by hand.",
+        "A distance you type yourself is never replaced. Typing over an automatic distance makes it yours.",
+        "A note under the line says which passages the route uses. A warning appears when the From or To port is inside an avoided area, or far from the nearest sea lane.",
+        "The printout marks automatic distances with * and says how they were made. Arctic routes are never used.",
+        "The port list is the NGA World Port Index (3,669 ports, edition of 2017). Compare with your own passage plan or distance tables before relying on a figure."
+],
+      buttons: [
+        "Route options — avoid passages and areas",
+        "Recalculate automatic distances — redo all lines whose distance is automatic"
+],
+      undo: [
+        "Wrong port picked: pick another; the distance follows.",
+        "Do not want the automatic figure: type your own distance."
+]
     }
   ];
 

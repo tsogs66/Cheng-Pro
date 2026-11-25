@@ -188,4 +188,17 @@ ok(nFilled === 3 && sg.legs[0].fuels[0].daily === 31, 'a figure already typed is
 ok(sg.legs[0].fuels[1].daily === 2.35 && sg.legs[1].fuels[0].daily === 1.2 && sg.legs[1].fuels[1].daily === 3.1, 'sea lines get the sea average, port lines the port average, to two decimals');
 ok(CP.suggestDaily(sg, {}) === 0 && CP.suggestDaily(sg, { HFO: { sea: null, port: 0 } }) === 0, 'nothing is filled when the log has nothing for that fuel');
 
+/* ---- ports and automatic distance (the data for it is optional; the plan keeps what it is told) ---- */
+const sp = CP.defaultPlan(vessel);
+Object.assign(sp.legs[0], { from: 'ROTTERDAM, NL', to: 'KEPPEL, SG', fromPort: 31140, toPort: 50000, distance: 8387, distAuto: true, seaNote: 'via Suez Canal', speed: 12 });
+sp.sea = { avoid: ['suez'], areas: ['red_sea'] };
+const sb = CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(sp))), vessel);
+ok(sb.legs[0].fromPort === 31140 && sb.legs[0].toPort === 50000 && sb.legs[0].distAuto === true && sb.legs[0].seaNote === 'via Suez Canal', 'picked ports and the automatic mark survive saving');
+ok(sb.sea.avoid[0] === 'suez' && sb.sea.areas[0] === 'red_sea', 'the route options survive saving');
+sb.legs[0].distance = null; ok(CP.ensurePlan(JSON.parse(JSON.stringify(sb)), vessel).legs[0].distAuto === false, 'an automatic mark without a distance is dropped');
+ok(CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)] }, vessel).sea.avoid.length === 0, 'a plan saved before this has empty route options');
+ok(/8387\.00\*/.test(CP.printBody(sp, vessel, {})) && /sea-lane network/.test(CP.printBody(sp, vessel, {})), 'the printout marks an automatic distance and says how it was made');
+ok(!/sea-lane network/.test(CP.printBody(CP.defaultPlan(vessel), vessel, {})), 'a plan with typed distances has no such note');
+ok(typeof CP.seaLoader === 'function', 'the loader for the optional sea data is exported');
+
 console.log(`consumption plan: ${pass} checks passed`);

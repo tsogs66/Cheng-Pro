@@ -41,4 +41,10 @@ let ok100 = 0; for (const p of pl.all()) if (sr.nearest(p)[0].nm <= 100) ok100++
 assert(ok100 / pl.all().length > 0.95, 'coverage within 100 nm: ' + ok100);
 // a point far inland is refused, not guessed
 assert(!sr.route({ lat: 50.0, lon: 70.0 }, P.RTM).ok, 'inland point refused');
+// areas to keep out of: a blocked area changes the route, a port inside it is still reachable, and the user is warned
+assert(SR.PASSAGES.length >= 10 && SR.PASSAGES[0].id === 'suez' && SR.AREAS.some(a => a.id === 'gulf_aden'), 'passages and areas are listed');
+const open_ = sr.route(P.SIN, P.RTM), noAden = sr.route(P.SIN, P.RTM, { areas: ['gulf_aden'] });
+assert(open_.passages.includes('suez') && noAden.ok && !noAden.passages.includes('suez') && noAden.nm > open_.nm + 2000, 'keeping out of the Gulf of Aden sends the ship round the Cape');
+const toDjibouti = sr.route(P.FUJ, { lat: 11.6, lon: 43.1 }, { areas: ['gulf_aden'] });
+assert(toDjibouti.ok && toDjibouti.warnings.some(w => /inside an avoided area/.test(w)), 'a port inside an avoided area is reachable, with a warning');
 console.log('sea-route OK (coverage<=100nm: ' + ok100 + '/' + pl.all().length + ')');

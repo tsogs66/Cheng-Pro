@@ -12,4 +12,13 @@ for (const f of ['index.html', 'voyage_manager.html']) {
 }
 const sw = fs.readFileSync(path.join(__dirname, '../modules/voyage/www/sw.js'), 'utf8');
 for (const s of ['index.html', 'port-list.js', 'sea-route.js', 'ports.json', 'marnet.json']) if (!sw.includes("'./sea-distance/" + s + "'")) { console.error('sw.js does not precache ' + s); process.exit(1); }
+// consumption plan: the plan page asks for the same folder in both bundles and precaches it for offline use
+const tanksSw = fs.readFileSync(path.join(__dirname, '../modules/tanks/public/sw.js'), 'utf8');
+for (const s of ['port-list.js', 'sea-route.js', 'ports.json', 'marnet.json']) if (!tanksSw.includes("'/sea-distance/" + s + "'")) { console.error('tanks sw.js does not precache ' + s); process.exit(1); }
+const bc = fs.readFileSync(path.join(__dirname, '../modules/tanks/public/js/bunker-consumption.js'), 'utf8');
+if (!/seaLoader\('sea-distance\/'\)/.test(bc)) { console.error('Tank Chief consumption plan does not load sea-distance/'); process.exit(1); }
+for (const f of ['index.html', 'voyage_manager.html']) {
+  const h = fs.readFileSync(path.join(__dirname, '../modules/voyage/www', f), 'utf8');
+  if (!/seaLoader\('\.\/sea-distance\/'\)/.test(h)) { console.error(f + ' consumption plan does not load sea-distance/'); process.exit(1); }
+}
 console.log('sea-distance OK');

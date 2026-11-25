@@ -17430,6 +17430,7 @@ function mountBunkerPlan(){
   _bunkerPlanCtl = ConsumptionPlan.mount(inner, {
     ui: { panel: 'panel', btn: 'ghost small', primary: 'primary small', hist: 'panel' },
     fuels: planFuels,
+    sea: ConsumptionPlan.seaLoader('./sea-distance/'),
     load(){
       if (!Array.isArray(state.setup.bunkerPlanHistory)) state.setup.bunkerPlanHistory = [];
       return { plan: state.setup.bunkerPlan, history: state.setup.bunkerPlanHistory };
