@@ -123,7 +123,7 @@ for (const [name, cls] of THEMES) {
     + `unit ${round(ratio(unit, bg))}:1  value/title ${round(ratio(value, title))}:1`);
 }
 
-check('Days at Sea is one decimal', /bunkerResultCard\('Days at Sea', fmt\(sum\.daysSea, 1\)/.test(HTML), true);
+check('Days at Sea is two decimals', /bunkerResultCard\('Days at Sea', fmt\(sum\.daysSea, 2\)/.test(HTML), true);
 check('Total Distance is a whole number', /bunkerResultCard\('Total Distance', fmt\(sum\.totalDist, 0\)/.test(HTML), true);
 
 console.log(fails ? `\nFAILED — ${fails} of ${checks} checks` : `\nPASSED — ${checks} checks`);
