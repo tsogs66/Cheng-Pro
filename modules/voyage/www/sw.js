@@ -57,7 +57,12 @@ const PRECACHE = [
   './fonts/Oswald-500-latin.woff2',
   './fonts/Oswald-600-latin.woff2',
   './fonts/Oswald-700-latin.woff2',
-  './fonts/fonts.css'
+  './fonts/fonts.css',
+  './sea-distance/index.html',
+  './sea-distance/port-list.js',
+  './sea-distance/sea-route.js',
+  './sea-distance/ports.json',
+  './sea-distance/marnet.json'
 ];
 
 async function notifyClients(message){

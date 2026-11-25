@@ -657,6 +657,12 @@
   .nv-leg-dialog .field-dest input{
     min-height:52px; font-size:17px; padding:14px 16px;
   }
+  .sd-dialog{width:min(560px, calc(100vw - 20px)); max-width:100%; box-sizing:border-box; background:var(--panel, #152033); color:var(--text, #e8eef8); border:1px solid var(--line, #2a3550); border-radius:12px; padding:10px 10px 12px; box-shadow:0 18px 40px rgba(0,0,0,.35);}
+  html.bright .sd-dialog{background:#fff; color:#122238; border-color:rgba(18,34,56,.16);}
+  .sd-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 8px;}
+  .sd-head h3{margin:0; font-size:16px;}
+  #sdOverlay{z-index:9100;}
+  #sdFrame{display:block; width:100%; height:min(78vh, 740px); border:0; border-radius:8px; background:transparent;}
   .nv-leg-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
   .nv-leg-actions.unsaved-leg-actions{justify-content:stretch;}
   .nv-leg-actions.unsaved-leg-actions button{min-height:44px; flex:1 1 auto;}
@@ -4083,9 +4089,16 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
           </div>
         </div>
         <div class="nv-leg-actions">
+          <button type="button" class="ghost small" id="nvLegCalc" title="Look up the distance between two ports (works offline)">Calculate distance…</button>
           <button type="button" class="ghost small" id="nvLegCancel">Cancel</button>
           <button type="button" class="primary small" id="nvLegAccept">Create New Voyage</button>
         </div>
+      </div>
+    </div>
+    <div id="sdOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="sdTitle" hidden>
+      <div class="sd-dialog">
+        <div class="sd-head"><h3 id="sdTitle">Sea distance</h3><button type="button" class="ghost small" id="sdClose">Close</button></div>
+        <iframe id="sdFrame" title="Sea distance calculator"></iframe>
       </div>
     </div>
     <div id="unsavedLegOverlay" class="nv-leg-overlay" role="dialog" aria-modal="true" aria-labelledby="unsavedLegTitle" hidden>
@@ -23300,6 +23313,38 @@ async function acceptNewVoyageLegDialog(){
     stayOnEntry: true,
   });
 }
+
+/* Sea Distance picker (offline port-to-port estimate) for the New Voyage Leg dialog. */
+(function(){
+  const ov = document.getElementById('sdOverlay'), frame = document.getElementById('sdFrame');
+  if (!ov || !frame) return;
+  const isOpen = () => ov.classList.contains('open');
+  function closeSd(){ ov.classList.remove('open'); ov.hidden = true; frame.removeAttribute('src'); }
+  function openSd(){
+    const dest = (document.getElementById('nvLegDestination')?.value || '').trim();
+    const dep = String(state.setup.arrivePort || '').trim();
+    const q = new URLSearchParams({ embed: '1' });
+    if (dep) q.set('fromq', dep);
+    if (dest) q.set('toq', dest);
+    frame.src = 'sea-distance/index.html?' + q.toString();
+    ov.hidden = false; ov.classList.add('open');
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (e.source !== frame.contentWindow || !d || d.type !== 'seaDistance' || !isFinite(d.nm)) return;
+    const distEl = document.getElementById('nvLegDistance'), destEl = document.getElementById('nvLegDestination');
+    if (distEl) distEl.value = Math.round(d.nm);
+    if (destEl && !destEl.value.trim() && d.to && d.to.name) destEl.value = d.to.name;
+    closeSd();
+    distEl?.focus();
+  });
+  document.getElementById('nvLegCalc')?.addEventListener('click', openSd);
+  document.getElementById('sdClose')?.addEventListener('click', closeSd);
+  ov.addEventListener('click', (e) => { if (e.target === ov) closeSd(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen()) { e.stopImmediatePropagation(); closeSd(); }
+  });
+})();
 
 document.getElementById('btnNewVoyageLeg')?.addEventListener('click', openNewVoyageLegDialog);
 document.getElementById('nvLegCancel')?.addEventListener('click', closeNewVoyageLegDialog);

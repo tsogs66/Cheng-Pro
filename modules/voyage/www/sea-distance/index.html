@@ -140,7 +140,7 @@
     if (EMBED) html += '<div class="row" style="margin-top:12px"><button type="button" class="primary" id="use">Use this distance</button></div>';
     box.innerHTML = html;
     var use = $('use');
-    if (use) use.addEventListener('click', function () { window.parent.postMessage({ type: 'seaDistance', from: picked.from, to: picked.to, nm: r.nm, avoid: avoid }, location.origin); });
+    if (use) use.addEventListener('click', function () { window.parent.postMessage({ type: 'seaDistance', from: picked.from, to: picked.to, nm: r.nm, avoid: avoid }, location.origin === 'null' ? '*' : location.origin); });
   }
 
   function load(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }); }
@@ -149,13 +149,16 @@
     var from = combo('from'), to = combo('to');
     $('from').disabled = $('to').disabled = false;
     var f = store('from'), t = store('to'), q = new URLSearchParams(location.search);
+    var fq = q.get('fromq'), tq = q.get('toq');
     if (q.get('from')) f = q.get('from'); if (q.get('to')) t = q.get('to');
-    if (f) from.set(ports.byId(f)); if (t) to.set(ports.byId(t));
+    var pf = fq ? ports.search(fq, { limit: 1 })[0] : (f ? ports.byId(f) : null);   // free-text hints from the host app win
+    var pt = tq ? ports.search(tq, { limit: 1 })[0] : (t ? ports.byId(t) : null);
+    if (pf) from.set(pf); if (pt) to.set(pt);
     var sp = store('speed'); if (sp) $('speed').value = sp;
     $('status').textContent = ports.all().length.toLocaleString() + ' ports loaded. Works offline.';
     $('swap').addEventListener('click', function () { var a = picked.from, b = picked.to; from.set(b); to.set(a); update(); if (a && b) calc(); });
     $('go').addEventListener('click', calc);
-    update(); if (picked.from && picked.to && q.get('from') && q.get('to')) calc();
+    update(); if (picked.from && picked.to && ((q.get('from') && q.get('to')) || (fq && tq))) calc();
   }).catch(function (e) { $('status').textContent = 'Could not load data: ' + e.message; $('status').className = 'err'; });
 })();
 </script>
