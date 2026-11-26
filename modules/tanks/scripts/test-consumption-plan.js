@@ -223,4 +223,9 @@ ok(/Of which in ECA/.test(CP.printBody(spl, vessel, {})), 'the printout shows th
 const eb = CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(Object.assign(CP.defaultPlan(vessel), { legs: [ecaLeg], sea: { avoid: [], areas: [], ecaOff: ['baltic'], ecaFuel: 'LSMGO' } })))), vessel);
 ok(eb.legs[0].ecaNm === 2429 && eb.sea.ecaOff[0] === 'baltic' && eb.sea.ecaFuel === 'LSMGO', 'ECA distance and the ECA options survive saving');
 
+/* ---- shortest route and the map on the printout are options kept with the plan ---- */
+ok(CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)] }, vessel).sea.greatCircle === true && CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)] }, vessel).sea.printMap === true, 'both options are on by default');
+const off = CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(Object.assign(CP.defaultPlan(vessel), { sea: { avoid: [], areas: [], ecaOff: [], ecaFuel: '', printMap: false, greatCircle: false } })))), vessel);
+ok(off.sea.greatCircle === false && off.sea.printMap === false, 'and an option that was switched off stays off');
+
 console.log(`consumption plan: ${pass} checks passed`);

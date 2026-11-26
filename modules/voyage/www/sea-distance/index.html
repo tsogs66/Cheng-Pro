@@ -136,6 +136,7 @@
       '<div>' + esc(label(picked.from)) + ' &rarr; ' + esc(label(picked.to)) + '</div><dl>';
     if (kn > 0) { var h = r.nm / kn; html += '<dt>Steaming time</dt><dd>' + (h / 24).toFixed(1) + ' days (' + Math.round(h) + ' h) at ' + kn + ' kn</dd>'; }
     html += '<dt>Straight line</dt><dd>' + gcNm.toLocaleString() + ' nm</dd>';
+    if (r.savedNm >= 1) html += '<dt>Great-circle legs</dt><dd>save ' + Math.round(r.savedNm).toLocaleString() + ' nm against the lane network (' + Math.round(r.networkNm).toLocaleString() + ' nm)</dd>';
     var ecaM = EcaZones.measure([[picked.from.lat, picked.from.lon]].concat(r.path, [[picked.to.lat, picked.to.lon]]));
     if (r.passages.length) html += '<dt>Passages</dt><dd>' + esc(r.passages.join(', ')) + '</dd>';
     if (ecaM.ecaNm >= 1) html += '<dt>In ECA</dt><dd>' + Math.round(ecaM.ecaNm).toLocaleString() + ' nm (' + esc(Object.keys(ecaM.zones).map(EcaZones.label).join(', ')) + '; approximate outlines)</dd>';
@@ -160,14 +161,12 @@
       [['+', function () { mapCtl.zoom(1.6); }], ['\u2212', function () { mapCtl.zoom(1 / 1.6); }], ['Fit', function () { mapCtl.fit(); }]].forEach(function (b) { var el = document.createElement('button'); el.type = 'button'; el.textContent = b[0]; el.style.cssText = 'min-width:36px;padding:6px 10px'; el.addEventListener('click', b[1]); bar.appendChild(el); });
       box.appendChild(bar);
     }
-    if (landData) { draw(); return; }
-    fetch('land.json').then(function (r) { if (!r.ok) throw new Error('land.json ' + r.status); return r.json(); }).then(function (j) { landData = SeaMap.decodeLand(j); draw(); })
-      .catch(function (e) { box.hidden = false; box.textContent = 'Could not load the map: ' + e.message; });
+    draw();
   }
 
   function load(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }); }
-  Promise.all([load('ports.json'), load('marnet.json')]).then(function (d) {
-    ports = PortList.create(d[0]); router = SeaRoute.create(d[1]);
+  Promise.all([load('ports.json'), load('marnet.json'), load('land.json')]).then(function (d) {
+    landData = SeaRoute.decodeLand(d[2]); ports = PortList.create(d[0]); router = SeaRoute.create(d[1], { land: landData });
     var from = combo('from'), to = combo('to');
     $('from').disabled = $('to').disabled = false;
     var f = store('from'), t = store('to'), q = new URLSearchParams(location.search);

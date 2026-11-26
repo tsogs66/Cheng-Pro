@@ -17472,10 +17472,15 @@ function mountBunkerPlan(){
     printHeader: (i)=> printDocHeader({ title: 'Bunker Consumption Calculation', subtitle: 'Voyage fuel plan — sea / port legs with margin', badge: i.voyageNo }),
     printSignature: ()=> printSignatory(),
     printExtraMeta: ()=> [{ label: 'Condition', value: escPrint(state.setup.shipCondition || '—') }],
-    printSheet(html){
+    printMapSeparate: true,
+    printSheet(html, plan, extra){
       beginPrintHold();
       try {
-        printPortraitSinglePage(`<div class="pr-sheet pr-bunker-sheet">${html}</div>`);
+        if (extra && extra.mapHtml){
+          /* the route map gets its own A4 page after the plan */
+          const mapPage = `<div class="pr-sheet pr-bunker-sheet">${printDocHeader({ title: 'Route Map', subtitle: 'Consumption plan routes', badge: (plan && plan.voyageNo) || '' })}${extra.mapHtml}${printSignatory()}</div>`;
+          printPortraitPages([`<div class="pr-sheet pr-bunker-sheet">${html}</div>`, mapPage]);
+        } else printPortraitSinglePage(`<div class="pr-sheet pr-bunker-sheet">${html}</div>`);
       } catch (err) {
         endPrintHold();
         throw err;

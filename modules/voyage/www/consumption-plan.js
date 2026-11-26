@@ -371,7 +371,7 @@
     if (typeof plan.remarks !== 'string') plan.remarks = plan.remarks == null ? '' : String(plan.remarks);
     if (!plan.stocks || typeof plan.stocks !== 'object') plan.stocks = {};
     const sea = plan.sea && typeof plan.sea === 'object' ? plan.sea : {};
-    plan.sea = { avoid: Array.isArray(sea.avoid) ? sea.avoid.map(String) : [], areas: Array.isArray(sea.areas) ? sea.areas.map(String) : [], ecaOff: Array.isArray(sea.ecaOff) ? sea.ecaOff.map(String) : [], ecaFuel: typeof sea.ecaFuel === 'string' ? sea.ecaFuel : '' };
+    plan.sea = { avoid: Array.isArray(sea.avoid) ? sea.avoid.map(String) : [], areas: Array.isArray(sea.areas) ? sea.areas.map(String) : [], ecaOff: Array.isArray(sea.ecaOff) ? sea.ecaOff.map(String) : [], ecaFuel: typeof sea.ecaFuel === 'string' ? sea.ecaFuel : '', printMap: sea.printMap !== false, greatCircle: sea.greatCircle !== false };
     normalizeLegs(plan);
     delete plan.residual; delete plan.distillate; delete plan.legacySig;
     return plan;
@@ -506,13 +506,13 @@
       document.head.appendChild(el);
     });
     const json = (url) => fetch(url).then((r) => { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); });
-    let mapPending = null;
-    const loadMap = () => mapPending || (mapPending = Promise.all([script(base + 'sea-map.js'), json(base + 'land.json')])
-      .then((r) => ({ SeaMap: window.SeaMap, land: window.SeaMap.decodeLand(r[1]) })).catch((e) => { mapPending = null; throw e; }));
+    let mapPending = null; let landRings = null;
+    const loadMap = () => mapPending || (mapPending = script(base + 'sea-map.js')
+      .then(() => ({ SeaMap: window.SeaMap, land: landRings })).catch((e) => { mapPending = null; throw e; }));
     return function load() {
       if (!pending) {
-        pending = Promise.all([script(base + 'port-list.js'), script(base + 'sea-route.js'), script(base + 'eca-zones.js'), json(base + 'ports.json'), json(base + 'marnet.json')])
-          .then((r) => ({ ports: window.PortList.create(r[3]), router: window.SeaRoute.create(r[4]), SeaRoute: window.SeaRoute, Eca: window.EcaZones, loadMap }))
+        pending = Promise.all([script(base + 'port-list.js'), script(base + 'sea-route.js'), script(base + 'eca-zones.js'), json(base + 'ports.json'), json(base + 'marnet.json'), json(base + 'land.json')])
+          .then((r) => { landRings = window.SeaRoute.decodeLand(r[5]); return ({ ports: window.PortList.create(r[3]), router: window.SeaRoute.create(r[4], { land: landRings }), SeaRoute: window.SeaRoute, Eca: window.EcaZones, loadMap }); })
           .catch((e) => { pending = null; throw e; });
       }
       return pending;
@@ -638,6 +638,7 @@
       });
     }
     return body
+      + (adapter && adapter.mapHtml ? adapter.mapHtml : '')
       + `<div class="pr-remarks"><div class="pr-remarks-title">Remarks</div><div class="pr-remarks-body">${esc(plan.remarks || '—')}</div></div>`
       + `<div class="pr-remarks"><div class="pr-remarks-title">Calculation basis</div><div class="pr-remarks-body">`
       + 'Sea days = Dist ÷ (Speed × 24). Quantity = MT per day × Days, for each fuel on the line. Each line may carry its own Margin % '
@@ -755,7 +756,7 @@
     function computeLeg(leg) {
       const a = ctx.sea.ports.byId(leg.fromPort); const b = ctx.sea.ports.byId(leg.toPort);
       if (!a || !b) return false;
-      const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: ctx.plan.sea.avoid, areas: ctx.plan.sea.areas });
+      const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: ctx.plan.sea.avoid, areas: ctx.plan.sea.areas, greatCircle: ctx.plan.sea.greatCircle !== false });
       if (!r.ok) { leg.distAuto = false; leg.seaNote = ''; toast(r.error); return false; }
       leg.distance = Math.round(r.nm); leg.distAuto = true; leg.daysManual = false; leg.days = null;
       leg.ecaNm = null; leg.ecaZones = ''; leg.ecaRuns = null; leg.routeFrom = leg.fromPort; leg.routeTo = leg.toPort;
@@ -768,7 +769,7 @@
           leg.ecaRuns = m.runs.slice(0, 12).map((x) => ({ eca: x.eca, zone: x.zone, nm: Math.round(x.nm * 10) / 10, from: x.from, to: x.to }));
         }
       }
-      leg.seaNote = (r.passages.length ? 'via ' + r.passages.map(passageName).join(', ') : 'open sea') + (r.warnings.length ? ' — ' + r.warnings.join('; ') : '');
+      leg.seaNote = (r.passages.length ? 'via ' + r.passages.map(passageName).join(', ') : 'open sea') + (r.savedNm >= 1 ? ' · great-circle legs save ' + Math.round(r.savedNm) + ' nm' : '') + (r.warnings.length ? ' — ' + r.warnings.join('; ') : '');
       return true;
     }
     /** Fill a line's distance from its two ports, unless a distance was typed by hand. */
@@ -789,22 +790,48 @@
       items.forEach(({ leg, si }) => { if (!leg.routeFrom || !leg.routeTo) return; const k = si + '|' + leg.routeFrom + '|' + leg.routeTo; if (!seen.has(k)) seen.set(k, { si, from: leg.routeFrom, to: leg.routeTo, nm: 0, eca: 0 }); const g = seen.get(k); g.nm += Number(leg.distance) || 0; g.eca += Number(leg.ecaNm) || 0; });
       return [...seen.values()];
     }
-    async function showMap(items) {
-      const groups = mapGroups(items);
-      if (!ctx.sea || !groups.length) { toast('Pick From and To ports from the list to see a route on the map'); return; }
-      let assets; try { assets = await ctx.sea.loadMap(); } catch (e) { toast('The map could not be loaded'); return; }
-      const SM = assets.SeaMap; const ids = ctx.sea.Eca ? ctx.sea.Eca.ZONES.map((z) => z.id).filter((id) => !ctx.plan.sea.ecaOff.includes(id)) : [];
-      const routes = []; const info = [];
+    /** The routes behind the chosen lines: drawn paths (with the ECA stretches), the text for the legend, and the colours. */
+    function buildMapRoutes(items, plan) {
+      const groups = mapGroups(items); const routes = []; const info = [];
+      const ids = ctx.sea.Eca ? ctx.sea.Eca.ZONES.map((z) => z.id).filter((id) => !plan.sea.ecaOff.includes(id)) : [];
       groups.forEach((g, n) => {
         const a = ctx.sea.ports.byId(g.from); const b = ctx.sea.ports.byId(g.to); if (!a || !b) return;
-        const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: ctx.plan.sea.avoid, areas: ctx.plan.sea.areas });
+        const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: plan.sea.avoid, areas: plan.sea.areas, greatCircle: plan.sea.greatCircle !== false });
         if (!r.ok) return;
         const pts = [[a.lat, a.lon]].concat(r.path, [[b.lat, b.lon]]);
         const m = ctx.sea.Eca ? ctx.sea.Eca.measure(pts, ids) : { runs: [], ecaNm: 0 };
         const color = ROUTE_COLORS[(groups.length > 1 ? n : g.si) % ROUTE_COLORS.length];
         routes.push({ path: pts, color, from: { lat: a.lat, lon: a.lon, name: a.name }, to: { lat: b.lat, lon: b.lon, name: b.name }, ecaRuns: m.runs, passages: r.passages });
-        info.push(`<span style="color:${color}">■</span> ${esc(a.name)} → ${esc(b.name)}: ${fmtN(r.nm, 0)} nm${m.ecaNm >= 1 ? ` · ECA ${fmtN(m.ecaNm, 0)} nm` : ''}${r.passages.length ? ' · via ' + esc(r.passages.map(passageName).join(', ')) : ''}`);
+        info.push({ color, text: `${a.name} → ${b.name}: ${fmtN(r.nm, 0)} nm${m.ecaNm >= 1 ? ` · ECA ${fmtN(m.ecaNm, 0)} nm` : ''}${r.passages.length ? ' · via ' + r.passages.map(passageName).join(', ') : ''}` });
       });
+      return { groups, routes, info, ids, areas: ctx.sea.SeaRoute.AREAS.filter((x) => plan.sea.areas.includes(x.id)) };
+    }
+    /** The route map as a picture for the printout: drawn off screen, returned as an HTML block (empty when there is nothing to draw). */
+    async function printMapHtml(plan) {
+      if (!ctx.sea || plan.sea.printMap === false) return '';
+      const items = []; sectionList(plan).forEach((sec, si) => sec.legs.forEach((leg) => items.push({ leg, si })));
+      if (!mapGroups(items).length) return '';
+      try {
+        const assets = await ctx.sea.loadMap();
+        const built = buildMapRoutes(items, plan); if (!built.routes.length) return '';
+        const holder = document.createElement('div'); holder.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;height:620px;';
+        document.body.appendChild(holder);
+        const ctl = assets.SeaMap.create(holder, { land: assets.land, zones: ctx.sea.Eca ? ctx.sea.Eca.ZONES.filter((z) => built.ids.includes(z.id)) : [], areas: built.areas });
+        ctl.setRoutes(built.routes);
+        const url = ctl.toDataURL(); ctl.destroy(); holder.remove();
+        const legend = built.info.map((i) => `<div><span style="color:${i.color}">■</span> ${esc(i.text)}</div>`).join('');
+        return `<section class="pr-section" style="page-break-inside:avoid"><h3 class="pr-section-title">Route map</h3><div class="pr-section-body">`
+          + `<img src="${url}" alt="Route map" style="width:100%;height:auto;display:block;border:1px solid #999">`
+          + `<div style="font-size:9pt;margin-top:4px">${legend}</div>`
+          + `<div style="font-size:8pt;margin-top:3px">Orange: stretches inside an ECA (approximate outlines, not the MARPOL limits). Planning picture from a coarse sea-lane network and a generalised coastline (Natural Earth), not a chart and not for navigation.</div></div></section>`;
+      } catch (e) { console.warn('route map for the printout', e); return ''; }
+    }
+    async function showMap(items) {
+      if (!ctx.sea || !mapGroups(items).length) { toast('Pick From and To ports from the list to see a route on the map'); return; }
+      let assets; try { assets = await ctx.sea.loadMap(); } catch (e) { toast('The map could not be loaded'); return; }
+      const SM = assets.SeaMap;
+      const built = buildMapRoutes(items, ctx.plan); const routes = built.routes; const ids = built.ids;
+      const info = built.info.map((i) => `<span style="color:${i.color}">■</span> ${esc(i.text)}`);
       if (!routes.length) { toast('No route could be drawn'); return; }
       const ov = document.createElement('div'); ov.className = 'cp-mapov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Route map');
       ov.innerHTML = `<div class="cp-mapbar"><strong>Route map</strong>
@@ -814,7 +841,7 @@
         <div class="cp-mapinfo">${info.join('<br>')}</div></div><div class="cp-mapcanvas"></div>
         <div class="cp-mapnote">Planning picture from a coarse sea-lane network and a generalised coastline (Natural Earth), not a chart and not for navigation. ECA zones and avoided areas are approximate outlines.</div>`;
       document.body.appendChild(ov);
-      const areas = ctx.sea.SeaRoute.AREAS.filter((x) => ctx.plan.sea.areas.includes(x.id));
+      const areas = built.areas;
       const ctl = SM.create(ov.querySelector('.cp-mapcanvas'), { land: assets.land, zones: ctx.sea.Eca ? ctx.sea.Eca.ZONES.filter((z) => ids.includes(z.id)) : [], areas });
       ctl.setRoutes(routes);
       const close = () => { ctl.destroy(); ov.remove(); document.removeEventListener('keydown', onKey); };
@@ -841,8 +868,10 @@
         <fieldset><legend>Keep out of areas (approximate boxes you choose, not official designations)</legend>${areas}</fieldset>
         <fieldset><legend>Measure the distance inside these ECA zones (approximate outlines, not the official MARPOL boundaries)</legend>${ecaBoxes}</fieldset>
         <fieldset><legend>When a line is split at the ECA</legend><label>Fuel 1 on the ECA lines becomes <select data-sea-ecafuel>${ecaFuelOptions}</select></label></fieldset>
+        <fieldset><legend>Route</legend><label><input type="checkbox" data-sea-greatcircle ${ctx.plan.sea.greatCircle !== false ? 'checked' : ''}> Shortest route: great-circle legs wherever the sea is open (recommended)</label></fieldset>
+        <fieldset><legend>Printout</legend><label><input type="checkbox" data-sea-printmap ${ctx.plan.sea.printMap !== false ? 'checked' : ''}> Include the route map on the printout</label></fieldset>
         <div class="btn-row"><button type="button" class="${ui.btn}" data-act="sea-recalc">Recalculate automatic distances</button> <button type="button" class="${ui.btn}" data-act="sea-map-all">Show map of all lines</button></div>
-        <div class="cp-seanote">Planning estimate from a coarse sea-lane network, not for navigation. Arctic routes are never used.</div>
+        <div class="cp-seanote">Planning estimate: a coarse sea-lane network, shortened by great-circle legs where the sea is open (checked against a generalised coastline). Not for navigation. Arctic routes are never used.</div>
       </details>`;
     }
     function seaNotesHtml(sec) {
@@ -984,17 +1013,18 @@
     }
 
     /* ---- actions ---- */
-    function sheetHtml(plan) {
+    function sheetHtml(plan, mapHtml) {
       const vessel = (A.vesselName && A.vesselName()) || '';
       const voyageNo = plan.voyageNo || '—';
       const meta = (A.printMetaGrid || ((items) => items.map((i) => `${esc(i.label)}: ${i.value}`).join(' · ')));
       const metaItems = [{ label: 'Voyage No.', value: esc(voyageNo) }, { label: 'Date', value: esc(plan.date || '—') }, { label: 'Vessel', value: esc(vessel) }]
         .concat((A.printExtraMeta && A.printExtraMeta()) || []);
-      return { vessel, voyageNo, html: `${A.printHeader ? A.printHeader({ vessel, voyageNo }) : ''}${meta(metaItems, 4)}${printBody(plan, ctx.fuels, A)}${A.printSignature ? A.printSignature() : ''}` };
+      return { vessel, voyageNo, html: `${A.printHeader ? A.printHeader({ vessel, voyageNo }) : ''}${meta(metaItems, 4)}${printBody(plan, ctx.fuels, mapHtml && !A.printMapSeparate ? Object.assign({}, A, { mapHtml }) : A)}${A.printSignature ? A.printSignature() : ''}` };
     }
-    function doPrint(plan) {
-      const s = sheetHtml(plan);
-      if (A.printSheet) A.printSheet(s.html, plan);
+    async function doPrint(plan) {
+      const mapHtml = await printMapHtml(plan);
+      const s = sheetHtml(plan, mapHtml);
+      if (A.printSheet) A.printSheet(s.html, plan, { mapHtml: A.printMapSeparate ? mapHtml : '' });
     }
     async function askName() {
       if (A.askName) return A.askName(ctx.plan);
@@ -1186,6 +1216,8 @@
     host.addEventListener('change', (e) => {
       const t = e.target;
       if (t.dataset.cp === 'date') { ctx.plan.date = t.value; scheduleSave(); return; }
+      if (t.dataset.seaGreatcircle !== undefined) { ctx.plan.sea.greatCircle = !!t.checked; const n = recalcAuto(); renderGrid(); scheduleSave(); if (n) toast(n + ' distance' + (n === 1 ? '' : 's') + ' recalculated'); return; }
+      if (t.dataset.seaPrintmap !== undefined) { ctx.plan.sea.printMap = !!t.checked; scheduleSave(); return; }
       if (t.dataset.seaEcafuel !== undefined) { ctx.plan.sea.ecaFuel = t.value; scheduleSave(); return; }
       if (t.dataset.seaAvoid !== undefined || t.dataset.seaArea !== undefined || t.dataset.seaEca !== undefined) {
         const isEca = t.dataset.seaEca !== undefined;
