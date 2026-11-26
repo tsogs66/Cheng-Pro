@@ -1,0 +1,80 @@
+// Every button of the consumption plan, driven through a minimal host page (no Voyage/Tank code), with real mouse clicks.
+const http=require('http'),fs=require('fs'),path=require('path'),{chromium}=require('playwright');
+const root=process.env.ROOT||path.join(__dirname,'..','modules','voyage','www');
+const srv=http.createServer((q,r)=>{const u=decodeURIComponent(q.url.split('?')[0]);if(u==='/host.html'){r.writeHead(200,{'content-type':'text/html'});r.end('<!doctype html><meta charset=utf-8><body><div id=m></div><script src="/consumption-plan.js"></script>');return}let f=path.join(root,u);fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);r.end();return}const t={'.html':'text/html','.js':'text/javascript','.json':'application/json'}[path.extname(f)]||'application/octet-stream';r.writeHead(200,{'content-type':t});r.end(b)})});
+let fails=0;const ck=(l,a,e)=>{const ok=JSON.stringify(a)===JSON.stringify(e);console.log((ok?'  ok   ':'  FAIL ')+l+(ok?'':': expected '+JSON.stringify(e)+' got '+JSON.stringify(a)));if(!ok)fails++;};
+srv.listen(0,async()=>{const port=srv.address().port;const b=await chromium.launch();
+const errs=[];
+async function open(fuels,saved,extra){const p=await b.newPage({viewport:{width:1400,height:1800}});p.on('pageerror',e=>errs.push(e.message));
+ p.on('dialog',d=>{errs.push('NATIVE DIALOG '+d.message().slice(0,40));d.dismiss()}); // the page must not rely on native dialogs
+ await p.goto(`http://localhost:${port}/host.html`);
+ await p.evaluate(([fuels,saved,extra])=>{window.__saved={plan:saved&&saved.plan||null,history:saved&&saved.history||[]};window.__toasts=[];window.__fuels=fuels;
+  window.__mount=()=>{document.getElementById('m').innerHTML='';const inner=document.createElement('div');document.getElementById('m').appendChild(inner);
+   window.__ctl=ConsumptionPlan.mount(inner,{fuels:()=>window.__fuels,load:()=>window.__saved,persist:(d)=>{window.__saved=JSON.parse(JSON.stringify(d));return Promise.resolve()},vesselName:()=>'MV TEST',voyageNo:()=>'V1',toast:m=>window.__toasts.push(m),
+   askName:async()=>'my plan',printSheet:(h)=>{window.__printed=(window.__printed||0)+1},printHeader:()=>'',printSignature:()=>'',printMetaGrid:(i)=>'',
+   buttons:[{id:'load-rob',label:'Load ROB',onClick:()=>({rob:window.__rob||{},message:'ROB loaded',empty:'No ROB'})}]});};window.__mount();},[fuels,saved,extra]);
+ await p.waitForTimeout(400);return p;}
+const rowsV=(p)=>p.$$eval('tr[data-row]',a=>a.map(r=>[r.querySelector('[data-f=from]').value,r.querySelector('[data-f=to]').value,r.querySelector('[data-f=distance]').value].join('>')));
+const toast=(p)=>p.evaluate(()=>window.__toasts[window.__toasts.length-1]||'');
+const yes=async(p)=>{await p.click('.cp-askov [data-ask="yes"]');await p.waitForTimeout(200);};
+const no=async(p)=>{await p.click('.cp-askov [data-ask="no"]');await p.waitForTimeout(200);};
+const setRow=async(p,i,f,t,d)=>{await p.fill(`tr[data-row="${i}"] [data-f="from"]`,f);await p.fill(`tr[data-row="${i}"] [data-f="to"]`,t);await p.fill(`tr[data-row="${i}"] [data-f="distance"]`,String(d));};
+
+console.log('== Fuel list follows the vessel');
+let p=await open([{id:'HFO'},{id:'LSMGO'},{id:'MDO/MGO',active:false}]);
+let opts=await p.$$eval('tr[data-row]:first-child select[data-f="grade"][data-s="0"] option',a=>a.map(o=>o.textContent));
+ck('options: only HFO and LSMGO (inactive MDO/MGO hidden)',opts,['— fuel —','HFO','LSMGO']);
+ck('default fuels picked from the vessel',await p.$$eval('tr[data-row] select[data-f="grade"]',a=>a.map(s=>s.value)),['HFO','LSMGO']);
+await p.close();
+console.log('== A saved plan from another vessel is moved onto this one');
+const old={v:2,voyageNo:'X',date:'2026-01-01',fuelSlots:2,legs:[{port:false,from:'A',to:'B',distance:100,speed:10,fuels:[{grade:'LSFO',daily:30},{grade:'MDO/MGO',daily:2}]}],stocks:{'LSFO':{label:'LSFO',currentRob:400},'MDO/MGO':{label:'MDO/MGO',currentRob:50}}};
+p=await open([{id:'HFO'},{id:'LSMGO'}],{plan:old});
+ck('line grades conformed to HFO / LSMGO',await p.$$eval('tr[data-row] select[data-f="grade"]',a=>a.map(s=>s.value)),['HFO','LSMGO']);
+ck('ROB figures moved with the grade',await p.evaluate(()=>{const s=window.__ctl.plan().stocks;return Object.keys(s).sort().map(k=>k+':'+s[k].currentRob)}),['HFO:400','LSMGO:50']);
+await p.close();
+console.log('== Load ROB');
+p=await open([{id:'HFO'},{id:'LSFO'},{id:'LSMGO'}]);
+await p.evaluate(()=>{window.__rob={HFO:500,LSMGO:90.5}});
+await p.click('[data-btn="load-rob"]');await p.waitForTimeout(400);
+ck('empty plan still loads the vessel fuels',await p.evaluate(()=>{const s=window.__ctl.plan().stocks;return Object.keys(s).sort().map(k=>k+':'+s[k].currentRob)}),['HFO:500','LSMGO:90.5']);
+console.log('   toast:',await toast(p));
+await p.evaluate(()=>{window.__rob={'MGO LS':12,'VLSFO':200,Banana:5}});await p.click('[data-btn="load-rob"]');await p.waitForTimeout(400);
+console.log('   toast:',await toast(p));
+ck('aliases: VLSFO → LSFO, MGO LS → LSMGO',await p.evaluate(()=>{const s=window.__ctl.plan().stocks;return ['LSFO','LSMGO'].map(k=>k+':'+(s[k]&&s[k].currentRob))}),['LSFO:200','LSMGO:12']);
+ck('the ROB shows on the page',(await p.$$eval('[data-sf="currentRob"]',a=>a.map(x=>x.value))).length>=3,true);
+await p.evaluate(()=>{window.__rob={}});await p.click('[data-btn="load-rob"]');await p.waitForTimeout(300);ck('nothing found says so',await toast(p),'No ROB');
+console.log('== lines: add / delete / remove last');
+for(let i=0;i<3;i++){await p.click('[data-act="add-leg"]');}
+await setRow(p,0,'A','B',100);await setRow(p,1,'B','C',200);await setRow(p,2,'C','D',300);await setRow(p,3,'D','E',400);
+await p.click('tr[data-row="1"] [data-act="del-leg"]');await p.waitForTimeout(200);ck('delete line 2',await rowsV(p),['A>B>100','C>D>300','D>E>400']);
+await p.click('tr[data-row="0"] [data-act="del-leg"]');await p.waitForTimeout(200);ck('delete first line',await rowsV(p),['C>D>300','D>E>400']);
+await p.click('tr[data-row="1"] [data-act="del-leg"]');await p.waitForTimeout(200);ck('delete last line',await rowsV(p),['C>D>300']);
+await p.click('tr[data-row="0"] [data-act="del-leg"]');await p.waitForTimeout(200);ck('delete the only line empties it',await rowsV(p),['>>']);
+await p.click('[data-act="add-leg"]');await p.click('[data-act="add-leg"]');await setRow(p,0,'A','B',1);await setRow(p,1,'B','C',2);await setRow(p,2,'C','D',3);
+await p.click('[data-act="remove-leg"]');await p.waitForTimeout(200);ck('Remove last line',await rowsV(p),['A>B>1','B>C>2']);
+console.log('== fuel columns');
+await p.click('[data-act="add-fuel"]');await p.waitForTimeout(200);ck('Add fuel column',await p.$$eval('tr[data-row]:first-child select[data-f="grade"]',a=>a.length),3);
+await p.click('[data-act="remove-fuel"]');await p.waitForTimeout(300);ck('Remove fuel column (none filled)',await p.$$eval('tr[data-row]:first-child select[data-f="grade"]',a=>a.length),2);
+console.log('== voyages');
+await p.click('[data-act="add-voyage"]');await p.waitForTimeout(300);ck('Add next voyage',await p.$$eval('[data-sec]',a=>a.length),2);
+await p.fill('[data-sec="1"] tr[data-row="0"] [data-f="from"]','Z');
+await p.click('[data-act="remove-voyage"]');await p.waitForTimeout(200);await no(p);ck('Cancel keeps the voyage',await p.$$eval('[data-sec]',a=>a.length),2);
+await p.click('[data-act="remove-voyage"]');await p.waitForTimeout(200);await yes(p);ck('Remove next voyage',await p.$$eval('[data-sec]',a=>a.length),1);
+console.log('== Clear');
+await p.click('[data-btn="clear"]');await p.waitForTimeout(200);await no(p);ck('Cancel keeps the lines',await rowsV(p),['A>B>1','B>C>2']);
+await p.click('[data-btn="clear"]');await p.waitForTimeout(200);await yes(p);await p.waitForTimeout(300);ck('Clear empties the plan',await rowsV(p),['>>']);
+ck('stocks cleared',await p.evaluate(()=>Object.keys(window.__ctl.plan().stocks).length),0);
+ck('toast',await toast(p),'Consumption plan cleared');
+console.log('== Save / history');
+await setRow(p,0,'A','B',10);
+await p.click('[data-btn="save"]');await p.waitForTimeout(500);ck('Save adds to history',await p.evaluate(()=>window.__saved.history.length),1);
+await p.evaluate(()=>{const h=document.querySelector('[data-cp=history]');h.style.display='';h.querySelectorAll('details').forEach(d=>d.open=true)});await p.click('[data-hist="print"]');await p.waitForTimeout(300);ck('history Print',await p.evaluate(()=>window.__printed||0)>=1,true);
+await setRow(p,0,'X','Y',99);
+await p.click('[data-hist="load"]');await p.waitForTimeout(300);ck('history Load',await rowsV(p),['A>B>10']);
+await p.click('[data-hist="del"]');await p.waitForTimeout(200);await no(p);ck('Cancel keeps it',await p.evaluate(()=>window.__saved.history.length),1);
+await p.click('[data-hist="del"]');await p.waitForTimeout(200);await yes(p);await p.waitForTimeout(300);ck('history Del',await p.evaluate(()=>window.__saved.history.length),0);
+await p.click('[data-btn="print"]');await p.waitForTimeout(500);ck('Print',await p.evaluate(()=>window.__printed||0)>=2,true);
+await p.click('[data-btn="save-print"]');await p.waitForTimeout(700);ck('Save & Print',[await p.evaluate(()=>window.__saved.history.length),await p.evaluate(()=>window.__printed||0)>=3],[1,true]);
+await p.close();
+ck('no page errors and no native dialogs',errs,[]);
+await b.close();srv.close();console.log(fails?fails+' FAILED':'all ok');process.exit(fails?1:0)});
