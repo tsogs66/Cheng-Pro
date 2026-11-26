@@ -12,10 +12,11 @@ await p.evaluate(()=>{window.__saved={plan:null,history:[]};window.__toasts=[];w
   saveFile:async(n,t,m)=>{window.__files.push({n,t,m})},capacity:(g)=>g==='LSMGO'?60:0,
   askName:async()=>'x',printSheet:(h)=>{window.__printed.push(h)},printHeader:()=>'',printSignature:()=>'',printMetaGrid:(i)=>i.map(x=>x.label+': '+x.value).join(' | ')});});
 await p.waitForTimeout(400);
-const set=async(i,f,t,d,sp,h,l)=>{const r=`tr[data-row="${i}"] `;await p.fill(r+'[data-f="from"]',f);await p.fill(r+'[data-f="to"]',t);await p.fill(r+'[data-f="distance"]',String(d));await p.fill(r+'[data-f="speed"]',String(sp));await p.fill(r+'[data-f="daily"][data-s="0"]',String(h));await p.fill(r+'[data-f="daily"][data-s="1"]',String(l));};
-await set(0,'A','B',480,12,30,2);
-await p.click('[data-act="add-leg"]');await set(1,'B','C',480,12,30,2);
-await p.click('[data-act="add-leg"]');await set(2,'C','D',480,12,30,2);
+const setLeg=async(sp,h,l)=>{await p.fill('[data-ov="speed"]',String(sp));await p.fill('[data-ov="sea"][data-s="0"]',String(h));await p.fill('[data-ov="sea"][data-s="1"]',String(l));};
+const set=async(i,f,t,d)=>{const r=`tr[data-row="${i}"] `;await p.fill(r+'[data-f="from"]',f);await p.fill(r+'[data-f="to"]',t);await p.fill(r+'[data-f="distance"]',String(d));};
+await setLeg(12,30,2);await set(0,'A','B',480);
+await p.click('[data-act="add-leg"]');await set(1,'B','C',480);
+await p.click('[data-act="add-leg"]');await set(2,'C','D',480);
 const rob=async(g,v)=>{await p.fill(`[data-sf="currentRob"][data-grade="${g}"]`,String(v));};
 await rob('HFO',200);await rob('LSMGO',50);
 await p.waitForTimeout(300);

@@ -17545,7 +17545,7 @@ function mountBunkerPlan(){
           stats[g] = { sea: r.sea != null ? r.sea : l.sea, port: r.port != null ? r.port : l.port };
         });
         const n = ConsumptionPlan.suggestDaily(plan, stats);
-        return { changed: n, message: n + ' MT/day figure' + (n === 1 ? '' : 's') + ' filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea lines from sea days, port lines from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its MT/day empty, and have some days logged' };
+        return { changed: n, message: n + ' leg figure' + (n === 1 ? '' : 's') + ' (MT/day) filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea figures from sea days, port figures from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its leg figure empty, and have some days logged' };
       } },
       { id: 'load-tank-rob', label: 'Load Tank ROB', hidden: !isChengAioEmbedded(), onClick: async ()=>{
         const r = await requestTankRobForPlan();

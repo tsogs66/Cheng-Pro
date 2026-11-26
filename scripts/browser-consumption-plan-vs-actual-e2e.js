@@ -14,8 +14,8 @@ await p.evaluate(()=>{const base=sortedEntries().slice(-1)[0];const start=new Da
 const info=await p.evaluate(()=>{const rows=computeDerived().rows.filter(r=>r.hrs>0&&r.datetime);const first=rows.find(r=>r.datetime===window.__dep)||rows[0];return {n:rows.length,dep:first.datetime,last:rows[rows.length-1].datetime}});
 console.log('   log',JSON.stringify(info));
 ck('the plan page has the Plan against actual panel',await p.$$eval('details.cp-pva',a=>a.length),1);
-await p.fill('tr[data-row="0"] [data-f="from"]','A');await p.fill('tr[data-row="0"] [data-f="to"]','B');await p.fill('tr[data-row="0"] [data-f="distance"]','3000');await p.fill('tr[data-row="0"] [data-f="speed"]','12');
-await p.fill('tr[data-row="0"] [data-f="daily"][data-s="0"]','30');await p.fill('tr[data-row="0"] [data-f="daily"][data-s="1"]','3');
+await p.fill('tr[data-row="0"] [data-f="from"]','A');await p.fill('tr[data-row="0"] [data-f="to"]','B');await p.fill('tr[data-row="0"] [data-f="distance"]','3000');await p.fill('[data-ov="speed"]','12');
+await p.fill('[data-ov="sea"][data-s="0"]','30');await p.fill('[data-ov="sea"][data-s="1"]','3');
 await p.click('details.cp-pva > summary');await p.waitForTimeout(400);
 ck('asks for the departure first',/Enter the date and time/.test(await p.$eval('[data-cp="pvaBody"]',e=>e.textContent)),true);
 await p.evaluate(v=>{const el=document.querySelector('[data-cp="depart"]');el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}))},info.dep.slice(0,16));await p.waitForTimeout(500);

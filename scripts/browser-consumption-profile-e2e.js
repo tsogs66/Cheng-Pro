@@ -21,7 +21,8 @@ ck('saved in the vessel setup',[saved.sea.ballast.full.kn,saved.sea.ballast.full
 await p.evaluate(()=>{switchTab('bunkerplan')});await p.waitForTimeout(1500);
 ck('the first line starts in Full speed',await p.$eval('tr[data-row="0"] [data-f="mode"]',e=>e.value),'full');
 await p.fill('tr[data-row="0"] [data-f="distance"]','1200');await p.waitForTimeout(300);
-const v=async(row)=>p.evaluate(r=>{const tr=document.querySelector(`tr[data-row="${r}"]`);return {mode:tr.querySelector('[data-f=mode]').value,speed:tr.querySelector('[data-f=speed]').value,d0:tr.querySelector('[data-f=daily][data-s="0"]').value,d1:tr.querySelector('[data-f=daily][data-s="1"]').value,days:tr.querySelector('[data-f=days]').value}},row);
+const num=t=>{const m=String(t).match(/[\d.]+/);return m?m[0]:''};
+const v=async(row)=>p.evaluate(r=>{const tr=document.querySelector(`tr[data-row="${r}"]`);const n=t=>{const m=String(t).match(/[\d.]+/);return m?String(parseFloat(m[0])):''};return {mode:tr.querySelector('[data-f=mode]').value,speed:n(tr.querySelector('[data-speedtxt]').textContent),d0:n(tr.querySelector('[data-dailytxt="0"]').textContent),d1:n(tr.querySelector('[data-dailytxt="1"]').textContent),days:tr.querySelector('[data-f=days]').value}},row);
 let r0=await v(0);console.log('   line 0',JSON.stringify(r0));
 ck('full speed ballast: speed and both MT/day filled',[r0.speed,r0.d0,r0.d1],['14.5','38','3']);
 ck('days follow the speed',Number(r0.days).toFixed(2),(1200/14.5/24).toFixed(2));
@@ -32,8 +33,9 @@ await p.click('[data-act="add-leg"]');await p.waitForTimeout(300);
 let r1=await v(1);ck('a new line takes the previous mode',[r1.mode,r1.speed],['safe','9']);
 await p.check('tr[data-row="1"] [data-f="port"]');await p.waitForTimeout(300);r1=await v(1);ck('a port line gets Port mode with the port consumption',[r1.mode,r1.d0,r1.d1],['port','3','1.8']);
 await p.selectOption('tr[data-row="1"] [data-f="mode"]','anchorage');await p.waitForTimeout(300);r1=await v(1);ck('anchorage',[r1.d0,r1.d1],['0','1.2']);
-await p.fill('tr[data-row="0"] [data-f="speed"]','11');await p.waitForTimeout(300);r0=await v(0);ck('typing a speed makes the line Manual',[r0.mode,r0.speed],['','11']);
-await p.selectOption('tr[data-row="0"] [data-f="mode"]','full');await p.waitForTimeout(300);r0=await v(0);ck('and picking a mode again restores the profile',[r0.speed,r0.d0],['13','40']);
+await p.fill('[data-ov="speed"]','11');await p.fill('[data-ov="sea"][data-s="0"]','25');await p.waitForTimeout(300);r0=await v(0);ck('leg figures do not change a line that is on a profile mode',[r0.mode,r0.speed,r0.d0],['safe','9','19']);
+await p.selectOption('tr[data-row="0"] [data-f="mode"]','');await p.waitForTimeout(300);r0=await v(0);ck('a line on Leg figures takes the typed speed and MT/day',[r0.mode,r0.speed,r0.d0],['','11','25']);
+await p.selectOption('tr[data-row="0"] [data-f="mode"]','full');await p.waitForTimeout(300);r0=await v(0);ck('picking a mode again uses the profile',[r0.speed,r0.d0],['13','40']);
 await p.evaluate(()=>{switchTab('setup')});await p.waitForTimeout(600);await p.evaluate(()=>{switchTab('bunkerplan')});await p.waitForTimeout(1200);
 r0=await v(0);ck('survives a revisit',[r0.mode,r0.speed],['full','13']);
 // edit the profile inside the plan page
