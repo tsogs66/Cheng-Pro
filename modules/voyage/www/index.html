@@ -5266,6 +5266,26 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       </div>
     </div>
 
+    <div class="panel" id="n2nPanel">
+      <h2>Noon to Noon Report</h2>
+      <div class="hint">One noon-style sheet that adds up every report from the previous noon to the noon you pick: hours, distance, fuel by unit and grade, fresh water and R.O.B. Use it where a charter party asks for noon-to-noon figures although there were other operations in between. This voyage leg only.</div>
+      <div class="form-grid cols3">
+        <div class="field"><label for="n2nEnd">Noon (end of the period)</label><select id="n2nEnd"></select></div>
+        <div class="field span2"><label>Period</label><div class="hint" id="n2nWindow" style="margin:0;">No noon report yet.</div></div>
+      </div>
+      <div class="table-scroll">
+        <table id="n2nTable">
+          <thead><tr><th>Date/Time</th><th>Operation</th><th>Hrs</th><th>Dist (nm)</th><th>Fuel (MT)</th></tr></thead>
+          <tbody id="n2nBody"><tr class="empty-row"><td colspan="5">No noon report yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="btn-row">
+        <button class="ghost small" type="button" id="btnN2nPreview">Preview</button>
+        <button class="primary small" type="button" id="btnN2nPrint">Print Noon to Noon</button>
+      </div>
+      <div id="n2nPreviewHost" style="display:none; margin-top:10px; overflow:auto; max-height:80vh;"></div>
+    </div>
+
     <div class="panel">
       <h2>Select Report Category</h2>
       <div class="hint">Pick a category to list matching log entries — same as the report buttons in the original workbook's Voyage Report tab. Selecting an entry opens its supplementary report for additional data not captured on the main Log Entry form.</div>
@@ -18653,6 +18673,7 @@ function switchTab(pageName){
   if (pageName === 'reports'){
     /* Land on the full list instead of an empty page waiting for a category click. */
     showReportList(REPORT_CATEGORIES[activeReportCatIdx] || REPORT_CATEGORIES[0]);
+    try{ renderNoonToNoonPanel(); }catch(err){ console.warn(err); }
   }
   try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(_){ window.scrollTo(0,0); }
 }
@@ -25351,6 +25372,7 @@ function slimPrintRecord(p, entries){
 function sheetHtmlForPrintType(type, entry){
   if (!entry) return '';
   if (type === 'noon-report' || type === 'voyage-summary') return buildVoyageNoonSheetHTML(entry);
+  if (type === 'noon-to-noon') return buildNoonToNoonSheetHTML(entry.id);
   return '';
 }
 
@@ -25754,6 +25776,365 @@ function printVoyageSummary(entryId){
   printPortraitSinglePage(sheetHtml);
   recordPrintHistory(noonOp ? 'noon-report' : 'voyage-summary', entry);
 }
+/* ---------------- Noon to Noon report ----------------
+ * One noon-style sheet that adds up every report from the previous noon to the selected
+ * noon. Charter parties ask for noon-to-noon figures even when the ship logged other
+ * operations in between (speed changes, ECA changeover, pilot, drifting), so the sheet
+ * is a roll-up of those reports, not another report to type. Nothing is stored: it is
+ * worked from the saved entries each time, with the same aggregate as Range Totals, so
+ * the two always agree. Boundaries are the NOON operations only; HEAVY WEATHER is an
+ * ordinary report inside the window. */
+function isNoonToNoonBoundary(e){
+  return String((e && e.operation) || '').toUpperCase().includes('NOON');
+}
+
+/** Noon entries a Noon to Noon report can end on, in time order. */
+function noonToNoonEndList(){
+  return sortedEntries().filter(isNoonToNoonBoundary);
+}
+
+/** The reports a Noon to Noon report adds up: after the previous noon, up to and including this one. */
+function noonToNoonWindow(endId){
+  const list = sortedEntries();
+  const ei = list.findIndex(e => e.id === endId);
+  if (ei < 0) return null;
+  let si = -1;
+  for (let i = ei - 1; i >= 0; i--){ if (isNoonToNoonBoundary(list[i])){ si = i; break; } }
+  const entries = list.slice(si + 1, ei + 1);
+  return {
+    endEntry: list[ei],
+    startEntry: si >= 0 ? list[si] : null,
+    priorEntry: si >= 0 ? list[si] : null,
+    entries, ids: entries.map(e => e.id),
+    partial: si < 0
+  };
+}
+
+/** Every figure the sheet and the panel show, worked once. */
+function noonToNoonData(endId){
+  const win = noonToNoonWindow(endId);
+  if (!win || !win.entries.length) return null;
+  const { rows } = computeDerived();
+  const rowOf = (id) => rows.find(r => r.id === id) || null;
+  const used = win.entries.map(e => ({ e, r: rowOf(e.id) })).filter(x => x.r);
+  if (!used.length) return null;
+  const agg = finalizeAggregate(rangeAggregateParts(win.ids));
+  const endRow = rowOf(win.endEntry.id);
+  const meRan = used.some(x => mainEngineInUse(x.e, x.r));
+
+  /* Fuel by unit and grade: each report's figure is rounded the way sumFuelGroup rounds it
+     before it is added, so the unit rows add up to the total row printed under them. */
+  const meteredOn = (grade, qty) => (grade && qty != null) ? { [grade]: qty } : {};
+  const burnedOnly = (src) => Object.fromEntries(FUEL_TYPES.filter(t => src && src[t] > 0).map(t => [t, src[t]]));
+  const addBurn = (a, b) => {
+    const out = { ...a };
+    FUEL_TYPES.forEach(t => { if (b && b[t] > 0) out[t] = (out[t] || 0) + b[t]; });
+    return out;
+  };
+  const unitDefs = [
+    { label: 'Main Engine', always: true, by: (e, r) => meteredOn(e.me?.type, r.meCons) },
+    { label: 'Diesel Generator', always: true, by: (e, r) => meteredOn(e.ge?.type, r.geCons) },
+    { label: 'Boiler', always: true, by: (e, r) => addBurn(meteredOn(e.blr?.type, r.blrCons), extraDoMap(r.blrExtraCons)) },
+    { label: 'Incinerator', always: false, by: (e, r) => burnedOnly(extraDoMap(r.incExtraCons)) },
+    { label: 'Other', always: false, by: (e, r) => burnedOnly(r.miscCons) }
+  ];
+  const usesGrade = (t) => used.some(({ e, r }) =>
+    (e.me?.type === t && r.meCons != null) || (e.ge?.type === t && r.geCons != null) ||
+    (e.blr?.type === t && r.blrCons != null) || (r.miscCons?.[t] > 0) ||
+    (extraDoMap(r.blrExtraCons)[t] > 0) || (extraDoMap(r.incExtraCons)[t] > 0) || (r.consByType?.[t] > 0));
+  let groups = FUEL_CONS_GROUPS.filter(g => g.grades.some(usesGrade));
+  if (!groups.length) groups = [fuelConsGroupFor(win.endEntry.me?.type) || FUEL_CONS_GROUPS[0]];
+  const unitRows = unitDefs.map(u => {
+    const cells = groups.map(g => {
+      let seen = false, tot = 0;
+      used.forEach(({ e, r }) => { const v = sumFuelGroup(u.by(e, r), g); if (v != null){ seen = true; tot += v; } });
+      return seen ? tot : null;
+    });
+    return { label: u.label, always: u.always, cells, any: cells.some(c => c != null && c > 0) };
+  }).filter(u => u.always || u.any);
+  const totalCells = groups.map(g => {
+    let seen = false, tot = 0;
+    used.forEach(({ r }) => { const v = sumFuelGroup(r.consByType, g); if (v != null){ seen = true; tot += v; } });
+    return seen ? tot : null;
+  });
+  const rowFuel = (r) => FUEL_CONS_GROUPS.reduce((a, g) => a + (sumFuelGroup(r.consByType, g) || 0), 0);
+
+  /* Generators: hours add, load and kW are weighted by each set's own running hours. */
+  const geN = geUnitCount();
+  const ge = Array.from({ length: geN }, (_, i) => {
+    let hrs = 0, kwNum = 0, loadNum = 0, fuel = 0, fuelSeen = false;
+    used.forEach(({ e, r }) => {
+      const p = r.gePeriod?.[i];
+      if (!p){
+        /* No per-set figures on this report: the hour-meter delta, as Range Totals reads it. */
+        const h = entryGeRunHours(e, i + 1, previousEntryFor(e.id) || effectiveCarryover());
+        if (h != null && h > 0) hrs += h;
+        return;
+      }
+      if (p.hrs > 0){ hrs += p.hrs; if (p.kw != null) kwNum += p.kw * p.hrs; if (p.loadPct != null) loadNum += p.loadPct * p.hrs; }
+      if (p.fuelCons != null){ fuel += p.fuelCons; fuelSeen = true; }
+    });
+    return { hrs, accum: geCumulativeRunHours(win.endEntry, i + 1), kw: hrs > 0 ? kwNum / hrs : null,
+             load: hrs > 0 ? loadNum / hrs : null, fuel: fuelSeen ? fuel : null };
+  });
+
+  let blrHrs = 0, blrSeen = false, incHrs = 0, incSeen = false;
+  win.entries.forEach(e => {
+    const h = entryBlrRunHours(e, previousEntryFor(e.id)) ?? (e.report?.perfTable?.BOILER?.runTime ?? null);
+    if (h != null && !isNaN(h)){ blrHrs += Number(h); blrSeen = true; }
+    const ih = entryIncineratorRunTime(e);
+    if (ih != null && !isNaN(ih)){ incHrs += Number(ih); incSeen = true; }
+  });
+
+  /* Remaining on board: opening from the first report's previous stock, closing from the last
+     report's, received and consumed added up. A bunker survey in between re-bases the chain, so
+     the difference it made is shown on its own row instead of vanishing into "consumed". */
+  let robRows = null, surveyAdj = null;
+  try {
+    const list = sortedEntries();
+    const per = win.entries.map(e => {
+      const row = rowOf(e.id);
+      if (!row) return null;
+      const idx = list.findIndex(x => x.id === e.id);
+      const prior = idx > 0 ? list[idx - 1] : null;
+      const prevData = robPreviousForEntry(e, prior);
+      const asOf = robAsOfComputedRow(row, rows);
+      return { rows: robBalanceRows(row, prevData, asOf, e), prior };
+    }).filter(Boolean);
+    if (per.length){
+      const num = (v) => (v == null || v === '' || isNaN(v)) ? null : Number(v);
+      const add = (a, b) => (a == null && b == null) ? null : (a || 0) + (b || 0);
+      robRows = per[0].rows.map(base => ({ ...base }));
+      surveyAdj = {};
+      robRows.forEach(r => {
+        let recv = null, cons = null, adj = 0;
+        per.forEach((p, k) => {
+          const m = p.rows.find(x => x.key === r.key);
+          if (!m) return;
+          recv = add(recv, num(m.recvVal));
+          cons = add(cons, num(m.consVal));
+          if (k > 0){
+            const before = per[k - 1].rows.find(x => x.key === r.key);
+            if (before && num(m.prevVal) != null && num(before.nowVal) != null) adj += num(m.prevVal) - num(before.nowVal);
+          }
+        });
+        const last = per[per.length - 1].rows.find(x => x.key === r.key);
+        r.recvVal = recv; r.consVal = cons; r.nowVal = last ? last.nowVal : r.nowVal;
+        surveyAdj[r.key] = Math.abs(adj) > 1e-9 ? adj : null;
+      });
+    }
+  } catch (err) { console.warn('noon to noon R.O.B.', err); robRows = null; }
+
+  /* Distance to go and ETA from the closing noon, as the single noon sheet works them. */
+  const { perf: perfEnd } = computeDerived({ upToEntryId: win.endEntry.id });
+  const voyageDist = state.setup.voyageDistance;
+  const toGo = (voyageDist != null && endRow && endRow.cumDistShip != null) ? (voyageDist - endRow.cumDistShip) : null;
+  const refSpeed = (endRow && endRow.speedShip) || perfEnd.avgSpeedShip;
+  const daysToGo = (toGo != null && refSpeed > 0) ? (toGo / refSpeed) / 24 : null;
+  const eta = daysToGo != null ? new Date(new Date(win.endEntry.datetime).getTime() + daysToGo * 24 * 3600000) : null;
+
+  const clockNotes = win.entries.filter(e => Number(e.clockChangeMin) > 0 || Number(e.clockChangeMin) < 0)
+    .map(e => ({ at: e.datetime, min: Number(e.clockChangeMin) }));
+  return { win, agg, used, endRow, meRan, groups, unitRows, totalCells, rowFuel, ge, geN,
+           blrHrs: blrSeen ? blrHrs : null, incHrs: incSeen ? incHrs : null,
+           robRows, surveyAdj, toGo, daysToGo, eta, clockNotes, perfEnd };
+}
+
+function buildNoonToNoonSheetHTML(endId){
+  const d = noonToNoonData(endId);
+  if (!d) return '';
+  const { win, agg, used, meRan, groups, unitRows, totalCells, ge, geN } = d;
+  const endEntry = win.endEntry;
+  const n2 = (v, dec = 2) => (v == null || isNaN(v)) ? '—' : fmt(v, dec);
+  const stamp = (dt) => dt ? new Date(dt).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+  const fuelCell = (v) => v == null ? '—' : fmtFuel(v);
+
+  const kpiItems = meRan ? [
+    { label: 'Run Hrs (Noon to Noon)', value: n2(agg.hrs) },
+    { label: 'Ship Dist (nm)', value: n2(agg.distShip) },
+    { label: 'RPM', value: n2(agg.avgRpm) },
+    { label: 'Slip %', value: n2(agg.avgSlip) },
+    { label: 'Speed (kn)', value: n2(agg.avgSpeed) },
+    { label: '% MCR', value: n2(agg.avgMcr) },
+    { label: 'Est. kW', value: n2(agg.avgKw) }
+  ] : [{ label: 'Run Hrs (Noon to Noon)', value: n2(agg.hrs) }];
+
+  const voyageSection = meRan ? printSection('Voyage Progress', [
+    printRow('Engine Distance', `${n2(agg.distEngine)} nm`),
+    printRow('Distance To Go', d.toGo != null ? `${n2(d.toGo)} nm` : '—'),
+    printRow('Days To Go', d.daysToGo != null ? n2(d.daysToGo) : '—'),
+    printRow('ETA', d.eta ? stamp(d.eta) : '—')
+  ].join('')) : '';
+
+  const sfocDelta = (agg.avgSfoc != null && agg.avgSfocRef > 0) ? ((agg.avgSfoc - agg.avgSfocRef) / agg.avgSfocRef) * 100 : null;
+  const meSection = meRan ? printSection('M/E Performance', [
+    printRow('Total Revs.', n2(agg.revs, 0)),
+    printRow('Rev. Counter', endEntry.revCounter == null ? '—' : fmt(endEntry.revCounter, 0)),
+    printRow('Avg Engine Speed', agg.avgSpeedEngine == null ? '—' : `${n2(agg.avgSpeedEngine)} kn`),
+    printRow('Ref. SFOC', agg.avgSfocRef == null ? '—' : `${n2(agg.avgSfocRef)} g/kWh`),
+    printRow('Actual SFOC (avg)', agg.avgSfoc == null ? '—' : `${n2(agg.avgSfoc)} g/kWh`),
+    printRow('SFOC Deviation', sfocDelta == null ? '—' : `${sfocDelta > 0 ? '+' : ''}${n2(sfocDelta)}%`, sfocDeltaClass(sfocDelta))
+  ].join('')) : '';
+
+  const fuelSection = printSection('Fuel Consumption (MT)', `
+    <table class="pr-table">
+      <tr><th>Unit</th>${groups.map(g => `<th>${escPrint(g.label)}</th>`).join('')}</tr>
+      ${unitRows.map(u => `<tr><td class="row-lbl">${escPrint(u.label)}</td>${u.cells.map(c => `<td>${fuelCell(c)}</td>`).join('')}</tr>`).join('')}
+      <tr class="pr-total"><td class="row-lbl"><strong>Total</strong></td>${totalCells.map(c => `<td><strong>${fuelCell(c)}</strong></td>`).join('')}</tr>
+    </table>`);
+
+  const asOfEnd = robAsOfEntry(endEntry.id);
+  const fwSection = printSection('Fresh Water', [
+    printRow('Produced', agg.fwProd == null ? '—' : `${fmtFw(agg.fwProd)} m³`),
+    printRow('Consumed', agg.fwCons == null ? '—' : `${fmtFw(agg.fwCons)} m³`),
+    printRow(showFwTotal() ? 'Total Water R.O.B.' : 'Fresh Water R.O.B.', `${fmtFw(totalFwRob(asOfEnd.robLube))} m³`)
+  ].join(''));
+
+  const geMetrics = [
+    ['Hrs', u => u.hrs > 0 ? n2(u.hrs) : '—'],
+    ['Accum.', u => u.accum == null ? '—' : n2(u.accum)],
+    ['kW', u => u.kw == null ? '—' : n2(u.kw)],
+    ['Load%', u => u.load == null ? '—' : n2(u.load)],
+    ['Fuel', u => u.fuel == null ? '—' : fmtFuel(u.fuel)]
+  ];
+  const geSection = geN > 0 ? printSection('Generators — hours over the period', `
+    <table class="pr-table">
+      <tr><th>Reading</th>${ge.map((_, i) => `<th>A/E #${i + 1}</th>`).join('')}</tr>
+      ${geMetrics.map(([label, cell]) => `<tr><td class="row-lbl">${label}</td>${ge.map(u => `<td>${cell(u)}</td>`).join('')}</tr>`).join('')}
+    </table>`) : '';
+
+  const blrIncSection = printSection('Boiler & Incinerator', [
+    printRow('Boiler Hrs', d.blrHrs == null ? '—' : n2(d.blrHrs)),
+    printRow('Boiler Fuel Cons', agg.byConsumer && agg.byConsumer['Boiler'] != null ? `${fmtFuel(agg.byConsumer['Boiler'])} MT` : '—'),
+    printRow('Incinerator Run Time', d.incHrs == null ? '—' : `${n2(d.incHrs)} hrs`)
+  ].join(''));
+
+  const reportsTable = printSection(`Reports Included (${used.length})`, `
+    <table class="pr-table">
+      <tr><th>Time (ship)</th><th>Operation</th><th>Hrs</th><th>Dist nm</th><th>Fuel MT</th></tr>
+      ${used.map(({ e, r }) => `<tr><td>${escPrint(stamp(e.datetime))}</td><td>${escPrint(e.operation || '')}</td><td>${n2(r.hrs)}</td><td>${n2(r.distanceShip)}</td><td>${fmtFuel(d.rowFuel(r))}</td></tr>`).join('')}
+      <tr class="pr-total"><td colspan="2"><strong>Noon to noon</strong></td><td><strong>${n2(agg.hrs)}</strong></td><td><strong>${n2(agg.distShip)}</strong></td><td><strong>${fmtFuel(agg.fuelTotal)}</strong></td></tr>
+    </table>`);
+
+  let robTable = '';
+  if (d.robRows){
+    const hasAdj = Object.values(d.surveyAdj || {}).some(v => v != null);
+    const metrics = [
+      { label: 'Previous noon', get: r => fmtRob(r.prevVal, r.cat) },
+      { label: 'Received', get: r => r.recvVal == null ? '—' : fmtRob(r.recvVal, r.cat) }
+    ];
+    if (hasAdj) metrics.push({ label: 'Survey adj.', get: r => { const v = (d.surveyAdj || {})[r.key]; return v == null ? '—' : fmtRob(v, r.cat); } });
+    metrics.push({ label: 'Consumption', get: r => r.consVal == null ? '—' : fmtRob(r.consVal, r.cat) });
+    metrics.push({ label: 'Present R.O.B.', present: true, get: r => fmtRob(r.nowVal, r.cat) });
+    robTable = printSection('Remaining On Board', printTransposedRobTableHtml(d.robRows, metrics));
+  }
+
+  const remarkLines = win.entries.map(e => {
+    const t = String(e.report?.remarks || '').trim();
+    if (!t) return '';
+    return `${new Date(e.datetime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ${e.operation || ''}: ${t}`;
+  }).filter(Boolean);
+  const notes = [];
+  if (win.partial) notes.push('Partial period: there is no earlier noon report, so the period runs from the start of the leg.');
+  d.clockNotes.forEach(c => notes.push(`Ship's clock ${c.min > 0 ? 'advanced' : 'retarded'} ${Math.abs(c.min)} min during the period (${stamp(c.at)}); the hours above are the real elapsed hours.`));
+  if (Math.abs(agg.hrs - 24) > 1.01 && !d.clockNotes.length && !win.partial) notes.push(`The period is ${n2(agg.hrs)} h, not 24 h: there was no noon report on the usual hour.`);
+  const remarksBody = remarkLines.concat(notes).map(escPrint).join('<br>');
+  const remarksSection = `<div class="pr-remarks">
+      <div class="pr-remarks-title">Remarks</div>
+      <div class="pr-remarks-body">${remarksBody || '—'}</div>
+    </div>`;
+
+  const flagName = flagRegistryName(vesselFlagCode());
+  const deptLine = `${flagName || '—'} — ${state.setup.imoNo || '—'}`;
+  const prevStr = win.startEntry ? stamp(win.startEntry.datetime) : 'Start of leg';
+  return `<div class="pr-sheet pr-sheet-noon">
+    ${printDocHeader({ title: 'Noon to Noon Report', subtitle: `Voyage Chief — Summary of ${used.length} report${used.length === 1 ? '' : 's'}${win.partial ? ' (partial period)' : ''}`, badge: conditionLabel(endEntry.condition), deptLine })}
+    ${printMetaGrid([
+      { label: 'Date & Time', value: stamp(endEntry.datetime) },
+      { label: 'Previous Noon', value: prevStr },
+      { label: 'Route', value: `${state.setup.departPort || '—'} → ${state.setup.arrivePort || '—'}` }
+    ], 3)}
+    ${printKpiRow(kpiItems)}
+    <div class="pr-noon-body">
+      <div class="pr-noon-cols">
+        <div class="pr-noon-col">${[fuelSection, fwSection, blrIncSection].join('')}</div>
+        <div class="pr-noon-col">${[voyageSection, meSection].filter(Boolean).join('')}</div>
+        <div class="pr-noon-col">${geSection}</div>
+      </div>
+      <div class="pr-noon-full">${reportsTable}</div>
+      ${robTable ? `<div class="pr-noon-full">${robTable}</div>` : ''}
+    </div>
+    ${remarksSection}
+    ${printSignatory(endEntry)}
+  </div>`;
+}
+
+function printNoonToNoon(endId){
+  const html = buildNoonToNoonSheetHTML(endId);
+  if (!html){ alert('Pick a noon report with at least one report in its period.'); return; }
+  const entry = state.entries.find(e => e.id === endId);
+  printPortraitSinglePage(html);
+  recordPrintHistory('noon-to-noon', entry);
+}
+
+/* The panel on the Reports page. */
+function renderNoonToNoonPanel(){
+  const sel = document.getElementById('n2nEnd');
+  if (!sel) return;
+  const ends = noonToNoonEndList().slice().reverse();
+  const had = sel.value;
+  const label = (e) => `${new Date(e.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })} — ${e.operation || ''}`;
+  sel.innerHTML = ends.map(e => `<option value="${e.id}">${escHtml(label(e))}</option>`).join('');
+  if (ends.some(e => e.id === had)) sel.value = had;
+  updateNoonToNoonPanel();
+}
+
+function updateNoonToNoonPanel(){
+  const sel = document.getElementById('n2nEnd');
+  const body = document.getElementById('n2nBody');
+  const winEl = document.getElementById('n2nWindow');
+  if (!sel || !body || !winEl) return;
+  const btns = ['btnN2nPreview', 'btnN2nPrint'].map(id => document.getElementById(id));
+  const host = document.getElementById('n2nPreviewHost');
+  if (host){ host.style.display = 'none'; host.innerHTML = ''; }
+  const d = sel.value ? noonToNoonData(sel.value) : null;
+  btns.forEach(b => { if (b) b.disabled = !d; });
+  if (!d){
+    winEl.textContent = sel.value ? 'No reports in this period.' : 'No noon report yet.';
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">No noon report yet.</td></tr>';
+    return;
+  }
+  const st = (dt) => new Date(dt).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  winEl.textContent = (d.win.startEntry ? `From ${st(d.win.startEntry.datetime)}` : 'From the start of the leg (no earlier noon)')
+    + ` to ${st(d.win.endEntry.datetime)} — ${d.used.length} report${d.used.length === 1 ? '' : 's'}, ${fmt(d.agg.hrs, 2)} h`;
+  body.innerHTML = d.used.map(({ e, r }) => `<tr><td>${escHtml(st(e.datetime))}</td><td>${escHtml(e.operation || '')}</td><td>${fmt(r.hrs, 2)}</td><td>${r.distanceShip == null ? '—' : fmt(r.distanceShip, 2)}</td><td>${fmtFuel(d.rowFuel(r))}</td></tr>`).join('')
+    + `<tr><td colspan="2"><strong>Noon to noon</strong></td><td><strong>${fmt(d.agg.hrs, 2)}</strong></td><td><strong>${fmt(d.agg.distShip, 2)}</strong></td><td><strong>${fmtFuel(d.agg.fuelTotal)}</strong></td></tr>`;
+}
+
+function previewNoonToNoon(){
+  const sel = document.getElementById('n2nEnd');
+  const host = document.getElementById('n2nPreviewHost');
+  if (!sel || !host || !sel.value) return;
+  const html = buildNoonToNoonSheetHTML(sel.value);
+  if (!html) return;
+  host.style.display = '';
+  host.innerHTML = '<iframe title="Noon to Noon preview" style="width:210mm;height:297mm;border:1px solid #bbb;background:#fff;"></iframe>';
+  const frame = host.querySelector('iframe');
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(buildPrintDocumentHtmlPortrait(`<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${html}</div></div>`));
+  doc.close();
+  const fit = () => { try { fitPrintPortraitRoot(doc); } catch (_) {} };
+  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(() => setTimeout(fit, 40)).catch(fit); else setTimeout(fit, 120);
+}
+
+document.getElementById('n2nEnd')?.addEventListener('change', updateNoonToNoonPanel);
+document.getElementById('btnN2nPreview')?.addEventListener('click', previewNoonToNoon);
+document.getElementById('btnN2nPrint')?.addEventListener('click', () => {
+  const id = document.getElementById('n2nEnd')?.value;
+  if (id) printNoonToNoon(id);
+});
+
 /*
  * Print used to leave the report unsaved: the sheet was built from the open form,
  * so it could be signed and filed while the figures on it existed nowhere but that
