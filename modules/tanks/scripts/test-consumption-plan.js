@@ -228,4 +228,12 @@ ok(CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)] }, vessel).sea.greatCircle === t
 const off = CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(Object.assign(CP.defaultPlan(vessel), { sea: { avoid: [], areas: [], ecaOff: [], ecaFuel: '', printMap: false, greatCircle: false } })))), vessel);
 ok(off.sea.greatCircle === false && off.sea.printMap === false, 'and an option that was switched off stays off');
 
+/* ---- map: the route behind an automatic line is kept so the map can draw it again ---- */
+const mapLeg = CP.emptyLeg(2); Object.assign(mapLeg, { from: 'A', to: 'B', fromPort: 7, toPort: 9, routeFrom: 7, routeTo: 9, distance: 3000, distAuto: true, speed: 12 });
+ok(CP.ensurePlan(JSON.parse(JSON.stringify(CP.finalize(Object.assign(CP.defaultPlan(vessel), { legs: [mapLeg] })))), vessel).legs[0].routeFrom === 7, 'the ports behind an automatic route survive saving');
+const typedLeg = JSON.parse(JSON.stringify(mapLeg)); typedLeg.distAuto = false;
+ok(CP.ensurePlan(Object.assign(CP.defaultPlan(vessel), { legs: [typedLeg] }), vessel).legs[0].routeFrom === null, 'a distance typed by hand has no route to draw');
+const mapParts = CP.splitLegAtEca(Object.assign(JSON.parse(JSON.stringify(mapLeg)), { ecaNm: 500 }), [{ eca: false, nm: 2500, from: [1, 1], to: [2, 2] }, { eca: true, zone: 'baltic', nm: 500, from: [2, 2], to: [3, 3] }], zl);
+ok(mapParts.every((l) => l.routeFrom === 7 && l.routeTo === 9), 'the stretches of a split line still point to the whole route');
+
 console.log(`consumption plan: ${pass} checks passed`);
