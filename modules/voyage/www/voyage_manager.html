@@ -17407,11 +17407,18 @@ let _bunkerPlanCtl = null;
 let _tankRobResolve = null;
 /** The vessel's own fuels: the grades of its fuel tanks. With none set up the plan offers Residual and Distillate. */
 function planFuels(){
-  const seen = new Set(), out = [];
+  const out = [];
+  /* A grade counts as in use when one of its tanks holds some, or the log shows it burned: the default MDO/MGO tank of a ship that runs on LSMGO does neither. */
+  let rob = null, cons = null;
+  try{ const d = computeDerived(); cons = d.consByFuel; rob = currentROB(d.consByFuel, d.consByLube).rob; }catch(_){}
   try{
     fuelTankList().forEach(t=>{
       const g = String(t.grade || t.name || '').trim();
-      if (g && !seen.has(g)){ seen.add(g); out.push({ id: g }); }
+      if (!g) return;
+      const active = !rob ? true : ((Number(rob[t.id]) || 0) > 0 || (Number(cons && cons[g]) || 0) > 0);
+      const have = out.find(x=>x.id === g);
+      if (have){ if (active) have.active = true; return; }
+      out.push({ id: g, active });
     });
   }catch(_){}
   return out;

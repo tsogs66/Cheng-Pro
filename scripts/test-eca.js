@@ -67,4 +67,19 @@ const d26 = E.inForce('2026-11-26'), d27 = E.inForce('2027-03-01');
 assert(!d26.includes('canadian_arctic') && !d26.includes('norwegian_sea') && d27.includes('canadian_arctic') && d27.includes('norwegian_sea'), 'Canadian Arctic and Norwegian Sea: fuel limit from 1 Mar 2027');
 assert(d26.includes('china_hainan') && !d26.includes('china_coast') && E.inForce('2026-11-26', ['china_coast']).includes('china_coast'), 'China: Hainan 0.10% counts; the 0.50% coast only when switched on');
 assert(E.inForce('2026-01-01').includes('mediterranean') && !E.inForce('2021-06-01').includes('china_hainan'), 'Mediterranean counts today; Hainan 0.10% only from 1 Jan 2022');
+// keeping the route out of the ECA: fewer ECA miles for a bounded detour
+const nan = port(/^NANTES/, 'FR'), nol = port(/^NEW ORLEANS/, 'US'), idsNow = E.inForce('2026-11-26'), inEca = (lo, la) => !!E.zoneAt(lo, la, idsNow);
+const eNm = (A, B, x) => E.measure([[A.lat, A.lon]].concat(x.path, [[B.lat, B.lon]]), idsNow).ecaNm;
+const r0 = router.route(nan, nol, {}), r2 = router.route(nan, nol, { eca: { test: inEca, key: 'now', weight: 2 } });
+assert(r2.ok && eNm(nan, nol, r2) < eNm(nan, nol, r0) - 100, 'a weight on ECA water cuts the miles inside the ECA');
+assert(r2.nm >= r0.nm - 0.5 && r2.nm <= r0.nm * 1.12, 'for a bounded detour (the reported distance is the real one): ' + r0.nm + ' -> ' + r2.nm);
+assert(router.route(nan, nol, { eca: { test: inEca, key: 'now', weight: 0 } }).nm === r0.nm, 'weight 0 changes nothing');
+// waypoints for the route editor: a route rebuilt from its own waypoints has the same length, and land crossings are flagged
+assert(r0.waypoints && r0.waypoints.length >= 3, 'the route result lists its waypoints');
+{ const pts = [[nan.lat, nan.lon]].concat(r0.waypoints, [[nol.lat, nol.lon]]); let sum = 0; const R = Math.PI / 180;
+  for (let i = 1; i < pts.length; i++) { const h = Math.sin((pts[i][0] - pts[i - 1][0]) * R / 2) ** 2 + Math.cos(pts[i - 1][0] * R) * Math.cos(pts[i][0] * R) * Math.sin((pts[i][1] - pts[i - 1][1]) * R / 2) ** 2; sum += 2 * 3440.065 * Math.asin(Math.sqrt(h)); }
+  assert(Math.abs(sum - r0.nm) < r0.nm * 0.01, 'waypoints rebuild the distance: ' + sum + ' vs ' + r0.nm); }
+const landRouter = SR.create(d('data/sea-lanes/marnet.json'), { land: SR.decodeLand(d('data/map/land.json')) });
+assert(landRouter.segmentCheck([40, -7], [40, 0]).land === true, 'a leg across Spain is flagged as crossing land');
+assert(landRouter.segmentCheck([40, -40], [35, -30]).land === false, 'open Atlantic is clear');
 console.log('eca OK');
