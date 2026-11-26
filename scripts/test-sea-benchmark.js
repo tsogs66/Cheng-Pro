@@ -7,7 +7,7 @@ const SR = require('./sea-route.js'), PL = require('./port-list.js');
 const d = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
 const bench = d('data/sea-lanes/benchmark.json');
 const rt = SR.create(d('data/sea-lanes/marnet.json'), { land: SR.decodeLand(d('data/map/land.json')) }), pl = PL.create(d('data/ports/ports.json'));
-const pick = (name, cc) => { const l = pl.all().filter(p => p.cc === cc && p.name.startsWith(name)); assert(l.length, 'port ' + name); l.sort((a, b) => 'LMSV'.indexOf(a.size || 'V') - 'LMSV'.indexOf(b.size || 'V')); return l[0]; };
+const pick = (name, cc) => { const l = pl.all().filter(p => p.cc === cc && p.name.includes(name)); assert(l.length, 'port ' + name); l.sort((a, b) => 'LMSV'.indexOf(a.size || 'V') - 'LMSV'.indexOf(b.size || 'V')); return l[0]; };
 let sum = 0;
 for (const r of bench.routes) {
   const A = pick(r.from.name, r.from.cc), B = pick(r.to.name, r.to.cc), x = rt.route(A, B, {});
