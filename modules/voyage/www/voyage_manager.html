@@ -1679,6 +1679,10 @@
     max-height:none !important;
     overflow-y:visible;
   }
+  #n2nPreviewHost.n2n-full{ position:fixed; inset:0; z-index:99990; margin:0 !important; max-height:none !important; background:var(--ink, #0f1b27); padding:8px; display:flex !important; flex-direction:column; }
+  .n2n-vtools{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 8px; }
+  .n2n-vscroll{ overflow:auto; max-height:75vh; border:1px solid var(--line, #445); background:#7d8590; padding:8px; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; }
+  #n2nPreviewHost.n2n-full .n2n-vscroll{ flex:1; max-height:none; }
   .bunker-table{width:100%; min-width:720px; border-collapse:collapse; font-size:12px; table-layout:fixed;}
   .bunker-table th{font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.05em; text-transform:uppercase; color:var(--paper-dim); font-weight:500; padding:4px 3px; border-bottom:1px solid var(--line); white-space:nowrap;}
   .bunker-table td{padding:3px 2px; vertical-align:middle;}
@@ -6484,6 +6488,7 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
 <script src="camera-capture.js"></script>
 <script src="/js/card-reader.js"></script>
 <script src="guide.js"></script>
+<script src="ui-zoom.js"></script>
 <script src="note-reminders.js"></script>
 <script src="lan-sync.js"></script>
 <script src="notes.js"></script>
@@ -21740,8 +21745,8 @@ function printPortraitPages(sheetHtmlList){
     `<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${html}</div></div>`).join('');
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
-  const frameH = 297 * pages.length;
-  iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:210mm;height:${frameH}mm;border:0;opacity:0;pointer-events:none;`;
+  /* A normal A4-sized box that is barely visible: a very tall or fully hidden frame can print nothing, and a long voyage makes dozens of pages. */
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:210mm;height:297mm;border:0;opacity:0.01;z-index:-1;pointer-events:none;';
   document.body.appendChild(iframe);
 
   const doc = iframe.contentDocument;
@@ -26207,7 +26212,7 @@ function buildNoonToNoonSheetHTML(endId, pool){
 function printNoonToNoon(endId){
   const pool = noonToNoonPool();
   const html = buildNoonToNoonSheetHTML(endId, pool);
-  if (!html){ alert('Pick a noon report with at least one report in its period.'); return; }
+  if (!html){ showToast('Pick a noon report with at least one report in its period.'); return; }
   printPortraitSinglePage(html);
   /* The history rebuilds a sheet from the open leg, so only a noon of that leg is filed. */
   const entry = state.entries.find(e => e.id === endId);
@@ -26224,12 +26229,28 @@ function noonToNoonRange(fromId, toId, pool){
   return ends.slice(fi, ti + 1);
 }
 
+/** A question with OK / Cancel drawn by the page. The browser's own confirm() is refused (answers "no") inside some embedded frames and apps, which made a button do nothing. */
+function askConfirm(message, okLabel){
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483100;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = '<div style="background:#13283b;color:#fff;padding:18px 20px;border-radius:10px;max-width:460px;width:calc(100% - 32px);box-shadow:0 10px 40px rgba(0,0,0,.5)"><p style="margin:0 0 14px;line-height:1.4"></p><div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="ghost small" data-a="no">Cancel</button><button type="button" class="primary small" data-a="yes"></button></div></div>';
+    ov.querySelector('p').textContent = message; ov.querySelector('[data-a="yes"]').textContent = okLabel || 'OK';
+    const done = (v) => { document.removeEventListener('keydown', onKey, true); ov.remove(); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter'){ e.preventDefault(); e.stopPropagation(); done(true); } };
+    ov.addEventListener('click', (e) => { const a = e.target.dataset && e.target.dataset.a; if (a) done(a === 'yes'); else if (e.target === ov) done(false); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(ov); const y = ov.querySelector('[data-a="yes"]'); if (y) y.focus();
+  });
+}
+
 /** One sheet per noon of a range, one A4 page each: the whole voyage's noon-to-noon in one print. */
 async function printNoonToNoonBatch(fromId, toId){
   const pool = noonToNoonPool();
   const ends = noonToNoonRange(fromId, toId, pool);
-  if (!ends.length){ alert('There is no noon report to print yet.'); return; }
-  if (ends.length > 40 && !confirm(`This prints ${ends.length} pages. Continue?`)) return;
+  if (!ends.length){ showToast('There is no noon report to print yet.'); return; }
+  if (ends.length > 40 && !(await askConfirm(`This prints ${ends.length} pages. Continue?`, 'Print'))) return;
   const sheets = [];
   await withActivity('n2n-batch', `Building ${ends.length} noon-to-noon report${ends.length === 1 ? '' : 's'}…`, async () => {
     for (let i = 0; i < ends.length; i++){
@@ -26238,7 +26259,8 @@ async function printNoonToNoonBatch(fromId, toId){
       if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
     }
   });
-  if (!sheets.length){ alert('No noon-to-noon report could be built for that range.'); return; }
+  if (!sheets.length){ showToast('No noon-to-noon report could be built for that range.'); return; }
+  showToast(`Sending ${sheets.length} page${sheets.length === 1 ? '' : 's'} to print…`);
   printPortraitPages(sheets);
   for (const x of ends){
     const entry = state.entries.find(e => e.id === x.id);
@@ -26310,14 +26332,51 @@ function previewNoonToNoon(){
   const html = buildNoonToNoonSheetHTML(sel.value, noonToNoonPool());
   if (!html) return;
   host.style.display = '';
-  host.innerHTML = '<iframe title="Noon to Noon preview" style="width:210mm;height:297mm;border:1px solid #bbb;background:#fff;"></iframe>';
+  host.classList.remove('n2n-full');
+  host.innerHTML = `<div class="n2n-vtools no-print">
+      <button type="button" class="ghost small" data-v="out" aria-label="Zoom out">−</button>
+      <button type="button" class="ghost small" data-v="pct" title="Back to a readable size" aria-label="Zoom level">100%</button>
+      <button type="button" class="ghost small" data-v="in" aria-label="Zoom in">+</button>
+      <button type="button" class="ghost small" data-v="width">Fit width</button>
+      <button type="button" class="ghost small" data-v="page">Whole page</button>
+      <button type="button" class="ghost small" data-v="full">Full screen</button>
+      <button type="button" class="ghost small" data-v="close">Close preview</button>
+    </div>
+    <div class="n2n-vscroll"><div class="n2n-vsize"><iframe title="Noon to Noon preview"></iframe></div></div>`;
   const frame = host.querySelector('iframe');
+  const scroll = host.querySelector('.n2n-vscroll'), size = host.querySelector('.n2n-vsize'), pct = host.querySelector('[data-v="pct"]');
+  const PW = 794, PH = 1123; /* A4 at 96 dpi */
+  let z = 1;
+  const setZoom = (v) => {
+    z = Math.max(0.3, Math.min(4, v));
+    frame.style.cssText = `width:${PW}px;height:${PH}px;border:1px solid #bbb;background:#fff;transform:scale(${z});transform-origin:0 0;`;
+    size.style.cssText = `width:${Math.ceil(PW * z) + 2}px;height:${Math.ceil(PH * z) + 2}px;margin:0 auto;`;
+    pct.textContent = Math.round(z * 100) + '%';
+  };
+  const fitWidth = () => setZoom(Math.max(0.5, (scroll.clientWidth - 24) / PW));
+  const fitPage = () => setZoom(Math.max(0.3, Math.min((scroll.clientWidth - 24) / PW, (Math.max(300, scroll.clientHeight) - 12) / PH)));
+  host.__zoom = { set: setZoom, get: () => z, fitWidth, fitPage };
   const doc = frame.contentDocument;
   doc.open();
   doc.write(buildPrintDocumentHtmlPortrait(`<div class="pr-page-portrait"><div class="pr-page-portrait-inner">${html}</div></div>`));
   doc.close();
   const fit = () => { try { fitPrintPortraitRoot(doc); } catch (_) {} };
   if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(() => setTimeout(fit, 40)).catch(fit); else setTimeout(fit, 120);
+  fitWidth(); /* opens zoomed in to the width of the screen so the figures can be read; the buttons, Ctrl + wheel or two fingers go further */
+  host.onclick = (e) => {
+    const b = e.target.closest && e.target.closest('[data-v]'); if (!b) return;
+    const k = b.dataset.v;
+    if (k === 'in') setZoom(z * 1.25); else if (k === 'out') setZoom(z / 1.25);
+    else if (k === 'pct') setZoom(1); else if (k === 'width') fitWidth(); else if (k === 'page') fitPage();
+    else if (k === 'full') { host.classList.toggle('n2n-full'); b.textContent = host.classList.contains('n2n-full') ? 'Leave full screen' : 'Full screen'; setTimeout(fitWidth, 30); }
+    else if (k === 'close') { host.style.display = 'none'; host.innerHTML = ''; host.classList.remove('n2n-full'); }
+  };
+  scroll.addEventListener('wheel', (e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom(z * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }, { passive: false });
+  /* two-finger pinch on a touch screen */
+  let pinch = null;
+  scroll.addEventListener('touchstart', (e) => { if (e.touches.length === 2) pinch = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z }; }, { passive: true });
+  scroll.addEventListener('touchmove', (e) => { if (pinch && e.touches.length === 2) { e.preventDefault(); setZoom(pinch.z * Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) / pinch.d); } }, { passive: false });
+  scroll.addEventListener('touchend', () => { pinch = null; }, { passive: true });
 }
 
 document.getElementById('n2nEnd')?.addEventListener('change', updateNoonToNoonPanel);
@@ -32775,6 +32834,7 @@ let androidInstallAssets = [
   './tank-fuel-register.js',
   './camera-capture.js',
   './guide.js',
+  './ui-zoom.js',
   './note-reminders.js',
   './lan-sync.js',
   './notes.js',
