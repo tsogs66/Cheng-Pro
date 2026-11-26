@@ -1,0 +1,249 @@
+(regulations 13.6 and 14.3)
+
+8      Paragraph 1 is replaced by the following:
+
+         "1        The boundaries of emission control areas designated under regulations 13.6
+         and 14.3, other than the Baltic Sea, the North Sea, and the Norwegian Sea areas, are
+         set forth in this appendix."
+                          RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+                 AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+             INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+                   1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+                                            -4–
+
+
+9   New paragraph 5 is added after paragraph 4 as follows:
+
+     "5      The Canadian Arctic area comprises two segments:
+
+             .1        starting at the Yukon mainland at 68°54'.00 N, 137°0'.00 W;
+                       following the coordinates listed below and ending at the north coast
+                       of Hans Island at 80°49'.91 N, 66°27'.40 W, connected by geodesic
+                       lines connecting the following coordinates in World Geodetic
+                       System 1984 (WGS84) datum:
+
+                        POINT      LATITUDE          LONGITUDE
+                        1          68°54'.00 N       137°00'.00 W
+                        2          72°56'.58 N       137°00'.00 W
+                        3          73°00'.42 N       136°21'.72 W
+                        4          73°21'.72 N       136°20'.46 W
+                        5          73°56'.34 N       136°57'.60 W
+                        6          74°30'.18 N       137°13'.08 W
+                        7          75°03'.42 N       137°07'.20 W
+                        8          75°49'.26 N       136°32'.04 W
+                        9          76°42'.18 N       136°57'.06 W
+                        10         77°28'.26 N       136°34'.74 W
+                        11         78°07'.26 N       135°28'.50 W
+                        12         78°39'.72 N       133°44'.88 W
+                        13         79°29'.58 N       131°24'.96 W
+                        14         79°53'.16 N       129°32'.22 W
+                        15         80°31'.44 N       127°33'.48 W
+                        16         81°54'.36 N       118°36'.24 W
+                        17         82°16'.32 N       116°28'.98 W
+                        18         82°52'.86 N       115°29'.46 W
+                        19         83°54'.54 N       112°07'.20 W
+                        20         85°46'.14 N       97°16'.86 W
+                        21         86°09'.78 N       89°14'.46 W
+                        22         86°22'.56 N       78°59'.58 W
+                        23         86°19'.18 N       60°10'.17 W
+                        24         85°38'.92 N       58°10'.58 W
+                        25         85°22'.29 N       57°59'.22 W
+                        26         85°12'.04 N       57°54'.68 W
+                        27         84°49'.56 N       57°13'.28 W
+                        28         84°22'.15 N       56°43'.09 W
+                        29         84°17'.32 N       56°35'.78 W
+                        30         84°11'.05 N       56°29'.53 W
+                        31         83°10'.79 N       57°00'.21 W
+                        32         83°04'.29 N       57°27'.78 W
+                        33         83°00'.95 N       57°32'.72 W
+                        34         82°44'.71 N       58°00'.38 W
+                        35         82°42'.57 N       58°06'.78 W
+                        36         82°40'.69 N       58°11'.74 W
+             RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+    AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+      1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+                               -5–
+
+
+           POINT      LATITUDE          LONGITUDE
+           37         82°34'.95 N       58°25'.30 W
+           38         82°31'.25 N       58°38'.56 W
+           39         82°27'.52 N       58°50'.12 W
+           40         82°22'.87 N       59°02'.00 W
+           41         82°20'.26 N       59°21'.38 W
+           42         82°18'.54 N       59°32'.25 W
+           43         82°17'.22 N       59°41'.31 W
+           44         82°14'.41 N       59°56'.06 W
+           45         82°12'.06 N       60°02'.23 W
+           46         81°51'.67 N       62°09'.60 W
+           47         81°17'.89 N       64°08'.73 W
+           48         80°50'.48 N       66°15'.33 W
+           49         80°50'.10 N       66°26'.97 W
+           50         80°49'.91 N       66°27'.40 W
+
+.2        continuing from the south coast of Hans Island at 80°49'.29 N,
+          66°27'.04 W, following the coordinates listed below, and ending at
+          the coast of Newfoundland and Labrador at 60°0'.00 N, 64°9'.60 W,
+          connected by geodesic lines connecting the following coordinates
+          in World Geodetic System 1984 (WGS84) datum:
+
+
+            POINT     LATITUDE          LONGITUDE
+            51        80°49'.29 N       66°27'.04 W
+            52        80°49'.19 N       66°26'.57 W
+            53        80°45'.43 N       67°03'.99 W
+            54        80°26'.16 N       68°14'.39 W
+            55        80°01'.79 N       68°46'.99 W
+            56        79°40'.38 N       69°04'.68 W
+            57        78°48'.09 N       72°52'.36 W
+            58        78°25'.05 N       73°45'.66 W
+            59        77°30'.83 N       74°38'.24 W
+            60        76°43'.47 N       74°56'.49 W
+            61        75°00'.00 N       73°16'.07 W
+            62        74°50'.67 N       73°02'.71 W
+            63        74°44'.20 N       72°52'.86 W
+            64        74°28'.67 N       71°45'.72 W
+            65        74°24'.02 N       71°25'.67 W
+            66        74°12'.42 N       70°33'.06 W
+            67        74°10'.03 N       70°23'.12 W
+            68        74°07'.50 N       70°12'.16 W
+            69        74°06'.15 N       70°06'.69 W
+            70        74°02'.53 N       69°51'.43 W
+            71        74°02'.25 N       69°50'.33 W
+            72        73°57'.54 N       69°31'.02 W
+            73        73°52'.27 N       69°10'.88 W
+             RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+    AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+      1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+                               -6–
+
+
+            POINT     LATITUDE          LONGITUDE
+            74        73°46'.73 N       68°51'.14 W
+            75        73°46'.17 N       68°48'.81 W
+            76        73°41'.77 N       68°29'.65 W
+            77        73°37'.91 N       68°12'.34 W
+            78        73°36'.51 N       68°05'.42 W
+            79        73°31'.14 N       67°15'.52 W
+            80        73°25'.90 N       66°24'.99 W
+            81        73°18'.48 N       66°07'.91 W
+            82        72°50'.89 N       65°07'.52 W
+            83        72°47'.70 N       65°00'.63 W
+            84        72°45'.76 N       64°58'.22 W
+            85        72°43'.78 N       64°54'.27 W
+            86        72°36'.40 N       64°38'.74 W
+            87        72°30'.58 N       64°26'.04 W
+            88        72°24'.89 N       64°13'.11 W
+            89        72°10'.96 N       63°40'.55 W
+            90        72°06'.33 N       63°30'.42 W
+            91        72°01'.65 N       63°20'.73 W
+            92        71°52'.98 N       63°03'.86 W
+            93        71°47'.21 N       62°52'.67 W
+            94        71°44'.71 N       62°49'.41 W
+            95        71°32'.90 N       62°33'.35 W
+            96        71°31'.73 N       62°31'.66 W
+            97        71°29'.39 N       62°28'.99 W
+            98        71°25'.93 N       62°25'.37 W
+            99        71°18'.98 N       62°17'.45 W
+            100       71°12'.10 N       62°08'.98 W
+            101       70°51'.84 N       61°42'.53 W
+            102       70°48'.17 N       61°37'.62 W
+            103       70°35'.55 N       61°20'.28 W
+            104       70°33'.07 N       61°17'.10 W
+            105       70°13'.48 N       61°10'.49 W
+            106       70°08'.83 N       61°08'.67 W
+            107       70°07'.55 N       61°07'.92 W
+            108       70°01'.68 N       61°04'.08 W
+            109       69°55'.82 N       60°59'.85 W
+            110       69°55'.27 N       60°59'.41 W
+            111       69°49'.82 N       60°57'.99 W
+            112       69°29'.41 N       60°51'.36 W
+            113       69°12'.82 N       60°27'.40 W
+            114       69°10'.24 N       60°23'.47 W
+            115       69°06'.79 N       60°18'.33 W
+            116       69°00'.88 N       60°08'.99 W
+            117       68°56'.83 N       60°02'.21 W
+             RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+    AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+      1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+                               -7–
+
+
+            POINT     LATITUDE          LONGITUDE
+            118       68°38'.02 N       59°14'.43 W
+            119       68°37'.86 N       59°14'.01 W
+            120       68°34'.02 N       59°4'.46 W
+            121       68°32'.88 N       59°01'.49 W
+            122       68°25'.25 N       58°42'.06 W
+            123       68°21'.67 N       58°38'.64 W
+            124       68°16'.07 N       58°33'.75 W
+            125       68°07'.40 N       58°26'.93 W
+            126       68°06'.87 N       58°26'.58 W
+            127       68°04'.26 N       58°24'.69 W
+            128       68°01'.89 N       58°23'.15 W
+            129       67°56'.94 N       58°19'.62 W
+            130       67°44'.25 N       58°09'.79 W
+            131       67°39'.77 N       58°06'.05 W
+            132       67°35'.33 N       58°02'.07 W
+            133       67°30'.76 N       57°57'.66 W
+            134       67°29'.16 N       57°56'.00 W
+            135       67°28'.21 N       57°55'.01 W
+            136       67°27'.27 N       57°54'.57 W
+            137       67°21'.52 N       57°52'.35 W
+            138       66°49'.47 N       57°42'.84 W
+            139       66°41'.71 N       57°40'.35 W
+            140       66°37'.88 N       57°39'.45 W
+            141       66°36'.02 N       57°38'.99 W
+            142       66°30'.27 N       57°38'.04 W
+            143       66°24'.50 N       57°37'.56 W
+            144       66°18'.68 N       57°37'.55 W
+            145       66°12'.84 N       57°38'.01 W
+            146       66°03'.50 N       57°39'.45 W
+            147       65°57'.62 N       57°39'.93 W
+            148       65°57'.50 N       57°39'.93 W
+            149       65°51'.75 N       57°40'.44 W
+            150       65°50'.81 N       57°40'.46 W
+            151       65°37'.59 N       57°41'.74 W
+            152       65°34'.74 N       57°42'.18 W
+            153       65°23'.33 N       57°44'.83 W
+            154       65°18'.08 N       57°45'.70 W
+            155       65°14'.52 N       57°44'.99 W
+            156       65°11'.49 N       57°44'.22 W
+            157       65°08'.79 N       57°43'.69 W
+            158       65°06'.04 N       57°43'.95 W
+            159       64°12'.06 N       57°48'.09 W
+            160       64°04'.20 N       57°49'.01 W
+            161       63°57'.36 N       57°53'.40 W
+             RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+    AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+      1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+                               -8–
+
+
+            POINT     LATITUDE          LONGITUDE
+            162       63°52'.57 N       57°56'.46 W
+            163       63°50'.05 N       57°57'.01 W
+            164       63°43'.99 N       57°58'.60 W
+            165       63°37'.16 N       58°01'.00 W
+            166       63°35'.02 N       58°01'.86 W
+            167       63°28'.62 N       57°59'.62 W
+            168       63°22'.86 N       57°57'.29 W
+            169       62°47'.14 N       57°40'.83 W
+            170       62°11'.35 N       57°25'.12 W
+            171       62°03'.47 N       57°22'.15 W
+            172       62°02'.23 N       57°21'.62 W
+            173       62°00'.39 N       57°20'.92 W
+            174       61°24'.74 N       57°16'.16 W
+            175       61°10'.14 N       57°38'.70 W
+            176       60°43'.56 N       57°17'.64 W
+            177       60°15'.36 N       57°04'.56 W
+            178       60°00'.00 N       56°43'.02 W
+            179       60°00'.00 N       64°09'.60 W
+             RESOLUTION MEPC.392(82) (adopted on 4 October 2024)
+    AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND THE
+INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM SHIPS,
+      1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO

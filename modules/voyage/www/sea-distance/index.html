@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sea Distance</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#14212b; --muted:#5b6b78; --line:#d5dde3; --accent:#0b6bcb; --accent-ink:#fff; --warn:#8a5a00; --warn-bg:#fff4d6; --err:#a1261b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1419; --card:#16202a; --ink:#e6edf2; --muted:#93a4b2; --line:#2a3947; --accent:#4aa3ff; --accent-ink:#04131f; --warn:#f0c36a; --warn-bg:#352a0e; --err:#ff8a80; } }
+  :root[data-theme="dark"] { --bg:#0e1419; --card:#16202a; --ink:#e6edf2; --muted:#93a4b2; --line:#2a3947; --accent:#4aa3ff; --accent-ink:#04131f; --warn:#f0c36a; --warn-bg:#352a0e; --err:#ff8a80; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.25rem; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:.875rem; margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  label { display:block; font-size:.8125rem; color:var(--muted); margin:0 0 4px; }
+  .field { position:relative; margin-bottom:12px; }
+  input[type=text], input[type=number] { width:100%; min-height:44px; padding:8px 12px; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  ul.list { position:absolute; z-index:5; left:0; right:0; top:100%; margin:2px 0 0; padding:4px; list-style:none; max-height:280px; overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+  ul.list[hidden] { display:none; }
+  ul.list li { padding:10px 10px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  ul.list li[aria-selected=true], ul.list li:hover { background:var(--accent); color:var(--accent-ink); }
+  ul.list small { opacity:.8; white-space:nowrap; }
+  .row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  .row > .grow { flex:1 1 140px; }
+  button { min-height:44px; padding:8px 14px; font:inherit; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:8px 12px; }
+  legend { font-size:.8125rem; color:var(--muted); padding:0 4px; }
+  .chk { display:inline-flex; align-items:center; gap:6px; margin:4px 14px 4px 0; min-height:32px; color:var(--ink); font-size:.9375rem; }
+  .chk input { width:20px; height:20px; }
+  #result { margin-top:16px; }
+  .big { font-size:2rem; font-weight:700; letter-spacing:-.01em; }
+  .big small { font-size:1rem; font-weight:400; color:var(--muted); }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:12px 0 0; font-size:.9375rem; }
+  dt { color:var(--muted); } dd { margin:0; }
+  .warn { margin-top:12px; padding:8px 12px; border-radius:8px; background:var(--warn-bg); color:var(--warn); font-size:.875rem; }
+  .err { margin-top:12px; color:var(--err); }
+  .note { margin-top:16px; color:var(--muted); font-size:.8125rem; }
+  .hint { color:var(--muted); font-size:.8125rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sea Distance</h1>
+  <p class="sub">Offline port-to-port estimate (nautical miles).</p>
+  <section class="card" aria-label="Route">
+    <div class="field">
+      <label for="from">From port</label>
+      <input type="text" id="from" role="combobox" aria-expanded="false" aria-controls="fromList" aria-autocomplete="list" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a port name" disabled>
+      <ul class="list" id="fromList" role="listbox" hidden></ul>
+    </div>
+    <div class="row" style="justify-content:center;margin:-4px 0 4px"><button type="button" id="swap" aria-label="Swap From and To" title="Swap">&#8645; Swap</button></div>
+    <div class="field">
+      <label for="to">To port</label>
+      <input type="text" id="to" role="combobox" aria-expanded="false" aria-controls="toList" aria-autocomplete="list" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type a port name" disabled>
+      <ul class="list" id="toList" role="listbox" hidden></ul>
+    </div>
+    <fieldset>
+      <legend>Avoid passages</legend>
+      <label class="chk"><input type="checkbox" data-avoid="suez"> Suez Canal</label>
+      <label class="chk"><input type="checkbox" data-avoid="panama"> Panama Canal</label>
+      <label class="chk"><input type="checkbox" data-avoid="babalmandab"> Bab-el-Mandeb</label>
+      <label class="chk"><input type="checkbox" data-avoid="malacca"> Malacca Strait</label>
+      <label class="chk"><input type="checkbox" data-avoid="ormuz"> Hormuz</label>
+    </fieldset>
+    <div class="row">
+      <div class="grow"><label for="speed">Speed (kn) for ETA</label><input type="number" id="speed" inputmode="decimal" min="1" max="40" step="0.1" value="12"></div>
+      <button type="button" class="primary" id="go" disabled>Calculate</button>
+    </div>
+    <p class="hint" id="status" role="status">Loading port data…</p>
+  </section>
+  <section id="result" class="card" aria-live="polite" hidden></section>
+  <p class="note">Planning estimate from a coarse lane network. Not for navigation; ports far from a shipping lane are less accurate. Check against your passage plan and charts. ECA outlines: IMO coordinates for North America, US Caribbean, North-East Atlantic, Canadian Arctic and Norwegian Sea; the Mediterranean follows the wording of MEPC.361(79); China follows the Ministry of Transport scheme; Baltic and North Sea are drawn from the regulation wording. Map coastline: Natural Earth (public domain), generalised. Sea lanes: Eurostat SeaRoute network (EUPL-1.2, based on Oak Ridge National Laboratory data, 2000; licence text in LICENSE-EUPL-1.2.txt).</p>
+  <p class="note" id="nga-note"><strong>Data attribution &amp; disclaimer.</strong> Port reference data is derived from the World Port Index (Pub. 150) published by the National Geospatial-Intelligence Agency (NGA) Maritime Safety Information portal (msi.nga.mil), produced as a U.S. Government work (public domain under 17 U.S.C. § 105). Pursuant to 10 U.S.C. § 456, this geospatial information is provided "as is" with no warranty as to accuracy, currency, or completeness. This application is for general informational and planning purposes only—it is not an official NGA navigational product and must not be used for primary navigation or passage planning. Mariners must consult current official nautical charts, Sailing Directions, Notice to Mariners, and local port authorities. In accordance with 10 U.S.C. § 425, reference to NGA data does not imply U.S. Government or NGA endorsement, sponsorship, or affiliation.</p>
+</main>
+<script src="port-list.js"></script>
+<script src="sea-route.js"></script>
+<script src="eca-zones.js"></script>
+<script src="sea-map.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var ports, router, picked = { from: null, to: null }, lastRoute = null, mapCtl = null, landData = null;
+  var EMBED = /[?&]embed=1/.test(location.search) || window.parent !== window;
+
+  function titleCase(s) { return s.toLowerCase().replace(/(^|[\s(\-\/])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
+  var SIZE = { L: 'large', M: 'medium', S: 'small', V: 'very small' };
+  function label(p) { return titleCase(p.name) + ', ' + p.cc; }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem('seaDist.' + k); localStorage.setItem('seaDist.' + k, v); } catch (e) {} return null; }
+
+  function combo(key) {
+    var input = $(key), list = $(key + 'List'), items = [], active = -1;
+    function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; input.removeAttribute('aria-activedescendant'); }
+    function choose(p) { picked[key] = p; input.value = label(p); close(); store(key, String(p.id)); update(); }
+    function render() {
+      list.innerHTML = '';
+      items.forEach(function (p, i) {
+        var li = document.createElement('li'); li.id = key + 'opt' + i; li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', i === active ? 'true' : 'false');
+        var a = document.createElement('span'); a.textContent = label(p);
+        var b = document.createElement('small'); b.textContent = SIZE[p.size] || '';
+        li.appendChild(a); li.appendChild(b);
+        li.addEventListener('mousedown', function (e) { e.preventDefault(); choose(p); });
+        list.appendChild(li);
+      });
+      list.hidden = !items.length; input.setAttribute('aria-expanded', items.length ? 'true' : 'false');
+      if (active >= 0) input.setAttribute('aria-activedescendant', key + 'opt' + active);
+    }
+    input.addEventListener('input', function () { picked[key] = null; update(); items = ports.search(input.value, { limit: 8 }); active = items.length ? 0 : -1; render(); });
+    input.addEventListener('focus', function () { input.select(); });
+    input.addEventListener('blur', close);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; render(); }
+      else if (e.key === 'Enter') { if (!list.hidden && active >= 0) { e.preventDefault(); choose(items[active]); } else if (!$('go').disabled) calc(); }
+      else if (e.key === 'Escape') close();
+    });
+    return { set: function (p) { picked[key] = p; input.value = p ? label(p) : ''; } };
+  }
+
+  function update() { $('go').disabled = !(picked.from && picked.to && router); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function calc() {
+    var avoid = [].slice.call(document.querySelectorAll('[data-avoid]:checked')).map(function (c) { return c.getAttribute('data-avoid'); });
+    var kn = parseFloat($('speed').value); store('speed', $('speed').value);
+    var box = $('result'); box.hidden = false;
+    if (picked.from.id === picked.to.id) { box.innerHTML = '<p class="err">From and To are the same port.</p>'; return; }
+    var r = router.route(picked.from, picked.to, { avoid: avoid });
+    if (!r.ok) { box.innerHTML = '<p class="err">' + esc(r.error) + '</p>'; return; }
+    var gcNm = Math.round(SeaRoute.gc(picked.from, picked.to));
+    var html = '<div class="big">' + r.nm.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' <small>nm</small></div>' +
+      '<div>' + esc(label(picked.from)) + ' &rarr; ' + esc(label(picked.to)) + '</div><dl>';
+    if (kn > 0) { var h = r.nm / kn; html += '<dt>Steaming time</dt><dd>' + (h / 24).toFixed(1) + ' days (' + Math.round(h) + ' h) at ' + kn + ' kn</dd>'; }
+    html += '<dt>Straight line</dt><dd>' + gcNm.toLocaleString() + ' nm</dd>';
+    if (r.savedNm >= 1) html += '<dt>Great-circle legs</dt><dd>save ' + Math.round(r.savedNm).toLocaleString() + ' nm against the lane network (' + Math.round(r.networkNm).toLocaleString() + ' nm)</dd>';
+    var ecaIds = EcaZones.inForce(); // areas in force today
+    var ecaM = EcaZones.measure([[picked.from.lat, picked.from.lon]].concat(r.path, [[picked.to.lat, picked.to.lon]]), ecaIds);
+    if (r.passages.length) html += '<dt>Passages</dt><dd>' + esc(r.passages.join(', ')) + '</dd>';
+    if (ecaM.ecaNm >= 1) html += '<dt>In ECA</dt><dd>' + Math.round(ecaM.ecaNm).toLocaleString() + ' nm (' + esc(Object.keys(ecaM.zones).map(EcaZones.label).join(', ')) + '; approximate outlines)</dd>';
+    html += '<dt>Port links</dt><dd>' + r.attach.from + ' nm / ' + r.attach.to + ' nm to nearest lane</dd></dl>';
+    r.warnings.forEach(function (w) { html += '<div class="warn">' + esc(w) + '</div>'; });
+    html += '<div class="row" style="margin-top:12px"><button type="button" id="showmap">Show map</button>' + (EMBED ? ' <button type="button" class="primary" id="use">Use this distance</button>' : '') + '</div><div id="mapbox" hidden style="height:380px;margin-top:10px;border-radius:8px;overflow:hidden;position:relative"></div>';
+    box.innerHTML = html;
+    lastRoute = { path: [[picked.from.lat, picked.from.lon]].concat(r.path, [[picked.to.lat, picked.to.lon]]), color: '#27d3ff', from: { lat: picked.from.lat, lon: picked.from.lon, name: titleCase(picked.from.name) }, to: { lat: picked.to.lat, lon: picked.to.lon, name: titleCase(picked.to.name) }, ecaRuns: ecaM.runs, passages: r.passages };
+    $('showmap').addEventListener('click', showMap);
+    var use = $('use');
+    if (use) use.addEventListener('click', function () { window.parent.postMessage({ type: 'seaDistance', from: picked.from, to: picked.to, nm: r.nm, avoid: avoid }, location.origin === 'null' ? '*' : location.origin); });
+  }
+
+  function showMap() {
+    var box = $('mapbox'); if (!lastRoute) return;
+    function draw() {
+      box.hidden = false;
+      if (mapCtl) mapCtl.destroy();
+      mapCtl = SeaMap.create(box, { land: landData, zones: EcaZones.ZONES.filter(function (z) { return EcaZones.inForce().indexOf(z.id) >= 0; }), areas: [] });
+      mapCtl.setRoutes([lastRoute]);
+      var bar = document.createElement('div'); bar.style.cssText = 'position:absolute;right:8px;top:8px;display:flex;gap:6px';
+      [['+', function () { mapCtl.zoom(1.6); }], ['\u2212', function () { mapCtl.zoom(1 / 1.6); }], ['Fit', function () { mapCtl.fit(); }]].forEach(function (b) { var el = document.createElement('button'); el.type = 'button'; el.textContent = b[0]; el.style.cssText = 'min-width:36px;padding:6px 10px'; el.addEventListener('click', b[1]); bar.appendChild(el); });
+      box.appendChild(bar);
+    }
+    draw();
+  }
+
+  function load(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }); }
+  Promise.all([load('ports.json'), load('marnet.json'), load('land.json')]).then(function (d) {
+    landData = SeaRoute.decodeLand(d[2]); ports = PortList.create(d[0]); router = SeaRoute.create(d[1], { land: landData });
+    var from = combo('from'), to = combo('to');
+    $('from').disabled = $('to').disabled = false;
+    var f = store('from'), t = store('to'), q = new URLSearchParams(location.search);
+    var fq = q.get('fromq'), tq = q.get('toq');
+    if (q.get('from')) f = q.get('from'); if (q.get('to')) t = q.get('to');
+    var pf = fq ? ports.search(fq, { limit: 1 })[0] : (f ? ports.byId(f) : null);   // free-text hints from the host app win
+    var pt = tq ? ports.search(tq, { limit: 1 })[0] : (t ? ports.byId(t) : null);
+    if (pf) from.set(pf); if (pt) to.set(pt);
+    var sp = store('speed'); if (sp) $('speed').value = sp;
+    $('status').textContent = ports.all().length.toLocaleString() + ' ports loaded. Works offline.';
+    $('swap').addEventListener('click', function () { var a = picked.from, b = picked.to; from.set(b); to.set(a); update(); if (a && b) calc(); });
+    $('go').addEventListener('click', calc);
+    update(); if (picked.from && picked.to && ((q.get('from') && q.get('to')) || (fq && tq))) calc();
+  }).catch(function (e) { $('status').textContent = 'Could not load data: ' + e.message; $('status').className = 'err'; });
+})();
+</script>
+</body>
+</html>

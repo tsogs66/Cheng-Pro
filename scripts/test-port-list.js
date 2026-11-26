@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('assert'); const fs = require('fs'); const path = require('path');
+const PL = require('./port-list.js');
+const data = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/ports/ports.json'), 'utf8'));
+const pl = PL.create(data);
+assert(data.count === data.ports.length && data.count > 3000, 'port count');
+assert(pl.all().every(p => p.name && p.lat >= -90 && p.lat <= 90 && p.lon >= -180 && p.lon <= 180), 'valid coords');
+assert.strictEqual(pl.search('rotterdam')[0].name, 'ROTTERDAM');
+assert(pl.search('singap').length > 0, 'prefix search');
+assert(pl.search('rott', { country: 'NL' }).every(p => p.cc === 'NL'), 'country filter');
+assert.strictEqual(pl.nearest(51.9, 4.48, 1)[0].name, 'ROTTERDAM');
+assert.deepStrictEqual(pl.search('   '), []); assert.deepStrictEqual(pl.search(''), []);
+const rot = pl.search('rotterdam')[0];
+assert.strictEqual(rot.id, 31140, 'official WPI index number'); assert(rot.fo === 'Y' && rot.do === 'Y', 'fuel oil and diesel supply flags from the WPI');
+assert(/NGA World Port Index/.test(data.source) && !/NOT the official/.test(data.source), 'source note names the official package');
+assert(data.ports.some(p => p.fo === 'N') && data.ports.some(p => p.fo === null), 'Y / N / not stated all present');
+console.log('port-list OK (' + data.count + ' ports)');
