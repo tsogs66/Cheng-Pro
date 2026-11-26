@@ -27,7 +27,7 @@ check('the chart colours are defined for the dark themes and for bright', () => 
 });
 check('the guide lists the page and the service worker cache was bumped', () => {
   assert.ok(fs.readFileSync(path.join(dir, 'guide.js'), 'utf8').includes('Trends —'));
-  assert.ok(/noon-report-v389/.test(fs.readFileSync(path.join(dir, 'sw.js'), 'utf8')));
+  assert.ok(/noon-report-v390/.test(fs.readFileSync(path.join(dir, 'sw.js'), 'utf8')));
 });
 
 const from = a.indexOf('/* ---------- Consumption trends page ---------- */');
