@@ -181,11 +181,13 @@
         'The period runs from the previous noon report to that noon. The table lists every report it adds up, with hours, distance and fuel, and a total row.',
         'Press Preview to look at the sheet, then Print Noon to Noon. It is one A4 page: run hours, distance, speed, fuel by unit and grade, fresh water, generator hours, and the remaining on board (previous noon, received, consumption, present).',
         'The remarks of the reports in between are printed on the sheet. A clock change in the period is named, and the hours are the real elapsed hours (23 or 25 h, not 24).',
-        'The first noon of a leg has no earlier noon: the sheet says it is a partial period and counts from the start of the leg.'
+        'The first noon of a leg has no earlier noon among this leg\'s reports: tick Include earlier voyage legs from the library, and the period is worked across the leg change (the previous noon was logged under the last voyage number). Left off, the sheet says it is a partial period and counts from the start of the leg.',
+        'For the whole voyage: under Every noon in a range pick the first and last noon and press Print every noon in the range. You get one Noon to Noon page per noon, each worked on its own period, in a single print.'
       ],
       buttons: [
         'Preview — shows the sheet without printing',
-        'Print Noon to Noon — prints it and records it in Print History'
+        'Print Noon to Noon — prints it and records it in Print History',
+        'Print every noon in the range — one page per noon, one print'
       ],
       undo: [
         'Nothing is stored. If a figure is wrong, correct the entry and print again.'

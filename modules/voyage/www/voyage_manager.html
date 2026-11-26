@@ -5268,7 +5268,14 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
 
     <div class="panel" id="n2nPanel">
       <h2>Noon to Noon Report</h2>
-      <div class="hint">One noon-style sheet that adds up every report from the previous noon to the noon you pick: hours, distance, fuel by unit and grade, fresh water and R.O.B. Use it where a charter party asks for noon-to-noon figures although there were other operations in between. This voyage leg only.</div>
+      <div class="hint">One noon-style sheet that adds up every report from the previous noon to the noon you pick: hours, distance, fuel by unit and grade, fresh water and R.O.B. Use it where a charter party asks for noon-to-noon figures although there were other operations in between.</div>
+      <div class="field" style="margin-bottom:4px;">
+        <label class="ge-on-label" for="n2nIncludeArchived">
+          <input type="checkbox" id="n2nIncludeArchived">
+          <span>Include earlier voyage legs from the library</span>
+        </label>
+        <div class="hint">Off, the noons and the periods are this voyage leg only. On, a period that starts in an earlier saved leg (the previous noon was logged under the last voyage number) is worked across the leg change.</div>
+      </div>
       <div class="form-grid cols3">
         <div class="field"><label for="n2nEnd">Noon (end of the period)</label><select id="n2nEnd"></select></div>
         <div class="field span2"><label>Period</label><div class="hint" id="n2nWindow" style="margin:0;">No noon report yet.</div></div>
@@ -5284,6 +5291,13 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
         <button class="primary small" type="button" id="btnN2nPrint">Print Noon to Noon</button>
       </div>
       <div id="n2nPreviewHost" style="display:none; margin-top:10px; overflow:auto; max-height:80vh;"></div>
+      <h3 class="sub" style="margin-top:14px;">Every noon in a range</h3>
+      <div class="hint">One Noon to Noon sheet per noon, one A4 page each, in one print: the whole voyage for the charterer. Each noon is worked on its own period.</div>
+      <div class="form-grid cols3">
+        <div class="field"><label for="n2nBatchFrom">From noon</label><select id="n2nBatchFrom"></select></div>
+        <div class="field"><label for="n2nBatchTo">To noon</label><select id="n2nBatchTo"></select></div>
+        <div class="field" style="align-self:end;"><button class="ghost small" type="button" id="btnN2nBatch" style="width:100%;">Print every noon in the range</button></div>
+      </div>
     </div>
 
     <div class="panel">
@@ -9605,6 +9619,9 @@ async function loadVesselFromDb(vesselId){
     _rangeIncludeArchived = false;
     const box = document.getElementById('rangeIncludeArchived');
     if (box) box.checked = false;
+    _n2nIncludeArchived = false;
+    const nbox = document.getElementById('n2nIncludeArchived');
+    if (nbox) nbox.checked = false;
   }catch(_){}
   const listed = (state.vessels || []).find(v => v && v.id === vesselId);
   const shipHint = listed && listed.name ? listed.name : '';
@@ -25783,43 +25800,67 @@ function printVoyageSummary(entryId){
  * is a roll-up of those reports, not another report to type. Nothing is stored: it is
  * worked from the saved entries each time, with the same aggregate as Range Totals, so
  * the two always agree. Boundaries are the NOON operations only; HEAVY WEATHER is an
- * ordinary report inside the window. */
+ * ordinary report inside the window.
+ *
+ * A period that runs across a voyage-leg change (the previous noon is in an earlier saved
+ * leg) is worked leg by leg, each inside its own leg's state, and the parts are added up
+ * exactly as Range Totals does it. */
 function isNoonToNoonBoundary(e){
   return String((e && e.operation) || '').toUpperCase().includes('NOON');
 }
 
-/** Noon entries a Noon to Noon report can end on, in time order. */
-function noonToNoonEndList(){
-  return sortedEntries().filter(isNoonToNoonBoundary);
+/** The saved legs offered to the report, when the user asked for them. */
+function noonToNoonPool(){
+  return (_n2nIncludeArchived && _rangeLegPool) ? _rangeLegPool : null;
 }
 
+/** Noon entries a Noon to Noon report can end on, in time order: [{id, entry, legKey, legLabel}]. */
+function noonToNoonEnds(pool){
+  const flat = pool
+    ? rangePoolEntries(pool, true)
+    : sortedEntries().map(e => ({ legKey: 'active', legLabel: '', entry: e }));
+  return flat.filter(x => isNoonToNoonBoundary(x.entry))
+    .map(x => ({ id: x.entry.id, entry: x.entry, legKey: x.legKey, legLabel: x.legLabel }));
+}
+function noonToNoonEndList(){ return noonToNoonEnds(null).map(x => x.entry); }
+
 /** The reports a Noon to Noon report adds up: after the previous noon, up to and including this one. */
-function noonToNoonWindow(endId){
-  const list = sortedEntries();
-  const ei = list.findIndex(e => e.id === endId);
+function noonToNoonWindow(endId, pool){
+  const flat = pool
+    ? rangePoolEntries(pool, true)
+    : sortedEntries().map(e => ({ legKey: 'active', legLabel: '', entry: e }));
+  const ei = flat.findIndex(x => x.entry.id === endId);
   if (ei < 0) return null;
   let si = -1;
-  for (let i = ei - 1; i >= 0; i--){ if (isNoonToNoonBoundary(list[i])){ si = i; break; } }
-  const entries = list.slice(si + 1, ei + 1);
+  for (let i = ei - 1; i >= 0; i--){ if (isNoonToNoonBoundary(flat[i].entry)){ si = i; break; } }
+  const slice = flat.slice(si + 1, ei + 1);
+  const segments = [];
+  slice.forEach(x => {
+    let seg = segments[segments.length - 1];
+    if (!seg || seg.legKey !== x.legKey){ seg = { legKey: x.legKey, legLabel: x.legLabel, entries: [] }; segments.push(seg); }
+    seg.entries.push(x.entry);
+  });
+  const entries = slice.map(x => x.entry);
   return {
-    endEntry: list[ei],
-    startEntry: si >= 0 ? list[si] : null,
-    priorEntry: si >= 0 ? list[si] : null,
+    endEntry: flat[ei].entry,
+    startEntry: si >= 0 ? flat[si].entry : null,
+    priorEntry: si >= 0 ? flat[si].entry : null,
     entries, ids: entries.map(e => e.id),
+    segments, spansLegs: segments.length > 1,
     partial: si < 0
   };
 }
 
-/** Every figure the sheet and the panel show, worked once. */
-function noonToNoonData(endId){
-  const win = noonToNoonWindow(endId);
-  if (!win || !win.entries.length) return null;
+/** One leg's share of a period, worked inside that leg's state. Everything is extensive (or a
+ *  numerator/denominator), so the parts of several legs add up exactly. */
+function noonToNoonPart(entryIds){
+  const list = sortedEntries();
+  const entries = entryIds.map(id => list.find(e => e.id === id)).filter(Boolean);
   const { rows } = computeDerived();
   const rowOf = (id) => rows.find(r => r.id === id) || null;
-  const used = win.entries.map(e => ({ e, r: rowOf(e.id) })).filter(x => x.r);
+  const used = entries.map(e => ({ e, r: rowOf(e.id) })).filter(x => x.r);
   if (!used.length) return null;
-  const agg = finalizeAggregate(rangeAggregateParts(win.ids));
-  const endRow = rowOf(win.endEntry.id);
+  const lastE = used[used.length - 1].e, lastR = used[used.length - 1].r;
   const meRan = used.some(x => mainEngineInUse(x.e, x.r));
 
   /* Fuel by unit and grade: each report's figure is rounded the way sumFuelGroup rounds it
@@ -25832,34 +25873,35 @@ function noonToNoonData(endId){
     return out;
   };
   const unitDefs = [
-    { label: 'Main Engine', always: true, by: (e, r) => meteredOn(e.me?.type, r.meCons) },
-    { label: 'Diesel Generator', always: true, by: (e, r) => meteredOn(e.ge?.type, r.geCons) },
-    { label: 'Boiler', always: true, by: (e, r) => addBurn(meteredOn(e.blr?.type, r.blrCons), extraDoMap(r.blrExtraCons)) },
-    { label: 'Incinerator', always: false, by: (e, r) => burnedOnly(extraDoMap(r.incExtraCons)) },
-    { label: 'Other', always: false, by: (e, r) => burnedOnly(r.miscCons) }
+    { label: 'Main Engine', by: (e, r) => meteredOn(e.me?.type, r.meCons) },
+    { label: 'Diesel Generator', by: (e, r) => meteredOn(e.ge?.type, r.geCons) },
+    { label: 'Boiler', by: (e, r) => addBurn(meteredOn(e.blr?.type, r.blrCons), extraDoMap(r.blrExtraCons)) },
+    { label: 'Incinerator', by: (e, r) => burnedOnly(extraDoMap(r.incExtraCons)) },
+    { label: 'Other', by: (e, r) => burnedOnly(r.miscCons) }
   ];
   const usesGrade = (t) => used.some(({ e, r }) =>
     (e.me?.type === t && r.meCons != null) || (e.ge?.type === t && r.geCons != null) ||
     (e.blr?.type === t && r.blrCons != null) || (r.miscCons?.[t] > 0) ||
     (extraDoMap(r.blrExtraCons)[t] > 0) || (extraDoMap(r.incExtraCons)[t] > 0) || (r.consByType?.[t] > 0));
-  let groups = FUEL_CONS_GROUPS.filter(g => g.grades.some(usesGrade));
-  if (!groups.length) groups = [fuelConsGroupFor(win.endEntry.me?.type) || FUEL_CONS_GROUPS[0]];
-  const unitRows = unitDefs.map(u => {
-    const cells = groups.map(g => {
+  const unit = {};
+  unitDefs.forEach(u => {
+    const cells = {};
+    FUEL_CONS_GROUPS.forEach(g => {
       let seen = false, tot = 0;
       used.forEach(({ e, r }) => { const v = sumFuelGroup(u.by(e, r), g); if (v != null){ seen = true; tot += v; } });
-      return seen ? tot : null;
+      cells[g.label] = seen ? tot : null;
     });
-    return { label: u.label, always: u.always, cells, any: cells.some(c => c != null && c > 0) };
-  }).filter(u => u.always || u.any);
-  const totalCells = groups.map(g => {
+    unit[u.label] = cells;
+  });
+  const totalByGroup = {};
+  FUEL_CONS_GROUPS.forEach(g => {
     let seen = false, tot = 0;
     used.forEach(({ r }) => { const v = sumFuelGroup(r.consByType, g); if (v != null){ seen = true; tot += v; } });
-    return seen ? tot : null;
+    totalByGroup[g.label] = seen ? tot : null;
   });
   const rowFuel = (r) => FUEL_CONS_GROUPS.reduce((a, g) => a + (sumFuelGroup(r.consByType, g) || 0), 0);
 
-  /* Generators: hours add, load and kW are weighted by each set's own running hours. */
+  /* Generators: hours add; load and kW are weighted by each set's own running hours. */
   const geN = geUnitCount();
   const ge = Array.from({ length: geN }, (_, i) => {
     let hrs = 0, kwNum = 0, loadNum = 0, fuel = 0, fuelSeen = false;
@@ -25874,76 +25916,165 @@ function noonToNoonData(endId){
       if (p.hrs > 0){ hrs += p.hrs; if (p.kw != null) kwNum += p.kw * p.hrs; if (p.loadPct != null) loadNum += p.loadPct * p.hrs; }
       if (p.fuelCons != null){ fuel += p.fuelCons; fuelSeen = true; }
     });
-    return { hrs, accum: geCumulativeRunHours(win.endEntry, i + 1), kw: hrs > 0 ? kwNum / hrs : null,
-             load: hrs > 0 ? loadNum / hrs : null, fuel: fuelSeen ? fuel : null };
+    return { hrs, kwNum, loadNum, fuel: fuelSeen ? fuel : null, accum: geCumulativeRunHours(lastE, i + 1) };
   });
-
-  let blrHrs = 0, blrSeen = false, incHrs = 0, incSeen = false;
-  win.entries.forEach(e => {
+  let blrHrs = null, incHrs = null;
+  entries.forEach(e => {
     const h = entryBlrRunHours(e, previousEntryFor(e.id)) ?? (e.report?.perfTable?.BOILER?.runTime ?? null);
-    if (h != null && !isNaN(h)){ blrHrs += Number(h); blrSeen = true; }
+    if (h != null && !isNaN(h)) blrHrs = (blrHrs || 0) + Number(h);
     const ih = entryIncineratorRunTime(e);
-    if (ih != null && !isNaN(ih)){ incHrs += Number(ih); incSeen = true; }
+    if (ih != null && !isNaN(ih)) incHrs = (incHrs || 0) + Number(ih);
   });
 
   /* Remaining on board: opening from the first report's previous stock, closing from the last
      report's, received and consumed added up. A bunker survey in between re-bases the chain, so
-     the difference it made is shown on its own row instead of vanishing into "consumed". */
-  let robRows = null, surveyAdj = null;
+     the difference it made is kept apart from "consumed". */
+  let rob = null; const robAdj = {};
   try {
-    const list = sortedEntries();
-    const per = win.entries.map(e => {
+    const per = entries.map(e => {
       const row = rowOf(e.id);
       if (!row) return null;
       const idx = list.findIndex(x => x.id === e.id);
       const prior = idx > 0 ? list[idx - 1] : null;
-      const prevData = robPreviousForEntry(e, prior);
-      const asOf = robAsOfComputedRow(row, rows);
-      return { rows: robBalanceRows(row, prevData, asOf, e), prior };
+      return robBalanceRows(row, robPreviousForEntry(e, prior), robAsOfComputedRow(row, rows), e);
     }).filter(Boolean);
     if (per.length){
       const num = (v) => (v == null || v === '' || isNaN(v)) ? null : Number(v);
       const add = (a, b) => (a == null && b == null) ? null : (a || 0) + (b || 0);
-      robRows = per[0].rows.map(base => ({ ...base }));
-      surveyAdj = {};
-      robRows.forEach(r => {
+      rob = per[0].map(base => ({ ...base }));
+      rob.forEach(r => {
         let recv = null, cons = null, adj = 0;
         per.forEach((p, k) => {
-          const m = p.rows.find(x => x.key === r.key);
+          const m = p.find(x => x.key === r.key);
           if (!m) return;
           recv = add(recv, num(m.recvVal));
           cons = add(cons, num(m.consVal));
           if (k > 0){
-            const before = per[k - 1].rows.find(x => x.key === r.key);
+            const before = per[k - 1].find(x => x.key === r.key);
             if (before && num(m.prevVal) != null && num(before.nowVal) != null) adj += num(m.prevVal) - num(before.nowVal);
           }
         });
-        const last = per[per.length - 1].rows.find(x => x.key === r.key);
+        const last = per[per.length - 1].find(x => x.key === r.key);
         r.recvVal = recv; r.consVal = cons; r.nowVal = last ? last.nowVal : r.nowVal;
-        surveyAdj[r.key] = Math.abs(adj) > 1e-9 ? adj : null;
+        robAdj[r.key] = adj;
       });
     }
-  } catch (err) { console.warn('noon to noon R.O.B.', err); robRows = null; }
+  } catch (err) { console.warn('noon to noon R.O.B.', err); rob = null; }
 
-  /* Distance to go and ETA from the closing noon, as the single noon sheet works them. */
-  const { perf: perfEnd } = computeDerived({ upToEntryId: win.endEntry.id });
+  /* Distance to go and ETA from the closing report, as the single noon sheet works them. */
+  const { perf: perfEnd } = computeDerived({ upToEntryId: lastE.id });
   const voyageDist = state.setup.voyageDistance;
-  const toGo = (voyageDist != null && endRow && endRow.cumDistShip != null) ? (voyageDist - endRow.cumDistShip) : null;
-  const refSpeed = (endRow && endRow.speedShip) || perfEnd.avgSpeedShip;
+  const toGo = (voyageDist != null && lastR.cumDistShip != null) ? (voyageDist - lastR.cumDistShip) : null;
+  const refSpeed = lastR.speedShip || perfEnd.avgSpeedShip;
   const daysToGo = (toGo != null && refSpeed > 0) ? (toGo / refSpeed) / 24 : null;
-  const eta = daysToGo != null ? new Date(new Date(win.endEntry.datetime).getTime() + daysToGo * 24 * 3600000) : null;
+  const eta = daysToGo != null ? new Date(new Date(lastE.datetime).getTime() + daysToGo * 24 * 3600000) : null;
+  let fwRob = null;
+  try { fwRob = totalFwRob(robAsOfComputedRow(lastR, rows).robLube); } catch (_) {}
 
-  const clockNotes = win.entries.filter(e => Number(e.clockChangeMin) > 0 || Number(e.clockChangeMin) < 0)
-    .map(e => ({ at: e.datetime, min: Number(e.clockChangeMin) }));
-  return { win, agg, used, endRow, meRan, groups, unitRows, totalCells, rowFuel, ge, geN,
-           blrHrs: blrSeen ? blrHrs : null, incHrs: incSeen ? incHrs : null,
-           robRows, surveyAdj, toGo, daysToGo, eta, clockNotes, perfEnd };
+  return {
+    ids: used.map(x => x.e.id),
+    aggParts: rangeAggregateParts(used.map(x => x.e.id)),
+    views: used.map(({ e, r }) => ({ id: e.id, datetime: e.datetime, operation: e.operation || '', hrs: r.hrs, dist: r.distanceShip, fuel: rowFuel(r) })),
+    meRan, usedGroups: FUEL_CONS_GROUPS.filter(g => g.grades.some(usesGrade)).map(g => g.label),
+    fallbackGroup: (fuelConsGroupFor(lastE.me?.type) || FUEL_CONS_GROUPS[0]).label,
+    unit, totalByGroup, ge, geN, blrHrs, incHrs, rob, robAdj,
+    clockNotes: entries.filter(e => Number(e.clockChangeMin) !== 0 && !isNaN(Number(e.clockChangeMin)))
+      .map(e => ({ at: e.datetime, min: Number(e.clockChangeMin) })),
+    remarks: entries.map(e => ({ at: e.datetime, op: e.operation || '', text: String(e.report?.remarks || '').trim() })).filter(x => x.text),
+    end: { entry: lastE, toGo, daysToGo, eta, fwRob, fwIsTotal: showFwTotal(),
+           depart: state.setup.departPort || '', arrive: state.setup.arrivePort || '', revCounter: lastE.revCounter }
+  };
 }
 
-function buildNoonToNoonSheetHTML(endId){
-  const d = noonToNoonData(endId);
+/** Run `fn` in the state of the leg a segment belongs to. */
+function noonToNoonInLeg(pool, seg, fn){
+  const leg = pool ? (pool.legs || []).find(l => l.key === seg.legKey) : null;
+  if (!leg || leg.active) return fn();
+  return withLegState(leg.pack, fn);
+}
+
+/** Every figure the sheet and the panel show, worked once. */
+function noonToNoonData(endId, pool){
+  const win = noonToNoonWindow(endId, pool);
+  if (!win || !win.entries.length) return null;
+  const parts = win.segments
+    .map(seg => noonToNoonInLeg(pool, seg, () => noonToNoonPart(seg.entries.map(e => e.id))))
+    .filter(Boolean);
+  if (!parts.length) return null;
+  const lastPart = parts[parts.length - 1];
+  const agg = finalizeAggregate(mergeAggregateParts(parts.map(p => p.aggParts)));
+  const meRan = parts.some(p => p.meRan);
+  const views = parts.flatMap(p => p.views);
+
+  const usedLabels = new Set(parts.flatMap(p => p.usedGroups));
+  let groups = FUEL_CONS_GROUPS.filter(g => usedLabels.has(g.label));
+  if (!groups.length) groups = FUEL_CONS_GROUPS.filter(g => g.label === lastPart.fallbackGroup);
+  const sumCells = (pick) => groups.map(g => {
+    let seen = false, tot = 0;
+    parts.forEach(p => { const v = pick(p, g.label); if (v != null){ seen = true; tot += v; } });
+    return seen ? tot : null;
+  });
+  const unitRows = ['Main Engine', 'Diesel Generator', 'Boiler', 'Incinerator', 'Other'].map((label, i) => {
+    const cells = sumCells((p, gl) => p.unit[label]?.[gl]);
+    return { label, always: i < 3, cells, any: cells.some(c => c != null && c > 0) };
+  }).filter(u => u.always || u.any);
+  const totalCells = sumCells((p, gl) => p.totalByGroup[gl]);
+
+  const geN = Math.max(...parts.map(p => p.geN));
+  const ge = Array.from({ length: geN }, (_, i) => {
+    let hrs = 0, kwNum = 0, loadNum = 0, fuel = 0, fuelSeen = false;
+    parts.forEach(p => {
+      const u = p.ge[i]; if (!u) return;
+      hrs += u.hrs; kwNum += u.kwNum; loadNum += u.loadNum;
+      if (u.fuel != null){ fuel += u.fuel; fuelSeen = true; }
+    });
+    const tail = lastPart.ge[i];
+    return { hrs, accum: tail ? tail.accum : null, kw: hrs > 0 ? kwNum / hrs : null,
+             load: hrs > 0 ? loadNum / hrs : null, fuel: fuelSeen ? fuel : null };
+  });
+  const sumNullable = (key) => parts.reduce((a, p) => (p[key] == null ? a : (a || 0) + p[key]), null);
+
+  /* Remaining on board across legs: the rows of the last leg (the ship's tanks now), with
+     received and consumed added over every leg, opening from the first leg that has the tank,
+     and whatever a survey or a leg changeover moved shown as its own adjustment. */
+  let robRows = null, surveyAdj = null;
+  const withRob = parts.filter(p => p.rob);
+  if (withRob.length && lastPart.rob){
+    const add = (a, b) => (a == null && b == null) ? null : (a || 0) + (b || 0);
+    robRows = lastPart.rob.map(base => ({ ...base }));
+    surveyAdj = {};
+    robRows.forEach(r => {
+      let first = true, recv = null, cons = null, adj = 0, lastNow = null;
+      parts.forEach(p => {
+        const m = p.rob && p.rob.find(x => x.key === r.key);
+        if (!m) return;
+        if (first){ r.prevVal = m.prevVal; first = false; }
+        else if (lastNow != null && m.prevVal != null && !isNaN(m.prevVal) && !isNaN(lastNow)) adj += Number(m.prevVal) - Number(lastNow);
+        recv = add(recv, m.recvVal); cons = add(cons, m.consVal);
+        adj += (p.robAdj && p.robAdj[r.key]) || 0;
+        lastNow = m.nowVal;
+      });
+      r.recvVal = recv; r.consVal = cons;
+      surveyAdj[r.key] = Math.abs(adj) > 1e-9 ? adj : null;
+    });
+  }
+
+  const tail = lastPart.end;
+  return {
+    win, agg, views, meRan, groups, unitRows, totalCells, ge, geN,
+    blrHrs: sumNullable('blrHrs'), incHrs: sumNullable('incHrs'),
+    robRows, surveyAdj,
+    toGo: tail.toGo, daysToGo: tail.daysToGo, eta: tail.eta, fwRob: tail.fwRob, fwIsTotal: tail.fwIsTotal,
+    revCounter: tail.revCounter, depart: tail.depart, arrive: tail.arrive,
+    clockNotes: parts.flatMap(p => p.clockNotes),
+    remarks: parts.flatMap(p => p.remarks)
+  };
+}
+
+function buildNoonToNoonSheetHTML(endId, pool){
+  const d = noonToNoonData(endId, pool);
   if (!d) return '';
-  const { win, agg, used, meRan, groups, unitRows, totalCells, ge, geN } = d;
+  const { win, agg, views, meRan, groups, unitRows, totalCells, ge, geN } = d;
   const endEntry = win.endEntry;
   const n2 = (v, dec = 2) => (v == null || isNaN(v)) ? '—' : fmt(v, dec);
   const stamp = (dt) => dt ? new Date(dt).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
@@ -25969,7 +26100,7 @@ function buildNoonToNoonSheetHTML(endId){
   const sfocDelta = (agg.avgSfoc != null && agg.avgSfocRef > 0) ? ((agg.avgSfoc - agg.avgSfocRef) / agg.avgSfocRef) * 100 : null;
   const meSection = meRan ? printSection('M/E Performance', [
     printRow('Total Revs.', n2(agg.revs, 0)),
-    printRow('Rev. Counter', endEntry.revCounter == null ? '—' : fmt(endEntry.revCounter, 0)),
+    printRow('Rev. Counter', d.revCounter == null ? '—' : fmt(d.revCounter, 0)),
     printRow('Avg Engine Speed', agg.avgSpeedEngine == null ? '—' : `${n2(agg.avgSpeedEngine)} kn`),
     printRow('Ref. SFOC', agg.avgSfocRef == null ? '—' : `${n2(agg.avgSfocRef)} g/kWh`),
     printRow('Actual SFOC (avg)', agg.avgSfoc == null ? '—' : `${n2(agg.avgSfoc)} g/kWh`),
@@ -25983,11 +26114,10 @@ function buildNoonToNoonSheetHTML(endId){
       <tr class="pr-total"><td class="row-lbl"><strong>Total</strong></td>${totalCells.map(c => `<td><strong>${fuelCell(c)}</strong></td>`).join('')}</tr>
     </table>`);
 
-  const asOfEnd = robAsOfEntry(endEntry.id);
   const fwSection = printSection('Fresh Water', [
     printRow('Produced', agg.fwProd == null ? '—' : `${fmtFw(agg.fwProd)} m³`),
     printRow('Consumed', agg.fwCons == null ? '—' : `${fmtFw(agg.fwCons)} m³`),
-    printRow(showFwTotal() ? 'Total Water R.O.B.' : 'Fresh Water R.O.B.', `${fmtFw(totalFwRob(asOfEnd.robLube))} m³`)
+    printRow(d.fwIsTotal ? 'Total Water R.O.B.' : 'Fresh Water R.O.B.', d.fwRob == null ? '—' : `${fmtFw(d.fwRob)} m³`)
   ].join(''));
 
   const geMetrics = [
@@ -26009,10 +26139,10 @@ function buildNoonToNoonSheetHTML(endId){
     printRow('Incinerator Run Time', d.incHrs == null ? '—' : `${n2(d.incHrs)} hrs`)
   ].join(''));
 
-  const reportsTable = printSection(`Reports Included (${used.length})`, `
+  const reportsTable = printSection(`Reports Included (${views.length})`, `
     <table class="pr-table">
       <tr><th>Time (ship)</th><th>Operation</th><th>Hrs</th><th>Dist nm</th><th>Fuel MT</th></tr>
-      ${used.map(({ e, r }) => `<tr><td>${escPrint(stamp(e.datetime))}</td><td>${escPrint(e.operation || '')}</td><td>${n2(r.hrs)}</td><td>${n2(r.distanceShip)}</td><td>${fmtFuel(d.rowFuel(r))}</td></tr>`).join('')}
+      ${views.map(v => `<tr><td>${escPrint(stamp(v.datetime))}</td><td>${escPrint(v.operation)}</td><td>${n2(v.hrs)}</td><td>${n2(v.dist)}</td><td>${fmtFuel(v.fuel)}</td></tr>`).join('')}
       <tr class="pr-total"><td colspan="2"><strong>Noon to noon</strong></td><td><strong>${n2(agg.hrs)}</strong></td><td><strong>${n2(agg.distShip)}</strong></td><td><strong>${fmtFuel(agg.fuelTotal)}</strong></td></tr>
     </table>`);
 
@@ -26023,19 +26153,17 @@ function buildNoonToNoonSheetHTML(endId){
       { label: 'Previous noon', get: r => fmtRob(r.prevVal, r.cat) },
       { label: 'Received', get: r => r.recvVal == null ? '—' : fmtRob(r.recvVal, r.cat) }
     ];
-    if (hasAdj) metrics.push({ label: 'Survey adj.', get: r => { const v = (d.surveyAdj || {})[r.key]; return v == null ? '—' : fmtRob(v, r.cat); } });
+    if (hasAdj) metrics.push({ label: 'Adjustment', get: r => { const v = (d.surveyAdj || {})[r.key]; return v == null ? '—' : fmtRob(v, r.cat); } });
     metrics.push({ label: 'Consumption', get: r => r.consVal == null ? '—' : fmtRob(r.consVal, r.cat) });
     metrics.push({ label: 'Present R.O.B.', present: true, get: r => fmtRob(r.nowVal, r.cat) });
     robTable = printSection('Remaining On Board', printTransposedRobTableHtml(d.robRows, metrics));
   }
 
-  const remarkLines = win.entries.map(e => {
-    const t = String(e.report?.remarks || '').trim();
-    if (!t) return '';
-    return `${new Date(e.datetime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ${e.operation || ''}: ${t}`;
-  }).filter(Boolean);
+  const remarkLines = d.remarks.map(x =>
+    `${new Date(x.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ${x.op}: ${x.text}`);
   const notes = [];
   if (win.partial) notes.push('Partial period: there is no earlier noon report, so the period runs from the start of the leg.');
+  if (win.spansLegs) notes.push(`The period runs across ${win.segments.length} voyage legs (${win.segments.map(s => s.legLabel || 'this leg').join(' → ')}); each leg's reports are added up in that leg's own records.`);
   d.clockNotes.forEach(c => notes.push(`Ship's clock ${c.min > 0 ? 'advanced' : 'retarded'} ${Math.abs(c.min)} min during the period (${stamp(c.at)}); the hours above are the real elapsed hours.`));
   if (Math.abs(agg.hrs - 24) > 1.01 && !d.clockNotes.length && !win.partial) notes.push(`The period is ${n2(agg.hrs)} h, not 24 h: there was no noon report on the usual hour.`);
   const remarksBody = remarkLines.concat(notes).map(escPrint).join('<br>');
@@ -26048,11 +26176,11 @@ function buildNoonToNoonSheetHTML(endId){
   const deptLine = `${flagName || '—'} — ${state.setup.imoNo || '—'}`;
   const prevStr = win.startEntry ? stamp(win.startEntry.datetime) : 'Start of leg';
   return `<div class="pr-sheet pr-sheet-noon">
-    ${printDocHeader({ title: 'Noon to Noon Report', subtitle: `Voyage Chief — Summary of ${used.length} report${used.length === 1 ? '' : 's'}${win.partial ? ' (partial period)' : ''}`, badge: conditionLabel(endEntry.condition), deptLine })}
+    ${printDocHeader({ title: 'Noon to Noon Report', subtitle: `Voyage Chief — Summary of ${views.length} report${views.length === 1 ? '' : 's'}${win.partial ? ' (partial period)' : ''}`, badge: conditionLabel(endEntry.condition), deptLine })}
     ${printMetaGrid([
       { label: 'Date & Time', value: stamp(endEntry.datetime) },
       { label: 'Previous Noon', value: prevStr },
-      { label: 'Route', value: `${state.setup.departPort || '—'} → ${state.setup.arrivePort || '—'}` }
+      { label: 'Route', value: `${d.depart || '—'} → ${d.arrive || '—'}` }
     ], 3)}
     ${printKpiRow(kpiItems)}
     <div class="pr-noon-body">
@@ -26070,22 +26198,78 @@ function buildNoonToNoonSheetHTML(endId){
 }
 
 function printNoonToNoon(endId){
-  const html = buildNoonToNoonSheetHTML(endId);
+  const pool = noonToNoonPool();
+  const html = buildNoonToNoonSheetHTML(endId, pool);
   if (!html){ alert('Pick a noon report with at least one report in its period.'); return; }
-  const entry = state.entries.find(e => e.id === endId);
   printPortraitSinglePage(html);
-  recordPrintHistory('noon-to-noon', entry);
+  /* The history rebuilds a sheet from the open leg, so only a noon of that leg is filed. */
+  const entry = state.entries.find(e => e.id === endId);
+  if (entry) recordPrintHistory('noon-to-noon', entry);
+}
+
+/** The noons of a range (both ends included), oldest first, with the scope the panel is using. */
+function noonToNoonRange(fromId, toId, pool){
+  const ends = noonToNoonEnds(pool);
+  let fi = ends.findIndex(x => x.id === fromId), ti = ends.findIndex(x => x.id === toId);
+  if (fi < 0) fi = 0;
+  if (ti < 0) ti = ends.length - 1;
+  if (ti < fi) [fi, ti] = [ti, fi];
+  return ends.slice(fi, ti + 1);
+}
+
+/** One sheet per noon of a range, one A4 page each: the whole voyage's noon-to-noon in one print. */
+async function printNoonToNoonBatch(fromId, toId){
+  const pool = noonToNoonPool();
+  const ends = noonToNoonRange(fromId, toId, pool);
+  if (!ends.length){ alert('There is no noon report to print yet.'); return; }
+  if (ends.length > 40 && !confirm(`This prints ${ends.length} pages. Continue?`)) return;
+  const sheets = [];
+  await withActivity('n2n-batch', `Building ${ends.length} noon-to-noon report${ends.length === 1 ? '' : 's'}…`, async () => {
+    for (let i = 0; i < ends.length; i++){
+      const html = buildNoonToNoonSheetHTML(ends[i].id, pool);
+      if (html) sheets.push(html);
+      if (i % 4 === 3) await new Promise(r => setTimeout(r, 0));
+    }
+  });
+  if (!sheets.length){ alert('No noon-to-noon report could be built for that range.'); return; }
+  printPortraitPages(sheets);
+  for (const x of ends){
+    const entry = state.entries.find(e => e.id === x.id);
+    if (entry) await recordPrintHistory('noon-to-noon', entry);
+  }
 }
 
 /* The panel on the Reports page. */
+let _n2nIncludeArchived = false;
+
+function n2nOptions(ends, newestFirst){
+  const label = (e) => `${new Date(e.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })} — ${e.operation || ''}`;
+  const list = newestFirst ? ends.slice().reverse() : ends;
+  const grouped = list.some(x => x.legKey !== list[0].legKey);
+  if (!grouped) return list.map(x => `<option value="${x.id}">${escHtml(label(x.entry))}</option>`).join('');
+  const out = []; let cur = null;
+  list.forEach(x => {
+    if (!cur || cur.key !== x.legKey){ cur = { key: x.legKey, label: x.legLabel || 'This leg', items: [] }; out.push(cur); }
+    cur.items.push(x);
+  });
+  return out.map(g => `<optgroup label="${escHtml(g.label)}">${g.items.map(x => `<option value="${x.id}">${escHtml(label(x.entry))}</option>`).join('')}</optgroup>`).join('');
+}
+
 function renderNoonToNoonPanel(){
   const sel = document.getElementById('n2nEnd');
   if (!sel) return;
-  const ends = noonToNoonEndList().slice().reverse();
-  const had = sel.value;
-  const label = (e) => `${new Date(e.datetime).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' })} — ${e.operation || ''}`;
-  sel.innerHTML = ends.map(e => `<option value="${e.id}">${escHtml(label(e))}</option>`).join('');
-  if (ends.some(e => e.id === had)) sel.value = had;
+  const ends = noonToNoonEnds(noonToNoonPool());
+  const keep = (el, html, fallback) => {
+    const had = el.value;
+    el.innerHTML = html;
+    el.value = [...el.options].some(o => o.value === had) ? had : fallback;
+  };
+  keep(sel, n2nOptions(ends, true), ends.length ? ends[ends.length - 1].id : '');
+  const bf = document.getElementById('n2nBatchFrom'), bt = document.getElementById('n2nBatchTo');
+  if (bf) keep(bf, n2nOptions(ends, false), ends.length ? ends[0].id : '');
+  if (bt) keep(bt, n2nOptions(ends, false), ends.length ? ends[ends.length - 1].id : '');
+  const batchBtn = document.getElementById('btnN2nBatch');
+  if (batchBtn) batchBtn.disabled = !ends.length;
   updateNoonToNoonPanel();
 }
 
@@ -26097,7 +26281,7 @@ function updateNoonToNoonPanel(){
   const btns = ['btnN2nPreview', 'btnN2nPrint'].map(id => document.getElementById(id));
   const host = document.getElementById('n2nPreviewHost');
   if (host){ host.style.display = 'none'; host.innerHTML = ''; }
-  const d = sel.value ? noonToNoonData(sel.value) : null;
+  const d = sel.value ? noonToNoonData(sel.value, noonToNoonPool()) : null;
   btns.forEach(b => { if (b) b.disabled = !d; });
   if (!d){
     winEl.textContent = sel.value ? 'No reports in this period.' : 'No noon report yet.';
@@ -26106,8 +26290,9 @@ function updateNoonToNoonPanel(){
   }
   const st = (dt) => new Date(dt).toLocaleString(undefined, { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
   winEl.textContent = (d.win.startEntry ? `From ${st(d.win.startEntry.datetime)}` : 'From the start of the leg (no earlier noon)')
-    + ` to ${st(d.win.endEntry.datetime)} — ${d.used.length} report${d.used.length === 1 ? '' : 's'}, ${fmt(d.agg.hrs, 2)} h`;
-  body.innerHTML = d.used.map(({ e, r }) => `<tr><td>${escHtml(st(e.datetime))}</td><td>${escHtml(e.operation || '')}</td><td>${fmt(r.hrs, 2)}</td><td>${r.distanceShip == null ? '—' : fmt(r.distanceShip, 2)}</td><td>${fmtFuel(d.rowFuel(r))}</td></tr>`).join('')
+    + ` to ${st(d.win.endEntry.datetime)} — ${d.views.length} report${d.views.length === 1 ? '' : 's'}, ${fmt(d.agg.hrs, 2)} h`
+    + (d.win.spansLegs ? ` — across ${d.win.segments.length} voyage legs` : '');
+  body.innerHTML = d.views.map(v => `<tr><td>${escHtml(st(v.datetime))}</td><td>${escHtml(v.operation)}</td><td>${fmt(v.hrs, 2)}</td><td>${v.dist == null ? '—' : fmt(v.dist, 2)}</td><td>${fmtFuel(v.fuel)}</td></tr>`).join('')
     + `<tr><td colspan="2"><strong>Noon to noon</strong></td><td><strong>${fmt(d.agg.hrs, 2)}</strong></td><td><strong>${fmt(d.agg.distShip, 2)}</strong></td><td><strong>${fmtFuel(d.agg.fuelTotal)}</strong></td></tr>`;
 }
 
@@ -26115,7 +26300,7 @@ function previewNoonToNoon(){
   const sel = document.getElementById('n2nEnd');
   const host = document.getElementById('n2nPreviewHost');
   if (!sel || !host || !sel.value) return;
-  const html = buildNoonToNoonSheetHTML(sel.value);
+  const html = buildNoonToNoonSheetHTML(sel.value, noonToNoonPool());
   if (!html) return;
   host.style.display = '';
   host.innerHTML = '<iframe title="Noon to Noon preview" style="width:210mm;height:297mm;border:1px solid #bbb;background:#fff;"></iframe>';
@@ -26133,6 +26318,27 @@ document.getElementById('btnN2nPreview')?.addEventListener('click', previewNoonT
 document.getElementById('btnN2nPrint')?.addEventListener('click', () => {
   const id = document.getElementById('n2nEnd')?.value;
   if (id) printNoonToNoon(id);
+});
+document.getElementById('btnN2nBatch')?.addEventListener('click', () => {
+  printNoonToNoonBatch(document.getElementById('n2nBatchFrom')?.value, document.getElementById('n2nBatchTo')?.value);
+});
+document.getElementById('n2nIncludeArchived')?.addEventListener('change', async (ev) => {
+  _n2nIncludeArchived = !!ev.target.checked;
+  if (_n2nIncludeArchived){
+    const box = ev.target;
+    box.disabled = true;
+    try {
+      await withActivity('range-legs', 'Reading saved voyage legs…', async () => { await loadRangeLegPool(); });
+    } catch (err) {
+      console.error(err);
+      _n2nIncludeArchived = false;
+      box.checked = false;
+      alert('Could not read the saved voyage legs: ' + err.message);
+    } finally {
+      box.disabled = false;
+    }
+  }
+  renderNoonToNoonPanel();
 });
 
 /*
