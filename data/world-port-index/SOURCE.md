@@ -18,7 +18,11 @@ Contents (SHA-256 of each file in `official/SHA256SUMS.txt`):
 WPI.dbf (attributes), WPI.shp / WPI.shx / WPI.sbn / WPI.sbx (geometry+indexes), WPI.prj (WGS84), WPI.cpg (UTF-8).
 
 ## Licence / usage statement
-None found in the zip. The NGA statement still has to be copied verbatim from https://msi.nga.mil/Publications/WPI (not reachable from the cloud session). **Not yet recorded. Redistribution terms are UNVERIFIED.**
+The zip contains no licence text. The statement below was supplied by the project owner on 26 Nov 2026 for use in the apps; it was **not independently verified against the NGA website** (msi.nga.mil is not reachable from the cloud session). It is shown in the Sea Distance page, the route options panel and the user guide, in short form on the route-map printout.
+
+> Data Attribution & Disclaimer: Port reference data is derived from the World Port Index (Pub. 150) published by the National Geospatial-Intelligence Agency (NGA) Maritime Safety Information portal (msi.nga.mil), produced as a U.S. Government work (public domain under 17 U.S.C. § 105). Pursuant to 10 U.S.C. § 456, this geospatial information is provided "as is" with no warranty as to accuracy, currency, or completeness. This application is for general informational and planning purposes only—it is not an official NGA navigational product and must not be used for primary navigation or passage planning. Mariners must consult current official nautical charts, Sailing Directions, Notice to Mariners, and local port authorities. In accordance with 10 U.S.C. § 425, reference to NGA data does not imply U.S. Government or NGA endorsement, sponsorship, or affiliation.
+
+Status: public-domain U.S. Government work, so redistribution of the derived port list (`data/ports/ports.json`) is permitted; the attribution and disclaimer above must stay with it.
 
 ## Summary
 - Rows: 3669 (dBASE record count)

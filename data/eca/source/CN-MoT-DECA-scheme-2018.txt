@@ -1,0 +1,200 @@
+     Implementation Scheme of the Domestic Emission Control Areas for
+                   Atmospheric Pollution from Vessels1
+
+           by Ministry of Transport of the People’s Republic of China on 30th Nov. 2018
+In order to implement the national policies on ecological civilization development, pollution
+prevention and control, to protect the blue skies, as well as to facilitate the green shipping
+development and the energy saving and emission reduction of vessels, this Implementation
+Scheme is formulated in accordance with the Air Pollution Prevention and Control Law of the
+People’s Republic of China and the applicable international conventions, and on the basis of
+the Implementation Scheme of the Domestic Emission Control Areas for Vessels in the Pearl
+River Delta, the Yangtze River Delta and the Bohai-Rim Area (Beijing, Tianjin and Hebei)
+(JHF [2015] No. 177).
+1. Objectives
+The Domestic Emission Control Areas for Atmospheric Pollution from Vessels (hereinafter
+referred to as “DECAs”) are designated to control and reduce emissions of atmospheric
+pollutants including SOx, NOx, particulate matters (PMs) and volatile organic compounds
+(VOCs) from vessels and to improve the air quality of coastal areas and inland river port
+cities.
+2. Principles
+The DECAs are designated according to the following principles:
+(i) Promoting a coordinated development of the environment quality improvement and the
+    shipping economy growth.
+(ii) Strengthening the control of air pollution from vessels.
+(iii) Complying with the international conventions and domestic laws.
+(iv) Taking a phased-in approach and conducting pilot programs.
+3. Scope of Application
+The Scheme applies to vessels navigating, berthing and operating in the DECAs.
+4. Geographic Scope of the DECAs
+The DECAs referred to in the Scheme include both the coastal control area and the inland
+river control area.
+The coastal control area covers the sea area enclosed by the 60 coordinates listed in Table 1,
+and the sea area in Hainan waters is enclosed by the 20 coordinates listed in Table 2.
+The inland river control area is the navigable waters of the main stream of the Yangtze River
+(from Shuifu, Yunnan to the mouth of the Liuhe River, Jiangsu) and the main stream of the
+Xijiang River (from Nanning, Guangxi to Zhaoqing, Guangdong), the coordinates of the
+starting and ending points are listed in Table 3.
+
+
+     Table 1 Coordinates of the Boundary Control Points in the Coastal Control Area
+1
+  This English version of Implementation Sheme for DECAs is only for refrence, whileas the documents issued by MOT
+should be used as the officail version.
+                                                        -1-
+No.    Longitude       Latitude            No.    Longitude       Latitude
+
+ 1    124°10′06.00″   39°49′41.00″         31    112°50′52.80″   21°22′25.68″
+
+ 2    122°57′14.40″   37°22′11.64″         32    112°29′20.40″   21°17′12.48″
+
+ 3    122°57′00.00″   37°21′29.16″         33    111°27′00.00″   19°51′57.96″
+
+ 4    122°48′18.00″   36°53′51.36″         34    111°23′42.00″   19°46′54.84″
+
+ 5    122°45′14.40″   36°48′25.20″         35    110°38′56.40″   18°31′10.56″
+
+ 6    122°40′58.80″   36°44′41.28″         36    110°37′40.80″   18°30′24.12″
+
+ 7    122°24′36.00″   36°35′08.88″         37    110°15′07.20″   18°16′00.84″
+
+ 8    121°03′03.60″   35°44′44.16″         38    110°09′25.20″   18°12′45.36″
+
+ 9    120°12′57.60″   34°59′27.60″         39    109°45′32.40″   17°59′03.12″
+
+10    121°32′24.00″   33°28′46.20″         40    109°43′04.80″   17°59′03.48″
+
+11    121°51′14.40″   33°06′19.08″         41    109°34′26.40″   17°57′18.36″
+
+12    122°26′42.00″   31°32′08.52″         42    109°03′39.60″   18°03′10.80″
+
+13    123°23′31.20″   30°49′15.96″         43    108°50′42.00″   18°08′58.56″
+
+14    123°24′36.00″   30°45′51.84″         44    108°33′07.20″   18°21′07.92″
+
+15    123°09′28.80″   30°05′43.44″         45    108°31′40.80″   18°22′30.00″
+
+16    122°28′26.40″   28°47′31.56″         46    108°31′08.40″   18°23′10.32″
+
+17    122°07′30.00″   28°18′58.32″         47    108°28′44.40″   18°25′34.68″
+
+18    122°06′03.60″   28°17′01.68″         48    108°24′46.80″   18°49′13.44″
+
+19    121°19′12.00″   27°21′30.96″         49    108°23′20.40″   19°12′47.16″
+
+20    120°42′28.80″   26°17′32.64″         50     108°22′45″      20°24′05″
+
+21    120°36′10.80″   26°04′01.92″         51     108°12′31″      21°12′35″
+
+22    120°06′57.60″   25°18′37.08″         52     108°08′05″      21°16′32″
+
+23    119°37′26.40″   24°49′31.80″         53    108°05′43.7″    21°27′08.2″
+
+24    118°23′16.80″   24°00′54.00″         54    108°05′38.8″    21°27′23.1″
+
+                                     -2-
+25     117°50′31.20″     23°23′16.44″          55      108°05′39.9″        21°27′28.2″
+
+26     117°22′26.40″     23°03′05.40″          56      108°05′51.5″        21°27′39.5″
+
+27     117°19′51.60″     23°01′32.88″          57      108°05′57.7″        21°27′50.1″
+
+28     116°34′55.20″     22°45′05.04″          58      108°06′01.6″        21°28′01.7″
+
+29     115°13′01.20″     22°08′03.12″          59      108°06′04.3″        21°28′12.5″
+                                                    The end of the center line of the main
+30     114°02′09.60″     21°37′02.64″          60   waterway of the Beilun River toward
+                                                                 the sea side
+
+      Table 2 Coordinates of the Boundary Control Points in Hainan Waters
+
+No.     Longitude         Latitude            No.     Longitude             Latitude
+
+A1    108°26′24.88″      19°24′06.50″         33     111°27′00.00″        19°51′57.96″
+
+A2      109°20′00″        20°07′00″           34     111°23′42.00″        19°46′54.84″
+
+A3      111°00′00″        20°18′32″           35     110°38′56.40″        18°31′10.56″
+
+                                              36     110°37′40.80″        18°30′24.12″
+
+                                              37     110°15′07.20″        18°16′00.84″
+
+                                              38     110°09′25.20″        18°12′45.36″
+
+                                              39     109°45′32.40″        17°59′03.12″
+
+                                              40     109°43′04.80″        17°59′03.48″
+
+                                              41     109°34′26.40″        17°57′18.36″
+
+                                              42     109°03′39.60″        18°03′10.80″
+
+                                              43     108°50′42.00″        18°08′58.56″
+
+                                              44     108°33′07.20″        18°21′07.92″
+
+                                              45     108°31′40.80″        18°22′30.00″
+
+                                              46     108°31′08.40″        18°23′10.32″
+
+                                              47     108°28′44.40″        18°25′34.68″
+
+                                        -3-
+                                                      48       108°24′46.80″          18°49′13.44″
+
+                                                      49       108°23′20.40″          19°12′47.16″
+
+
+     Table 3 Coordinates of the Starting and Ending Points in the Inland River Control Area
+
+Inland
+ river Boundary Name of the        Description of the      Location
+                                                                       Longitude              Latitude
+control name     location              location              No.
+ area
+         Starting     Shuifu                                 B1       104°24′30.60″         28°38′22.38″
+                                 Xiangjiaba Bridge
+          point       Yunnan                                 B2       104°24′35.94″         28°38′27.84″
+  Main                           Line connecting
+stream of                        Liuheiwu in the lower       B3       121°18′54.00″         31°30′52.00″
+    the             Mouth of the reaches of the mouth
+ Yangtze Ending     Liuhe river of the Liuhe River and
+  River   point       Jiangsu Shixin signal pole in
+                                 the lower reaches of
+                                                             B4       121°22′30.00″         31°37′34.00″
+                                 the Shiqiao River
+                                 Chongming island
+         Starting     Nanning    Minsheng Terminal of        B5       108°18′19.77″         22°48′48.60″
+          point       Guangxi    Nanning                     B6       108°18′26.72″         22°48′39.76″
+  Main
+stream of                     Line connecting
+    the                       Tiexianjiao, Jinli and         B7       112°48′30.00″         23°08′45.00″
+ Xijiang Ending      Zhaoqing Shangzui, Yongkou,
+  River   point     Guangdong Wudinggang on the
+                              trunk stream of the            B8       112°47′19.00″         23°08′01.00″
+                              Xijiang River
+
+
+
+
+                                                -4-
+                                    Legend
+                                         Control points of coastal control area
+
+                                         Control points of the Hainan Water Area
+
+                                         Starting and Ending Point Locations
+                                         in Inland River Control Area
+                                         Inland River DECA (Yangtze River Mainstream
+                                         Section)
+                                         Inland River DECA (Xijiang River Mainstream
+                                         Section)
+                                         Provincial administrative region
+
+                                         Scope of coastal control area
+
+
+
+
+Figure 1 Geographic Scope of the Emission Control Area
+

@@ -27,11 +27,24 @@ function rowsDMS(text) {
 }
 /** Rows with degrees and decimal minutes: "35°57'.59 N 05°58'.27 W" (MEPC.407(84), two or three columns per line). */
 function rowsDM(text) {
-  const out = []; const re = /(\d{1,3})\s+(\d{1,2})°(\d{2})'\.(\d{2})\s*([NS])\s+(\d{1,3})°(\d{2})'\.(\d{2})\s*([EW])/g;
+  const out = []; const re = /(\d{1,3})\s+(\d{1,2})°(\d{1,2})'\.(\d{2})\s*([NS])\s+(\d{1,3})°(\d{1,2})'\.(\d{2})\s*([EW])/g;
   for (const raw of text.split('\n')) { let m; re.lastIndex = 0; while ((m = re.exec(raw))) {
     const lat = Number(m[2]) + (Number(m[3]) + Number(m[4]) / 100) / 60, lon = Number(m[6]) + (Number(m[7]) + Number(m[8]) / 100) / 60;
     out.push({ n: Number(m[1]), lat: m[5] === 'S' ? -lat : lat, lon: m[9] === 'W' ? -lon : lon });
   } }
+  return out;
+}
+/** Norwegian Sea (MARPOL Annex II reg. 13.9.4): "69°47.6904' N; 030°49.059' E" -> {lat, lon}. */
+function rowsNorway(text) {
+  const out = []; const re = /(\d{1,3})°(\d{1,2}(?:\.\d+)?)'?\s*([NS]);\s*(\d{1,3})°(\d{1,2}(?:\.\d+)?)'?\s*([EW])/g;
+  for (const raw of text.split('\n')) { let m; re.lastIndex = 0; if ((m = re.exec(raw))) out.push({ lat: (m[3] === 'S' ? -1 : 1) * (Number(m[1]) + Number(m[2]) / 60), lon: (m[6] === 'W' ? -1 : 1) * (Number(m[4]) + Number(m[5]) / 60) });
+    else { const k = raw.match(/^\s*(\d{1,2})°\s*N;\s*(\d{1,3})°(\d{1,2}(?:\.\d+)?)'?\s*([EW])/); if (k) out.push({ lat: Number(k[1]), lon: (k[4] === 'W' ? -1 : 1) * (Number(k[2]) + Number(k[3]) / 60) }); } }
+  return out;
+}
+/** China DECA scheme tables: "No. lon°lat′sec″ lat°…″", two columns per line; labels are numbers or A1..A3. */
+function rowsChina(text) {
+  const out = []; const re = /\b([A-Z]?\d{1,2})\s+(\d{3})°(\d{2})′([\d.]+)″\s+(\d{2})°(\d{2})′([\d.]+)″/g;
+  for (const raw of text.split('\n')) { let m; re.lastIndex = 0; while ((m = re.exec(raw))) out.push({ id: m[1], lon: dm(m[2], m[3], m[4]), lat: dm(m[5], m[6], m[7]) }); }
   return out;
 }
 /** Split a numbered list into runs that restart at 1 (the resolutions list several areas, each numbered from 1). */
@@ -40,9 +53,15 @@ function load() {
   const na = runs(rowsDMS(src('MEPC.190-60_north_american_eca.txt')));
   const car = runs(rowsDMS(src('MEPC.202-62_us_caribbean_eca.txt')));
   const ne = rowsDM(src('MEPC.407-84_north_east_atlantic_eca.txt')).sort((a, b) => a.n - b.n);
-  return { na, car, ne };
+  const ca = rowsDM(src('MEPC.392-82_canadian_arctic_eca.txt')).sort((a, b) => a.n - b.n);
+  const no = rowsNorway(src('MARPOL-AnnexII-13.9.4_norwegian_sea.txt'));
+  const cn = rowsChina(src('CN-MoT-DECA-scheme-2018.txt'));
+  const byId = id => cn.find(r => r.id === id);
+  const cnCoast = Array.from({ length: 59 }, (_, i) => byId(String(i + 1))).filter(Boolean);
+  const cnHainan = ['A1', 'A2', 'A3'].map(byId).concat(Array.from({ length: 17 }, (_, i) => byId(String(33 + i)))).filter(Boolean);
+  return { na, car, ne, ca, no, cnCoast, cnHainan };
 }
-module.exports = { rowsDMS, rowsDM, runs, load };
+module.exports = { rowsDMS, rowsDM, rowsNorway, rowsChina, runs, load };
 if (require.main === module) {
   const { na, car, ne } = load();
   console.log('NA runs', na.map(r => r.length + ' pts (first ' + r[0].n + ', last ' + r[r.length - 1].n + ')').join(' | '));

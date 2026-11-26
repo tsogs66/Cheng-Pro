@@ -1,28 +1,32 @@
-# Sea-lane network data — provenance
+# Sea-lane network data — provenance and licence
 
 ## What this is
-`marnet.json` is a global shipping-lane graph (9708 nodes, 15970 undirected edges, passage tags) converted by
-`scripts/import-marnet.py` from `source/marnet_dict.py.txt`. The source file is stored with a .txt extension and is only
-parsed with `ast.literal_eval`, never imported or executed. Coordinates in `marnet.json` are [lon, lat]; edge lengths are
-recomputed (great-circle, nm) by `scripts/sea-route.js`, the source weights (km) are not used.
+`marnet.json` is a global shipping-lane graph (42,334 nodes, 78,703 undirected edges, passage tags) converted by `scripts/import-marnet-eurostat.py`
+from the **Eurostat SeaRoute `marnet_plus_5km` network** (`source/marnet_plus_5km.gpkg`, a GeoPackage read with sqlite3 only). Coordinates in `marnet.json` are
+[lon, lat]; edge lengths are recomputed (great-circle, nm) by `scripts/sea-route.js`.
 
 ## Where it came from
-- File: https://raw.githubusercontent.com/genthalili/searoute-py/main/searoute/data/marnet_dict.py
-  (GitHub user `genthalili`, project "searoute-py", package metadata says Apache-2.0). Downloaded 2026-11-25; commit not recorded.
-  SHA-256 of the stored copy: 3622fff283e71b940ba5d58280b07c5cb2e95959ffb48f647b39b500b6c50ea3
-- That project credits Eurostat's SeaRoute Java library (https://github.com/eurostat/searoute, licensed EUPL v1.2;
-  full text in `source/EUROSTAT_SEAROUTE_LICENSE_EUPL-1.2.txt`).
-- Verbatim from the Eurostat SeaRoute README (master branch), describing the underlying network:
+- Repository: https://github.com/eurostat/searoute (Eurostat, European Commission), file `modules/war/src/main/resources/marnet/marnet_plus_5km.gpkg`,
+  commit 88a2e568a8e0144d1f5a81c3931a7bc2bcce6901 (10 Jan 2022). SHA-256 of the stored copy: 75ca6cc130b3748f568196a9caf62889e9f096ec358f65223b4095ac070be0e7. Downloaded 26 Nov 2026.
+- Verbatim from the Eurostat SeaRoute README, describing the network:
 
-> This maritime network is based on the *Oak Ridge National Labs CTA Transportation Network Group, Global Shipping Lane Network, World, 2000* (retrieved from [geocommons.com](http://geocommons.com/datasets?id=25) or [github](https://github.com/geoiq/gc_data/blob/master/datasets/25.geojson)), enriched with some additional lines around the European coasts based on [AIS data](https://en.wikipedia.org/wiki/Automatic_identification_system).
+> This maritime network is based on the *Oak Ridge National Labs CTA Transportation Network Group, Global Shipping Lane Network, World, 2000* (retrieved from geocommons.com or github), enriched with some additional lines around the European coasts based on AIS data. Simplified versions of this network have been produced for different resolutions (5km, 10km, 20km, 50km, 100km) based on a shrinking of too short edges and a removal of similar edges.
 
-- Verbatim from the searoute-py README:
+## Licence
+- The repository, including this data file, is published by Eurostat under the **European Union Public Licence v. 1.2 (EUPL-1.2)**; the licence text is in `source/EUROSTAT_SEAROUTE_LICENSE_EUPL-1.2.txt`.
+  This replaces the earlier network taken from a third-party Python package whose licence for the data was unclear.
+- EUPL-1.2 allows use, copying and redistribution, also commercially. Conditions that apply to what we ship: keep the licence text and the copyright / attribution notice with the data (done here and in
+  the apps' `DATA-SOURCES.md`), and distribute a modified version (`marnet.json` is one: converted, tags renamed, dateline links added) under the EUPL-1.2 or a compatible licence. The data file is separate
+  from the application code, which stays under the project's own licence.
+- The EUPL's own wording is authoritative; this note is a plain summary, not legal advice.
+- The upstream CTA data (Oak Ridge National Laboratory, 2000; a U.S. Government-funded dataset) is credited as the source above. Its own terms were not separately checked; Eurostat redistributes the derived network under the EUPL.
 
-> **Not for routing purposes!** This library was developed to generate realistic-looking sea routes for visualizations of maritime routes, not for mariners to route their ships.
+## What the converter does
+- Splits each line into one edge per pair of vertices, merges equal points (5 decimals) into nodes, and keeps the `pass` attribute as the edge tag.
+- Renames Eurostat tags to the ids the router uses: `babelmandeb` -> `babalmandab`, `magellan` -> `chili`. Tags in the file: northwest, northeast, chili, babalmandab, malacca, bering, kiel, gibraltar, dover, panama, suez, corinth.
+- The lines are cut at the 180th meridian; each node at 180 E is joined to the node at 180 W with the same latitude (12 zero-length links) so that routes can cross the Pacific.
+- Not tagged in this network (the router blocks them by region instead, see `PASSAGE_BOX` in `scripts/sea-route.js`): Strait of Hormuz, Cape of Good Hope, Sunda Strait, Bosporus, Dardanelles.
+- The Kiel and Corinth canals and the two Arctic routes (Northwest Passage, Northern Sea Route) are never used by default.
 
-## Licence status (UNVERIFIED — read before shipping in an app)
-- searoute-py: no LICENSE file was found in the repository (LICENSE, LICENSE.md, NOTICE all 404); only its `setup.py` says
-  `license='Apache-2.0'`. Whether that licence covers the data file is not stated.
-- Eurostat SeaRoute: EUPL v1.2 (text included). Whether the network data is covered by it was not checked.
-- The upstream data (Oak Ridge National Laboratory, 2000) has its own terms that were not checked.
-- The maintainers' own warning above says the network is not for navigation. Treat this as a planning estimate only.
+## Limits
+Planning estimate only; it is not a navigation product. Coverage: ports far from a lane (river and lake ports, some remote coasts) get a long attach leg and a low-confidence warning.
