@@ -174,6 +174,25 @@
     },
     {
       group: 'Daily log',
+      q: 'How do I print a noon-to-noon report when there were other reports in between?',
+      purpose: 'Some charter parties ask for noon-to-noon figures even if the ship logged a speed change, an ECA changeover, a pilot or a heavy-weather report between the two noons. The Noon to Noon Report adds those reports up on one noon-style sheet. It is worked from the saved entries, so nothing is typed twice and it agrees with Range Totals.',
+      steps: [
+        'Open Reports. At the top, Noon to Noon Report: pick the noon that ends the period.',
+        'The period runs from the previous noon report to that noon. The table lists every report it adds up, with hours, distance and fuel, and a total row.',
+        'Press Preview to look at the sheet, then Print Noon to Noon. It is one A4 page: run hours, distance, speed, fuel by unit and grade, fresh water, generator hours, and the remaining on board (previous noon, received, consumption, present).',
+        'The remarks of the reports in between are printed on the sheet. A clock change in the period is named, and the hours are the real elapsed hours (23 or 25 h, not 24).',
+        'The first noon of a leg has no earlier noon: the sheet says it is a partial period and counts from the start of the leg.'
+      ],
+      buttons: [
+        'Preview — shows the sheet without printing',
+        'Print Noon to Noon — prints it and records it in Print History'
+      ],
+      undo: [
+        'Nothing is stored. If a figure is wrong, correct the entry and print again.'
+      ]
+    },
+    {
+      group: 'Daily log',
       q: 'How do I record a receipt, print the ROB, or print an abstract?',
       purpose: 'Receipts are fuel and lube taken. ROB is what remains from the log. Abstracts and range totals print entries you already saved.',
       steps: [
