@@ -9,7 +9,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 const root = path.join(__dirname, '..');
 const SRC = path.join(root, 'data/map/source/ne10m');
 const BASE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/';
-const NEED = ['ne_10m_land', 'ne_10m_minor_islands', 'ne_10m_lakes', 'ne_10m_rivers_lake_centerlines', 'ne_10m_rivers_europe', 'ne_10m_rivers_north_america', 'ne_10m_geography_marine_polys', 'ne_10m_bathymetry_K_200'];
+const NEED = ['ne_10m_land', 'ne_10m_minor_islands', 'ne_10m_lakes', 'ne_10m_rivers_lake_centerlines', 'ne_10m_rivers_europe', 'ne_10m_rivers_north_america', 'ne_10m_geography_marine_polys', 'ne_10m_bathymetry_K_200', 'ne_10m_populated_places_simple'];
 const Q = 200; // 1/200 degree (about 0.3 nm) per integer step
 fs.mkdirSync(SRC, { recursive: true });
 for (const n of NEED) {
@@ -78,7 +78,12 @@ for (const f of load('ne_10m_geography_marine_polys')) {
 }
 stats.names = names.length + ' names';
 const water = { format: 'detail-water-v1', q: Q, lakes, rivers, shelf, names, source: 'Natural Earth 1:10m lakes, rivers, bathymetry 200 m and marine names (public domain), see data/map/SOURCE.md' };
-for (const [name, obj] of [['detail-land.json', detailLand], ['detail-water.json', water]]) {
+// towns and cities: [name, lon, lat, min zoom, capital 0/1, population]; only those a web map would label by zoom 11
+const places = load('ne_10m_populated_places_simple').map((f) => { const p = f.properties; const g = f.geometry.coordinates; const nm = p.nameascii || p.name; if (!nm) return null;
+  return [nm, Math.round(g[0] * 1000) / 1000, Math.round(g[1] * 1000) / 1000, p.min_zoom != null ? Math.round(Number(p.min_zoom) * 10) / 10 : 8, p.adm0cap ? 1 : 0, Math.round(Number(p.pop_max) || 0)]; }).filter(Boolean).sort((a, b) => a[3] - b[3] || b[5] - a[5]);
+stats.places = places.length + ' places';
+const placesFile = { format: 'detail-places-v1', places, source: 'Natural Earth 1:10m populated places (public domain), see data/map/SOURCE.md' };
+for (const [name, obj] of [['detail-land.json', detailLand], ['detail-water.json', water], ['detail-places.json', placesFile]]) {
   const out = path.join(root, 'data/map', name); fs.writeFileSync(out, JSON.stringify(obj) + '\n'); console.log(name + ': ' + (fs.statSync(out).size / 1024).toFixed(0) + ' KB');
 }
 console.log(stats);

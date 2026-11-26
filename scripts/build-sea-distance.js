@@ -5,7 +5,7 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 const OUTS = [path.join(root, 'modules/voyage/www/sea-distance'), path.join(root, 'modules/tanks/public/sea-distance')];
-const FILES = { 'scripts/port-list.js': 'port-list.js', 'scripts/sea-route.js': 'sea-route.js', 'scripts/eca-zones.js': 'eca-zones.js', 'scripts/sea-map.js': 'sea-map.js', 'scripts/route-exchange.js': 'route-exchange.js', 'data/map/land.json': 'land.json', 'data/map/detail-land.json': 'detail-land.json', 'data/map/detail-water.json': 'detail-water.json',
+const FILES = { 'scripts/port-list.js': 'port-list.js', 'scripts/sea-route.js': 'sea-route.js', 'scripts/eca-zones.js': 'eca-zones.js', 'scripts/sea-map.js': 'sea-map.js', 'scripts/route-exchange.js': 'route-exchange.js', 'data/map/land.json': 'land.json', 'data/map/detail-land.json': 'detail-land.json', 'data/map/detail-water.json': 'detail-water.json', 'data/map/detail-places.json': 'detail-places.json',
   'data/ports/ports.json': 'ports.json', 'data/sea-lanes/marnet.json': 'marnet.json', 'data/sea-lanes/source/EUROSTAT_SEAROUTE_LICENSE_EUPL-1.2.txt': 'LICENSE-EUPL-1.2.txt' };
 // DATA-SOURCES.md: the provenance notes of the data files, one text for every bundle (so the standalone Tank and Voyage repos carry the attribution and licence statements).
 const DOCS = ['data/world-port-index/SOURCE.md', 'data/sea-lanes/SOURCE.md', 'data/map/SOURCE.md', 'data/eca/SOURCE.md'];
