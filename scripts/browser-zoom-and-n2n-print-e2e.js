@@ -1,0 +1,62 @@
+// Page zoom on every page, the Noon to Noon preview opening zoomed in, and "print every noon in range" (also a long range that asks first).
+const http=require('http'),fs=require('fs'),path=require('path'),{chromium}=require('playwright');
+const root=process.env.ROOT||path.join(__dirname,'..','modules','voyage','www');
+const srv=http.createServer((q,r)=>{let f=path.join(root,decodeURIComponent(q.url.split('?')[0]));if(f.endsWith('/'))f+='index.html';fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);r.end();return}const t={'.html':'text/html','.js':'text/javascript','.json':'application/json','.css':'text/css'}[path.extname(f)]||'application/octet-stream';r.writeHead(200,{'content-type':t});r.end(b)})});
+let fails=0;const ck=(l,a,e)=>{const ok=JSON.stringify(a)===JSON.stringify(e);console.log((ok?'  ok   ':'  FAIL ')+l+(ok?'':': expected '+JSON.stringify(e)+' got '+JSON.stringify(a)));if(!ok)fails++;};
+srv.listen(0,async()=>{const port=srv.address().port;const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1400,height:1000}});const p=await ctx.newPage();
+const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{errs.push('NATIVE DIALOG '+d.message().slice(0,50));d.dismiss()});
+await p.goto(`http://localhost:${port}/voyage_manager.html`);await p.waitForTimeout(1200);
+await p.evaluate(()=>document.getElementById('loginGate')?.setAttribute('hidden',''));
+await p.evaluate(async()=>{await installTestFleet({switchToFirst:true});});await p.waitForTimeout(3500);
+await p.evaluate(()=>document.getElementById('chengLicenseLock')?.remove());
+
+console.log('== page zoom');
+ck('zoom control is on the page',await p.$$eval('#cheng-zoom',a=>a.length),1);
+await p.click('#cheng-zoom .cz-toggle');await p.click('#cheng-zoom .cz-in');await p.waitForTimeout(100);
+ck('+ zooms the whole page',await p.evaluate(()=>document.documentElement.style.zoom),'1.1');
+await p.keyboard.press('Control+=');await p.keyboard.press('Control+=');await p.waitForTimeout(100);
+ck('Ctrl + keeps going',await p.evaluate(()=>document.documentElement.style.zoom),'1.5');
+ck('the percentage shows',await p.$eval('#cheng-zoom .cz-pct',e=>e.textContent),'150%');
+await p.reload();await p.waitForTimeout(1500);
+ck('the level is remembered',await p.evaluate(()=>document.documentElement.style.zoom),'1.5');
+await p.keyboard.press('Control+0');await p.waitForTimeout(100);
+ck('Ctrl 0 goes back to 100 %',await p.evaluate(()=>document.documentElement.style.zoom),'');
+await p.click('#cheng-zoom .cz-toggle');await p.click('#cheng-zoom .cz-out');await p.click('#cheng-zoom .cz-pct');
+ck('the % button goes back to 100 %',await p.evaluate(()=>document.documentElement.style.zoom),'');
+await p.evaluate(async()=>{await installTestFleet({switchToFirst:true});});await p.waitForTimeout(3000);
+await p.evaluate(()=>document.getElementById('chengLicenseLock')?.remove());
+console.log('== a clipped text box shows its whole text');
+const tipOk=await p.evaluate(()=>{const i=document.createElement('input');i.type='text';i.style.cssText='width:60px;position:fixed;left:0;top:0;z-index:9999';i.value='A very long port name that does not fit in the box';document.body.appendChild(i);i.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));const t=i.title;i.remove();return t});
+ck('tooltip carries the full text',tipOk,'A very long port name that does not fit in the box');
+
+console.log('== Noon to Noon');
+await p.evaluate(()=>{const base=sortedEntries().slice(-1)[0];const start=new Date(base.datetime).getTime();let me=base.me.meter,ge=base.ge.meter,blr=base.blr.meter,rc=base.revCounter||0,cyl=base.cylMeter||0;const H=3600*1000;
+ for(let k=1;k<=45;k++){rc+=78*60*24;me+=1700*24;ge+=58*24;blr+=12*24;cyl+=16*24;state.entries.push({...JSON.parse(JSON.stringify(base)),id:'z-'+k,datetime:new Date(start+k*24*H).toISOString().slice(0,16),operation:'NOON - AT SEA',distanceShip:14*24,rpm:78,revCounter:rc,cylMeter:cyl,me:{...base.me,meter:me,type:'LSFO'},ge:{...base.ge,meter:ge,type:'MDO/MGO'},blr:{...base.blr,meter:blr},meRunHours:null,unitOverride:{},robSurvey:null,clockChangeMin:0,report:{...(base.report||{}),remarks:''}})}
+ render();switchTab('reports')});await p.waitForTimeout(1500);
+await p.click('#btnN2nPreview');await p.waitForTimeout(900);
+const z0=await p.evaluate(()=>document.getElementById('n2nPreviewHost').__zoom.get());
+ck('preview opens zoomed in (wider than the 100 % page)',z0>=1,true);console.log('   opening zoom',z0);
+await p.click('#n2nPreviewHost [data-v="in"]');const z1=await p.evaluate(()=>document.getElementById('n2nPreviewHost').__zoom.get());ck('+ zooms the preview further',z1>z0,true);
+await p.click('#n2nPreviewHost [data-v="pct"]');ck('% button: 100 %',await p.evaluate(()=>document.getElementById('n2nPreviewHost').__zoom.get()),1);
+await p.click('#n2nPreviewHost [data-v="page"]');ck('Whole page fits the height',await p.evaluate(()=>document.getElementById('n2nPreviewHost').__zoom.get())<1.5,true);
+await p.click('#n2nPreviewHost [data-v="full"]');await p.waitForTimeout(200);ck('Full screen',await p.evaluate(()=>getComputedStyle(document.getElementById('n2nPreviewHost')).position),'fixed');
+ck('the sheet is still in the preview',await p.evaluate(()=>!!document.querySelector('#n2nPreviewHost iframe').contentDocument.querySelector('.pr-sheet-noon')),true);
+await p.click('#n2nPreviewHost [data-v="close"]');ck('Close',await p.evaluate(()=>document.getElementById('n2nPreviewHost').style.display),'none');
+
+await p.evaluate(()=>{window.__caps=[];window.__orig=window.runSystemPrint;window.runSystemPrint=function(win,cleanup){window.__caps.push({html:'<!DOCTYPE html>'+win.document.documentElement.outerHTML,style:win.frameElement&&win.frameElement.style.cssText});try{cleanup&&cleanup()}catch(e){}}});
+const ids=await p.evaluate(()=>noonToNoonEnds(noonToNoonPool()).map(e=>e.id));console.log('   noons',ids.length);
+await p.evaluate(([a,c])=>{printNoonToNoonBatch(a,c)},[ids[0],ids[4]]);await p.waitForTimeout(1500);
+let caps=await p.evaluate(()=>window.__caps);
+ck('5 noons: one print job with 5 pages',[caps.length,(caps[0]&&caps[0].html.match(/class="pr-page-portrait"/g)||[]).length],[1,5]);
+ck('the print frame is a normal A4 box, not a giant hidden one',/height:\s*297mm/.test(caps[0].style||'')&&!/-10000/.test(caps[0].style||''),true);
+await p.evaluate(()=>{window.__caps=[]});
+await p.evaluate(([a,c])=>{window.__run=printNoonToNoonBatch(a,c)},[ids[0],ids[ids.length-1]]);await p.waitForTimeout(500);
+ck('a long range asks first, on the page',await p.$$eval('[role=dialog] [data-a="yes"]',a=>a.length),1);
+await p.evaluate(()=>{[...document.querySelectorAll('[role=dialog] button')].find(b=>b.dataset.a==='no').click()});await p.waitForTimeout(400);
+ck('Cancel prints nothing',await p.evaluate(()=>window.__caps.length),0);
+await p.evaluate(([a,c])=>{window.__run=printNoonToNoonBatch(a,c)},[ids[0],ids[ids.length-1]]);await p.waitForTimeout(500);
+await p.evaluate(()=>{[...document.querySelectorAll('[role=dialog] button')].find(b=>b.dataset.a==='yes').click()});await p.waitForTimeout(4000);
+caps=await p.evaluate(()=>window.__caps);
+ck('OK prints every noon of the range',[caps.length,(caps[0]&&caps[0].html.match(/class="pr-page-portrait"/g)||[]).length],[1,ids.length]);
+ck('no page errors and no native dialogs',errs,[]);
+await b.close();srv.close();console.log(fails?fails+' FAILED':'all ok');process.exit(fails?1:0)});
