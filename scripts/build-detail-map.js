@@ -9,7 +9,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 const root = path.join(__dirname, '..');
 const SRC = path.join(root, 'data/map/source/ne10m');
 const BASE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/';
-const NEED = ['ne_10m_land', 'ne_10m_minor_islands', 'ne_10m_lakes', 'ne_10m_rivers_lake_centerlines', 'ne_10m_rivers_europe', 'ne_10m_rivers_north_america', 'ne_10m_geography_marine_polys', 'ne_10m_bathymetry_K_200', 'ne_10m_populated_places_simple'];
+const NEED = ['ne_10m_land', 'ne_10m_minor_islands', 'ne_10m_lakes', 'ne_10m_rivers_lake_centerlines', 'ne_10m_rivers_europe', 'ne_10m_rivers_north_america', 'ne_10m_geography_marine_polys', 'ne_10m_bathymetry_K_200', 'ne_10m_populated_places_simple', 'ne_10m_admin_0_countries', 'ne_10m_reefs'];
 const Q = 200; // 1/200 degree (about 0.3 nm) per integer step
 fs.mkdirSync(SRC, { recursive: true });
 for (const n of NEED) {
@@ -36,13 +36,18 @@ const stats = {};
 function rings(features, tol, minPts, label) {
   const out = []; let inP = 0, outP = 0;
   for (const f of features) for (const p of polys(f.geometry)) { // outer rings only: the lakes are their own layer
-    const r = p[0]; inP += r.length; const s = dp(r, tol); if (s.length < (minPts || 4)) continue; out.push(enc(s)); outP += s.length;
+    const r = p[0]; inP += r.length; let s = dp(r, tol);
+    if (s.length < (minPts || 4) || s.length < 4) { // a tiny island: keep it as a small diamond around its centre so it can still be seen when zoomed in
+      let sx = 0, sy = 0; for (const q of r) { sx += q[0]; sy += q[1]; } const cx = sx / r.length, cy = sy / r.length, h = Math.max(0.0025, tol * 0.6);
+      s = [[cx - h, cy], [cx, cy + h], [cx + h, cy], [cx, cy - h], [cx - h, cy]];
+    }
+    out.push(enc(s)); outP += s.length;
   }
   stats[label] = `${out.length} rings, ${inP} -> ${outP} points`; return out;
 }
 // ---- land: two levels ----
 const land = load('ne_10m_land').concat(load('ne_10m_minor_islands'));
-const detailLand = { format: 'detail-land-v1', q: Q, mid: rings(land, 0.012, 4, 'land mid'), fine: rings(land, 0.003, 4, 'land fine'),
+const detailLand = { format: 'detail-land-v1', q: Q, mid: rings(land, 0.008, 4, 'land mid'), fine: rings(land, 0.0012, 4, 'land fine'),
   source: 'Natural Earth 1:10m land and minor islands (public domain), see data/map/SOURCE.md' };
 // ---- water: lakes, rivers, shelf, names ----
 const lakes = rings(load('ne_10m_lakes').filter((f) => (f.properties.scalerank == null || f.properties.scalerank <= 9)), 0.008, 4, 'lakes');
@@ -77,13 +82,19 @@ for (const f of load('ne_10m_geography_marine_polys')) {
   names.push([nm, Math.round(lon * 100) / 100, Math.round(lat * 100) / 100, String(p.featurecla || '').toLowerCase(), p.min_label != null ? Number(p.min_label) : null, Math.round(Math.sqrt(ba) * 10) / 10]);
 }
 stats.names = names.length + ' names';
-const water = { format: 'detail-water-v1', q: Q, lakes, rivers, shelf, names, source: 'Natural Earth 1:10m lakes, rivers, bathymetry 200 m and marine names (public domain), see data/map/SOURCE.md' };
+const reefs = []; for (const f of load('ne_10m_reefs')) for (const l of lines(f.geometry)) { const s = dp(l, 0.004); if (s.length >= 2) reefs.push({ f: enc(s) }); }
+stats.reefs = reefs.length + ' reef lines';
+const water = { format: 'detail-water-v1', q: Q, lakes, rivers, shelf, names, reefs, source: 'Natural Earth 1:10m lakes, rivers, bathymetry 200 m and marine names (public domain), see data/map/SOURCE.md' };
 // towns and cities: [name, lon, lat, min zoom, capital 0/1, population]; only those a web map would label by zoom 11
 const places = load('ne_10m_populated_places_simple').map((f) => { const p = f.properties; const g = f.geometry.coordinates; const nm = p.nameascii || p.name; if (!nm) return null;
   return [nm, Math.round(g[0] * 1000) / 1000, Math.round(g[1] * 1000) / 1000, p.min_zoom != null ? Math.round(Number(p.min_zoom) * 10) / 10 : 8, p.adm0cap ? 1 : 0, Math.round(Number(p.pop_max) || 0)]; }).filter(Boolean).sort((a, b) => a[3] - b[3] || b[5] - a[5]);
 stats.places = places.length + ' places';
 const placesFile = { format: 'detail-places-v1', places, source: 'Natural Earth 1:10m populated places (public domain), see data/map/SOURCE.md' };
-for (const [name, obj] of [['detail-land.json', detailLand], ['detail-water.json', water], ['detail-places.json', placesFile]]) {
+// countries: name at the label point the dataset gives, shown between its min and max label zoom
+const countries = load('ne_10m_admin_0_countries').map((f) => { const p = f.properties; const nm = p.NAME || p.NAME_EN; if (!nm || p.LABEL_X == null) return null; return [nm, Math.round(p.LABEL_X * 100) / 100, Math.round(p.LABEL_Y * 100) / 100, Number(p.MIN_LABEL), Number(p.MAX_LABEL), Number(p.LABELRANK)]; }).filter(Boolean).sort((a, b) => a[5] - b[5]);
+stats.countries = countries.length + ' countries';
+const countriesFile = { format: 'detail-countries-v1', countries, source: 'Natural Earth 1:10m admin 0 countries, label points (public domain), see data/map/SOURCE.md' };
+for (const [name, obj] of [['detail-countries.json', countriesFile], ['detail-land.json', detailLand], ['detail-water.json', water], ['detail-places.json', placesFile]]) {
   const out = path.join(root, 'data/map', name); fs.writeFileSync(out, JSON.stringify(obj) + '\n'); console.log(name + ': ' + (fs.statSync(out).size / 1024).toFixed(0) + ' KB');
 }
 console.log(stats);
