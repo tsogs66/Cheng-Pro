@@ -48,7 +48,7 @@ await p.click('[data-map="apply"]');await p.waitForTimeout(500);if(await p.$('.c
 const r2=await rows();const t2=r2.reduce((a,x)=>a+x.d,0);console.log('   lines',r2.length,'total',t2);
 ck('apply recalculated the plan distance',t2!==total0,true);
 ck('stored in the plan',await p.evaluate(()=>Object.keys(state.setup.bunkerPlan.sea.manual||{}).length),1);
-console.log('   notes',JSON.stringify(await p.$$eval('.cp-seanote',a=>a.map(n=>n.textContent.slice(0,120)))));ck('note says own route',await p.$$eval('.cp-seanote',a=>a.some(n=>/own route/.test(n.textContent))),true);
+console.log('   notes',JSON.stringify(await p.$$eval('.cp-seanote',a=>a.map(n=>n.textContent.slice(0,120)))));ck('note says own route',await p.$$eval('.cp-seanote,.cp-grouptools',a=>a.some(n=>/own route/.test(n.textContent))),true);
 // reset
 await p.evaluate(()=>document.querySelector('[data-act="sea-map-all"]').click());await p.waitForTimeout(2000);
 await p.click('[data-map="edit"]');await p.waitForTimeout(400);await p.click('[data-map="reset"]');await p.waitForTimeout(1200);
