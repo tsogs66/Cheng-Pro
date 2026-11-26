@@ -236,4 +236,8 @@ ok(CP.ensurePlan(Object.assign(CP.defaultPlan(vessel), { legs: [typedLeg] }), ve
 const mapParts = CP.splitLegAtEca(Object.assign(JSON.parse(JSON.stringify(mapLeg)), { ecaNm: 500 }), [{ eca: false, nm: 2500, from: [1, 1], to: [2, 2] }, { eca: true, zone: 'baltic', nm: 500, from: [2, 2], to: [3, 3] }], zl);
 ok(mapParts.every((l) => l.routeFrom === 7 && l.routeTo === 9), 'the stretches of a split line still point to the whole route');
 
+/* ---- approach allowance and ECA areas that take effect later ---- */
+ok(CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)] }, vessel).sea.approachNm === 0 && CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)], sea: { approachNm: 12 } }, vessel).sea.approachNm === 12 && CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)], sea: { approachNm: 900 } }, vessel).sea.approachNm === 100, 'the approach allowance is off by default, saved, and limited to 100 nm');
+ok(Array.isArray(CP.ensurePlan({ v: 2, legs: [CP.emptyLeg(2)], sea: { ecaOn: ['north_east_atlantic'] } }, vessel).sea.ecaOn), 'areas switched on before they take effect are kept with the plan');
+
 console.log(`consumption plan: ${pass} checks passed`);

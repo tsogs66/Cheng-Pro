@@ -74,7 +74,7 @@
     <p class="hint" id="status" role="status">Loading port data…</p>
   </section>
   <section id="result" class="card" aria-live="polite" hidden></section>
-  <p class="note">Planning estimate from a coarse lane network. Not for navigation; ports far from a shipping lane are less accurate. Check against your passage plan and charts. ECA outlines are approximate, not the MARPOL limits. Map coastline: Natural Earth (public domain), generalised.</p>
+  <p class="note">Planning estimate from a coarse lane network. Not for navigation; ports far from a shipping lane are less accurate. Check against your passage plan and charts. ECA outlines: North America, US Caribbean and North-East Atlantic follow the IMO coordinates; Baltic, North Sea and Mediterranean are drawn from the regulation wording. Map coastline: Natural Earth (public domain), generalised.</p>
 </main>
 <script src="port-list.js"></script>
 <script src="sea-route.js"></script>
@@ -137,7 +137,8 @@
     if (kn > 0) { var h = r.nm / kn; html += '<dt>Steaming time</dt><dd>' + (h / 24).toFixed(1) + ' days (' + Math.round(h) + ' h) at ' + kn + ' kn</dd>'; }
     html += '<dt>Straight line</dt><dd>' + gcNm.toLocaleString() + ' nm</dd>';
     if (r.savedNm >= 1) html += '<dt>Great-circle legs</dt><dd>save ' + Math.round(r.savedNm).toLocaleString() + ' nm against the lane network (' + Math.round(r.networkNm).toLocaleString() + ' nm)</dd>';
-    var ecaM = EcaZones.measure([[picked.from.lat, picked.from.lon]].concat(r.path, [[picked.to.lat, picked.to.lon]]));
+    var ecaIds = EcaZones.inForce(); // areas in force today
+    var ecaM = EcaZones.measure([[picked.from.lat, picked.from.lon]].concat(r.path, [[picked.to.lat, picked.to.lon]]), ecaIds);
     if (r.passages.length) html += '<dt>Passages</dt><dd>' + esc(r.passages.join(', ')) + '</dd>';
     if (ecaM.ecaNm >= 1) html += '<dt>In ECA</dt><dd>' + Math.round(ecaM.ecaNm).toLocaleString() + ' nm (' + esc(Object.keys(ecaM.zones).map(EcaZones.label).join(', ')) + '; approximate outlines)</dd>';
     html += '<dt>Port links</dt><dd>' + r.attach.from + ' nm / ' + r.attach.to + ' nm to nearest lane</dd></dl>';
@@ -155,7 +156,7 @@
     function draw() {
       box.hidden = false;
       if (mapCtl) mapCtl.destroy();
-      mapCtl = SeaMap.create(box, { land: landData, zones: EcaZones.ZONES, areas: [] });
+      mapCtl = SeaMap.create(box, { land: landData, zones: EcaZones.ZONES.filter(function (z) { return EcaZones.inForce().indexOf(z.id) >= 0; }), areas: [] });
       mapCtl.setRoutes([lastRoute]);
       var bar = document.createElement('div'); bar.style.cssText = 'position:absolute;right:8px;top:8px;display:flex;gap:6px';
       [['+', function () { mapCtl.zoom(1.6); }], ['\u2212', function () { mapCtl.zoom(1 / 1.6); }], ['Fit', function () { mapCtl.fit(); }]].forEach(function (b) { var el = document.createElement('button'); el.type = 'button'; el.textContent = b[0]; el.style.cssText = 'min-width:36px;padding:6px 10px'; el.addEventListener('click', b[1]); bar.appendChild(el); });

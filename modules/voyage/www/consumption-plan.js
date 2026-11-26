@@ -371,7 +371,7 @@
     if (typeof plan.remarks !== 'string') plan.remarks = plan.remarks == null ? '' : String(plan.remarks);
     if (!plan.stocks || typeof plan.stocks !== 'object') plan.stocks = {};
     const sea = plan.sea && typeof plan.sea === 'object' ? plan.sea : {};
-    plan.sea = { avoid: Array.isArray(sea.avoid) ? sea.avoid.map(String) : [], areas: Array.isArray(sea.areas) ? sea.areas.map(String) : [], ecaOff: Array.isArray(sea.ecaOff) ? sea.ecaOff.map(String) : [], ecaFuel: typeof sea.ecaFuel === 'string' ? sea.ecaFuel : '', printMap: sea.printMap !== false, greatCircle: sea.greatCircle !== false };
+    plan.sea = { avoid: Array.isArray(sea.avoid) ? sea.avoid.map(String) : [], areas: Array.isArray(sea.areas) ? sea.areas.map(String) : [], ecaOff: Array.isArray(sea.ecaOff) ? sea.ecaOff.map(String) : [], ecaOn: Array.isArray(sea.ecaOn) ? sea.ecaOn.map(String) : [], ecaFuel: typeof sea.ecaFuel === 'string' ? sea.ecaFuel : '', printMap: sea.printMap !== false, greatCircle: sea.greatCircle !== false, approachNm: Number(sea.approachNm) > 0 ? Math.min(100, Number(sea.approachNm)) : 0 };
     normalizeLegs(plan);
     delete plan.residual; delete plan.distillate; delete plan.legacySig;
     return plan;
@@ -752,16 +752,22 @@
       </section>`;
     }
     /* ---- sea distance ---- */
+    /** The ECA zones measured for a plan: those in force on the plan's date (or switched on by the user), minus the ones switched off. */
+    function ecaIdsFor(plan) {
+      if (!ctx.sea || !ctx.sea.Eca) return [];
+      return ctx.sea.Eca.inForce(plan.date, plan.sea.ecaOn).filter((id) => !plan.sea.ecaOff.includes(id));
+    }
     function passageName(id) { const p = ctx.sea && ctx.sea.SeaRoute.PASSAGES.find((x) => x.id === id); return p ? p.label : id; }
     function computeLeg(leg) {
       const a = ctx.sea.ports.byId(leg.fromPort); const b = ctx.sea.ports.byId(leg.toPort);
       if (!a || !b) return false;
       const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: ctx.plan.sea.avoid, areas: ctx.plan.sea.areas, greatCircle: ctx.plan.sea.greatCircle !== false });
       if (!r.ok) { leg.distAuto = false; leg.seaNote = ''; toast(r.error); return false; }
-      leg.distance = Math.round(r.nm); leg.distAuto = true; leg.daysManual = false; leg.days = null;
+      const approach = ctx.plan.sea.approachNm > 0 ? 2 * ctx.plan.sea.approachNm : 0; // pilot station / approach at both ends
+      leg.distance = Math.round(r.nm + approach); leg.distAuto = true; leg.daysManual = false; leg.days = null;
       leg.ecaNm = null; leg.ecaZones = ''; leg.ecaRuns = null; leg.routeFrom = leg.fromPort; leg.routeTo = leg.toPort;
       if (ctx.sea.Eca) {
-        const ids = ctx.sea.Eca.ZONES.map((z) => z.id).filter((id) => !ctx.plan.sea.ecaOff.includes(id));
+        const ids = ecaIdsFor(ctx.plan);
         const m = ctx.sea.Eca.measure([[a.lat, a.lon]].concat(r.path, [[b.lat, b.lon]]), ids);
         if (m.ecaNm >= 1) {
           leg.ecaNm = Math.min(leg.distance, Math.round(m.ecaNm));
@@ -769,7 +775,7 @@
           leg.ecaRuns = m.runs.slice(0, 12).map((x) => ({ eca: x.eca, zone: x.zone, nm: Math.round(x.nm * 10) / 10, from: x.from, to: x.to }));
         }
       }
-      leg.seaNote = (r.passages.length ? 'via ' + r.passages.map(passageName).join(', ') : 'open sea') + (r.savedNm >= 1 ? ' · great-circle legs save ' + Math.round(r.savedNm) + ' nm' : '') + (r.warnings.length ? ' — ' + r.warnings.join('; ') : '');
+      leg.seaNote = (r.passages.length ? 'via ' + r.passages.map(passageName).join(', ') : 'open sea') + (r.savedNm >= 1 ? ' · great-circle legs save ' + Math.round(r.savedNm) + ' nm' : '') + (approach ? ' · includes ' + approach + ' nm of approach' : '') + (r.warnings.length ? ' — ' + r.warnings.join('; ') : '');
       return true;
     }
     /** Fill a line's distance from its two ports, unless a distance was typed by hand. */
@@ -793,7 +799,7 @@
     /** The routes behind the chosen lines: drawn paths (with the ECA stretches), the text for the legend, and the colours. */
     function buildMapRoutes(items, plan) {
       const groups = mapGroups(items); const routes = []; const info = [];
-      const ids = ctx.sea.Eca ? ctx.sea.Eca.ZONES.map((z) => z.id).filter((id) => !plan.sea.ecaOff.includes(id)) : [];
+      const ids = ecaIdsFor(plan);
       groups.forEach((g, n) => {
         const a = ctx.sea.ports.byId(g.from); const b = ctx.sea.ports.byId(g.to); if (!a || !b) return;
         const r = ctx.sea.router.route({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }, { avoid: plan.sea.avoid, areas: plan.sea.areas, greatCircle: plan.sea.greatCircle !== false });
@@ -859,16 +865,17 @@
       const chk = (kind, id, label, on) => `<label><input type="checkbox" data-sea-${kind}="${esc(id)}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
       const passes = SR.PASSAGES.map((p) => chk('avoid', p.id, p.label, av.has(p.id))).join('');
       const areas = SR.AREAS.map((a) => chk('area', a.id, a.label, ar.has(a.id))).join('');
-      const off = new Set(ctx.plan.sea.ecaOff);
-      const ecaBoxes = ctx.sea.Eca ? ctx.sea.Eca.ZONES.map((z) => chk('eca', z.id, z.label, !off.has(z.id))).join('') : '';
+      const onNow = new Set(ecaIdsFor(ctx.plan));
+      const ecaBoxes = ctx.sea.Eca ? ctx.sea.Eca.ZONES.map((z) => chk('eca', z.id, z.label + (z.from && !ctx.sea.Eca.inForce(ctx.plan.date).includes(z.id) ? ' · from ' + z.from : ''), onNow.has(z.id))).join('') : '';
       const ecaFuelOptions = '<option value="">— keep the fuel —</option>' + ctx.fuels.map((f) => `<option value="${esc(f.id)}" ${f.id === ctx.plan.sea.ecaFuel ? 'selected' : ''}>${esc(f.id)}</option>`).join('');
       return `<details class="cp-seaopts" ${ctx.seaOpen ? 'open' : ''}><summary>Distance from ports · route options</summary>
         <div class="cp-seanote">Type a few letters in From / To and pick the port: the distance is filled in offline (a distance you type is never replaced). Port stays have no distance.</div>
         <fieldset><legend>Avoid passages</legend>${passes}</fieldset>
         <fieldset><legend>Keep out of areas (approximate boxes you choose, not official designations)</legend>${areas}</fieldset>
-        <fieldset><legend>Measure the distance inside these ECA zones (approximate outlines, not the official MARPOL boundaries)</legend>${ecaBoxes}</fieldset>
+        <fieldset><legend>Measure the distance inside these ECA zones (North America, US Caribbean and North-East Atlantic follow the IMO coordinates; Baltic, North Sea and Mediterranean are drawn from the regulation wording)</legend>${ecaBoxes}</fieldset>
         <fieldset><legend>When a line is split at the ECA</legend><label>Fuel 1 on the ECA lines becomes <select data-sea-ecafuel>${ecaFuelOptions}</select></label></fieldset>
         <fieldset><legend>Route</legend><label><input type="checkbox" data-sea-greatcircle ${ctx.plan.sea.greatCircle !== false ? 'checked' : ''}> Shortest route: great-circle legs wherever the sea is open (recommended)</label></fieldset>
+        <fieldset><legend>Approach</legend><label>Add <input type="number" min="0" max="100" step="1" style="width:4.5em" data-sea-approach value="${ctx.plan.sea.approachNm || ''}" placeholder="0"> nm at each end for the pilot station / port approach (published tables often measure from pilot station to pilot station; leave empty for the shortest route)</label></fieldset>
         <fieldset><legend>Printout</legend><label><input type="checkbox" data-sea-printmap ${ctx.plan.sea.printMap !== false ? 'checked' : ''}> Include the route map on the printout</label></fieldset>
         <div class="btn-row"><button type="button" class="${ui.btn}" data-act="sea-recalc">Recalculate automatic distances</button> <button type="button" class="${ui.btn}" data-act="sea-map-all">Show map of all lines</button></div>
         <div class="cp-seanote">Planning estimate: a coarse sea-lane network, shortened by great-circle legs where the sea is open (checked against a generalised coastline). Not for navigation. Arctic routes are never used.</div>
@@ -1216,15 +1223,20 @@
     host.addEventListener('change', (e) => {
       const t = e.target;
       if (t.dataset.cp === 'date') { ctx.plan.date = t.value; scheduleSave(); return; }
+      if (t.dataset.seaApproach !== undefined) {
+        const v = Number(t.value); ctx.plan.sea.approachNm = v > 0 ? Math.min(100, v) : 0;
+        const n = recalcAuto(); renderGrid(); scheduleSave(); if (n) toast(n + ' distance' + (n === 1 ? '' : 's') + ' recalculated'); return;
+      }
       if (t.dataset.seaGreatcircle !== undefined) { ctx.plan.sea.greatCircle = !!t.checked; const n = recalcAuto(); renderGrid(); scheduleSave(); if (n) toast(n + ' distance' + (n === 1 ? '' : 's') + ' recalculated'); return; }
       if (t.dataset.seaPrintmap !== undefined) { ctx.plan.sea.printMap = !!t.checked; scheduleSave(); return; }
       if (t.dataset.seaEcafuel !== undefined) { ctx.plan.sea.ecaFuel = t.value; scheduleSave(); return; }
       if (t.dataset.seaAvoid !== undefined || t.dataset.seaArea !== undefined || t.dataset.seaEca !== undefined) {
         const isEca = t.dataset.seaEca !== undefined;
-        const list = isEca ? ctx.plan.sea.ecaOff : t.dataset.seaAvoid !== undefined ? ctx.plan.sea.avoid : ctx.plan.sea.areas;
         const id = isEca ? t.dataset.seaEca : t.dataset.seaAvoid !== undefined ? t.dataset.seaAvoid : t.dataset.seaArea;
+        const notYet = isEca && ctx.sea.Eca && !ctx.sea.Eca.inForce(ctx.plan.date).includes(id); // an area that takes effect later is off until the user switches it on
+        const list = isEca ? (notYet ? ctx.plan.sea.ecaOn : ctx.plan.sea.ecaOff) : t.dataset.seaAvoid !== undefined ? ctx.plan.sea.avoid : ctx.plan.sea.areas;
         const i = list.indexOf(id);
-        const on = isEca ? !t.checked : t.checked; // an unticked ECA zone is switched off
+        const on = isEca && !notYet ? !t.checked : t.checked; // an unticked ECA zone in force is switched off
         if (on && i < 0) list.push(id); else if (!on && i >= 0) list.splice(i, 1);
         const n = recalcAuto(); renderGrid(); scheduleSave();
         if (n) toast(n + ' distance' + (n === 1 ? '' : 's') + ' recalculated');

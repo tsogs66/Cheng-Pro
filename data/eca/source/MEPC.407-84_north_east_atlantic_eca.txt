@@ -1,0 +1,435 @@
+                                                                          MEPC 84/16/Add.1
+                                                                            Annex 3, page 1
+
+                                          ANNEX 3
+
+                                  RESOLUTION MEPC.407(84)
+                                   (adopted on 1 May 2026)
+
+      AMENDMENTS TO THE ANNEX OF THE PROTOCOL OF 1997 TO AMEND
+ THE INTERNATIONAL CONVENTION FOR THE PREVENTION OF POLLUTION FROM
+   SHIPS, 1973, AS MODIFIED BY THE PROTOCOL OF 1978 RELATING THERETO
+
+                                Amendments to MARPOL Annex VI
+
+      (Clarification of entries in data reporting required by regulations 27 and 28,
+         designation of the North-East Atlantic as an Emission Control Area for
+        Nitrogen Oxides, Sulphur Oxides and Particulate Matter, accessibility to
+          the IMO Ship Fuel Oil Consumption Database, and review clause of
+                         the short-term GHG reduction measure)
+
+THE MARINE ENVIRONMENT PROTECTION COMMITTEE,
+
+RECALLING Article 38(a) of the Convention on the International Maritime Organization
+concerning the functions of the Marine Environment Protection Committee conferred upon it by
+international conventions for the prevention and control of marine pollution from ships,
+
+RECALLING ALSO article 16 of the International Convention for the Prevention of Pollution
+from Ships, 1973, as modified by the Protocols of 1978 and 1997 relating thereto (MARPOL),
+which specifies the amendment procedure and confers upon the appropriate body of the
+Organization the function of considering amendments thereto for adoption by the Parties,
+
+HAVING CONSIDERED, at its eighty-fourth session, proposed amendments to MARPOL
+Annex VI concerning the clarification of entries in data reporting required by regulations 27
+and 28, the designation of the North-East Atlantic as an Emission Control Area for Sulphur
+Oxides, Particulate Matter and Nitrogen Oxides, the accessibility of the IMO Ship Fuel Oil
+Consumption Database (IMO DCS), and the review clause of the short-term GHG reduction
+measure, which were circulated in accordance with article 16(2)(a) of MARPOL,
+
+1      ADOPTS, in accordance with article 16(2)(d) of MARPOL, amendments to MARPOL
+Annex VI, the text of which is set out in the annex to the present resolution;
+
+2        DETERMINES, in accordance with article 16(2)(f)(ii) and (iii) of MARPOL, that the
+amendments shall be deemed to have been accepted on 1 March 2027 unless prior to that
+date not less than one third of the Parties or Parties the combined merchant fleets of which
+constitute not less than 50% of the gross tonnage of the world's merchant fleet have
+communicated to the Organization their objection to the amendments;
+
+3        INVITES the Parties to note that, in accordance with article 16(2)(g)(ii) of MARPOL,
+the said amendments shall enter into force on 1 September 2027 upon their acceptance in
+accordance with paragraph 2 above;
+
+4        REQUESTS the Secretary-General, for the purpose of article 16(2)(e) of MARPOL,
+to transmit certified copies of the present resolution and the text of the amendments contained
+in the annex to all Parties to MARPOL;
+
+5        ALSO REQUESTS the Secretary-General to transmit copies of the present resolution
+and its annex to Members of the Organization which are not Parties to MARPOL.
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+MEPC 84/16/Add.1
+Annex 3, page 2
+
+                                            ANNEX
+
+                            AMENDMENTS TO MARPOL ANNEX VI
+
+    (Clarification of entries in data reporting required by regulations 27 and 28,
+  designation of the North-East Atlantic as an Emission Control Area for Nitrogen
+Oxides, Sulphur Oxides and Particulate Matter, accessibility to the IMO Ship Fuel Oil
+Consumption Database, and review clause of the short-term GHG reduction measure)
+
+
+                                           ANNEX VI
+
+           REGULATIONS FOR THE PREVENTION OF AIR POLLUTION FROM SHIPS
+
+
+Regulation 13
+Nitrogen oxides (NOx)
+
+Tier III
+
+1       At the end of paragraph 5.1.3.1, "." is replaced with ";" and a new sub-paragraph .2 is
+added to paragraph 5.1.3, as follows:
+
+            ".2     that ship is constructed on or after 1 January 2027 and is operating in the
+                    North-East Atlantic Emission Control Area. For the North-East Atlantic
+                    Emission Control Area, "ship constructed on or after 1 January 2027" means
+                    a ship:
+
+                            .1       for which the building contract        is placed on or
+                                     after 1 January 2027; or
+
+                            .2       in the absence of a building contract, the keel of which is
+                                     laid or which is at a similar stage of construction on or
+                                     after 1 July 2027; or
+
+                            .3       the delivery of which is on or after 1 January 2031."
+
+Emission control area
+
+2        At the end of sub-paragraph .5 of paragraph 6, the word "and" is deleted, and at the
+end of sub-paragraph .6 of paragraph 6, "." is replaced with "; and".
+
+3           New sub-paragraph .7 is added to paragraph 6, as follows:
+
+            ".7     the North-East Atlantic Emission Control Area, which means the area
+                    described by the coordinates provided in appendix VII to this Annex."
+
+
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+                                                                              MEPC 84/16/Add.1
+                                                                                Annex 3, page 3
+
+Regulation 14
+Sulphur oxides (SOX) and particulate matter
+
+4        At the end of sub-paragraph .6 of paragraph 3, the word "and" is deleted, and at the
+end of sub-paragraph .7 of paragraph 3, "." is replaced with "; and".
+
+5        New sub-paragraph .8 is added to paragraph 3, as follows:
+
+         ".8      the North-East Atlantic Emission Control Area, which means the area
+                  described by the coordinates provided in appendix VII to this Annex."
+
+Regulation 20
+Goal
+
+6        The paragraph is replaced by the following:
+
+         "The goal of this chapter is to reduce the carbon intensity of international shipping,
+         working towards the levels of ambition set out in the 2023 IMO Strategy on Reduction
+         of GHG Emissions from Ships."
+
+Regulation 25
+Required EEXI
+
+7        Paragraph 3 is replaced by the following:
+
+         "3       This regulation shall be kept under review in light of its implementation, taking
+         into account the 2023 IMO Strategy on Reduction of GHG Emissions from Ships."
+
+Regulation 27
+Collection and reporting of ship fuel oil consumption data
+
+8        Paragraphs 11 to 15 are replaced by the following new paragraphs 11 to 16:
+
+         "11      The Secretary-General of the Organization shall grant the Administration of
+         a ship or any organization duly authorized by it access to all the reported data for all
+         the preceding calendar years in the IMO Ship Fuel Oil Consumption Database for
+         that ship.
+
+         12        Parties shall have access to a non-anonymized database containing data for
+         all ships to which this regulation applies strictly for their analysis and consideration.
+
+         13       Notwithstanding paragraph 12 of this regulation, the Administration of a Party
+         to the present Convention may notify the Secretary-General of the Organization that
+         its express approval will be necessary before the data of ships entitled to fly its flag
+         are included in the non-anonymized database.
+
+         14      The Secretary-General of the Organization shall maintain an anonymized
+         database such that identification of a specific ship will not be possible, and facilitate
+         access to public user accounts.
+
+         15      The IMO Ship Fuel Oil Consumption Database shall be undertaken and
+         managed by the Secretary-General of the Organization, pursuant to guidelines
+         developed by the Organization.
+
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+MEPC 84/16/Add.1
+Annex 3, page 4
+
+         16      On an ad hoc basis, the Secretary-General of the Organization may share
+         data with analytical consultancies and research entities, under strict confidentiality
+         rules.
+
+         17       The Secretary-General of the Organization, on the request of a company,
+         shall grant access to the fuel oil consumption reports of the company's owned ship(s)
+         in a non-anonymized form to the general public."
+
+Regulation 28
+Operational carbon intensity
+
+Review
+
+9        Paragraph 11 is replaced by the following:
+
+         "11      This regulation shall be kept under review in light of its implementation, taking
+         into account the 2023 IMO Strategy on Reduction of GHG Emissions from Ships."
+
+Appendix VII
+Emission control areas (regulations 13.6 and 14.3)
+
+10       New paragraphs 6 and 7 are inserted, as follows:
+
+         "6       The North-East Atlantic Emission Control Area includes the exclusive
+         economic zones and territorial seas, extending up to 200 nautical miles from the
+         baselines of Greenland, Iceland, the Faroes, Ireland, the mainlands of
+         the United Kingdom, France, Spain and Portugal, as set out in paragraph 7 below.
+         This designation excludes the seas bounded by the North Sea area, as defined in
+         regulation 1.14.6 of Annex V of the present Convention.
+
+         7        The geographic outer boundaries of the North-East Atlantic Emission Control
+         Area are delineated by a series of geodesic lines connecting specified coordinates of
+         latitude and longitude. These coordinates are referenced to the World Geodetic
+         System 1984 (WGS 1984) datum as outlined below:
+
+                  .1       the northernmost outer boundary of the North-East Atlantic
+                           Emission Control Area begins at the coordinate 86°19'.18 N,
+                           60°10'.17 W, as outlined in regulation 14.3 and appendix VII of
+                           MARPOL Annex VI. From this point, the boundary extends
+                           eastward, following the outer boundaries of the exclusive economic
+                           zones of Iceland, the Faroes, and the eastern part of the mainland
+                           of the United Kingdom, until reaching the coordinate 62°00'.00 N,
+                           01°22'.25 E, where it intersects with the northern boundary of the
+                           North Sea area. The boundary of this section is defined by
+                           connecting the following coordinates in sequential order:
+
+
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+                                                                            MEPC 84/16/Add.1
+                                                                              Annex 3, page 5
+
+
+
+ Point     Latitude        Longitude                  Point    Latitude         Longitude
+  1       86°19'.18 N     60°10'.17 W                  16     69°35'.00 N      13°16'.00 W
+  2       86°57'.80 N     37°45'.68 W                  17     69°34'.77 N      12°24'.42 W
+  3       86°39'.87 N     12°26'.95 W                  18     69°09'.46 N      09°42'.43 W
+  4       85°37'.64 N     01°00'.60 E                  19     68°20'.93 N      07°34'.34 W
+  5       83°42'.56 N     07°58'.17 E                  20     67°30'.09 N      06°32'.60 W
+  6       82°20'.92 N     05°51'.60 E                  21     66°24'.66 N      05°45'.14 W
+  7       79°52'.93 N     01°38'.37 W                  22     65°41'.60 N      05°34'.40 W
+  8       78°19'.00 N     03°20'.63 W                  23     65°15'.62 N      02°38'.26 W
+  9       76°59'.35 N     02°49'.70 W                  24     64°26'.05 N      00°29'.18 W
+  10      76°03'.97 N     04°27'.87 W                  25     63°53'.22 N      00°29'.44 W
+  11      75°18'.13 N     04°17'.90 W                  26     62°53'.47 N      00°38'.36 E
+  12      74°30'.64 N     04°50'.57 W                  27     62°00'.00 N      01°22'.25 E
+  13      72°49'.62 N     11°28'.77 W
+  14      71°52'.99 N     12°46'.03 W
+  15      69°54'.98 N     13°37'.77 W
+
+                  .2       continuing from the coordinate 62°00'.00 N, 01°22'.25 E,
+                           the boundary proceeds along the northwestern outer limits of the
+                           North Sea area, as defined in regulation 1.14.6 of Annex V of the
+                           present Convention. The boundary excludes the area south of
+                           latitude 62°00'.00 N and east of longitude 04°00'.00 W, connecting
+                           the following coordinates:
+
+                                Point    Latitude      Longitude
+                                 27     62°00'.00 N   01°22'.25 E
+                                 28     62°00'.00 N   04°00'.00 W
+                                 29     58°33'.94 N   04°00'.00 W
+
+                  .3       continuing southward, the boundary follows the southwestern outer
+                           limits of the North Sea area, as defined in regulation 1.14.6 of
+                           Annex V of the present Convention, excluding the English Channel
+                           and its approaches eastward of longitude 05°00'.00 W and
+                           northward of latitude 48°30'.00 N, until the boundary reaches its
+                           southernmost coordinate at 48°30'.00 N, 05°00'.00 W.
+
+                                Point  Latitude        Longitude
+                                 30   48°30'.00 N     05°00'.00 W
+
+                  .4       the following section of the North-East Atlantic Emission Control Area
+                           extends southward from the coordinate 48°30'.00 N, 05°00'.00 W,
+                           until it reaches the intersection of two boundaries: the line
+                           joining Cape Trafalgar, Spain (36°11'.00 N, 06°02'.00 W), and
+                           Cape Spartel, Morocco (35°48'.00 N, 05°55'.00 W), as outlined
+                           in regulation 14.3 and this appendix; and the eastern outer limit of
+                           Spain's mainland exclusive economic zone at the coordinate
+                           35°57'.59 N, 05°58'.27 W. This section of the North-East Atlantic
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+MEPC 84/16/Add.1
+Annex 3, page 6
+
+                           Emission Control Area encompasses the waters within the exclusive
+                           economic zones and territorial seas of the mainland territories of
+                           France, Portugal, and Spain. The area is bounded to the east by the
+                           coasts of these countries and to the west by the outer limits of their
+                           respective exclusive economic zones. The coordinates defining the
+                           outer limits, extending from the southernmost points northward, are
+                           as follows:
+
+ Point      Latitude         Longitude               Point      Latitude         Longitude
+  31       35°57'.59 N      05°58'.27 W               65       41°28'.00 N      13°18'.00 W
+   32      35°57'.88 N      06°02'.14 W                66      41°29'.12 N      13°19'.54 W
+   33      35°57'.94 N      06°03'.00 W                67      41°30'.12 N      13°20'.50 W
+   34      35°57'.98 N      06°03'.48 W                68      41°30'.99 N      13°21'.34 W
+   35      35°58'.09 N      06°04'.90 W                69      41°35'.55 N      13°25'.32 W
+   36      35°55'.91 N      06°16'.72 W                70      41°44'.00 N      13°30'.10 W
+   37      35°54'.85 N      06°22'.58 W                71      41°54'.17 N      13°35'.21 W
+   38      35°54'.63 N      06°23'.83 W                72      42°04'.57 N      13°39'.38 W
+   39      35°53'.50 N      06°30'.25 W                73      42°15'.70 N      13°43'.28 W
+   40      35°53'.34 N      06°31'.23 W                74      42°24'.69 N      13°45'.77 W
+   41      35°52'.13 N      06°38'.74 W                75      42°31'.79 N      13°47'.34 W
+   42      35°51'.94 N      06°39'.54 W                76      42°39'.44 N      13°48'.60 W
+   43      35°49'.70 N      06°48'.66 W                77      42°52'.53 N      13°50'.12 W
+   44      35°49'.60 N      06°49'.22 W                78      43°00'.67 N      13°50'.66 W
+   45      35°49'.18 N      06°51'.55 W                79      43°09'.85 N      13°50'.86 W
+   46      35°48'.61 N      06°59'.14 W                80      43°18'.03 N      13°50'.54 W
+   47      35°48'.51 N      06°59'.81 W                81      43°27'.44 N      13°49'.62 W
+   48      35°47'.62 N      07°06'.03 W                82      43°41'.45 N      13°47'.12 W
+   49      35°46'.01 N      07°31'.75 W                83      43°57'.73 N      13°42'.42 W
+   50      35°46'.00 N      07°32'.00 W                84      44°10'.36 N      13°37'.36 W
+   51      35°26'.00 N      08°05'.00 W                85      44°20'.93 N      13°32'.09 W
+   52      35°19'.00 N      08°21'.00 W                86      44°25'.70 N      13°29'.41 W
+   53      35°11'.00 N      08°53'.00 W                87      44°33'.99 N      13°24'.15 W
+   54      35°07'.00 N      09°13'.00 W                88      44°43'.13 N      13°17'.74 W
+   55      35°01'.00 N      10°30'.00 W                89      44°55'.81 N      13°08'.03 W
+   56      34°55'.00 N      11°40'.00 W                90      45°01'.23 N      13°03'.33 W
+   57      34°57'.00 N      12°17'.00 W                91      45°01'.37 N      13°03'.21 W
+   58      37°00'.00 N      13°09'.00 W                92      45°07'.52 N      12°57'.42 W
+   59      38°10'.00 N      13°42'.00 W                93      45°14'.79 N      12°49'.94 W
+   60      38°43'.00 N      13°46'.00 W                94      45°22'.20 N      12°41'.48 W
+   61      41°09'.00 N      13°16'.00 W                95      45°29'.33 N      12°32'.60 W
+   62      41°23'.77 N      13°18'.00 W                96      45°35'.60 N      12°23'.73 W
+   63      41°24'.03 N      13°17'.61 W                97      45°43'.59 N      12°11'.30 W
+   64      41°24'.04 N      13°17'.61 W                98      45°50'.60 N      11°59'.37 W
+
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+                                                                             MEPC 84/16/Add.1
+                                                                               Annex 3, page 7
+
+ Point      Latitude            Longitude            Point      Latitude         Longitude
+   99      46°02'.77 N      11°37'.11 W               105     46°32'.75 N       10°31'.66 W
+  100      46°08'.97 N      11°24'.71 W               106     46°37'.94 N       10°19'.19 W
+  101      46°15'.55 N      11°09'.69 W               107     46°42'.62 N       10°06'.98 W
+  102      46°21'.12 N      10°55'.44 W               108     46°45'.83 N       09°58'.26 W
+  103      46°25'.27 N      10°47'.40 W               109     46°48'.86 N       09°48'.96 W
+  104      46°29'.31 N      10°39'.08 W               110     46°52'.16 N       09°37'.92 W
+                                                      111     46°52'.73 N       09°35'.99 W
+
+                  .5       continuing from the coordinate 46°52'.73 N, 09°35'.99 W,
+                           the boundary proceeds in a northern direction, following the western
+                           outer limits of the exclusive economic zones of the mainlands of the
+                           United Kingdom, Ireland, Iceland, the Faroes, and Greenland, until
+                           it reaches the southernmost intersection of the exclusive economic
+                           zone of Greenland and the Canadian Arctic Emission Control Area,
+                           at the coordinate 61°24'.74 N, 57°16'.16 W, as detailed in
+                           regulation 14.3 and this appendix. The coordinates for this section
+                           are as follows:
+
+ Point       Latitude           Longitude            Point      Latitude         Longitude
+  112      48°10'.49 N          10°48'.56 W          133       58°10'.58 N       14°52'.18 W
+  113      48°10'.81 N          10°48'.56 W          134       58°37'.54 N       14°47'.13 W
+  114      48°36'.38 N          12°36'.48 W          135       59°08'.50 N       14°29'.17 W
+  115      49°12'.41 N          13°56'.75 W          136       59°36'.59 N       14°03'.25 W
+  116      49°41'.42 N          14°39'.12 W          137       59°55'.59 N       13°37'.56 W
+  117      50°07'.69 N          15°08'.26 W          138       60°09'.13 N       13°16'.39 W
+  118      50°34'.07 N          15°29'.32 W          139       60°42'.23 N       14°00'.03 W
+  119      51°17'.55 N          15°54'.73 W          140       60°09'.28 N       17°03'.21 W
+  120      51°43'.99 N          16°02'.88 W          141       59°58'.44 N       20°22'.34 W
+  121      52°11'.47 N          16°05'.45 W          142       60°03'.00 N       22°08'.29 W
+  122      52°41'.54 N          16°01'.85 W          143       60°31'.10 N       25°30'.33 W
+  123      53°10'.97 N          15°50'.66 W          144       60°55'.19 N       27°17'.15 W
+  124      54°05'.16 N          16°00'.59 W          145       61°31'.52 N       28°48'.06 W
+  125      54°45'.40 N          15°55'.82 W          146       62°14'.11 N       29°52'.18 W
+  126      55°13'.09 N          15°43'.87 W          147       63°18'.12 N       30°52'.05 W
+  127      55°38'.99 N          15°25'.22 W          148       62°30'.13 N       33°39'.15 W
+  128      56°12'.21 N          14°50'.96 W          149       61°24'.86 N       35°02'.45 W
+  129      56°34'.63 N          14°19'.86 W          150       58°10'.71 N       37°39'.21 W
+  130      56°57'.19 N          14°36'.16 W          151       57°12'.46 N       39°29'.13 W
+  131      57°25'.36 N          14°48'.11 W          152       56°31'.75 N       42°11'.97 W
+  132       57°46'.48 N         14°52'.42 W          153       56°23'.72 N       44°27'.68 W
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+MEPC 84/16/Add.1
+Annex 3, page 8
+
+
+ Point        Latitude               Longitude                         Point           Latitude               Longitude
+  154        56°42'.83 N             47°08'.20 W                        156          58°41'.66 N              53°40'.40 W
+  155        57°52'.48 N             51°48'.36 W                        157          61°24'.74 N              57°16'.16 W
+
+                     .6           continuing along the outer boundary of the Canadian Arctic
+                                  Emission Control Area until ending at the south coast of Hans Island
+                                  (Tartupaluk) at 80°49'.29 N, 66°27'.04 W. The coordinates for this
+                                  section refer sequentially from Point No.174 through Point No.51 in
+                                  the table in paragraph 5.2 of appendix VII of MARPOL Annex VI.
+
+                     .7           continuing from the north coast of Hans Island (Tartupaluk) at
+                                  80°49'.91 N, 66°27'.40 W along the outer boundary of the Canadian
+                                  Arctic Emission Control Area, until reaching the northernmost outer
+                                  boundary of the North East Atlantic Emission Control Area at the
+                                  coordinates 86°19'.18 N, 60°10'.17 W. The coordinates for this
+                                  section refer sequentially from Point No.50 through Point No.23 in
+                                  the table in paragraph 5.1 of appendix VII of MARPOL Annex VI.
+
+Appendix IX
+Information to be submitted to the IMO Ship Fuel Oil Consumption Database (regulation 27)
+
+11       The section "Identity of the ship" is replaced by the following:
+
+         "Identity of the ship
+
+         IMO number . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+         Period of calendar year for which the data is submitted……………………………
+
+         For the purpose of regulation 27:
+
+                     Start date (dd/mm/yyyy) ………………………………………………………….
+
+                     End date (dd/mm/yyyy).………………….……………………………………….
+
+         For the purpose of regulation 28:
+
+                     Start date (dd/mm/yyyy) ………………………………………………………….
+
+                     End date (dd/mm/yyyy)………………….………………………………………."
+
+12       In the section on "Fuel oil consumption data", the term "Oil-fired Boiler(s)" is replaced
+by "Fired Boiler(s)".
+
+
+                                                             ***
+
+
+
+
+I:\MEPC\MEPC 84-16-Add.1.docx
+
