@@ -28,6 +28,24 @@
       </div>
     </header>
 
+    <div id="phoneDeck" class="phone-deck" hidden>
+      <div class="dash-tabs" role="tablist" aria-label="Dashboard sections">
+        <button type="button" data-goto="0" class="on">Voyage</button>
+        <button type="button" data-goto="1">Fuel</button>
+        <button type="button" data-goto="2">Tanks</button>
+        <button type="button" data-goto="3">Engine</button>
+      </div>
+      <div class="dash-dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="dash-snap" id="dashSnap">
+        <section class="dash-pane" data-pane="voyage"></section>
+        <section class="dash-pane" data-pane="fuel"></section>
+        <section class="dash-pane" data-pane="tanks"></section>
+        <section class="dash-pane" data-pane="rest"></section>
+      </div>
+    </div>
+
+    <div id="homeLong">
+
     <div class="actions-2">
       <a class="btn primary" href="noon.html">Noon report</a>
       <a class="btn primary" href="soundings.html">Soundings</a>
@@ -517,6 +535,7 @@
       </details>
       <p class="hint">First-run ships with no vessel yet get one action, Set up this vessel, instead of this board. It is the empty state of Home, not a second page.</p>
     </section>
+    </div>
   </template>
   <script src="icons.js"></script>
   <script src="station.js"></script>
@@ -526,6 +545,103 @@
       if (hint) hint.hidden = !hint.hidden;
       this.classList.toggle('on');
     });
+
+    (function () {
+      var mq = window.matchMedia('(max-width: 599px), (orientation: landscape) and (max-height: 500px)');
+      var groups = {
+        voyage: ['passage'],
+        fuel: ['fuel-gauges', 'rob'],
+        tanks: ['tanks']
+      };
+      var moved = [];
+      var deck, long, snap;
+      function take(id, pane) {
+        var el = document.getElementById(id);
+        if (!el || !pane) return;
+        var mark = document.createComment('slot');
+        el.parentNode.insertBefore(mark, el);
+        moved.push({ el: el, mark: mark });
+        pane.appendChild(el);
+      }
+      function mark(idx) {
+        deck.querySelectorAll('[data-goto]').forEach(function (b, n) {
+          b.classList.toggle('on', n === idx);
+        });
+        deck.querySelectorAll('.dash-dots i').forEach(function (d, n) {
+          d.classList.toggle('on', n === idx);
+        });
+      }
+      function mount() {
+        document.body.classList.add('phone-dash');
+        deck.hidden = false;
+        moved = [];
+        Object.keys(groups).forEach(function (name) {
+          var pane = snap.querySelector('[data-pane="' + name + '"]');
+          groups[name].forEach(function (id) { take(id, pane); });
+        });
+        var rest = snap.querySelector('[data-pane="rest"]');
+        while (long.firstElementChild) {
+          var child = long.firstElementChild;
+          var slot = document.createComment('slot');
+          long.insertBefore(slot, child);
+          moved.push({ el: child, mark: slot });
+          rest.appendChild(child);
+        }
+        long.hidden = true;
+        var names = ['voyage', 'fuel', 'tanks', 'rest'];
+        var want = new URLSearchParams(location.search).get('pane') || 'voyage';
+        var idx = names.indexOf(want);
+        if (idx < 0) idx = 0;
+        mark(idx);
+        var jump = function () { snap.scrollLeft = idx * (snap.clientWidth || 1); mark(idx); };
+        jump();
+        requestAnimationFrame(jump);
+      }
+      function unmount() {
+        document.body.classList.remove('phone-dash');
+        deck.hidden = true;
+        long.hidden = false;
+        for (var i = moved.length - 1; i >= 0; i--) {
+          var m = moved[i];
+          if (m.mark && m.mark.parentNode) {
+            m.mark.parentNode.insertBefore(m.el, m.mark);
+            m.mark.remove();
+          }
+        }
+        moved = [];
+      }
+      function indexNow() {
+        var w = snap.clientWidth || 1;
+        return Math.max(0, Math.min(3, Math.round(snap.scrollLeft / w)));
+      }
+      function wire() {
+        deck.querySelectorAll('[data-goto]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var i = Number(b.getAttribute('data-goto'));
+            var pane = snap.children[i];
+            if (pane && pane.scrollIntoView) pane.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+            mark(i);
+          });
+        });
+        snap.addEventListener('scroll', function () { mark(indexNow()); });
+      }
+      function apply() {
+        if (mq.matches) mount();
+        else if (document.body.classList.contains('phone-dash')) unmount();
+      }
+      function start() {
+        deck = document.getElementById('phoneDeck');
+        long = document.getElementById('homeLong');
+        snap = document.getElementById('dashSnap');
+        if (!deck || !long || !snap || deck.dataset.wired === '1') return;
+        deck.dataset.wired = '1';
+        wire();
+        if (mq.addEventListener) mq.addEventListener('change', apply);
+        apply();
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+      else start();
+    })();
   </script>
 </body>
 </html>

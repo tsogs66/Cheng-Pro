@@ -121,6 +121,15 @@ Pages other than Home, Noon, Soundings, ROB, Calibration and Vessel Setup open a
 
 Noon report, on a phone in portrait, is four steps: When, Meters, Oil & water, Review. Each step is one screen, with a sticky Next or Save. Calculated boxes stay dashed. The previous meter reading sits under the input. On a tablet in landscape and on Windows the same sections are all visible at once, which is how Log Entry works today. The Windows “Enter Flowmeters…” popup is the Meters step on a phone.
 
+The phone home board is not one long page. From 320px through about 430px wide, and in phone landscape, it is four screens you swipe sideways. CSS scroll-snap does the swipe. A tab strip under the title — Voyage, Fuel, Tanks, Engine — plus four dots, jumps to a screen when tapped. Each screen is one viewport tall. If a screen has more than fits, it scrolls inside itself, not the whole app. Noon report and Soundings stay on the bottom bar the whole time. Tablet and Windows keep the single scrolling board, with the passage chart and fuel gauges side by side under those two keys.
+
+The four phone screens are:
+
+1. Voyage — the passage chart, speed, RPM, slip, load, days at sea, days to go, and ETA.
+2. Fuel — the vertical fuel gauges, then lube and fresh-water ROB.
+3. Tanks — the sounding summary, the tank drawing, and the table.
+4. Engine — alerts, the latest noon, ship and sync, consumption, performance, SFOC, running hours, CII, BDN retention, maintenance, and the departure/arrival book.
+
 ROB is one card per grade (opening, received, consumed, present), with a sticky total. The survey-minus-log comparison is under them. There is no sideways table on a 320px phone.
 
 Soundings, on a phone, opens on the tanks. The draft, trim, heel and temperatures are one summary line; tap it for the full header. Each tank is a card: the centimetres and the temperature are the large inputs, the weight in air is the large figure, and VCF / GSV / WCF sit in the small line. A total for VLSFO, distillate and the log difference sticks to the top. From tablet landscape upward (about 1100px) the cards give way to the full monitoring grid, the same columns as the fuel-oil report. That grid is the one place a sideways scroll is still honest, and the tank name stays pinned.
@@ -138,11 +147,11 @@ Today there are three home screens. ChEng AIO Home, Voyage Chief’s Summary, an
 | Watch strip: ship’s clock, next ports, ROB by grade, sludge %, e-ORB weekly line | The strip under the top bar, on every screen |
 | First-run “Set up this vessel” when no ship exists | Empty state of this same board. Not drawn on the working sample. The note at the bottom of the tank section says so |
 | Voyage progress: Voyage Chief, Log Entry, Consumption Plan | Passage band, button row |
-| Voyage progress picture: departure, 0 nm, arrival, total nm, ship on the track, nm sailed, percent complete, nm to go, speed, RPM, slip, kW, % MCR, average speed | The chart directly under the Noon and Soundings keys. Visible on the 1366×768 desktop, the 360×800 phone, and tablet landscape |
+| Voyage progress picture: departure, 0 nm, arrival, total nm, ship on the track, nm sailed, percent complete, nm to go, speed, RPM, slip, kW, % MCR, average speed | The chart directly under the Noon and Soundings keys on Windows and tablet. On a phone it is the first swipe screen, Voyage |
 | Days at sea, days to go, ETA | Strip under the voyage chart, and again in the voyage-figures list |
 | Wind from, Beaufort, knots, Beaufort name, sea state | Line under the chart. Beaufort sample buttons are in Voyage figures |
 | License warning if Voyage or Tanks is not on the key | Not on this sample (the sample is licensed). The sentence stays available where today’s warning sits, under the passage or the tank band |
-| Calculated ROB: ROB button, per-fuel gauge with present, opening tick, used, survey correction, fuel colour | Vertical fuel gauges in the top band, beside the chart on a wide screen and directly under it on a phone. The same three grades are repeated as numbers in Calculated ROB, with the lube and fresh-water gauges |
+| Calculated ROB: ROB button, per-fuel gauge with present, opening tick, used, survey correction, fuel colour | Vertical fuel gauges beside the chart on Windows and tablet. On a phone they are the Fuel swipe screen, with lube and fresh water in the same screen |
 | Vessel tank overview: Tank Chief, Monitoring, Bunkering Plan, Rearrange, Reset layout | Tank band, button row. Rearrange reveals the same hint |
 | HFO/VLSFO volume, logged count, % full | HFO / VLSFO card |
 | HFO/VLSFO weight in air | The weight line on that card, and the separate weight card |

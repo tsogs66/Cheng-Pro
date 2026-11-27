@@ -1156,6 +1156,79 @@ html[data-theme="day"] .ico {
   .hero { grid-template-columns: 1.45fr 0.85fr; align-items: start; }
   .vtank-glass { height: 132px; }
 }
+
+/* Phone home: four swipeable screens. Desktop and tablet keep the long board. */
+.phone-deck { display: none; }
+body.phone-dash .stage {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body.phone-dash #homeLong { display: none; }
+body.phone-dash .phone-deck {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.dash-tabs {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.dash-tabs button {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dash-tabs button.on {
+  background: var(--amber-dim);
+  border-color: var(--amber);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.dash-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 0 6px;
+}
+.dash-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+.dash-dots i.on {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(226, 168, 74, 0.8);
+}
+.dash-snap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.dash-snap::-webkit-scrollbar { display: none; }
+.dash-pane {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
 .bearing {
   display: flex;
   align-items: center;
