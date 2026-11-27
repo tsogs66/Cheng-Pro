@@ -3953,6 +3953,11 @@ html.bright .bp-result.bp-result-neg .bp-result-value b{color:#b3261e;}
       </div>
     </div>
 
+    <div class="panel" id="perfProfilePanel">
+      <h2>Speed &amp; Consumption Profile</h2>
+      <div id="perfProfileMount"></div>
+    </div>
+
     <div id="shipDetailsSection" style="display:none;">
       <div class="panel">
         <h2>Engine Data</h2>
@@ -16851,6 +16856,7 @@ function render(){
   renderChEngSignaturePreview();
 
   renderVesselSelector();
+  renderPerfProfile();
   renderVoyageLibrary().catch(()=>{});
   const {rows, consByFuel, consByLube, perf} = computeDerived();
   /* The R.O.B. tab can be pointed at a past report; gauges use that pick.
@@ -17408,6 +17414,21 @@ function scheduleBunkerPlanSave(){
 
 /* ---- Consumption plan: the page, the calculation, saved calculations and the printout are in consumption-plan.js (shared with
    Tank Chief). This tells it about Voyage Chief: where the plan is kept, the vessel's fuels, where the ROB comes from, how to print. ---- */
+/** The Speed & Consumption Profile panel on Setup: full / eco / safe speed and daily fuel, in port and at anchorage, ballast and laden. */
+let _perfCtl = null, _perfKey = '';
+function renderPerfProfile(){
+  const host = document.getElementById('perfProfileMount');
+  if (!host || !window.ConsumptionPlan) return;
+  const key = String(state.setup.vesselName || '') + '|' + planFuels().map(f=>f.id).join(',');
+  if (_perfCtl && _perfKey === key && host.firstChild){ _perfCtl.refresh(); return; }
+  _perfKey = key;
+  _perfCtl = ConsumptionPlan.mountProfile(host, {
+    ui: { btn: 'ghost small' },
+    fuels: planFuels,
+    load: ()=> state.setup.perfProfile || null,
+    save: (p)=>{ state.setup.perfProfile = p; return saveSetup(); }
+  });
+}
 let _bunkerPlanCtl = null;
 let _tankRobResolve = null;
 /** The vessel's own fuels: the grades of its fuel tanks. With none set up the plan offers Residual and Distillate. */
@@ -17491,6 +17512,21 @@ function mountBunkerPlan(){
     },
     vesselName: ()=> state.setup.vesselName || '',
     voyageNo: ()=> state.setup.voyageNumber || '',
+    /* the vessel's speed and consumption profile lives in Setup; the plan reads it and can edit it too */
+    profile: ()=> state.setup.perfProfile || null,
+    saveProfile: (p)=>{ state.setup.perfProfile = p; return saveSetup(); },
+    /* what the ship really did since a departure time (ship time): the log's distance, fuel per grade and the ROB now */
+    actuals: (departIso)=>{
+      try{
+        const t0 = new Date(departIso).getTime(); if (!(t0 > 0)) return null;
+        const rows = computeDerived().rows.filter(r => r.hrs > 0 && r.datetime && new Date(r.datetime).getTime() > t0);
+        if (!rows.length) return null;
+        const fuel = {}; let dist = 0, hrs = 0;
+        rows.forEach(r=>{ dist += Number(r.distanceShip) || 0; hrs += r.hrs || 0; Object.keys(r.consByType || {}).forEach(g=>{ const v = Number(r.consByType[g]); if (v >= 0) fuel[g] = (fuel[g] || 0) + v; }); });
+        return { to: rows[rows.length - 1].datetime, dist, hrs, fuel, rob: logRobByGrade() };
+      }catch(_){ return null; }
+    },
+    condition: ()=> (typeof normalizeCondition === 'function' && normalizeCondition(state.setup.shipCondition) === 'L') ? 'laden' : 'ballast',
     toast: m=> showToast(m),
     askName: async (plan)=> await askText({
       title: 'Save calculation',
@@ -17509,7 +17545,7 @@ function mountBunkerPlan(){
           stats[g] = { sea: r.sea != null ? r.sea : l.sea, port: r.port != null ? r.port : l.port };
         });
         const n = ConsumptionPlan.suggestDaily(plan, stats);
-        return { changed: n, message: n + ' MT/day figure' + (n === 1 ? '' : 's') + ' filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea lines from sea days, port lines from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its MT/day empty, and have some days logged' };
+        return { changed: n, message: n + ' leg figure' + (n === 1 ? '' : 's') + ' (MT/day) filled from the log (the last 7 days, or 30 when there was no sea or port time in 7: sea figures from sea days, port figures from port days). Check them.', empty: 'Nothing filled: pick a fuel on a line, leave its leg figure empty, and have some days logged' };
       } },
       { id: 'load-tank-rob', label: 'Load Tank ROB', hidden: !isChengAioEmbedded(), onClick: async ()=>{
         const r = await requestTankRobForPlan();

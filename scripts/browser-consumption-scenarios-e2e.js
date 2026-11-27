@@ -1,0 +1,42 @@
+// Consumption plan features: results table + status + last safe port, undo/redo, up/down buttons, CSV / text / summary.
+const http=require('http'),fs=require('fs'),path=require('path'),{chromium}=require('playwright');
+const root=process.env.ROOT||path.join(__dirname,'..','modules','voyage','www');
+const srv=http.createServer((q,r)=>{const u=decodeURIComponent(q.url.split('?')[0]);if(u==='/host.html'){r.writeHead(200,{'content-type':'text/html'});r.end('<!doctype html><meta charset=utf-8><body><div id=m></div><script src="/consumption-plan.js"></script>');return}let f=path.join(root,u);fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);r.end();return}const t={'.html':'text/html','.js':'text/javascript','.json':'application/json'}[path.extname(f)]||'application/octet-stream';r.writeHead(200,{'content-type':t});r.end(b)})});
+let fails=0;const ck=(l,a,e)=>{const ok=JSON.stringify(a)===JSON.stringify(e);console.log((ok?'  ok   ':'  FAIL ')+l+(ok?'':': expected '+JSON.stringify(e)+' got '+JSON.stringify(a)));if(!ok)fails++;};
+srv.listen(0,async()=>{const port=srv.address().port;const b=await chromium.launch();const errs=[];
+const p=await b.newPage({viewport:{width:1500,height:1700}});p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{errs.push('NATIVE DIALOG '+d.message().slice(0,40));d.dismiss()});
+await p.goto(`http://localhost:${port}/host.html`);
+await p.evaluate(()=>{window.__saved={plan:null,history:[]};window.__toasts=[];window.__files=[];window.__printed=[];
+ const inner=document.createElement('div');document.getElementById('m').appendChild(inner);
+ window.__ctl=ConsumptionPlan.mount(inner,{fuels:()=>[{id:'HFO'},{id:'LSMGO'}],load:()=>window.__saved,persist:(d)=>{window.__saved=JSON.parse(JSON.stringify(d));return Promise.resolve()},vesselName:()=>'MV TEST',voyageNo:()=>'V9',toast:m=>window.__toasts.push(m),
+  saveFile:async(n,t,m)=>{window.__files.push({n,t,m})},capacity:(g)=>g==='LSMGO'?60:0,
+  askName:async()=>'x',printSheet:(h)=>{window.__printed.push(h)},printHeader:()=>'',printSignature:()=>'',printMetaGrid:(i)=>i.map(x=>x.label+': '+x.value).join(' | ')});});
+await p.waitForTimeout(400);
+const set=async(i,f,t,d,sp,h,l)=>{const r=`tr[data-row="${i}"] `;await p.fill(r+'[data-f="from"]',f);await p.fill(r+'[data-f="to"]',t);await p.fill(r+'[data-f="distance"]',String(d));await p.fill('[data-ov="speed"]',String(sp));await p.fill('[data-ov="sea"][data-s="0"]',String(h));await p.fill('[data-ov="sea"][data-s="1"]',String(l));};
+await set(0,'A','B',1200,12,30,2);
+await p.fill('[data-sf="currentRob"][data-grade="HFO"]','300');
+console.log('== scenarios');
+await p.click('details.cp-scen > summary');await p.waitForTimeout(300);
+ck('panel opens with a table',await p.$$eval('.cp-scentable',a=>a.length),1);
+await p.fill('[data-cp="scenName"]','Full speed');await p.click('[data-act="scen-save"]');await p.waitForTimeout(300);
+await p.fill('[data-ov="speed"]','9');await p.fill('[data-ov="sea"][data-s="0"]','18');await p.waitForTimeout(300);
+await p.fill('[data-cp="scenName"]','Slow');await p.click('[data-act="scen-save"]');await p.waitForTimeout(300);
+ck('two scenarios saved',await p.evaluate(()=>window.__ctl.plan().scenarios.map(s=>s.name)),['Full speed','Slow']);
+const head=await p.$$eval('.cp-scentable thead th',a=>a.map(x=>(x.childNodes[0]?x.childNodes[0].textContent.trim():'')));
+ck('columns: current + scenarios',head,['','Current plan','Full speed','Slow']);
+const row=async(label)=>p.$$eval('.cp-scentable tbody tr',(a,l)=>{const r=a.find(x=>x.querySelector('th').textContent.startsWith(l));return r?[...r.querySelectorAll('td')].map(x=>x.textContent.trim()):null},label);
+console.log('   sea days',JSON.stringify(await row('Days at sea')));
+ck('Full speed takes fewer days than the slow current plan',parseFloat((await row('Days at sea'))[1])<parseFloat((await row('Days at sea'))[0]),true);
+await p.fill('[data-price="HFO"]','600');await p.waitForTimeout(300);
+const cost=await row('Cost: fuel');console.log('   cost',JSON.stringify(cost));
+ck('prices give a cost row',cost&&cost.length===3,true);
+await p.click('[data-act="scen-load"][data-id]');await p.waitForTimeout(400);
+ck('Use puts the saved speed back',await p.$eval('[data-ov="speed"]',e=>e.value),'12');
+ck('and keeps the ROB',await p.$eval('[data-sf="currentRob"][data-grade="HFO"]',e=>e.value),'300');
+await p.click('[data-btn="undo"]');await p.waitForTimeout(300);
+ck('Undo takes the scenario away again',await p.$eval('[data-ov="speed"]',e=>e.value),'9');
+await p.click('[data-act="scen-del"] >> nth=0');await p.waitForTimeout(300);
+ck('delete a scenario',await p.evaluate(()=>window.__ctl.plan().scenarios.length),1);
+await p.waitForTimeout(800);ck('saved with the plan',await p.evaluate(()=>window.__saved.plan.scenarios.length),1);
+ck('no page errors and no native dialogs',errs,[]);
+await b.close();srv.close();console.log(fails?fails+' FAILED':'all ok');process.exit(fails?1:0)});

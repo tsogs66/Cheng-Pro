@@ -1,0 +1,87 @@
+// Consumption plan features: results table + status + last safe port, undo/redo, up/down buttons, CSV / text / summary.
+const http=require('http'),fs=require('fs'),path=require('path'),{chromium}=require('playwright');
+const root=process.env.ROOT||path.join(__dirname,'..','modules','voyage','www');
+const srv=http.createServer((q,r)=>{const u=decodeURIComponent(q.url.split('?')[0]);if(u==='/host.html'){r.writeHead(200,{'content-type':'text/html'});r.end('<!doctype html><meta charset=utf-8><body><div id=m></div><script src="/consumption-plan.js"></script>');return}let f=path.join(root,u);fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);r.end();return}const t={'.html':'text/html','.js':'text/javascript','.json':'application/json'}[path.extname(f)]||'application/octet-stream';r.writeHead(200,{'content-type':t});r.end(b)})});
+let fails=0;const ck=(l,a,e)=>{const ok=JSON.stringify(a)===JSON.stringify(e);console.log((ok?'  ok   ':'  FAIL ')+l+(ok?'':': expected '+JSON.stringify(e)+' got '+JSON.stringify(a)));if(!ok)fails++;};
+srv.listen(0,async()=>{const port=srv.address().port;const b=await chromium.launch();const errs=[];
+const p=await b.newPage({viewport:{width:1500,height:1700}});p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{errs.push('NATIVE DIALOG '+d.message().slice(0,40));d.dismiss()});
+await p.goto(`http://localhost:${port}/host.html`);
+await p.evaluate(()=>{window.__saved={plan:null,history:[]};window.__toasts=[];window.__files=[];window.__printed=[];
+ const inner=document.createElement('div');document.getElementById('m').appendChild(inner);
+ window.__ctl=ConsumptionPlan.mount(inner,{fuels:()=>[{id:'HFO'},{id:'LSMGO'}],load:()=>window.__saved,persist:(d)=>{window.__saved=JSON.parse(JSON.stringify(d));return Promise.resolve()},vesselName:()=>'MV TEST',voyageNo:()=>'V9',toast:m=>window.__toasts.push(m),
+  saveFile:async(n,t,m)=>{window.__files.push({n,t,m})},capacity:(g)=>g==='LSMGO'?60:0,
+  askName:async()=>'x',printSheet:(h)=>{window.__printed.push(h)},printHeader:()=>'',printSignature:()=>'',printMetaGrid:(i)=>i.map(x=>x.label+': '+x.value).join(' | ')});});
+await p.waitForTimeout(400);
+const setLeg=async(sp,h,l)=>{await p.fill('[data-ov="speed"]',String(sp));await p.fill('[data-ov="sea"][data-s="0"]',String(h));await p.fill('[data-ov="sea"][data-s="1"]',String(l));};
+const set=async(i,f,t,d)=>{const r=`tr[data-row="${i}"] `;await p.fill(r+'[data-f="from"]',f);await p.fill(r+'[data-f="to"]',t);await p.fill(r+'[data-f="distance"]',String(d));};
+await setLeg(12,30,2);await set(0,'A','B',480);
+await p.click('[data-act="add-leg"]');await set(1,'B','C',480);
+await p.click('[data-act="add-leg"]');await set(2,'C','D',480);
+const rob=async(g,v)=>{await p.fill(`[data-sf="currentRob"][data-grade="${g}"]`,String(v));};
+await rob('HFO',200);await rob('LSMGO',50);
+await p.waitForTimeout(300);
+console.log('== results table + status');
+ck('a compact results table is shown',await p.$$eval('.cp-restable',a=>a.length),1);
+ck('one row per fuel',await p.$$eval('.cp-restable tbody tr',a=>a.length),2);
+let st=await p.$$eval('.cp-restable tbody tr',a=>a.map(r=>r.querySelector('th').textContent+':'+r.querySelector('.cp-st').textContent));
+console.log('   ',JSON.stringify(st));
+// HFO: 3 lines x 2 days x 30 = 180 of 200 -> arrival 20: ok (reserve 0 + 5% of 180 = 9)
+ck('HFO has enough: OK',st[0],'HFO:OK');
+await rob('HFO',155);await p.waitForTimeout(200);
+ck('arrives with 5 MT (< 5 % of the burn): TIGHT',(await p.$$eval('.cp-restable tbody tr',a=>a.map(r=>r.querySelector('.cp-st').textContent)))[0],'TIGHT');
+await rob('HFO',100);await p.waitForTimeout(200);
+ck('not enough: SHORT',(await p.$$eval('.cp-restable tbody tr',a=>a.map(r=>r.querySelector('.cp-st').textContent)))[0],'SHORT');
+const w=await p.$$eval('.cp-warns li',a=>a.map(x=>x.textContent));console.log('   warn:',w[0]);
+ck('the warning names the last safe place to bunker',/Bunker at or before C/.test(w[0]||''),true);
+await rob('HFO',400);await p.fill('[data-sf="qtyReceive"][data-grade="LSMGO"]','30');await p.waitForTimeout(200);
+ck('a stem that does not fit the tanks: OVER CAPACITY',(await p.$$eval('.cp-restable tbody tr',a=>a.map(r=>r.querySelector('.cp-st').textContent)))[1],'OVER CAPACITY');
+await p.fill('[data-sf="qtyReceive"][data-grade="LSMGO"]','');await rob('HFO',200);await p.waitForTimeout(200);
+
+console.log('== up / down');
+ck('mobile buttons exist on every line',await p.$$eval('[data-act="mv"]',a=>a.length),6);
+await p.click('tr[data-row="0"] [data-act="mv"][data-dir="1"]');await p.waitForTimeout(200);
+ck('moved down',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['B','A','C']);
+await p.click('tr[data-row="2"] [data-act="mv"][data-dir="-1"]');await p.waitForTimeout(200);
+ck('moved up',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['B','C','A']);
+
+console.log('== undo / redo');
+ck('Undo is available',await p.$eval('[data-btn="undo"]',e=>!e.disabled),true);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(200);
+ck('Undo takes the move back',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['B','A','C']);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(200);
+ck('and again',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['A','B','C']);
+await p.click('[data-btn="redo"]');await p.waitForTimeout(200);
+ck('Redo',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['B','A','C']);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(200);
+await p.click('tr[data-row="1"] [data-act="del-leg"]');await p.waitForTimeout(200);
+ck('delete a line',await p.$$eval('tr[data-row]',a=>a.length),2);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(200);
+ck('Undo brings the deleted line back',await p.$$eval('tr[data-row] [data-f="from"]',a=>a.map(x=>x.value)),['A','B','C']);
+await p.fill('tr[data-row="0"] [data-f="distance"]','999');await p.waitForTimeout(300);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(200);
+ck('Undo of typing returns the old value',await p.$eval('tr[data-row="0"] [data-f="distance"]',e=>e.value),'480');
+await p.click('[data-btn="clear"]');await p.waitForTimeout(200);await p.click('.cp-askov [data-ask="yes"]');await p.waitForTimeout(300);
+ck('Clear',await p.$$eval('tr[data-row]',a=>a.length),1);
+await p.click('[data-btn="undo"]');await p.waitForTimeout(300);
+ck('Undo brings back what Clear removed',await p.$$eval('tr[data-row]',a=>a.length),3);
+await p.keyboard.press('Escape');
+await p.focus('[data-act="add-leg"]');await p.keyboard.press('Control+z');await p.waitForTimeout(200);
+
+console.log('== export');
+await p.click('[data-btn="csv"]');await p.waitForTimeout(400);
+const files=await p.evaluate(()=>window.__files);
+ck('CSV is saved with a name',[files.length,/\.csv$/.test(files[0].n),files[0].m],[1,true,'text/csv']);
+const lines=files[0].t.replace(/^﻿/,'').split('\r\n');
+ck('CSV has the vessel and every line',[lines[1],lines.filter(l=>/^Leg 1,\d+,Sea/.test(l)).length],['Vessel,MV TEST',2]);
+ck('CSV has a result row per fuel',lines.filter(l=>/^Leg 1,(HFO|LSMGO),/.test(l)).length,2);
+const txt=await p.evaluate(()=>ConsumptionPlan.planText(window.__ctl.plan(),{vessel:'MV TEST'}));
+console.log(txt.split('\n').map(l=>'   | '+l).join('\n'));
+ck('report text names the route and the fuels',[/A → B 480 nm/.test(txt),/HFO: needs/.test(txt)],[true,true]);
+await p.evaluate(()=>{navigator.clipboard&&navigator.clipboard.writeText&&0});
+await p.click('[data-btn="copy"]');await p.waitForTimeout(300);
+ck('Copy report text answers',/Report text copied|Copy did not work/.test(await p.evaluate(()=>window.__toasts.slice(-1)[0])),true);
+await p.click('[data-btn="summary"]');await p.waitForTimeout(500);
+const pr=await p.evaluate(()=>window.__printed.slice(-1)[0]||'');
+ck('Summary prints one compact block (no line tables)',[/Summary/.test(pr),/<th>Status<\/th>/.test(pr),/Route:/.test(pr),/pr-bunker-entry-table|Fuel 1/.test(pr)],[true,true,true,false]);
+ck('no page errors and no native dialogs',errs,[]);
+await b.close();srv.close();console.log(fails?fails+' FAILED':'all ok');process.exit(fails?1:0)});
