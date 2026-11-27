@@ -231,9 +231,7 @@ body.clean .mockbar { display: none; }
   font-size: 12px;
   background: var(--panel);
 }
-.chips a.primary, .chips a.active {
-  border-color: var(--amber);
-  background: var(--amber-dim);
+.chips a.active {
   color: var(--text);
 }
 
@@ -340,9 +338,7 @@ body.clean .mockbar { display: none; }
   font-size: 12px;
   border-top: 2px solid transparent;
 }
-.dock a strong { font-weight: 650; font-size: 12px; color: var(--text); }
-.dock a.active { color: var(--text); border-top-color: var(--amber); background: var(--amber-dim); }
-.dock a.main strong { color: var(--amber); }
+.dock a strong, .dock button strong { font-weight: 650; font-size: 12px; color: var(--text); }
 
 .sheet {
   position: fixed;
@@ -979,7 +975,7 @@ html[data-theme="day"] .unit::after {
     0 4px 8px rgba(0, 0, 0, 0.28);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
-.btn.primary, .actions-2 .btn.primary, .dock a.main, .chips a.primary {
+.btn.primary, .actions-2 .btn.primary {
   color: #1c1408;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   border-color: #ffe1a8;
@@ -994,7 +990,7 @@ html[data-theme="day"] .unit::after {
   transform: translateY(1px);
   box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.45), 0 1px 0 #0c141c;
 }
-.btn.on, .btn.primary.on, .nav-btn.active, .mod-tab.active, .dock a.active, .steps-head button.on, .chips a.active {
+.btn.on, .btn.primary.on, .nav-btn.active, .mod-tab.active, .steps-head button.on {
   transform: translateY(1px);
   box-shadow:
     inset 0 3px 6px rgba(0, 0, 0, 0.45),
@@ -1011,12 +1007,6 @@ html[data-theme="day"] .unit::after {
   box-shadow: 0 0 6px rgba(226, 168, 74, 0.85), inset 0 -1px 1px rgba(0, 0, 0, 0.4);
   flex: none;
 }
-.dock a.main {
-  margin: 6px 4px;
-  border-radius: 6px;
-  min-height: 44px;
-}
-.dock a.main strong { color: #1c1408; }
 .ico {
   width: 26px;
   height: 26px;
@@ -1052,8 +1042,8 @@ html[data-theme="day"] .unit::after {
 .ico-lube { --hi: #ffe7a0; --ico: #c6a020; }
 .ico-water { --hi: #c5ecff; --ico: #17648e; }
 .ico-sea { --hi: #b7efe8; --ico: #0c6a64; }
-.dock a .ico { width: 22px; height: 22px; }
-.dock a .ico svg { width: 13px; height: 13px; }
+.dock a .ico, .dock button .ico { width: 22px; height: 22px; }
+.dock a .ico svg, .dock button .ico svg { width: 13px; height: 13px; }
 .mod-tab .ico { width: 18px; height: 18px; border-radius: 4px; }
 .mod-tab .ico svg { width: 11px; height: 11px; }
 html[data-theme="day"] .ico {
@@ -1241,10 +1231,116 @@ body.phone-dash .phone-deck {
 
 html[data-theme="day"] .btn,
 html[data-theme="day"] .theme-btn,
-html[data-theme="day"] .nav-btn,
-html[data-theme="day"] .dock a:not(.main) {
+html[data-theme="day"] .nav-btn {
   background-color: #efe6d4;
   color: var(--text);
   text-shadow: none;
   border-color: #b7a88e;
+}
+
+/* Phone and tablet bottom bar, and the short-landscape chips that replace it.
+   One plate for every item. Colour stays on the icon. The current page is a
+   brighter plate with the same light line, in both themes. */
+.dock {
+  gap: 4px;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.dock a,
+.dock button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 4px 2px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  border: 1px solid #8ea0ae;
+  border-bottom-color: #121920;
+  background-color: #243644;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.02) 42%, rgba(0, 0, 0, 0.18));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 0 #0c141c,
+    0 3px 6px rgba(0, 0, 0, 0.28);
+}
+.dock a strong,
+.dock button strong {
+  color: var(--text);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+.dock a.active,
+.dock button.active {
+  background-color: #345066;
+  border-top: 2px solid #d7e4ee;
+  box-shadow:
+    inset 0 2px 0 #d7e4ee,
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 2px 0 #0c141c,
+    0 3px 6px rgba(0, 0, 0, 0.28);
+}
+html[data-theme="day"] .dock a,
+html[data-theme="day"] .dock button {
+  background-color: #efe6d4;
+  color: #1c2430;
+  text-shadow: none;
+  border-color: #b7a88e;
+  border-bottom-color: #8a7a62;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 0 #8a7a62,
+    0 3px 6px rgba(60, 40, 20, 0.16);
+}
+html[data-theme="day"] .dock a strong,
+html[data-theme="day"] .dock button strong {
+  color: #1c2430;
+  text-shadow: none;
+}
+html[data-theme="day"] .dock a.active,
+html[data-theme="day"] .dock button.active {
+  background-color: #f8f3e8;
+  border-top: 2px solid #3e4c58;
+  color: #1c2430;
+  box-shadow:
+    inset 0 2px 0 #3e4c58,
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 0 #8a7a62,
+    0 3px 6px rgba(60, 40, 20, 0.16);
+}
+.chips a.active {
+  background-color: #345066;
+  border-bottom: 2px solid #d7e4ee;
+  box-shadow:
+    inset 0 -2px 0 #d7e4ee,
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 0 #0c141c;
+}
+html[data-theme="day"] .chips a {
+  background-color: #efe6d4;
+  color: #1c2430;
+  text-shadow: none;
+  border-color: #b7a88e;
+  border-bottom-color: #8a7a62;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 0 #8a7a62,
+    0 3px 6px rgba(60, 40, 20, 0.16);
+}
+html[data-theme="day"] .chips a.active {
+  background-color: #f8f3e8;
+  color: #1c2430;
+  border-color: #b7a88e;
+  border-bottom: 2px solid #3e4c58;
+  box-shadow:
+    inset 0 -2px 0 #3e4c58,
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 0 #8a7a62;
 }

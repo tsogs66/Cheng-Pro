@@ -267,7 +267,7 @@
       var forAttr = id === 'entry' || id === 'eorb' ? ' data-for="aio voyage"' : (id === 'fuel-report' ? ' data-for="aio tank"' : '');
       return '<' + tag + ' class="' + (cls || '') + (active ? ' active' : '') + '"' + hrefAttr + forAttr + '>' + ico(id) + '<strong>' + label + '</strong></' + tag + '>';
     }
-    return item('home', 'Home') + item('entry', 'Noon', 'main') + item('fuel-report', 'Soundings', 'main') + item('eorb', 'e-ORB', 'dock-eorb') + item('more', 'More');
+    return item('home', 'Home') + item('entry', 'Noon') + item('fuel-report', 'Soundings') + item('eorb', 'e-ORB', 'dock-eorb') + item('more', 'More');
   }
 
   function chipsHtml() {
@@ -277,7 +277,7 @@
       var forAttr = id === 'entry' ? ' data-for="aio voyage"' : (id === 'fuel-report' ? ' data-for="aio tank"' : '');
       return '<a class="' + (cls || '') + (active ? ' active' : '') + '" href="' + href(id) + '"' + forAttr + '>' + ico(id) + label + '</a>';
     }
-    return chip('entry', 'Noon', 'primary') + chip('fuel-report', 'Soundings', 'primary') + chip('home', 'Home') + '<a data-for="aio voyage" href="' + href('eorb') + '">' + ico('eorb') + 'e-ORB</a>' + '<a href="#" data-open-sheet>' + ico('more') + 'More</a>';
+    return chip('entry', 'Noon') + chip('fuel-report', 'Soundings') + chip('home', 'Home') + '<a data-for="aio voyage" href="' + href('eorb') + '">' + ico('eorb') + 'e-ORB</a>' + '<a href="#" data-open-sheet>' + ico('more') + 'More</a>';
   }
 
   function watchHtml() {
