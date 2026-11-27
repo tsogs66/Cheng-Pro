@@ -1001,7 +1001,7 @@ html[data-theme="day"] .unit::after {
     inset 0 0 0 1px rgba(226, 168, 74, 0.8),
     0 0 10px rgba(226, 168, 74, 0.35);
 }
-.btn.primary::before, .dock a.main::before, .actions-2 .btn.primary::before {
+.btn.primary::before, .actions-2 .btn.primary::before {
   content: "";
   width: 8px;
   height: 8px;
@@ -1017,10 +1017,55 @@ html[data-theme="day"] .unit::after {
   min-height: 44px;
 }
 .dock a.main strong { color: #1c1408; }
-.dock a.main.active::before {
-  background: radial-gradient(circle at 35% 35%, #eafff2, #3cba78 46%, #145c32);
-  box-shadow: 0 0 8px rgba(60, 186, 120, 0.9);
+.ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: #f6f1e6;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 48%),
+    linear-gradient(180deg, var(--hi, #8aa0ae), var(--ico, #2c3c48));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.38),
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.35);
 }
+.ico svg {
+  width: 15px;
+  height: 15px;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4));
+}
+.ico-blue { --hi: #8ec4e4; --ico: #13486c; }
+.ico-noon { --hi: #b7e4fb; --ico: #0f6ea0; }
+.ico-amber, .ico-brass, .ico-lube { color: #1c1408; }
+.ico-amber { --hi: #ffe0a0; --ico: #c47a18; }
+.ico-bronze { --hi: #e0a06a; --ico: #6b3a16; }
+.ico-red { --hi: #ffb0a6; --ico: #a12e26; }
+.ico-brass { --hi: #f3e2bc; --ico: #8d7040; }
+.ico-green { --hi: #b6ebc8; --ico: #1a6b3c; }
+.ico-steel { --hi: #d5dee6; --ico: #3c4e5c; }
+.ico-lube { --hi: #ffe7a0; --ico: #c6a020; }
+.ico-water { --hi: #c5ecff; --ico: #17648e; }
+.ico-sea { --hi: #b7efe8; --ico: #0c6a64; }
+.dock a .ico { width: 22px; height: 22px; }
+.dock a .ico svg { width: 13px; height: 13px; }
+.mod-tab .ico { width: 18px; height: 18px; border-radius: 4px; }
+.mod-tab .ico svg { width: 11px; height: 11px; }
+html[data-theme="day"] .ico {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(70, 50, 20, 0.35),
+    0 2px 3px rgba(40, 28, 10, 0.22);
+}
+.nav-btn, .item, .mod-tab, .chips a { gap: 8px; }
+.dock a { gap: 1px; }
+.sheet a.item { display: flex; align-items: center; }
 .alert.bad { box-shadow: inset 4px 0 0 var(--red), 0 0 12px rgba(225, 93, 76, 0.2); }
 .alert.ok { box-shadow: inset 4px 0 0 var(--green); }
 .lamp {

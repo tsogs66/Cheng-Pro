@@ -40,6 +40,56 @@ A watch strip sits under the top bar on every size: ship’s clock, next ports, 
 
 The top bar carries the ship, the condition (L or B), an offline lamp that opens Backup & Sync, the clock, and Day / Night. The lamp is amber when the device is offline. The open voyage leg is called out on the home board; sync is not allowed to drop it.
 
+## Menu icons
+
+Every item in the Windows sidebar, the tablet rail, the phone and tablet bottom bar, the landscape chips, and the More sheet uses the same line icon. Today’s phone bar uses emoji; the Windows lists are mostly plain text, and Tank Chief’s own menu uses a mix of emoji and single characters. Those are replaced by one stroke set: [Lucide](https://lucide.dev) 0.468.0 where a general symbol already exists, and a few marine glyphs drawn for this mockup in the same 24px stroke. The SVGs are inlined in `icons.js`, so nothing is fetched at sea and there is no build step.
+
+Lucide is the ISC license (Copyright Lucide Contributors). The custom glyphs are original drawings for these mockups.
+
+| Menu item | Where it sits | Current mark | New icon | Plate colour | Source | License |
+| --- | --- | --- | --- | --- | --- | --- |
+| Home | Sidebar, bar, sheet | 🏠 on the phone More sheet | house | Steel | Lucide | ISC |
+| Voyage / Summary | Sidebar “Voyage”, voyage Watch | 🧭 on the phone bar | compass | Nautical blue | Lucide | ISC |
+| Noon report / Log Entry | Phone bar, voyage Watch | text only | sextant | Nautical blue, lighter | Custom | Original |
+| ROB | Voyage Watch, sheet | text only | gauge | Fuel amber | Lucide | ISC |
+| Tanks / Tank summary | Sidebar “Tanks” | ⛽ on the phone bar | tank-gauge | Fuel amber | Custom | Original |
+| Soundings / Monitoring | Phone bar, tank Fuel management | ⛽ Monitor, 📇 Sounding | sounding-tape | Fuel amber | Custom | Original |
+| Consumption Plan | Sidebar, voyage | 📈 | trending-up | Nautical blue | Lucide | ISC |
+| Bunkering Plan / Bunker Plan | Sidebar, tank menu | 📥 | bunker-hose | Oil bronze | Custom | Original |
+| Bunkering | Tank Fuel management | 📥 | bunker-hose | Oil bronze | Custom | Original |
+| Bunker Consumption | Tank menu | 📊 | trending-up | Oil bronze | Lucide | ISC |
+| Bunker Summary | Tank menu | 📑 | clipboard-list | Oil bronze | Lucide | ISC |
+| ECA | Sidebar, voyage | 🌊 | waves | Sea green | Lucide | ISC |
+| e-ORB | Sidebar, bar, voyage Books | 📕 | orb-book | Signal red | Custom | Original |
+| Performance | Sidebar | 📊 | gauge | Brass | Lucide | ISC |
+| Spares | Sidebar, voyage Watch | 🔩 | nut | Steel | Lucide | ISC |
+| Notes | Sidebar, both modules | 📝 | notebook-pen | Brass | Lucide | ISC |
+| Vessel Setup / Vessel Data | Sidebar, voyage Ship, tank System | 🚢 | anchor | Brass | Lucide | ISC |
+| Voyage Setup | Voyage Ship | text only | route | Nautical blue | Lucide | ISC |
+| Setup (flowmeters, MCR) | Voyage Ship | text only | settings | Brass | Lucide | ISC |
+| Backup & Sync | Sidebar, tank System | ⇅ | arrow-up-down | Signal green | Lucide | ISC |
+| License | Sidebar | 🔑 | key-round | Brass | Lucide | ISC |
+| About | Sidebar, voyage Books, tank System | ℹ | info | Steel | Lucide | ISC |
+| Consumption | Voyage | text only | flame | Oil bronze | Lucide | ISC |
+| Voyage Abstract | Voyage | text only | scroll-text | Nautical blue | Lucide | ISC |
+| Range Totals | Voyage | text only | sigma | Nautical blue | Lucide | ISC |
+| Trends | Voyage | text only | chart-line | Nautical blue | Lucide | ISC |
+| Receipts | Voyage | text only | receipt | Oil bronze | Lucide | ISC |
+| Reports / Voyage Report | Voyage, tank menu | 📋 | files | Blue for voyage reports, amber for the tank voyage report | Lucide | ISC |
+| Reference | Voyage Books | text only | book-open | Nautical blue | Lucide | ISC |
+| Fuel Oil | Tank Tanks | ⛽ | droplet | Fuel amber | Lucide | ISC |
+| Lube Oil | Tank Tanks | 🛢 | lube-drum | Lube yellow | Custom | Original |
+| Misc / Bilge | Tank Tanks | 🔧 | wrench | Steel | Lucide | ISC |
+| Fresh Water | Tank Tanks | 💧 | glass-water | Water blue | Lucide | ISC |
+| Add Tank | Tank Tanks | + | plus | Fuel amber | Lucide | ISC |
+| Calibration DB | Tank Tanks | ☰ | ruler | Fuel amber | Lucide | ISC |
+| Sounding Card | Tank menu | 📇 | file-text | Fuel amber | Lucide | ISC |
+| VCF / WCF Calc | Tank Reference | Σ | calculator | Brass | Lucide | ISC |
+| ISO 8217 Specs | Tank Reference | ▤ | badge-check | Brass | Lucide | ISC |
+| More | Phone and tablet bar | ⋯ | ellipsis | Steel | Lucide | ISC |
+
+Each mark sits in a small raised plate: a two-tone gradient, a light top edge, a dark lower edge, and a drop shadow, so it reads as a console indicator rather than a flat stroke. Dark plates use a light glyph. Amber, brass and lube yellow use a dark glyph so they stay readable in sun and in a dim control room. The same plate colour follows the item on Windows, tablet and phone.
+
 Standalone Voyage Chief uses the same chrome with the tank items removed (no Soundings on the bar, no tank groups). Standalone Tank Chief removes Noon, ROB and e-ORB. On Windows the standalone apps do not show the AIO sidebar: Voyage Chief keeps its four groups, Tank Chief keeps its five. The product switch on the mockup bar demonstrates that. Inside AIO, Vessel Setup remains the only editor of the shared identity.
 
 ## Where each Windows item goes on a phone or tablet

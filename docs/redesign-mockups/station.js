@@ -144,6 +144,26 @@
     return base + (base.indexOf('?') >= 0 ? '&' : '?') + keep.join('&') + hash;
   }
 
+  function ico(id) {
+    var set = window.ChengIcons && ChengIcons.byId;
+    var svg = (set && (set[id] || set.more)) || '';
+    var tone = {
+      home: 'steel', summary: 'blue', entry: 'noon', rob: 'amber',
+      dashboard: 'amber', bunkerplan: 'blue', bunkeringplan: 'bronze',
+      eca: 'sea', eorb: 'red', performance: 'brass', spares: 'steel',
+      notes: 'brass', vessel: 'brass', setup: 'brass', backup: 'green',
+      license: 'brass', about: 'steel', guide: 'steel', consumption: 'bronze',
+      voyageabstract: 'blue', rangetotals: 'blue', trends: 'blue',
+      receipts: 'bronze', reports: 'blue', reference: 'blue', data: 'brass',
+      voyagesetup: 'blue', fuel: 'amber', lube: 'lube', misc: 'steel',
+      water: 'water', 'add-tank': 'amber', calibration: 'amber',
+      'fuel-report': 'amber', 'bunker-plan': 'bronze', 'bunker-consumption': 'bronze',
+      'bunker-after': 'bronze', 'bunker-summary': 'bronze', 'sounding-card': 'amber',
+      report: 'amber', 'vcf-wcf': 'brass', iso8217: 'brass', more: 'steel'
+    }[id] || 'steel';
+    return '<span class="ico ico-' + tone + '" aria-hidden="true">' + svg + '</span>';
+  }
+
   function link(id, label, extra) {
     var page = document.body.dataset.page || '';
     var active = page === id || (page === 'home' && id === 'home') || (page === 'soon' && qs().get('id') === id);
@@ -152,7 +172,7 @@
     var cls = 'nav-btn' + (active ? ' active' : '') + (extra || '');
     var attr = '';
     if (id === 'entry' || id === 'summary' || id === 'rob' || id === 'eorb' || id === 'bunkerplan' || id === 'eca') attr = ' data-for="voyage aio"';
-    return '<a class="' + cls + '" href="' + href(id) + '"' + attr + '>' + label + '</a>';
+    return '<a class="' + cls + '" href="' + href(id) + '"' + attr + '>' + ico(id) + label + '</a>';
   }
 
   function groupsHtml(groups, kind) {
@@ -166,7 +186,7 @@
         if (kind === 'voyage' && id === 'entry' && page === 'noon') active = true;
         if (kind === 'tanks' && id === 'fuel-report' && page === 'soundings') active = true;
         if (kind === 'tanks' && id === 'calibration' && page === 'calibration') active = true;
-        return '<a class="mod-tab' + (active ? ' active' : '') + '" href="' + href(id) + '">' + item[1] + '</a>';
+        return '<a class="mod-tab' + (active ? ' active' : '') + '" href="' + href(id) + '">' + ico(id) + item[1] + '</a>';
       }).join('');
       return '<div class="mod-group"><span class="gk">' + g[0] + '</span>' + buttons + '</div>';
     }).join('');
@@ -198,7 +218,7 @@
       var items = b[1].map(function (item) {
         var page = document.body.dataset.page || '';
         var active = page === item[0] || (item[0] === 'entry' && page === 'noon') || (item[0] === 'fuel-report' && page === 'soundings');
-        return '<a class="item' + (active ? ' active' : '') + '" href="' + href(item[0]) + '">' + item[1] + '</a>';
+        return '<a class="item' + (active ? ' active' : '') + '" href="' + href(item[0]) + '">' + ico(item[0]) + item[1] + '</a>';
       }).join('');
       return '<div class="nav-k">' + b[0] + '</div>' + items;
     }).join('');
@@ -214,13 +234,13 @@
       var page = document.body.dataset.page || '';
       var active = (item[0] === 'home' && page === 'home') || (item[0] === 'entry' && page === 'noon') || (item[0] === 'fuel-report' && page === 'soundings');
       var forAttr = item[0] === 'entry' ? ' data-for="aio voyage"' : (item[0] === 'fuel-report' ? ' data-for="aio tank"' : '');
-      return '<a class="nav-btn primary-link' + (active ? ' active' : '') + '" href="' + href(item[0]) + '"' + forAttr + '>' + item[1] + '</a>';
+      return '<a class="nav-btn primary-link' + (active ? ' active' : '') + '" href="' + href(item[0]) + '"' + forAttr + '>' + ico(item[0]) + item[1] + '</a>';
     }).join('');
     html += '<div class="nav-k">All sections</div>';
     AIO.forEach(function (item) {
       if (item[0] === 'home' || item[0] === 'summary' || item[0] === 'dashboard') return;
       var forAttr = item[2] ? ' data-for="aio ' + item[2] + '"' : '';
-      html += '<a class="nav-btn" href="' + href(item[0]) + '"' + forAttr + '>' + item[1] + '</a>';
+      html += '<a class="nav-btn" href="' + href(item[0]) + '"' + forAttr + '>' + ico(item[0]) + item[1] + '</a>';
     });
     return html;
   }
@@ -232,7 +252,7 @@
       var id = item[0];
       var active = (id === 'home' && side === 'home') || (id === 'summary' && side === 'voyage') || (id === 'dashboard' && side === 'tanks') || (id === 'vessel' && side === 'vessel') || (id === side);
       var forAttr = item[2] ? ' data-for="aio ' + item[2] + '"' : '';
-      return '<a class="nav-btn' + (active ? ' active' : '') + '" href="' + href(id) + '"' + forAttr + '>' + item[1] + '</a>';
+      return '<a class="nav-btn' + (active ? ' active' : '') + '" href="' + href(id) + '"' + forAttr + '>' + ico(id) + item[1] + '</a>';
     }).join('') + '<div class="side-foot">One vessel on this device.<br>Licensed for this ship.</div>';
   }
 
@@ -245,7 +265,7 @@
       var tag = more ? 'button' : 'a';
       var hrefAttr = more ? ' type="button" data-open-sheet' : ' href="' + href(id) + '"';
       var forAttr = id === 'entry' || id === 'eorb' ? ' data-for="aio voyage"' : (id === 'fuel-report' ? ' data-for="aio tank"' : '');
-      return '<' + tag + ' class="' + (cls || '') + (active ? ' active' : '') + '"' + hrefAttr + forAttr + '><strong>' + label + '</strong></' + tag + '>';
+      return '<' + tag + ' class="' + (cls || '') + (active ? ' active' : '') + '"' + hrefAttr + forAttr + '>' + ico(id) + '<strong>' + label + '</strong></' + tag + '>';
     }
     return item('home', 'Home') + item('entry', 'Noon', 'main') + item('fuel-report', 'Soundings', 'main') + item('eorb', 'e-ORB', 'dock-eorb') + item('more', 'More');
   }
@@ -255,9 +275,9 @@
     function chip(id, label, cls) {
       var active = (id === 'home' && page === 'home') || (id === 'entry' && page === 'noon') || (id === 'fuel-report' && page === 'soundings');
       var forAttr = id === 'entry' ? ' data-for="aio voyage"' : (id === 'fuel-report' ? ' data-for="aio tank"' : '');
-      return '<a class="' + (cls || '') + (active ? ' active' : '') + '" href="' + href(id) + '"' + forAttr + '>' + label + '</a>';
+      return '<a class="' + (cls || '') + (active ? ' active' : '') + '" href="' + href(id) + '"' + forAttr + '>' + ico(id) + label + '</a>';
     }
-    return chip('entry', 'Noon', 'primary') + chip('fuel-report', 'Soundings', 'primary') + chip('home', 'Home') + '<a data-for="aio voyage" href="' + href('eorb') + '">e-ORB</a>' + '<a href="#" data-open-sheet>More</a>';
+    return chip('entry', 'Noon', 'primary') + chip('fuel-report', 'Soundings', 'primary') + chip('home', 'Home') + '<a data-for="aio voyage" href="' + href('eorb') + '">' + ico('eorb') + 'e-ORB</a>' + '<a href="#" data-open-sheet>' + ico('more') + 'More</a>';
   }
 
   function watchHtml() {
