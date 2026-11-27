@@ -38,7 +38,7 @@ await p.evaluate(()=>{});
 const stored=await p.evaluate(()=>Object.values((window.__ctlPlan&&window.__ctlPlan.sea.manual)||{}).length);
 console.log('== detailed map');
 await p.click('[data-act="sea-map-all"]');await p.waitForTimeout(2000);
-ck('Layers menu has eight switches',await p.$$eval('.cp-maplayers input',a=>a.length),8);
+ck('Layers menu has eleven switches',await p.$$eval('.cp-maplayers input',a=>a.length),11);
 const cv=await p.$('.cp-mapcanvas canvas');const bb=await cv.boundingBox();
 for(let i=0;i<9;i++){await p.mouse.move(bb.x+bb.width/2,bb.y+bb.height/2);await p.mouse.wheel(0,-300);await p.waitForTimeout(120);}
 await p.waitForTimeout(2500);

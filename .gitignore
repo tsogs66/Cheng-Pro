@@ -27,3 +27,5 @@ data/license-mail-outbox.jsonl
 *.orig
 *.rej
 data/map/source/ne10m/
+data/map/source/mr/
+data/map/source/osm/
