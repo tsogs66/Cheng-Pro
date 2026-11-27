@@ -1097,6 +1097,65 @@ html[data-theme="day"] .ico {
   height: 10px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.12);
 }
+.hero { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0 0 10px; }
+.passage-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  color: var(--text);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.passage-svg text { font-family: var(--mono); }
+.passage-strip { margin-top: 8px; }
+.vtanks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.vtank { min-width: 0; text-align: center; }
+.vtank b { display: block; font-family: var(--mono); font-size: 14px; margin-top: 4px; }
+.vtank span, .vtank em { display: block; color: var(--muted); font-size: 12px; font-style: normal; }
+.vtank-glass {
+  position: relative;
+  height: 108px;
+  border-radius: 4px 4px 8px 8px;
+  border: 2px solid var(--line-strong);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 19%, rgba(255, 255, 255, 0.16) 19% 20%),
+    var(--well);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.vtank-glass i {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  height: var(--fill);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.28), transparent 30%, rgba(0, 0, 0, 0.18)), var(--ink, #8a5a32);
+}
+.vtank-glass s {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--open);
+  border-top: 2px solid var(--text);
+  height: 0;
+}
+.vlsfo { --ink: #8a5530; }
+.lsmgo { --ink: #e8926a; }
+.mdo { --ink: #e07a7a; }
+@media (max-width: 599px) {
+  .passage-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .passage-strip .stat { padding: 4px; }
+  .passage-strip .stat b { font-size: 12px; }
+  .vtank-glass { height: 84px; }
+  .vtank em { font-size: 12px; line-height: 1.2; }
+  .passage-hero .sub { display: none; }
+}
+@media (min-width: 1100px) {
+  .hero { grid-template-columns: 1.45fr 0.85fr; align-items: start; }
+  .vtank-glass { height: 132px; }
+}
 .bearing {
   display: flex;
   align-items: center;

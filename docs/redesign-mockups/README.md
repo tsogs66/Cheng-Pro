@@ -12,7 +12,7 @@ Night is painted plate over blue-black steel (`#0b1218`). The ground carries a f
 
 Buttons are push-buttons. A rim, a highlight along the top edge, and a shadow under the button make them stand off the plate. Pressing one (or leaving it on) sinks it and lights a lamp: amber for the active control, green when a state is in date, red for the OWS alarm. On a phone, Noon and Soundings are solid brass console keys on the bottom bar and again as the two large keys at the top of Home. The offline pill is a lamp bezel, not a flat chip.
 
-The maritime marks are structural, not pictures. Section titles are stencil-style plate stamps (wide mono capitals, a brass rule). The ship name carries a small load-line disc. The watch strip and the passage give course and a noon position in degrees and minutes. A compass card sits beside that position: a ring and a north needle, not a drawing of a ship. Tank levels are sight glasses with ticks and the 85% line. The old hull, waves and rain are still not here. Every figure they showed is still on the passage tape.
+The maritime marks are structural, not pictures. Section titles are stencil-style plate stamps (wide mono capitals, a brass rule). The ship name carries a small load-line disc. The watch strip gives course and a noon position. The voyage progress chart is a passage line on a faint grid: departure, arrival, miles run in brass, miles remaining dashed, and a small hull marker at the ship’s position. It is a chart symbol, not the old animated hull, waves and rain. Fuel on Home is a vertical gauge for each grade, in the pipe colour, with the opening ROB as a tick.
 
 Type is Inter for reading and JetBrains Mono for figures and plate stamps. Nothing on screen is under 12px. Touch targets stay 44px on a phone or tablet, and tighten on Windows so a 768px-tall laptop still has room for the form.
 
@@ -129,7 +129,7 @@ Calibration, on a phone, is one trim column down the page, chosen from a list. T
 
 ## Dashboard inventory
 
-Today there are three home screens. ChEng AIO Home, Voyage Chief’s Summary, and Tank Chief’s Vessel Tank Overview. The new Home keeps every card, metric, control and alert from all three. The passage drawing is the one widget that changed shape: the picture is gone, the readings are not.
+Today there are three home screens. ChEng AIO Home, Voyage Chief’s Summary, and Tank Chief’s Vessel Tank Overview. The new Home keeps every card, metric, control and alert from all three. The voyage picture is a chart passage with a hull marker. The animated waves and rain are not repeated.
 
 ### ChEng AIO shell and Home
 
@@ -138,14 +138,11 @@ Today there are three home screens. ChEng AIO Home, Voyage Chief’s Summary, an
 | Watch strip: ship’s clock, next ports, ROB by grade, sludge %, e-ORB weekly line | The strip under the top bar, on every screen |
 | First-run “Set up this vessel” when no ship exists | Empty state of this same board. Not drawn on the working sample. The note at the bottom of the tank section says so |
 | Voyage progress: Voyage Chief, Log Entry, Consumption Plan | Passage band, button row |
-| Departure port and 0 nm, arrival port and total nm | Passage tape, both ends |
-| Track position, nm sailed, % complete, nm to go | Tape and the figures under it |
-| Speed, RPM, slip, kW, % MCR while underway | Same figures. At anchor / in port / drifting would replace them with that status, as today |
-| Average speed | Passage figures |
-| Wind from, Beaufort, knots, Beaufort name, sea state | Weather line under the tape |
-| Days at sea, days to go, ETA | Passage figures |
+| Voyage progress picture: departure, 0 nm, arrival, total nm, ship on the track, nm sailed, percent complete, nm to go, speed, RPM, slip, kW, % MCR, average speed | The chart directly under the Noon and Soundings keys. Visible on the 1366×768 desktop, the 360×800 phone, and tablet landscape |
+| Days at sea, days to go, ETA | Strip under the voyage chart, and again in the voyage-figures list |
+| Wind from, Beaufort, knots, Beaufort name, sea state | Line under the chart. Beaufort sample buttons are in Voyage figures |
 | License warning if Voyage or Tanks is not on the key | Not on this sample (the sample is licensed). The sentence stays available where today’s warning sits, under the passage or the tank band |
-| Calculated ROB: ROB button, per-fuel gauge with present, opening, used, survey correction | Calculated ROB band. The needle gauge is a bar with an opening mark, same three numbers, readable at 320px |
+| Calculated ROB: ROB button, per-fuel gauge with present, opening tick, used, survey correction, fuel colour | Vertical fuel gauges in the top band, beside the chart on a wide screen and directly under it on a phone. The same three grades are repeated as numbers in Calculated ROB, with the lube and fresh-water gauges |
 | Vessel tank overview: Tank Chief, Monitoring, Bunkering Plan, Rearrange, Reset layout | Tank band, button row. Rearrange reveals the same hint |
 | HFO/VLSFO volume, logged count, % full | HFO / VLSFO card |
 | HFO/VLSFO weight in air | The weight line on that card, and the separate weight card |

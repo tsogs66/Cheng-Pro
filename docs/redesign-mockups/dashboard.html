@@ -33,6 +33,72 @@
       <a class="btn primary" href="soundings.html">Soundings</a>
     </div>
 
+    <div class="hero">
+      <section class="band passage-hero" id="passage">
+        <h2>Voyage progress</h2>
+        <p class="sub">Voyage 26-14 · Singapore → Zhoushan · underway · 12°18.4'N 112°40.2'E</p>
+        <svg class="passage-svg" viewBox="0 0 640 150" role="img" aria-label="Passage from Singapore to Zhoushan, 1,248 nautical miles run of 2,186">
+          <defs>
+            <pattern id="chartgrid" width="32" height="24" patternUnits="userSpaceOnUse">
+              <path d="M32 0H0V24" fill="none" stroke="currentColor" stroke-width="0.4" opacity="0.35"/>
+            </pattern>
+          </defs>
+          <rect x="0" y="0" width="640" height="150" fill="url(#chartgrid)"/>
+          <text x="16" y="18" fill="currentColor" font-size="11" opacity="0.7">DEP</text>
+          <text x="624" y="18" text-anchor="end" fill="currentColor" font-size="11" opacity="0.7">ARR</text>
+          <line x1="36" y1="78" x2="604" y2="78" stroke="currentColor" stroke-width="2" stroke-dasharray="2 6" opacity="0.45"/>
+          <line x1="36" y1="78" x2="360" y2="78" stroke="#e2a84a" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="36" cy="78" r="5" fill="#3cb6c6"/>
+          <circle cx="604" cy="78" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+          <g transform="translate(360 78)">
+            <path d="M-16 4 L-16 -2 L6 -2 L16 4 Z" fill="#8a3038" stroke="currentColor" stroke-width="0.8"/>
+            <path d="M-16 8 L-16 4 L16 4 L6 8 Z" fill="#14181c" stroke="currentColor" stroke-width="0.8"/>
+            <rect x="-12" y="-8" width="8" height="6" fill="currentColor"/>
+            <rect x="-9" y="-13" width="4" height="5" fill="currentColor"/>
+          </g>
+          <text x="36" y="58" fill="currentColor" font-size="13" font-weight="650">Singapore</text>
+          <text x="36" y="100" fill="currentColor" font-size="11" opacity="0.75">0 nm</text>
+          <text x="604" y="58" text-anchor="end" fill="currentColor" font-size="13" font-weight="650">Zhoushan</text>
+          <text x="604" y="100" text-anchor="end" fill="currentColor" font-size="11" opacity="0.75">2,186 nm</text>
+          <text x="360" y="42" text-anchor="middle" fill="#e2a84a" font-size="13" font-weight="650">1,248 nm</text>
+          <text x="360" y="118" text-anchor="middle" fill="currentColor" font-size="11">57.1% · 938 nm to go</text>
+          <text x="360" y="136" text-anchor="middle" fill="currentColor" font-size="11">12.4 kn · 76 rpm · slip 3.8% · 6,840 kW · 72% MCR</text>
+        </svg>
+        <div class="stat-row passage-strip">
+          <div class="stat"><b>4.20 d</b><span>Days at sea</span></div>
+          <div class="stat"><b>3.15 d</b><span>Days to go</span></div>
+          <div class="stat"><b>02 Dec 14:00</b><span>ETA · ship’s clock</span></div>
+          <div class="stat"><b>12.1 kn</b><span>Average speed</span></div>
+        </div>
+        <p class="wx">Wind <b>FROM NE</b> · <b>BF 4</b> · ~13 kn · Moderate breeze · Sea <b>3 · Slight</b></p>
+      </section>
+      <section class="band" id="fuel-gauges">
+        <h2>Fuel gauges</h2>
+        <p class="sub">Opening tick vs present. Same figures as Calculated ROB.</p>
+        <div class="vtanks">
+          <div class="vtank vlsfo">
+            <div class="vtank-glass" style="--fill:67.7%; --open:81.7%"><i></i><s></s></div>
+            <b>812.250</b>
+            <span>VLSFO · MT</span>
+            <em>start 980.000 · used 167.750 · corr +0.200</em>
+          </div>
+          <div class="vtank lsmgo">
+            <div class="vtank-glass" style="--fill:57.5%; --open:80%"><i></i><s></s></div>
+            <b>86.200</b>
+            <span>LSMGO · MT</span>
+            <em>start 120.000 · used 33.800</em>
+          </div>
+          <div class="vtank mdo">
+            <div class="vtank-glass" style="--fill:60.3%; --open:75%"><i></i><s></s></div>
+            <b>24.100</b>
+            <span>MDO/MGO · MT</span>
+            <em>start 30.000 · used 5.900</em>
+          </div>
+        </div>
+        <p class="hint">Needle height is present ÷ gauge scale (1,200 / 150 / 40 MT). The tick is opening ROB on that scale. Survey minus log on VLSFO is +0.200 MT.</p>
+      </section>
+    </div>
+
     <div class="alerts" id="alerts">
       <div class="alert"><b>Noon report not filed for 27 Nov</b>Ship’s clock is 12:00. Last filed entry is 26 Nov 12:00, NOON - AT SEA.</div>
       <div class="alert bad"><b>15 ppm / OWS weekly test due</b>The live book flashes this once a second. It stays red here.</div>
@@ -41,34 +107,14 @@
     </div>
 
     <div class="board-top">
-      <section class="band" id="passage">
-        <h2>Voyage progress</h2>
-        <p class="sub">Voyage 26-14 · Singapore → Zhoushan · underway · noon position</p>
-        <div class="bearing">
-          <svg class="rose" viewBox="0 0 64 64" aria-hidden="true">
-            <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="1.4"/>
-            <circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.45"/>
-            <path d="M32 7 L35.2 32 L32 28.5 L28.8 32 Z" fill="currentColor"/>
-            <path d="M32 57 L28.8 32 L32 35.5 L35.2 32 Z" fill="currentColor" opacity="0.35"/>
-            <path d="M7 32 L32 28.8 L28.5 32 L32 35.2 Z" fill="currentColor" opacity="0.35"/>
-            <path d="M57 32 L32 35.2 L35.5 32 L32 28.8 Z" fill="currentColor" opacity="0.35"/>
-          </svg>
-          <div>
-            <b>048° T</b>
-            <span>12°18.4'N · 112°40.2'E · wind from NE</span>
-          </div>
-        </div>
+      <section class="band" id="passage-detail">
+        <h2>Voyage figures</h2>
+        <p class="sub">The same readings as the passage chart, listed for the log. Beaufort samples stay here.</p>
         <div class="btn-row">
           <a class="btn small" href="dashboard.html#passage">Voyage Chief</a>
           <a class="btn small" href="noon.html">Log Entry</a>
           <a class="btn small" href="soon.html?id=bunkerplan">Consumption Plan</a>
         </div>
-        <div class="passage-ports" style="margin-top:8px">
-          <div><b>Singapore</b><span>Departure · 0 nm</span></div>
-          <div class="passage-mid">57.1% · 1,248 nm</div>
-          <div style="text-align:right"><b>Zhoushan</b><span>Arrival · 2,186 nm</span></div>
-        </div>
-        <div class="track" aria-hidden="true"><i></i></div>
         <div class="metrics">
           <div class="metric"><b>938 nm</b><span>nm to go</span></div>
           <div class="metric"><b>1,248 nm</b><span>nm sailed</span></div>
@@ -94,7 +140,7 @@
             <button type="button" class="btn small">BF 12</button>
             <button type="button" class="btn small on">Live</button>
           </div>
-          <p class="hint">Samples are the same preview buttons as Voyage Summary. Live uses the log weather above. The hull, waves and rain drawing are not repeated; every figure it carried is on this tape.</p>
+          <p class="hint">Samples are the same preview buttons as Voyage Summary. Live uses the weather on the passage chart. The animated rain and waves are not repeated.</p>
         </details>
       </section>
 
