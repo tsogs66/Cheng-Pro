@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vessel Setup — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="vessel" data-side="vessel" data-module="shell">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>Vessel Setup · shared identity inside ChEng AIO</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>Vessel Setup</h1>
+        <p>The only place ship identity is edited inside ChEng AIO. Voyage Chief and Tank Chief read it. Standalone apps keep this same screen as their own setup.</p>
+      </div>
+      <button type="button" class="btn primary">Save vessel</button>
+    </header>
+
+    <section class="band">
+      <h2>Identity</h2>
+      <div class="grid g3">
+        <label class="field"><span>Name</span><input value="MV GIORGIS"></label>
+        <label class="field"><span>IMO</span><input value="1234567"></label>
+        <label class="field"><span>Call sign</span><input value="SAMPLE"></label>
+        <label class="field"><span>Flag registry</span>
+          <select><option>Marshall Islands</option><option selected>Panama</option><option>Liberia</option><option>Malta</option></select>
+        </label>
+        <label class="field"><span>Company</span><input value="Sample company"></label>
+        <label class="field"><span>Type</span><input value="Bulk carrier"></label>
+        <label class="field"><span>DWT</span><input value="82000"></label>
+        <label class="field"><span>Chief Engineer</span><input value="C/E (sample)"></label>
+        <label class="field" style="grid-column:1/-1"><span>Notes</span><textarea rows="2">Sample ship for the redesign board. Flag Panama: e-ORB Part III follows Panama’s form.</textarea></label>
+      </div>
+      <p class="hint">Matching a ship across Voyage and Tank uses IMO first, then the name with MV ignored. Chief Engineer name and signature filed here are what printouts use. A sheet already filed keeps the officer who signed it.</p>
+    </section>
+
+    <section class="band">
+      <h2>Print identity</h2>
+      <div class="grid g2">
+        <div>
+          <div class="nav-k">Chief Engineer signature</div>
+          <div class="sig">Signature on file</div>
+          <div class="btn-row" style="margin-top:8px"><button type="button" class="btn small">Replace</button><button type="button" class="btn small">Clear</button></div>
+        </div>
+        <div>
+          <div class="nav-k">Vessel stamp</div>
+          <div class="sig">Stamp on file</div>
+          <div class="btn-row" style="margin-top:8px"><button type="button" class="btn small">Replace</button><button type="button" class="btn small">Clear</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Main engine</h2>
+      <p class="sub">Used by SFOC, slip and the propeller law. Not shared as “identity”, but the chief sets them with the ship.</p>
+      <div class="grid g4">
+        <label class="field"><span>M/E RPM (100% MCR)</span><input value="98.0"></label>
+        <label class="field"><span>M/E kW (100% MCR)</span><input value="9500"></label>
+        <label class="field"><span>M/E RPM (85% / CSR)</span><input value="93.0"></label>
+        <label class="field"><span>M/E kW (85% / CSR)</span><input value="8075"></label>
+        <label class="field"><span>Propeller pitch (m)</span><input value="5.20"></label>
+        <label class="field"><span>Propeller-law exponent</span><input value="3"></label>
+        <label class="field"><span>SFOC @ 100% (g/kWh)</span><input value="171.5"></label>
+        <label class="field"><span>SFOC @ 85% (g/kWh)</span><input value="168.2"></label>
+        <label class="field"><span>SLOC reference (g/kWh)</span><input value="0.80"></label>
+        <label class="field"><span>Mechanical efficiency</span><input value="0.90"></label>
+        <label class="field"><span>Fuel density (kg/L)</span><input value="0.991"></label>
+        <label class="field"><span>Lube density (kg/L)</span><input value="0.890"></label>
+        <label class="field"><span>Shop-trial LCV (kJ/kg)</span><input value="42700"></label>
+        <label class="field"><span>Actual bunker LCV (kJ/kg)</span><input value="40500"></label>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Ships on this device</h2>
+      <div class="scroll-x">
+        <table class="data fit">
+          <thead><tr><th class="left">Name</th><th>IMO</th><th class="left">Flag</th><th class="left">Updated</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="left">MV GIORGIS</td><td>1234567</td><td class="left">Panama</td><td class="left">27 Nov 2026</td><td><button type="button" class="btn small on">Active</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button type="button" class="btn small">Add vessel</button>
+        <button type="button" class="btn small">Load vessel data</button>
+      </div>
+      <p class="hint">One active vessel. Switching ship flushes drafts first. Inside AIO the modules do not keep a second active ship.</p>
+    </section>
+  </template>
+  <script src="icons.js"></script>
+  <script src="station.js"></script>
+</body>
+</html>
