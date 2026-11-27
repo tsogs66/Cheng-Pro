@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="home" data-side="home" data-module="shell">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>Home board · figures are a sample watch, not ship data</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>Home</h1>
+        <p>MV GIORGIS · voyage 26-14 · L — Laden · one vessel</p>
+      </div>
+    </header>
+
+    <div class="actions-2">
+      <a class="btn primary" href="noon.html">Noon report</a>
+      <a class="btn primary" href="soundings.html">Soundings</a>
+    </div>
+
+    <div class="alerts" id="alerts">
+      <div class="alert"><b>Noon report not filed for 27 Nov</b>Ship’s clock is 12:00. Last filed entry is 26 Nov 12:00, NOON - AT SEA.</div>
+      <div class="alert bad"><b>15 ppm / OWS weekly test due</b>The live book flashes this once a second. It stays red here.</div>
+      <div class="alert"><b>LS H.F.O. SERVICE TANK 18%</b>Below a comfortable service level. Sounded 27 Nov 08:10.</div>
+      <div class="alert ok"><b>e-ORB weekly inventory in date</b>Last weekly inventory 22 Nov. Next due 29 Nov. Panama Part III applies.</div>
+    </div>
+
+    <div class="board-top">
+      <section class="band" id="passage">
+        <h2>Voyage progress</h2>
+        <p class="sub">Voyage 26-14 · Singapore → Zhoushan · underway</p>
+        <div class="btn-row">
+          <a class="btn small" href="dashboard.html#passage">Voyage Chief</a>
+          <a class="btn small" href="noon.html">Log Entry</a>
+          <a class="btn small" href="soon.html?id=bunkerplan">Consumption Plan</a>
+        </div>
+        <div class="passage-ports" style="margin-top:8px">
+          <div><b>Singapore</b><span>Departure · 0 nm</span></div>
+          <div class="passage-mid">57.1% · 1,248 nm</div>
+          <div style="text-align:right"><b>Zhoushan</b><span>Arrival · 2,186 nm</span></div>
+        </div>
+        <div class="track" aria-hidden="true"><i></i></div>
+        <div class="metrics">
+          <div class="metric"><b>938 nm</b><span>nm to go</span></div>
+          <div class="metric"><b>1,248 nm</b><span>nm sailed</span></div>
+          <div class="metric"><b>12.4 kn</b><span>Ship speed</span></div>
+          <div class="metric"><b>76 rpm</b><span>M/E RPM</span></div>
+          <div class="metric"><b>3.8%</b><span>Slip</span></div>
+          <div class="metric"><b>6,840 kW</b><span>Load · 72% MCR</span></div>
+          <div class="metric"><b>12.1 kn</b><span>Average speed</span></div>
+          <div class="metric"><b>4.20 d</b><span>Days at sea</span></div>
+          <div class="metric"><b>3.15 d</b><span>Days to go</span></div>
+          <div class="metric"><b>02 Dec 14:00</b><span>ETA · ship’s clock</span></div>
+        </div>
+        <p class="wx">Wind <b>FROM NE</b> · <b>BF 4</b> · ~13 kn · Moderate breeze · Sea <b>3 · Slight</b> · Swell NW · Air 27.0°C</p>
+        <details class="fold wide-open" id="bf-fold" open>
+          <summary>Beaufort samples — Live</summary>
+          <div class="btn-row">
+            <button type="button" class="btn small">BF 0</button>
+            <button type="button" class="btn small">BF 3</button>
+            <button type="button" class="btn small">BF 5</button>
+            <button type="button" class="btn small">BF 7</button>
+            <button type="button" class="btn small">BF 8</button>
+            <button type="button" class="btn small">BF 10</button>
+            <button type="button" class="btn small">BF 12</button>
+            <button type="button" class="btn small on">Live</button>
+          </div>
+          <p class="hint">Samples are the same preview buttons as Voyage Summary. Live uses the log weather above. The hull, waves and rain drawing are not repeated; every figure it carried is on this tape.</p>
+        </details>
+      </section>
+
+      <div>
+        <section class="band" id="latest-noon">
+          <h2>Latest noon</h2>
+          <p class="sub">26 Nov 12:00 · NOON - AT SEA · period 24.0 h · UTC+8 · condition L</p>
+          <div class="metrics">
+            <div class="metric"><b>298.2 nm</b><span>Distance run — ship/GPS</span></div>
+            <div class="metric"><b>12.42 kn</b><span>Ship speed (calc)</span></div>
+            <div class="metric"><b>76.40</b><span>M/E avg RPM</span></div>
+            <div class="metric"><b>310.1 nm</b><span>Engine distance (calc)</span></div>
+            <div class="metric"><b>12.92 kn</b><span>Engine speed (calc)</span></div>
+            <div class="metric"><b>3.82%</b><span>Slip (calc)</span></div>
+          </div>
+          <p class="wx">Wind NE · BF 4 · Sea 3 · Swell NW · Air 27.0°C · Sea 26°C · E/R 34°C · S/T 42°C · Fuel 128°C</p>
+          <p class="hint">Bilge ROB 4.20 m³ (change +0.15) · Sludge ROB 6.80 m³ (change +0.08). Today’s noon is still open — use Noon report.</p>
+          <a class="btn primary" href="noon.html" style="margin-top:8px">File noon report</a>
+        </section>
+
+        <section class="band" id="ship">
+          <h2>Ship and sync</h2>
+          <div class="metrics">
+            <div class="metric"><b>GIORGIS</b><span>Name · Bulk carrier</span></div>
+            <div class="metric"><b>1234567</b><span>IMO · call sign SAMPLE</span></div>
+            <div class="metric"><b>Panama</b><span>Flag · Part III e-ORB</span></div>
+            <div class="metric"><b>82,000</b><span>DWT · Sample company</span></div>
+            <div class="metric"><b>C/E (sample)</b><span>Chief Engineer · signature on file</span></div>
+            <div class="metric"><b>Offline</b><span>Last sync 27 Nov 06:40</span></div>
+          </div>
+          <p class="hint">Open leg 26-14 L kept on this device. One monitoring draft not pushed. Sync never drops the open leg.</p>
+          <div class="btn-row">
+            <a class="btn small" href="vessel.html">Vessel Setup</a>
+            <a class="btn small" href="soon.html?id=backup">Backup &amp; Sync</a>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <section class="band" id="rob">
+      <h2>Calculated ROB</h2>
+      <p class="sub">Opening vs present from the voyage log. Opening tick is Vessel Data opening ROB.</p>
+      <div class="btn-row"><a class="btn small" href="rob.html">ROB</a></div>
+      <h3 class="nav-k">Fuel</h3>
+      <div class="gauges">
+        <div class="gauge">
+          <div class="name">VLSFO</div>
+          <div class="now">812.250 MT</div>
+          <div class="bar"><i style="width:83%"></i><s style="left:100%"></s></div>
+          <div class="meta">start 980.000 MT · used 167.750 MT · corr +0.200 · survey 812.450 MT</div>
+        </div>
+        <div class="gauge">
+          <div class="name">LSMGO</div>
+          <div class="now">86.200 MT</div>
+          <div class="bar mdo"><i style="width:72%"></i><s style="left:100%"></s></div>
+          <div class="meta">start 120.000 MT · used 33.800 MT</div>
+        </div>
+        <div class="gauge">
+          <div class="name">MDO/MGO</div>
+          <div class="now">24.100 MT</div>
+          <div class="bar mdo"><i style="width:80%"></i><s style="left:100%"></s></div>
+          <div class="meta">start 30.000 MT · used 5.900 MT</div>
+        </div>
+      </div>
+      <h3 class="nav-k">Lube oil</h3>
+      <div class="gauges">
+        <div class="gauge"><div class="name">CYL HIGH</div><div class="now">8,420 L</div><div class="bar lube"><i style="width:70%"></i></div><div class="meta">start 12,000 L · used 3,580 L</div></div>
+        <div class="gauge"><div class="name">CYL LOW</div><div class="now">4,100 L</div><div class="bar lube"><i style="width:82%"></i></div><div class="meta">start 5,000 L · used 900 L</div></div>
+        <div class="gauge"><div class="name">ME SYS OIL</div><div class="now">14,200 L</div><div class="bar lube"><i style="width:78%"></i></div><div class="meta">start 16,400 L · used 2,200 L</div></div>
+        <div class="gauge"><div class="name">GE SYS OIL</div><div class="now">3,350 L</div><div class="bar lube"><i style="width:84%"></i></div><div class="meta">start 3,800 L · used 450 L</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:6px">
+        <div class="stat"><b>30,070 L</b><span>Lube total present</span></div>
+        <div class="stat"><b>7,130 L</b><span>Lube used this voyage</span></div>
+      </div>
+      <h3 class="nav-k">Fresh water</h3>
+      <div class="gauges">
+        <div class="gauge"><div class="name">Fresh water</div><div class="now">146.20 m³</div><div class="bar fw"><i style="width:66%"></i></div><div class="meta">start 180.00 m³ · used 33.80 m³ · sum of F.W. tanks</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:6px">
+        <div class="stat"><b>146.20 m³</b><span>FW total present</span></div>
+        <div class="stat"><b>2.40 m³/day</b><span>FW on elapsed hours</span></div>
+      </div>
+      <p class="hint">Present follows the departure / arrival book: saved log ROB when there is one, otherwise opening + received − consumed. The mark on the bar is the opening ROB.</p>
+    </section>
+
+    <section class="band" id="consumption">
+      <h2>Average consumption per day</h2>
+      <h3 class="nav-k">By consumer (MT/day — on that consumer’s running hours)</h3>
+      <div class="stat-row">
+        <div class="stat"><b>18.20</b><span>M/E · MT/day</span></div>
+        <div class="stat"><b>1.90</b><span>G/E · MT/day</span></div>
+        <div class="stat"><b>0.70</b><span>Boiler · MT/day</span></div>
+      </div>
+      <h3 class="nav-k">Fuel at sea / at port and anchorage</h3>
+      <div class="stat-row">
+        <div class="stat"><b>20.40</b><span>At sea · MT/day</span></div>
+        <div class="stat"><b>4.10</b><span>Port / anch. · MT/day</span></div>
+        <div class="stat"><b>85.68</b><span>At sea total · MT</span></div>
+        <div class="stat"><b>0.82</b><span>Port / anch. total · MT</span></div>
+      </div>
+      <h3 class="nav-k">Fuel by grade (MT/day — elapsed voyage hours)</h3>
+      <div class="stat-row">
+        <div class="stat"><b>18.60</b><span>VLSFO</span></div>
+        <div class="stat"><b>1.10</b><span>LSMGO</span></div>
+        <div class="stat"><b>0.40</b><span>MDO/MGO</span></div>
+      </div>
+      <h3 class="nav-k">Lube oil (L/day — cylinder oil on M/E running hours)</h3>
+      <div class="stat-row">
+        <div class="stat"><b>148</b><span>CYL HIGH · L/day</span></div>
+        <div class="stat"><b>0</b><span>CYL LOW · L/day</span></div>
+        <div class="stat"><b>42</b><span>ME SYS OIL · L/day</span></div>
+        <div class="stat"><b>18</b><span>GE SYS OIL · L/day</span></div>
+      </div>
+      <h3 class="nav-k">Fresh water (m³/day — elapsed voyage hours)</h3>
+      <div class="stat-row"><div class="stat"><b>2.40</b><span>Fresh water</span></div></div>
+      <p class="hint">This noon, not yet filed: M/E 18.640 MT · G/E 1.820 MT · boiler 0.640 MT · cylinder oil 142 L. Sea / port split uses the operation (port noon, anchorage noon, departure, bunkering count as port).</p>
+    </section>
+
+    <section class="band" id="performance">
+      <h2>Performance averages</h2>
+      <div class="btn-row">
+        <button type="button" class="btn small primary">Recalculate averages</button>
+        <button type="button" class="btn small">Undo recalculate</button>
+      </div>
+      <div class="stat-row" style="margin-top:8px">
+        <div class="stat"><b>74.80</b><span>RPM</span></div>
+        <div class="stat"><b>3.60%</b><span>Slip</span></div>
+        <div class="stat"><b>6,920 kW</b><span>Load (kW)</span></div>
+        <div class="stat"><b>72.80%</b><span>Load (% MCR)</span></div>
+        <div class="stat"><b>305.40 nm</b><span>Engine distance</span></div>
+        <div class="stat"><b>12.70 kn</b><span>Engine speed</span></div>
+        <div class="stat"><b>297.10 nm</b><span>Ship distance</span></div>
+        <div class="stat"><b>12.38 kn</b><span>Ship speed</span></div>
+      </div>
+      <p class="hint">If these still look like an older voyage, recalculate. Undo puts the previous figures back.</p>
+    </section>
+
+    <section class="band" id="sfoc">
+      <h2>Fuel efficiency (SFOC)</h2>
+      <div class="stat-row">
+        <div class="stat"><b>171.50</b><span>SFOC @ 100% MCR (setup) · g/kWh</span></div>
+        <div class="stat"><b>174.20</b><span>Ref. @ 72.80% MCR · g/kWh</span></div>
+        <div class="stat"><b>176.80</b><span>Actual SFOC ISO · g/kWh</span></div>
+        <div class="stat"><b>+1.49%</b><span>Δ vs reference</span></div>
+        <div class="stat"><b>72.80%</b><span>Avg (hrs-wtd) · % MCR</span></div>
+      </div>
+      <p class="hint">SFOC(L) = SFOC₁₀₀ × (a + b × (L/100)²). Estimated kW is the propeller law, (RPM / MCR RPM)³ × MCR kW. ISO correction uses shop-trial LCV / bunker LCV. A sustained +3% is the investigation line; this voyage is inside it.</p>
+    </section>
+
+    <section class="band" id="hours">
+      <h2>Machinery running hours (voyage)</h2>
+      <div class="stat-row">
+        <div class="stat"><b>98.4 h</b><span>M/E steaming</span></div>
+        <div class="stat"><b>102.0 h</b><span>A/E #1</span></div>
+        <div class="stat"><b>86.5 h</b><span>A/E #2</span></div>
+        <div class="stat"><b>—</b><span>A/E #3</span></div>
+        <div class="stat"><b>18.0 h</b><span>Boiler</span></div>
+        <div class="stat"><b>2.5 h</b><span>Incinerator</span></div>
+        <div class="stat"><b>40.0 h</b><span>LO purifier</span></div>
+      </div>
+      <p class="hint">Each auxiliary engine is its own hours, not a combined total. M/E hours are steaming periods with engine distance.</p>
+    </section>
+
+    <section class="band" id="time-averages">
+      <h2>Voyage time averages</h2>
+      <p class="sub">Weighted by elapsed hours, not by a count of entries.</p>
+      <div class="stat-row">
+        <div class="stat"><b>4.20 d</b><span>Days at sea</span></div>
+        <div class="stat"><b>72.80%</b><span>hrs-wtd · % MCR</span></div>
+        <div class="stat"><b>46%</b><span>Gen load (hrs-wtd)</span></div>
+        <div class="stat"><b>820 kW</b><span>Gen (hrs-wtd)</span></div>
+        <div class="stat"><b>102.0 h</b><span>A/E #1</span></div>
+        <div class="stat"><b>86.5 h</b><span>A/E #2</span></div>
+      </div>
+    </section>
+
+    <section class="band" id="cii">
+      <h2>Carbon intensity and CO₂</h2>
+      <div class="grid g3">
+        <label class="field"><span>Ship type (CII)</span><select><option>Bulk carrier</option><option>Tanker</option><option>Container</option></select></label>
+        <label class="field"><span>CII year</span><input value="2026"></label>
+        <label class="field"><span>Required CII (manual)</span><input placeholder="optional override"></label>
+      </div>
+      <div class="stat-row" style="margin-top:8px">
+        <div class="stat"><b>86.40 MT</b><span>Total fuel</span></div>
+        <div class="stat"><b>272.10 t</b><span>Total CO₂</span></div>
+        <div class="stat"><b>1,248 nm</b><span>Distance run</span></div>
+        <div class="stat"><b>82,000 t</b><span>Capacity DWT</span></div>
+        <div class="stat"><b>2.66</b><span>Attained CII · g/DWT·nm</span></div>
+        <div class="stat"><b>2.90</b><span>Required CII · g/DWT·nm</span></div>
+        <div class="stat"><b>B</b><span>Rating band</span></div>
+      </div>
+      <p class="hint">Voyage estimate only. Cf used on the real page: HFO 3.114, LSFO 3.151, MDO/LSMGO 3.206. Rating A–E is indicative.</p>
+    </section>
+
+    <section class="band" id="bdn">
+      <h2>BDN and sample retention</h2>
+      <p class="sub">MARPOL Annex VI Reg. 18. BDN kept 3 years. Sealed sample kept 12 months. Lube and fresh water are not listed.</p>
+      <div class="btn-row">
+        <button type="button" class="btn small">Refresh</button>
+        <button type="button" class="btn small">Print retention list</button>
+      </div>
+      <div class="scroll-x" style="margin-top:8px">
+        <table class="data">
+          <thead><tr><th class="left">Delivered</th><th class="left">BDN no.</th><th class="left">Grade</th><th>Qty</th><th class="left">Port</th><th class="left">Sample until</th><th class="left">BDN until</th></tr></thead>
+          <tbody>
+            <tr><td class="left">12 Nov 2026</td><td class="left">26-114</td><td class="left">VLSFO</td><td>450.000 MT</td><td class="left">Singapore</td><td class="left">12 Nov 2027</td><td class="left">12 Nov 2029</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">In date. Sulphur 0.49% m/m · density 991.0 kg/m³ · LCV 40,500 kJ/kg · viscosity 380 cSt.</p>
+    </section>
+
+    <section class="band" id="pms">
+      <h2>Running hours and maintenance</h2>
+      <p class="sub">The counter on the machine is the authority. Voyage hours above are this leg; these are the unit’s life.</p>
+      <div class="btn-row">
+        <button type="button" class="btn small">Add unit</button>
+        <button type="button" class="btn small">Offer hours since last reading</button>
+        <button type="button" class="btn small">Print due list</button>
+      </div>
+      <div class="scroll-x" style="margin-top:8px">
+        <table class="data">
+          <thead><tr><th class="left">Unit</th><th>Counter (hrs)</th><th class="left">Read on</th><th>Tasks</th></tr></thead>
+          <tbody><tr><td class="left">M/E cyl. oil pump</td><td>18,420</td><td class="left">20 Nov 2026</td><td>1</td></tr></tbody>
+        </table>
+      </div>
+      <h3 class="nav-k">Falling due</h3>
+      <div class="scroll-x">
+        <table class="data">
+          <thead><tr><th class="left">Unit</th><th class="left">Task</th><th>Every</th><th>Last done</th><th>Due at</th><th>Hours to go</th><th class="left">Status</th></tr></thead>
+          <tbody><tr><td class="left">M/E cyl. oil pump</td><td class="left">Overhaul</td><td>8,000 h</td><td>12,000</td><td>20,000</td><td>1,580</td><td class="left">In date</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="band" id="dep-arr">
+      <h2>Departure / arrival ROB</h2>
+      <div class="btn-row">
+        <button type="button" class="btn small primary">Recalculate dep / arr ROB</button>
+        <button type="button" class="btn small">Undo recalculate</button>
+        <button type="button" class="btn small">Print dep / arr ROB sheet</button>
+        <button type="button" class="btn small">Export weekly abstract (CSV)</button>
+      </div>
+      <div class="cards" style="margin-top:8px">
+        <article class="card"><div class="k">VLSFO</div><div class="v">812.250<span class="u">MT</span></div><div class="s">Opening 980.000 · Received 0 · Consumed 167.750</div></article>
+        <article class="card"><div class="k">LSMGO</div><div class="v">86.200<span class="u">MT</span></div><div class="s">Opening 120.000 · Received 0 · Consumed 33.800</div></article>
+        <article class="card"><div class="k">MDO/MGO</div><div class="v">24.100<span class="u">MT</span></div><div class="s">Opening 30.000 · Received 0 · Consumed 5.900</div></article>
+        <article class="card"><div class="k">CYL HIGH</div><div class="v">8,420<span class="u">L</span></div><div class="s">Opening 12,000 · Received 0 · Consumed 3,580</div></article>
+        <article class="card"><div class="k">Fresh water</div><div class="v">146.20<span class="u">m³</span></div><div class="s">Opening 180.00 · Received 0 · Consumed 33.80</div></article>
+      </div>
+      <p class="hint">Opening = Vessel Data opening ROB. Received = bunkers once (hand receipts preferred). Consumed = the log, including overrides. Present = latest saved ROB.</p>
+    </section>
+
+    <section class="band" id="tanks">
+      <h2>Vessel tank overview</h2>
+      <p class="sub">MV GIORGIS · At sea · 27 Nov 2026 · last sounding 08:10 · report Monitoring</p>
+      <div class="btn-row">
+        <a class="btn small" href="soundings.html">Monitoring</a>
+        <a class="btn small" href="soon.html?id=bunkeringplan">Bunkering Plan</a>
+        <button type="button" class="btn small primary">Print tank summary</button>
+        <button type="button" class="btn small">Save</button>
+        <button type="button" class="btn small" data-tank-view="graphic">Graphical tanks</button>
+        <button type="button" class="btn small" data-tank-view="table">Table</button>
+        <button type="button" class="btn small on" data-tank-view="both">Both</button>
+        <button type="button" class="btn small" id="rearrange">Rearrange</button>
+      </div>
+      <p class="hint" id="rearrange-hint" hidden>Drag is for this overview only. Monitoring and the sounding list keep their own order. Reset layout puts port / starboard back.</p>
+
+      <div class="cards" style="margin-top:8px">
+        <article class="card"><div class="k">Total weight</div><div class="v">922.8<span class="u">MT</span></div></article>
+        <article class="card"><div class="k">Total volume</div><div class="v">1,144.4<span class="u">m³</span></div></article>
+        <article class="card"><div class="k">Readings</div><div class="v">21<span class="u">/ 27</span></div></article>
+      </div>
+      <div class="cards" style="margin-top:6px">
+        <article class="card"><div class="k">HFO / VLSFO</div><div class="v">812.45<span class="u">MT</span></div><div class="s">820.4 m³ / 1,400 · 6/8 logged · 58.6% full</div></article>
+        <article class="card"><div class="k">HFO / VLSFO weight (air)</div><div class="v">812.5<span class="u">MT</span></div><div class="s">Survey. Log is 812.250 · difference +0.200</div></article>
+        <article class="card"><div class="k">MDO / MGO / LSMGO</div><div class="v">110.30<span class="u">MT</span></div><div class="s">128.4 m³ / 220 · 4/5 logged · 58.4% full</div></article>
+        <article class="card"><div class="k">MDO / MGO / LSMGO weight (air)</div><div class="v">110.3<span class="u">MT</span></div><div class="s">Agrees with the log (86.200 + 24.100)</div></article>
+        <article class="card"><div class="k">Fuel readings</div><div class="v">10<span class="u">/ 13</span></div></article>
+        <article class="card"><div class="k">Lube oil</div><div class="v">42.6<span class="u">m³</span></div><div class="s">/ 80 · 5/7 logged · 53.3% full</div></article>
+        <article class="card"><div class="k">Misc / bilge</div><div class="v">6.8<span class="u">m³</span></div><div class="s">/ 40 · 3/4 logged · 17.0% full</div></article>
+        <article class="card"><div class="k">Fresh water</div><div class="v">146.2<span class="u">m³</span></div><div class="s">/ 220 · 3/3 logged · 66.5% full</div></article>
+      </div>
+      <p class="hint">Last bunker 12 Nov 08:40 · BDN 26-114 · VLSFO 450.000 MT · Singapore · sulphur 0.49% m/m. No bunker planned before Zhoushan on the open consumption plan.</p>
+
+      <div id="tank-view" data-view="both">
+        <div class="schematic" style="margin-top:10px">
+          <div>
+            <h3>HFO / VLSFO — Port</h3>
+            <div class="tg"><div class="art"><s></s><i style="height:72%"></i></div><div><div class="nm"><span class="grip">⋮⋮ </span>NO.1 H.F.O. TANK (P)</div><div class="fig">248.200 MT</div><div class="meta">VLSFO · storage · 72% · 251.2 m³ · 38°C · ullage · 85% line</div></div></div>
+            <div class="tg"><div class="art"><s></s><i style="height:41%"></i></div><div><div class="nm">NO.2 H.F.O. TANK (P)</div><div class="fig">112.400 MT</div><div class="meta">VLSFO · storage · 41% · 114.0 m³ · 36°C</div></div></div>
+            <div class="tg"><div class="art"><s></s><i style="height:64%"></i></div><div><div class="nm">LS H.F.O. SETTLING TANK</div><div class="fig">62.400 MT</div><div class="meta">VLSFO · settling · 64% · 63.1 m³ · 55°C</div></div></div>
+            <div class="tg"><div class="art"><s></s><i style="height:8%"></i></div><div><div class="nm">H.F.O OVERFLOW TANK</div><div class="fig">21.550 MT</div><div class="meta">VLSFO · overflow · 8% · 21.8 m³ · 40°C</div></div></div>
+          </div>
+          <div>
+            <h3>HFO / VLSFO — Starboard</h3>
+            <div class="tg"><div class="art"><s></s><i style="height:69%"></i></div><div><div class="nm">NO.1 H.F.O. TANK (S)</div><div class="fig">241.100 MT</div><div class="meta">VLSFO · storage · 69% · 243.6 m³ · 38.5°C</div></div></div>
+            <div class="tg"><div class="art"><s></s><i style="height:40%"></i></div><div><div class="nm">NO.2 H.F.O. TANK (S)</div><div class="fig">108.600 MT</div><div class="meta">VLSFO · storage · 40% · 110.2 m³ · 36°C</div></div></div>
+            <div class="tg low"><div class="art"><s></s><i style="height:18%"></i></div><div><div class="nm">LS H.F.O. SERVICE TANK</div><div class="fig">18.200 MT</div><div class="meta">VLSFO · service · 18% · 18.4 m³ · 62°C · low</div></div></div>
+          </div>
+          <div>
+            <h3>MDO / MGO / LSMGO — Port</h3>
+            <div class="tg"><div class="art mdo"><s></s><i style="height:61%"></i></div><div><div class="nm">MDO STORAGE TANK (P)</div><div class="fig">10.200 MT</div><div class="meta">MDO/MGO · storage · 42% · 11.8 m³ · 30°C</div></div></div>
+            <div class="tg"><div class="art mdo"><s></s><i style="height:48%"></i></div><div><div class="nm">MDO SETTLING TANK</div><div class="fig">4.500 MT</div><div class="meta">MDO/MGO · settling · 28% · 5.2 m³ · 42°C</div></div></div>
+          </div>
+          <div>
+            <h3>MDO / MGO / LSMGO — Starboard</h3>
+            <div class="tg"><div class="art mdo"><s></s><i style="height:40%"></i></div><div><div class="nm">MDO STORAGE TANK (S)</div><div class="fig">9.400 MT</div><div class="meta">MDO/MGO · storage · 38% · 10.9 m³ · 30°C</div></div></div>
+            <div class="tg"><div class="art mdo"><s></s><i style="height:70%"></i></div><div><div class="nm">MGO STORAGE TANK (S)</div><div class="fig">62.400 MT</div><div class="meta">LSMGO · storage · 74% · 72.6 m³ · 28°C</div></div></div>
+            <div class="tg"><div class="art mdo"><s></s><i style="height:44%"></i></div><div><div class="nm">MGO SERVICE TANK</div><div class="fig">23.800 MT</div><div class="meta">LSMGO · service · 55% · 27.7 m³ · 35°C</div></div></div>
+          </div>
+        </div>
+
+        <div class="tank-table" style="margin-top:10px">
+          <h3 class="nav-k">Table · Fuel oil · HFO / VLSFO · 7</h3>
+          <div class="scroll-x">
+            <table class="data">
+              <thead><tr><th class="left">Tank</th><th class="left">Role</th><th class="left">Side</th><th>100% m³</th><th>85% m³</th><th>Reading</th><th>Vol m³</th><th>Fill</th><th>MT</th></tr></thead>
+              <tbody>
+                <tr><td class="name">NO.1 H.F.O. TANK (P)</td><td class="left">Storage</td><td class="left">Port</td><td>349</td><td>297</td><td>420 cm U</td><td>251.2</td><td>72%</td><td>248.200</td></tr>
+                <tr><td class="name">NO.1 H.F.O. TANK (S)</td><td class="left">Storage</td><td class="left">Stbd</td><td>353</td><td>300</td><td>438 cm U</td><td>243.6</td><td>69%</td><td>241.100</td></tr>
+                <tr><td class="name">NO.2 H.F.O. TANK (P)</td><td class="left">Storage</td><td class="left">Port</td><td>278</td><td>236</td><td>890 cm U</td><td>114.0</td><td>41%</td><td>112.400</td></tr>
+                <tr><td class="name">NO.2 H.F.O. TANK (S)</td><td class="left">Storage</td><td class="left">Stbd</td><td>276</td><td>234</td><td>910 cm U</td><td>110.2</td><td>40%</td><td>108.600</td></tr>
+                <tr><td class="name">LS H.F.O. SETTLING TANK</td><td class="left">Settling</td><td class="left">—</td><td>99</td><td>84</td><td>210 cm U</td><td>63.1</td><td>64%</td><td>62.400</td></tr>
+                <tr class="low"><td class="name">LS H.F.O. SERVICE TANK</td><td class="left">Service</td><td class="left">—</td><td>102</td><td>87</td><td>640 cm U</td><td>18.4</td><td>18%</td><td>18.200</td></tr>
+                <tr><td class="name">H.F.O OVERFLOW TANK</td><td class="left">Overflow</td><td class="left">—</td><td>272</td><td>232</td><td>1,840 cm U</td><td>21.8</td><td>8%</td><td>21.550</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3 class="nav-k">MDO / MGO / LSMGO · 5</h3>
+          <div class="scroll-x">
+            <table class="data">
+              <thead><tr><th class="left">Tank</th><th class="left">Role</th><th class="left">Side</th><th>100% m³</th><th>85% m³</th><th>Reading</th><th>Vol m³</th><th>Fill</th><th>MT</th></tr></thead>
+              <tbody>
+                <tr><td class="name">MDO STORAGE TANK (P)</td><td class="left">Storage</td><td class="left">Port</td><td>28</td><td>24</td><td>48 cm D</td><td>11.8</td><td>42%</td><td>10.200</td></tr>
+                <tr><td class="name">MDO STORAGE TANK (S)</td><td class="left">Storage</td><td class="left">Stbd</td><td>29</td><td>25</td><td>52 cm D</td><td>10.9</td><td>38%</td><td>9.400</td></tr>
+                <tr><td class="name">MDO SETTLING TANK</td><td class="left">Settling</td><td class="left">—</td><td>18</td><td>15</td><td>80 cm U</td><td>5.2</td><td>28%</td><td>4.500</td></tr>
+                <tr><td class="name">MGO STORAGE TANK (S)</td><td class="left">Storage</td><td class="left">Stbd</td><td>98</td><td>83</td><td>36 cm D</td><td>72.6</td><td>74%</td><td>62.400</td></tr>
+                <tr><td class="name">MGO SERVICE TANK</td><td class="left">Service</td><td class="left">—</td><td>50</td><td>43</td><td>90 cm U</td><td>27.7</td><td>55%</td><td>23.800</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3 class="nav-k">Lube oil · Fresh water · Misc / bilge</h3>
+          <div class="scroll-x">
+            <table class="data">
+              <thead><tr><th class="left">Tank</th><th class="left">Cat</th><th>100% m³</th><th>Reading</th><th>Vol m³</th><th>Fill</th></tr></thead>
+              <tbody>
+                <tr><td class="name">M/E L.O. SUMP TANK</td><td class="left">Lube</td><td>28</td><td>42 cm D</td><td>18.4</td><td>66%</td></tr>
+                <tr><td class="name">HIGH TBN CYL.O. STOR.TK</td><td class="left">Lube</td><td>18</td><td>30 cm D</td><td>12.6</td><td>70%</td></tr>
+                <tr><td class="name">F.W.TK.P</td><td class="left">Water</td><td>90</td><td>1.8 m D</td><td>74.0</td><td>82%</td></tr>
+                <tr><td class="name">F.W.TK.S</td><td class="left">Water</td><td>90</td><td>1.6 m D</td><td>62.2</td><td>69%</td></tr>
+                <tr><td class="name">BILGE TANK</td><td class="left">Misc</td><td>20</td><td>18 cm D</td><td>4.20</td><td>21%</td></tr>
+                <tr><td class="name">SLUDGE TANK</td><td class="left">Misc</td><td>12</td><td>22 cm D</td><td>2.64</td><td>22%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <details class="fold wide-open" id="tank-history" open>
+        <summary>Tank summary report</summary>
+        <p class="hint">Drafts stay editable. Filed reports can be reprinted or loaded. Print files the sheet and prints it.</p>
+        <div class="scroll-x">
+          <table class="data fit">
+            <thead><tr><th class="left">Saved</th><th class="left">Type / voy</th><th class="left">Port</th><th class="left">Date</th><th>Result</th><th class="left"></th></tr></thead>
+            <tbody>
+              <tr><td class="left">27 Nov 08:12 · Draft</td><td class="left">Tank summary</td><td class="left">At sea</td><td class="left">27 Nov</td><td>922.750 MT</td><td class="left"><button class="btn small" type="button">Print</button> <button class="btn small" type="button">Load</button></td></tr>
+              <tr><td class="left">26 Nov 12:05</td><td class="left">26-14</td><td class="left">At sea</td><td class="left">26 Nov</td><td>941.200 MT</td><td class="left"><button class="btn small" type="button">Print</button> <button class="btn small" type="button">Load</button> <button class="btn small danger" type="button">Delete</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="hint">First-run ships with no vessel yet get one action, Set up this vessel, instead of this board. It is the empty state of Home, not a second page.</p>
+    </section>
+  </template>
+  <script src="station.js"></script>
+  <script>
+    document.getElementById('rearrange') && document.getElementById('rearrange').addEventListener('click', function () {
+      var hint = document.getElementById('rearrange-hint');
+      if (hint) hint.hidden = !hint.hidden;
+      this.classList.toggle('on');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Noon report — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="noon" data-side="voyage" data-module="voyage" data-voy="entry">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>Noon report · Log Entry · NOON - AT SEA</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>Noon report</h1>
+        <p>New log entry · voyage 26-14 · L — Laden · Singapore → Zhoushan</p>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn small">New voyage</button>
+        <button type="button" class="btn primary">Save entry</button>
+      </div>
+    </header>
+
+    <div class="legend">
+      <span><i></i>Editable — enter the reading</span>
+      <span><i class="calc"></i>Calculated — the app fills this</span>
+    </div>
+
+    <div class="steps-head" aria-label="Noon steps">
+      <button type="button" data-go-step="1" class="on">1 When</button>
+      <button type="button" data-go-step="2">2 Meters</button>
+      <button type="button" data-go-step="3">3 Oil &amp; water</button>
+      <button type="button" data-go-step="4">4 Review</button>
+    </div>
+
+    <section class="step on" data-step="1">
+      <div class="band">
+        <h2>Date, clock, operation</h2>
+        <div class="grid g2">
+          <label class="field"><span>Date &amp; time (ship’s clock)</span><input value="2026-11-27T12:00"></label>
+          <label class="field"><span>Time zone</span>
+            <select><option>UTC+8 — ship’s clock</option><option>UTC+7</option><option>UTC+9</option></select>
+          </label>
+          <label class="field calc"><span>Period hrs</span><input readonly value="24.0"></label>
+          <label class="field"><span>Operation</span>
+            <select>
+              <optgroup label="Noon">
+                <option>NOON - AT PORT</option>
+                <option selected>NOON - AT SEA</option>
+                <option>NOON - ANCHORAGE</option>
+                <option>NOON - DRIFTING</option>
+              </optgroup>
+              <optgroup label="Departure">
+                <option>DEPARTURE - STANDBY</option>
+                <option>DEPARTURE - LAST LINE</option>
+                <option>DEPARTURE - PORT</option>
+              </optgroup>
+              <optgroup label="Manoeuvring &amp; passage">
+                <option>START OF SEA PASSAGE</option>
+                <option>END OF SEA PASSAGE</option>
+                <option>CHANGE SPEED</option>
+              </optgroup>
+              <optgroup label="Arrival">
+                <option>ARRIVAL - STANDBY</option>
+                <option>ARRIVAL - FINISHED ENGINE</option>
+              </optgroup>
+              <optgroup label="ECA">
+                <option>ECA - ENTRY</option>
+                <option>ECA - EXIT</option>
+              </optgroup>
+              <optgroup label="Bunkering">
+                <option>BUNKERING</option>
+                <option>BUNKER SURVEY</option>
+              </optgroup>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Condition stays L — Laden. A noon at sea sets the clock to 12:00. No clock change this period.</p>
+        <div class="btn-row">
+          <button type="button" class="btn small">−1 hour</button>
+          <button type="button" class="btn small">−30 min</button>
+          <button type="button" class="btn small">+30 min</button>
+          <button type="button" class="btn small">+1 hour</button>
+        </div>
+        <p class="hint">The zone list only labels the clock. +1 hour makes noon-to-noon 23 h. Distance, RPM and slip are calculated after you save. ECA position appears only on an ECA report.</p>
+      </div>
+      <div class="step-nav"><button type="button" class="btn primary" data-next>Next — flowmeters</button></div>
+    </section>
+
+    <section class="step" data-step="2">
+      <div class="unit">
+        <h3>Main engine</h3>
+        <p class="note">Present flowmeter and the fuel the main engine is burning. Previous 181,890.2</p>
+        <div class="grid g2">
+          <label class="field"><span>Fuel meter</span><input inputmode="decimal" value="184420.6"></label>
+          <label class="field"><span>Fuel type</span>
+            <select><option>HFO</option><option selected>VLSFO</option><option>MDO/MGO</option><option>LSMGO</option></select>
+          </label>
+          <label class="field calc"><span>Spec. gravity</span><input readonly value="0.991"></label>
+        </div>
+        <p class="prev">From density 991.0 kg/m³ ÷ 1000. Not typed here.</p>
+      </div>
+      <div class="unit">
+        <h3>Generator</h3>
+        <p class="note">Present generator flowmeter. Previous 41,602.0</p>
+        <div class="grid g2">
+          <label class="field"><span>Fuel meter</span><input inputmode="decimal" value="42018.4"></label>
+          <label class="field"><span>Fuel type</span>
+            <select><option>HFO</option><option selected>MDO/MGO</option><option>LSFO</option><option>LSMGO</option></select>
+          </label>
+          <label class="field calc"><span>Spec. gravity</span><input readonly value="0.870"></label>
+        </div>
+      </div>
+      <div class="unit">
+        <h3>Boiler</h3>
+        <p class="note">Present boiler fuel meter. Previous 12,766.0</p>
+        <div class="grid g2">
+          <label class="field"><span>Fuel meter</span><input inputmode="decimal" value="12840.0"></label>
+          <label class="field"><span>Fuel type</span>
+            <select><option>HFO</option><option>MDO/MGO</option><option selected>LSMGO</option></select>
+          </label>
+          <label class="field calc"><span>Spec. gravity</span><input readonly value="0.860"></label>
+        </div>
+      </div>
+      <p class="hint">On Windows these three sit in one row, and Enter Flowmeters… opens them in a popup. On a phone this step is that popup.</p>
+      <div class="step-nav">
+        <button type="button" class="btn" data-prev>Back</button>
+        <button type="button" class="btn primary" data-next>Next — oil &amp; water</button>
+      </div>
+    </section>
+
+    <section class="step" data-step="3">
+      <div class="unit">
+        <h3>Cylinder oil</h3>
+        <p class="note">Present cylinder-oil meter and the TBN grade in use. Previous 8,700.0</p>
+        <div class="grid g2">
+          <label class="field"><span>Cylinder oil meter</span><input inputmode="decimal" value="8842.1"></label>
+          <label class="field"><span>TBN in use</span><select><option selected>HIGH</option><option>LOW</option></select></label>
+        </div>
+      </div>
+      <div class="unit">
+        <h3>Rev. counter</h3>
+        <p class="note">Cumulative revolutions, and the hours the main engine turned this report. Previous counter 481,102,216</p>
+        <div class="grid g2">
+          <label class="field"><span>Rev. counter (cumulative)</span><input inputmode="numeric" value="482210440"></label>
+          <label class="field"><span>M/E run hours (this report)</span><input inputmode="decimal" value="23.6"></label>
+          <label class="field calc"><span>M/E avg RPM (from run hours)</span><input readonly value="76.4"></label>
+        </div>
+        <p class="prev">RPM = (rev. counter − previous) ÷ (run hours × 60).</p>
+      </div>
+      <div class="unit">
+        <h3>FWG flowmeter</h3>
+        <p class="note">Cumulative fresh-water generator meter. Produced and consumed water are calculated. Previous 608.10 m³</p>
+        <div class="grid g2">
+          <label class="field"><span>Tank for production</span><select><option>F.W.TK.P</option><option>F.W.TK.S</option></select></label>
+          <label class="field"><span>Tank for consumption</span><select><option>F.W.TK.S</option><option>F.W.TK.P</option></select></label>
+          <label class="field"><span>FWG flowmeter (cumulative, m³)</span><input inputmode="decimal" value="612.40"></label>
+          <label class="field calc"><span>Produced (m³)</span><input readonly value="4.30"></label>
+          <label class="field calc"><span>Consumed (m³)</span><input readonly value="6.10"></label>
+          <label class="field calc"><span>Total FW ROB (m³)</span><input readonly value="146.20"></label>
+        </div>
+      </div>
+      <div class="step-nav">
+        <button type="button" class="btn" data-prev>Back</button>
+        <button type="button" class="btn primary" data-next>Review</button>
+      </div>
+    </section>
+
+    <section class="step" data-step="4">
+      <div class="band">
+        <h2>Live calculation preview</h2>
+        <p class="sub">Filled when you save. Shown here so the watch can see the noon before it is filed.</p>
+        <div class="stat-row">
+          <div class="stat"><b>24.0 h</b><span>Period hrs</span></div>
+          <div class="stat"><b>298.2 nm</b><span>Distance run</span></div>
+          <div class="stat"><b>76.4</b><span>M/E avg RPM</span></div>
+          <div class="stat"><b>3.8%</b><span>Slip</span></div>
+          <div class="stat"><b>18.640 MT</b><span>M/E cons · VLSFO</span></div>
+          <div class="stat"><b>1.820 MT</b><span>G/E cons · MDO/MGO</span></div>
+          <div class="stat"><b>0.640 MT</b><span>Boiler · LSMGO</span></div>
+          <div class="stat"><b>142 L</b><span>Cyl. oil · HIGH</span></div>
+        </div>
+        <p class="hint">Fuel in use this noon: main engine VLSFO (LCV from the tank register), generator MDO/MGO, boiler LSMGO. A drift against the tank book is warned at the next monitoring, not on this form.</p>
+      </div>
+      <details class="fold" open>
+        <summary>Last saved entry — 26 Nov 12:00 · NOON - AT SEA</summary>
+        <div class="stat-row">
+          <div class="stat"><b>181,890.2</b><span>M/E meter</span></div>
+          <div class="stat"><b>41,602.0</b><span>G/E meter</span></div>
+          <div class="stat"><b>12,766.0</b><span>Boiler meter</span></div>
+          <div class="stat"><b>8,700.0</b><span>Cyl. oil meter</span></div>
+          <div class="stat"><b>481,102,216</b><span>Rev. counter</span></div>
+          <div class="stat"><b>608.10 m³</b><span>FWG meter</span></div>
+        </div>
+      </details>
+      <div class="step-nav">
+        <button type="button" class="btn" data-prev>Back</button>
+        <button type="button" class="btn primary">Save entry</button>
+      </div>
+    </section>
+  </template>
+  <script src="station.js"></script>
+</body>
+</html>

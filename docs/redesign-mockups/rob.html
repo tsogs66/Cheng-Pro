@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROB — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="rob" data-side="voyage" data-module="voyage" data-voy="rob">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>ROB · remaining on board from the voyage log</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>ROB</h1>
+        <p>Remaining on board · voyage 26-14 · as of the latest log</p>
+      </div>
+      <button type="button" class="btn primary">Print ROB sheet</button>
+    </header>
+
+    <section class="band">
+      <h2>Show R.O.B. as of</h2>
+      <div class="grid g2">
+        <label class="field"><span>Report</span>
+          <select>
+            <option selected>Now — latest R.O.B.</option>
+            <option>26 Nov 12:00 · NOON - AT SEA</option>
+            <option>25 Nov 12:00 · NOON - AT SEA</option>
+          </select>
+        </label>
+        <div class="field"><span> </span><button type="button" class="btn">Back to latest</button></div>
+      </div>
+      <p class="hint">Pick a report to see what was on board then. Print uses that same sheet. A receipt dated after the chosen report is not in these figures yet.</p>
+    </section>
+
+    <div class="sound-total">
+      <div>VLSFO<br><b>812.250</b></div>
+      <div>LSMGO<br><b>86.200</b></div>
+      <div>MDO<br><b>24.100</b></div>
+      <div>FW m³<br><b>146.20</b></div>
+    </div>
+
+    <section class="band">
+      <h2>Fuel — remaining on board</h2>
+      <div class="cards">
+        <article class="card"><div class="k">VLSFO · present</div><div class="v">812.250<span class="u">MT</span></div><div class="s">Opening 980.000 · Received 0.000 · Consumed 167.750 · corr +0.200 vs sounding</div></article>
+        <article class="card"><div class="k">LSMGO · present</div><div class="v">86.200<span class="u">MT</span></div><div class="s">Opening 120.000 · Received 0.000 · Consumed 33.800</div></article>
+        <article class="card"><div class="k">MDO/MGO · present</div><div class="v">24.100<span class="u">MT</span></div><div class="s">Opening 30.000 · Received 0.000 · Consumed 5.900</div></article>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Lube oil — remaining on board</h2>
+      <div class="cards">
+        <article class="card"><div class="k">CYL HIGH</div><div class="v">8,420<span class="u">L</span></div><div class="s">Opening 12,000 · Consumed 3,580</div></article>
+        <article class="card"><div class="k">CYL LOW</div><div class="v">4,100<span class="u">L</span></div><div class="s">Opening 5,000 · Consumed 900</div></article>
+        <article class="card"><div class="k">ME SYS OIL</div><div class="v">14,200<span class="u">L</span></div><div class="s">Opening 16,400 · Consumed 2,200</div></article>
+        <article class="card"><div class="k">GE SYS OIL</div><div class="v">3,350<span class="u">L</span></div><div class="s">Opening 3,800 · Consumed 450</div></article>
+      </div>
+      <div class="stat-row" style="margin-top:8px">
+        <div class="stat"><b>30,070 L</b><span>Total present</span></div>
+        <div class="stat"><b>7,130 L</b><span>Total consumed</span></div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Fresh water — remaining on board</h2>
+      <article class="card"><div class="k">Fresh water</div><div class="v">146.20<span class="u">m³</span></div><div class="s">Opening 180.00 · Consumed 33.80 · F.W.TK.P + F.W.TK.S</div></article>
+    </section>
+
+    <section class="band">
+      <h2>Tank survey beside the log</h2>
+      <p class="hint">Weight in air from Tank Chief, next to this log. Survey minus log. The log stays as it is.</p>
+      <div class="cards">
+        <article class="card"><div class="k">VLSFO</div><div class="v">+0.200<span class="u">MT</span></div><div class="s">Survey 812.450 · log 812.250</div></article>
+        <article class="card"><div class="k">LSMGO</div><div class="v">0.000<span class="u">MT</span></div><div class="s">Survey 86.200 · log 86.200</div></article>
+        <article class="card"><div class="k">MDO/MGO</div><div class="v">0.000<span class="u">MT</span></div><div class="s">Survey 24.100 · log 24.100</div></article>
+      </div>
+    </section>
+  </template>
+  <script src="station.js"></script>
+</body>
+</html>

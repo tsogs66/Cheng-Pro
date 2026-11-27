@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soundings — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="soundings" data-side="tanks" data-module="tanks" data-tank="fuel-report">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>Tank soundings · Monitoring · fuel oil report</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>Soundings</h1>
+        <p>Fuel oil report · Monitoring · weight in air · ASTM 54B / 56</p>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn primary">Print &amp; save</button>
+        <button type="button" class="btn">Save only</button>
+        <button type="button" class="btn">Print only</button>
+      </div>
+    </header>
+
+    <div class="sound-total">
+      <div><span class="k">VLSFO</span><br><b>812.450</b> <span style="color:var(--muted);font-size:12px">MT air</span></div>
+      <div><span class="k">LSMGO + MDO</span><br><b>110.300</b></div>
+      <div><span class="k">vs log</span><br><b>+0.200</b></div>
+    </div>
+
+    <details class="band head-fold" open>
+      <summary>Draft F 8.42 / A 9.86 · trim −1.44 m · heel +0.4° · SW 26°C · ER 34°C</summary>
+      <h2>Report header</h2>
+      <div class="grid g4">
+        <label class="field"><span>Voyage</span><input value="26-14"></label>
+        <label class="field"><span>Report</span>
+          <select>
+            <option>Arrival</option>
+            <option>Departure</option>
+            <option selected>Monitoring</option>
+            <option>Pre-Bunkering</option>
+            <option>Bunker Survey</option>
+            <option>Bunker Survey - Charterer</option>
+            <option>Bunker Survey - Owner</option>
+          </select>
+        </label>
+        <label class="field"><span>Date</span><input value="2026-11-27"></label>
+        <label class="field"><span>Time</span><input value="08:10"></label>
+        <label class="field"><span>Port</span><input value="At sea"></label>
+        <label class="field"><span>Description</span><input value="Noon soundings, before filing the log"></label>
+        <label class="field"><span>Draft fwd</span><input value="8.42"></label>
+        <label class="field"><span>Draft aft</span><input value="9.86"></label>
+        <label class="field calc"><span>Mean draft</span><input readonly value="9.14"></label>
+        <label class="field calc"><span>Trim</span><input readonly value="−1.44 m by the stern"></label>
+        <label class="field"><span>Heel (°)</span><input value="0.4"></label>
+        <label class="field"><span>SW temp.</span><input value="26"></label>
+        <label class="field"><span>ER temp.</span><input value="34"></label>
+      </div>
+      <p class="hint">Heel: negative is port, positive is starboard. Trim is draft forward minus draft aft. Positive is down by the bow. This ship is −1.44 m, down by the stern. Calibration is read at that trim.</p>
+    </details>
+
+    <div class="legend">
+      <span><i></i>Actual cm, method, temp, fuel — you type these</span>
+      <span><i class="calc"></i>VCF, GSV, WCF, weight — calculated</span>
+    </div>
+
+    <div class="sound-cards">
+      <article class="sound-card">
+        <header><b>NO.1 H.F.O. TANK (P)</b><span>ULLAGE</span></header>
+        <div class="meta">VLSFO · storage · port · 100% 349 m³</div>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="420.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="38.0"></label>
+        </div>
+        <div class="wt">248.200 MT</div>
+        <div class="meta">72% · 251.200 m³ · density 0.9910 · VCF 0.9821 · GSV 246.7 · WCF 1.0062</div>
+      </article>
+      <article class="sound-card">
+        <header><b>NO.1 H.F.O. TANK (S)</b><span>ULLAGE</span></header>
+        <div class="meta">VLSFO · storage · starboard</div>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="438.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="38.5"></label>
+        </div>
+        <div class="wt">241.100 MT</div>
+        <div class="meta">69% · 243.600 m³ · VCF 0.9816 · GSV 239.1</div>
+      </article>
+      <article class="sound-card">
+        <header><b>NO.2 H.F.O. TANK (P)</b><span>ULLAGE</span></header>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="890.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="36.0"></label>
+        </div>
+        <div class="wt">112.400 MT</div>
+        <div class="meta">41% · 114.000 m³</div>
+      </article>
+      <article class="sound-card">
+        <header><b>NO.2 H.F.O. TANK (S)</b><span>ULLAGE</span></header>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="910.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="36.0"></label>
+        </div>
+        <div class="wt">108.600 MT</div>
+        <div class="meta">40% · 110.200 m³</div>
+      </article>
+      <article class="sound-card">
+        <header><b>LS H.F.O. SETTLING TANK</b><span>ULLAGE</span></header>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="210.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="55.0"></label>
+        </div>
+        <div class="wt">62.400 MT</div>
+        <div class="meta">64% · 63.100 m³ · settling</div>
+      </article>
+      <article class="sound-card low">
+        <header><b>LS H.F.O. SERVICE TANK</b><span>ULLAGE</span></header>
+        <div class="meta">Service · 18% · low</div>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="640.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="62.0"></label>
+        </div>
+        <div class="wt">18.200 MT</div>
+        <div class="meta">18.400 m³ · density still 0.9910</div>
+      </article>
+      <article class="sound-card">
+        <header><b>H.F.O OVERFLOW TANK</b><span>ULLAGE</span></header>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="1840"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="40.0"></label>
+        </div>
+        <div class="wt">21.550 MT</div>
+        <div class="meta">8% · 21.800 m³</div>
+      </article>
+      <article class="sound-card">
+        <header><b>MDO STORAGE TANK (P)</b><span>DIP</span></header>
+        <div class="meta">MDO/MGO · dip 0 cm would be empty</div>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="48.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="30.0"></label>
+        </div>
+        <div class="wt">10.200 MT</div>
+        <div class="meta">42% · 11.800 m³</div>
+      </article>
+      <article class="sound-card">
+        <header><b>MGO SERVICE TANK</b><span>ULLAGE</span></header>
+        <div class="meta">LSMGO</div>
+        <div class="pair">
+          <label class="field"><span>Actual (cm)</span><input inputmode="decimal" value="90.0"></label>
+          <label class="field"><span>Temp °C</span><input inputmode="decimal" value="35.0"></label>
+        </div>
+        <div class="wt">23.800 MT</div>
+        <div class="meta">55% · 27.700 m³ · LSMGO</div>
+      </article>
+    </div>
+
+    <section class="band sound-sheet">
+      <h2>HFO / VLSFO</h2>
+      <div class="scroll-x">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="left">Tank</th><th>Fuel</th><th>Actual cm</th><th>Method</th><th>Temp</th>
+              <th>100% m³</th><th>Measured m³</th><th>Vol %</th><th>Density</th>
+              <th>VCF 54B</th><th>GSV m³</th><th>WCF 56</th><th>Weight MT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">NO.1 H.F.O. TANK (P)</td><td>VLSFO</td><td>420.0</td><td>ULLAGE</td><td>38.0</td><td>349.0</td><td>251.200</td><td>72</td><td>0.9910</td><td>0.9821</td><td>246.702</td><td>1.0062</td><td>248.200</td></tr>
+            <tr><td class="name">NO.1 H.F.O. TANK (S)</td><td>VLSFO</td><td>438.0</td><td>ULLAGE</td><td>38.5</td><td>353.0</td><td>243.600</td><td>69</td><td>0.9910</td><td>0.9816</td><td>239.118</td><td>1.0062</td><td>241.100</td></tr>
+            <tr><td class="name">NO.2 H.F.O. TANK (P)</td><td>VLSFO</td><td>890.0</td><td>ULLAGE</td><td>36.0</td><td>278.0</td><td>114.000</td><td>41</td><td>0.9910</td><td>0.9834</td><td>112.108</td><td>1.0061</td><td>112.400</td></tr>
+            <tr><td class="name">NO.2 H.F.O. TANK (S)</td><td>VLSFO</td><td>910.0</td><td>ULLAGE</td><td>36.0</td><td>276.0</td><td>110.200</td><td>40</td><td>0.9910</td><td>0.9834</td><td>108.371</td><td>1.0061</td><td>108.600</td></tr>
+            <tr><td class="name">LS H.F.O. SETTLING TANK</td><td>VLSFO</td><td>210.0</td><td>ULLAGE</td><td>55.0</td><td>99.0</td><td>63.100</td><td>64</td><td>0.9910</td><td>0.9688</td><td>61.131</td><td>1.0055</td><td>62.400</td></tr>
+            <tr class="low"><td class="name">LS H.F.O. SERVICE TANK</td><td>VLSFO</td><td>640.0</td><td>ULLAGE</td><td>62.0</td><td>102.0</td><td>18.400</td><td>18</td><td>0.9910</td><td>0.9632</td><td>17.723</td><td>1.0052</td><td>18.200</td></tr>
+            <tr><td class="name">H.F.O OVERFLOW TANK</td><td>VLSFO</td><td>1840</td><td>ULLAGE</td><td>40.0</td><td>272.0</td><td>21.800</td><td>8</td><td>0.9910</td><td>0.9804</td><td>21.373</td><td>1.0060</td><td>21.550</td></tr>
+          </tbody>
+          <tfoot><tr><td class="left" colspan="5">HFO/VLSFO TOTAL</td><td>1,729</td><td>822.3</td><td></td><td></td><td></td><td>806.5</td><td></td><td>812.450</td></tr></tfoot>
+        </table>
+      </div>
+      <p class="hint">85% limit on this block is the safe-fill line used on the tank drawing. Trim correction and heel correction are in the calculation sheet under the grid on the live page.</p>
+      <h2 style="margin-top:12px">MO / MGO / LSMGO</h2>
+      <div class="scroll-x">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="left">Tank</th><th>Fuel</th><th>Actual cm</th><th>Method</th><th>Temp</th>
+              <th>Measured m³</th><th>Vol %</th><th>VCF 54B</th><th>Weight MT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">MDO STORAGE TANK (P)</td><td>MDO/MGO</td><td>48.0</td><td>DIP</td><td>30.0</td><td>11.800</td><td>42</td><td>0.9880</td><td>10.200</td></tr>
+            <tr><td class="name">MDO STORAGE TANK (S)</td><td>MDO/MGO</td><td>52.0</td><td>DIP</td><td>30.0</td><td>10.900</td><td>38</td><td>0.9880</td><td>9.400</td></tr>
+            <tr><td class="name">MDO SETTLING TANK</td><td>MDO/MGO</td><td>80.0</td><td>ULLAGE</td><td>42.0</td><td>5.200</td><td>28</td><td>0.9784</td><td>4.500</td></tr>
+            <tr><td class="name">MGO STORAGE TANK (S)</td><td>LSMGO</td><td>36.0</td><td>DIP</td><td>28.0</td><td>72.600</td><td>74</td><td>0.9892</td><td>62.400</td></tr>
+            <tr><td class="name">MGO SERVICE TANK</td><td>LSMGO</td><td>90.0</td><td>ULLAGE</td><td>35.0</td><td>27.700</td><td>55</td><td>0.9840</td><td>23.800</td></tr>
+          </tbody>
+          <tfoot><tr><td class="left" colspan="5">MO/MGO/LSMGO TOTAL</td><td>127.7</td><td></td><td></td><td>110.300</td></tr></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>Grade check against the log</h2>
+      <div class="scroll-x">
+        <table class="data fit">
+          <thead><tr><th class="left">Grade</th><th>Monitoring</th><th>Log book</th><th>Difference</th></tr></thead>
+          <tbody>
+            <tr><td class="left">VLSFO</td><td>812.450</td><td>812.250</td><td>+0.200</td></tr>
+            <tr><td class="left">LSMGO</td><td>86.200</td><td>86.200</td><td>0.000</td></tr>
+            <tr><td class="left">MDO/MGO</td><td>24.100</td><td>24.100</td><td>0.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">VLSFO is 0.200 MT over the log, inside the 0.5 MT line, so the row is not flagged. A gap over 0.5 MT turns the row off-colour on the live sheet. Distillate agrees with the log (LSMGO 86.200 + MDO/MGO 24.100). Chief Engineer in post signs the live sheet; a filed sheet keeps the officer who signed it.</p>
+    </section>
+  </template>
+  <script src="station.js"></script>
+</body>
+</html>

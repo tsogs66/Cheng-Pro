@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calibration — Cheng Station mockup</title>
+  <link rel="stylesheet" href="station.css">
+</head>
+<body data-page="calibration" data-side="tanks" data-module="tanks" data-tank="calibration">
+  <div class="mockbar" id="mockbar">
+    <b>MOCKUP</b>
+    <span>Calibration database · sounding × trim</span>
+    <button type="button" data-set-theme="night">Night</button>
+    <button type="button" data-set-theme="day">Day</button>
+    <label>Product <select data-product>
+      <option value="aio">ChEng AIO</option>
+      <option value="voyage">Voyage Chief</option>
+      <option value="tank">Tank Chief</option>
+    </select></label>
+    <a href="index.html">All screens</a>
+  </div>
+  <div id="app"></div>
+  <template id="page">
+    <header class="page-h">
+      <div>
+        <h1>Calibration DB</h1>
+        <p>Sounding tables. Edit here, or bring in CSV, Excel or a scanned book.</p>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn primary">Print all fuel calibration</button>
+        <button type="button" class="btn">Check table types</button>
+        <button type="button" class="btn">Import workbook</button>
+        <button type="button" class="btn">CSV template</button>
+      </div>
+    </header>
+
+    <section class="band">
+      <h2>Tanks</h2>
+      <div class="cards">
+        <article class="card"><div class="k">NO.1 H.F.O. TANK (P)</div><div class="v">Tables</div><div class="s">Fuel · storage · direct · 100% 349 m³ · 85% 297 m³</div></article>
+        <article class="card"><div class="k">NO.1 H.F.O. TANK (S)</div><div class="v">Tables</div><div class="s">Fuel · storage · 100% 353 m³ · 85% 300 m³</div></article>
+        <article class="card"><div class="k">MDO STORAGE TANK (P)</div><div class="v">Tables</div><div class="s">Fuel · storage · 100% 28 m³ · 85% 24 m³</div></article>
+        <article class="card"><div class="k">F.W.TK.P</div><div class="v">Needs data</div><div class="s">Water · 100% 90 m³ · open to enter a curve</div></article>
+      </div>
+      <p class="hint">Check table types reads what each book actually holds before anything is written. Apply is a separate step. A heel correction in millimetres must not be taken off as cubic metres.</p>
+    </section>
+
+    <section class="band">
+      <h2>NO.1 H.F.O. TANK (P)</h2>
+      <p class="sub">Row headers are sounding / ullage in cm. Column headers are trim in metres. Volumes are m³. Sample rows, not the ship’s book.</p>
+      <label class="field cal-pick"><span>Trim column, for a narrow screen</span>
+        <select id="cal-trim">
+          <option value="0">Trim 0.0 m</option>
+          <option value="0.5">Trim 0.5 m</option>
+          <option value="1" selected>Trim 1.0 m</option>
+          <option value="1.5">Trim 1.5 m</option>
+          <option value="2">Trim 2.0 m</option>
+        </select>
+      </label>
+
+      <div class="cal-phone" data-trim-col="0" hidden>
+        <div class="stat-row">
+          <div class="stat"><b>0.0</b><span>0 cm · m³</span></div>
+          <div class="stat"><b>48.2</b><span>100 cm · m³</span></div>
+          <div class="stat"><b>96.4</b><span>200 cm · m³</span></div>
+          <div class="stat"><b>142.0</b><span>300 cm · m³</span></div>
+          <div class="stat"><b>186.5</b><span>400 cm · m³</span></div>
+          <div class="stat"><b>228.0</b><span>500 cm · m³</span></div>
+        </div>
+      </div>
+      <div class="cal-phone" data-trim-col="0.5" hidden>
+        <div class="stat-row">
+          <div class="stat"><b>0.0</b><span>0 cm · m³</span></div>
+          <div class="stat"><b>47.6</b><span>100 cm · m³</span></div>
+          <div class="stat"><b>95.1</b><span>200 cm · m³</span></div>
+          <div class="stat"><b>140.2</b><span>300 cm · m³</span></div>
+          <div class="stat"><b>184.0</b><span>400 cm · m³</span></div>
+          <div class="stat"><b>225.4</b><span>500 cm · m³</span></div>
+        </div>
+      </div>
+      <div class="cal-phone" data-trim-col="1">
+        <div class="stat-row">
+          <div class="stat"><b>0.0</b><span>0 cm · m³</span></div>
+          <div class="stat"><b>46.8</b><span>100 cm · m³</span></div>
+          <div class="stat"><b>93.6</b><span>200 cm · m³</span></div>
+          <div class="stat"><b>138.0</b><span>300 cm · m³</span></div>
+          <div class="stat"><b>181.2</b><span>400 cm · m³</span></div>
+          <div class="stat"><b>222.0</b><span>500 cm · m³</span></div>
+        </div>
+      </div>
+      <div class="cal-phone" data-trim-col="1.5" hidden>
+        <div class="stat-row">
+          <div class="stat"><b>0.0</b><span>0 cm · m³</span></div>
+          <div class="stat"><b>45.9</b><span>100 cm · m³</span></div>
+          <div class="stat"><b>91.8</b><span>200 cm · m³</span></div>
+          <div class="stat"><b>135.4</b><span>300 cm · m³</span></div>
+          <div class="stat"><b>178.0</b><span>400 cm · m³</span></div>
+          <div class="stat"><b>218.2</b><span>500 cm · m³</span></div>
+        </div>
+      </div>
+      <div class="cal-phone" data-trim-col="2" hidden>
+        <div class="stat-row">
+          <div class="stat"><b>0.0</b><span>0 cm · m³</span></div>
+          <div class="stat"><b>44.8</b><span>100 cm · m³</span></div>
+          <div class="stat"><b>89.6</b><span>200 cm · m³</span></div>
+          <div class="stat"><b>132.2</b><span>300 cm · m³</span></div>
+          <div class="stat"><b>174.4</b><span>400 cm · m³</span></div>
+          <div class="stat"><b>214.0</b><span>500 cm · m³</span></div>
+        </div>
+      </div>
+
+      <div class="cal-grid scroll-x">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="left">Sounding cm</th>
+              <th>Trim 0.0 m</th>
+              <th>Trim 0.5 m</th>
+              <th>Trim 1.0 m</th>
+              <th>Trim 1.5 m</th>
+              <th>Trim 2.0 m</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr>
+            <tr><td class="name">100</td><td>48.2</td><td>47.6</td><td>46.8</td><td>45.9</td><td>44.8</td></tr>
+            <tr><td class="name">200</td><td>96.4</td><td>95.1</td><td>93.6</td><td>91.8</td><td>89.6</td></tr>
+            <tr><td class="name">300</td><td>142.0</td><td>140.2</td><td>138.0</td><td>135.4</td><td>132.2</td></tr>
+            <tr><td class="name">400</td><td>186.5</td><td>184.0</td><td>181.2</td><td>178.0</td><td>174.4</td></tr>
+            <tr><td class="name">500</td><td>228.0</td><td>225.4</td><td>222.0</td><td>218.2</td><td>214.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">On a phone you read one trim at a time, down the page. The full grid is there from tablet landscape upward, and it can scroll sideways with the sounding column kept in view. Heel / list is the second table on the live editor, same pattern.</p>
+    </section>
+  </template>
+  <script src="station.js"></script>
+</body>
+</html>
