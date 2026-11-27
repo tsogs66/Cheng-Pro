@@ -263,6 +263,8 @@
   function watchHtml() {
     return [
       '<span><span class="k">Ship</span> <b>12:00 UTC+8</b></span>',
+      '<span><span class="k">Pos</span> <b>12°18.4\'N 112°40.2\'E</b></span>',
+      '<span><span class="k">Cse</span> <b>048° T</b></span>',
       '<span><span class="k">Next</span> <b>Singapore → Zhoushan</b></span>',
       '<span><span class="k">ROB MT</span> VLSFO <b>812.250</b> · LSMGO <b>86.200</b> · MDO <b>24.100</b></span>',
       '<span><span class="k">Sludge</span> <b>22%</b></span>',
@@ -276,7 +278,7 @@
       + '<header class="top">'
       + '<button type="button" class="menu-btn" data-open-sheet aria-label="All sections">Menu</button>'
       + '<a class="brand" href="' + href('home') + '"><span class="mark">CH</span><span><b>ChEng AIO</b><small>Marine engineer suite</small></span></a>'
-      + '<div class="vessel-plate"><strong>MV GIORGIS · L</strong><span class="top-sub">IMO 1234567 · Panama · Bulk carrier · UTC+8</span></div>'
+      + '<div class="vessel-plate"><strong><span class="plimsoll" title="Laden" aria-hidden="true"></span>MV GIORGIS · L</strong><span class="top-sub">IMO 1234567 · Panama · 12°18\'N 112°40\'E · UTC+8</span></div>'
       + '<div class="top-tools">'
       + '<a class="lamp" href="' + href('backup') + '" title="Offline. Last sync 06:40. Open leg kept."><i></i><span>Offline</span><span class="lamp-long"> · 06:40</span></a>'
       + '<span class="clock"><span class="clock-date">27 Nov </span>12:00<span class="clock-tz"> UTC+8</span></span>'

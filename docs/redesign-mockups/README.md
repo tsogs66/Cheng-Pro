@@ -6,15 +6,15 @@ Figures are one sample watch on MV GIORGIS so the same noon, the same ROB and th
 
 ## Direction
 
-The work is an engine-control-room board, not a consumer app.
+The work is an engine-control-room console, not a flat consumer screen. A chief engineer should recognise the surfaces before reading a label.
 
-Night is the default, for a dim control room and a phone at night. The ground is a blue-black steel (`#0b1218`), panels sit one step lighter, and the reading colour is a cool off-white. Amber is the active mark and the caution. A desaturated teal is the calculated / link colour. Red is reserved for a real alarm (the weekly OWS test). Fuel, distillate, lube and fresh water keep the pipe colours the suite already uses, dulled so they do not glow.
+Night is painted plate over blue-black steel (`#0b1218`). The ground carries a faint chart grid and a brushed-metal grain. Panels are raised: a light edge on top, a dark edge underneath, a soft drop shadow, and a rivet at each corner. Inputs sit in a recessed well, the way a meter window sits in a gauge. Day keeps the same consoles on chart paper (`#e6e0d2`), with a paper grain and a brown chart grid so the board stays readable in sun. Amber, teal and red are the lamp colours: caution, calculated, alarm. Fuel, distillate, lube and fresh water keep the pipe colours the suite already uses.
 
-Day is a chart-table paper (`#e6e0d2`) with the same amber and teal darkened so they stay readable in sun. It is the Bright control, moved into the top bar.
+Buttons are push-buttons. A rim, a highlight along the top edge, and a shadow under the button make them stand off the plate. Pressing one (or leaving it on) sinks it and lights a lamp: amber for the active control, green when a state is in date, red for the OWS alarm. On a phone, Noon and Soundings are solid brass console keys on the bottom bar and again as the two large keys at the top of Home. The offline pill is a lamp bezel, not a flat chip.
 
-Type is Inter for labels and JetBrains Mono for figures, both already on the machines that build this repo, and both safe to bundle later because the apps must not call a font server at sea. Nothing on screen is under 12px. Buttons and inputs are 44px tall on a phone or tablet, and tighten slightly on Windows so a 768px-tall laptop still has room for the form.
+The maritime marks are structural, not pictures. Section titles are stencil-style plate stamps (wide mono capitals, a brass rule). The ship name carries a small load-line disc. The watch strip and the passage give course and a noon position in degrees and minutes. A compass card sits beside that position: a ring and a north needle, not a drawing of a ship. Tank levels are sight glasses with ticks and the 85% line. The old hull, waves and rain are still not here. Every figure they showed is still on the passage tape.
 
-There is no illustrated ship, no weather animation, and no emoji in the menu. The voyage drawing on today’s Home carried a hull, waves, rain and a wind compass. Those pictures are gone. Every number they showed is still on the passage tape.
+Type is Inter for reading and JetBrains Mono for figures and plate stamps. Nothing on screen is under 12px. Touch targets stay 44px on a phone or tablet, and tighten on Windows so a 768px-tall laptop still has room for the form.
 
 ## Navigation
 
